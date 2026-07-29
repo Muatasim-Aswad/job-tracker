@@ -238,6 +238,13 @@ describe("parseRelativeAge properties", () => {
     }
     expect(parseRelativeAge("2 months ago", "")).toBeNull();
   });
+
+  it("rejects long untrusted text without ambiguous-regexp backtracking", () => {
+    const spaces = " ".repeat(100_000);
+    expect(parseRelativeAge(`1${spaces}x`, "2026-07-03T12:00:00Z")).toBeNull();
+    expect(parseRelativeAge(`posted${spaces}1 day${spaces}x`, "2026-07-03T12:00:00Z")).toBeNull();
+    expect(postedGrain(`1${spaces}x`)).toBeNull();
+  });
 });
 
 // Displayed precision must not exceed the source evidence.
