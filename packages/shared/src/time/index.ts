@@ -1,5 +1,6 @@
 // Shared timeline formatting, relative-age parsing, and local date-input helpers.
 import { platformMeta } from "../platforms";
+import { AGE_RE, BARE_AGE_REMAINDER_RE } from "./relativeAgePatterns";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -100,12 +101,6 @@ const ELAPSED_MS: Partial<Record<AgeUnit, number>> = {
 
 // Reject implausible counts as scrape errors.
 const MAX_COUNT = 1000;
-
-// Scraped and legacy evidence is untrusted. Keep these patterns linear independently
-// of the whitespace normalization at their call sites.
-const AGE_RE =
-  /\b(\d{1,5}|an?|one)(?:\s+|\s*\+\s*)?(minutes?|mins?|hours?|hrs?|days?|weeks?|wks?|months?|mos?|years?|yrs?)\b/;
-const BARE_AGE_REMAINDER_RE = /^(?:posted|reposted|listed)?[^a-z]*$/;
 
 function daysInUtcMonth(year: number, monthIndex: number): number {
   return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
