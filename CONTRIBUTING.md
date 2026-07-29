@@ -1,6 +1,6 @@
 # Contributing and support
 
-Bug reports and focused pull requests are welcome in the repository's [GitHub issue tracker](https://github.com/Muatasim-Aswad/job-tracker/issues). Before opening an issue, search for an existing report and include reproduction steps, expected and actual behavior, platform versions, and relevant logs with personal job or email data removed.
+Bug reports and focused pull requests are welcome in the repository's [GitHub issue tracker](https://github.com/Muatasim-Aswad/job-tracker/issues). Ask usage and support questions in [GitHub Discussions](https://github.com/Muatasim-Aswad/job-tracker/discussions/categories/q-a). Before opening an issue, search for an existing report and include reproduction steps, expected and actual behavior, platform versions, and relevant logs with personal job or email data removed.
 
 For a code change:
 

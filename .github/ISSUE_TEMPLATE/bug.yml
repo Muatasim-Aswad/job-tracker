@@ -1,0 +1,39 @@
+name: Bug report
+description: Report a reproducible defect in Job Tracker.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Do not include personal job, employer, applicant, or email data. Replace identifying values with safe examples before submitting.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the defect and its impact.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How can it be reproduced?
+      description: Provide the smallest reliable sequence of steps.
+      placeholder: |
+        1. Start...
+        2. Open...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: Describe the behavior you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the Job Tracker revision or version, operating system, browser, and relevant logs with personal data removed.
+    validations:
+      required: true

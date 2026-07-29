@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are provided for the latest code on the `main` branch until the project begins publishing versioned releases. Update to the newest revision before reporting an issue that may already be fixed.
+Security fixes are provided for the latest versioned release and the current code on the `main` branch. Update to the newest release or revision before reporting an issue that may already be fixed.
 
 ## Reporting a vulnerability
 
