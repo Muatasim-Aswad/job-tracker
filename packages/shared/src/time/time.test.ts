@@ -245,6 +245,7 @@ describe("relative-age regexp safety", () => {
   it("rejects long raw whitespace runs without ambiguous backtracking", () => {
     const spaces = " ".repeat(100_000);
     expect(AGE_RE.exec(`1${spaces}x`)).toBeNull();
+    expect(AGE_RE.exec(`1${spaces}+${spaces}x`)).toBeNull();
     expect(BARE_AGE_REMAINDER_RE.test(`posted${spaces}x`)).toBe(false);
   });
 });

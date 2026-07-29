@@ -7,7 +7,6 @@ catalog:
 overrides:
   vite: "catalog:"
   "@redocly/openapi-core>js-yaml": "4.3.0"
-  "minimatch@5>brace-expansion": "5.0.8"
 peerDependencyRules:
   allowAny:
     - vite
