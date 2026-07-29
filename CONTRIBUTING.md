@@ -4,9 +4,10 @@ Bug reports and focused pull requests are welcome in the repository's [GitHub is
 
 For a code change:
 
-1. Keep it focused and add or update tests for behavior changes.
-2. Run `bash scripts/check.sh`.
-3. Explain user-visible behavior, privacy implications, and migration needs in the pull request.
+1. Fork the repository, branch from `main`, and open the pull request from your fork — the repository does not grant push access.
+2. Keep it focused and add or update tests for behavior changes.
+3. Run `bash scripts/check.sh`.
+4. Explain user-visible behavior, privacy implications, and migration needs in the pull request.
 
 This is a local-first personal project, not a hosted service. Community support is best-effort, and public-internet deployments are outside the supported threat model. Report security issues privately as described in [`SECURITY.md`](SECURITY.md).
 
