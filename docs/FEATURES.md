@@ -36,7 +36,7 @@ Jobs from sources without a built-in integration can still be created manually f
 
 Decision signals lift useful details out of a listing while retaining the surrounding text:
 
-- required years of experience;
+- required years of experience, including numeric ranges and decimals;
 - languages;
 - pay information;
 - seniority and custom terms;

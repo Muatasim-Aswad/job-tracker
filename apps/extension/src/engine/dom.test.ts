@@ -4,8 +4,8 @@
 // unseen until a reload.
 import { afterEach, describe, expect, it } from "vitest";
 
-import { bannerCurrent, bannerFingerprint, placeBanner } from "./dom";
-import { defaultPolicy, setActivePolicy } from "./keywords";
+import { bannerCurrent, bannerFingerprint, elementToText, placeBanner } from "./dom";
+import { defaultPolicy, keywordFindings, setActivePolicy } from "./keywords";
 
 function anchoredBanner() {
   document.body.innerHTML = '<div id="anchor"></div>';
@@ -15,6 +15,20 @@ function anchoredBanner() {
 
 afterEach(() => {
   document.body.innerHTML = "";
+});
+
+describe("elementToText", () => {
+  it("keeps adjacent blocks separate so they cannot form a numeric keyword", () => {
+    document.body.innerHTML = '<div id="description"><p>3</p><p>years</p></div>';
+    const text = elementToText(document.querySelector("#description"));
+
+    expect(text).toBe("3\nyears");
+    expect(
+      keywordFindings(text!, defaultPolicy()).filter(
+        (finding) => finding.ruleId === "experience-years",
+      ),
+    ).toEqual([]);
+  });
 });
 
 describe("bannerCurrent", () => {

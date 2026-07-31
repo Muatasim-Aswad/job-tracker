@@ -118,7 +118,7 @@ describe("keywordFindings", () => {
       "With over 160 years of experience as a family company.\n" +
       "Typically reflects 1-2 years of relevant experience.";
     const years = keywordFindings(text, policy).filter((f) => f.ruleId === "experience-years");
-    expect(years.map((f) => f.label)).toEqual(["160 years", "2 years"]);
+    expect(years.map((f) => f.label)).toEqual(["160 years", "1-2 years"]);
     // Each finding carries the disambiguating context around its own match.
     expect(years[0].before + years[0].match + years[0].after).toContain("family company");
     expect(years[1].before + years[1].match + years[1].after).toContain("relevant experience");
@@ -128,6 +128,32 @@ describe("keywordFindings", () => {
     const policy = enable("experience-years");
     const found = keywordFindings("Minimaal 3 jaar ervaring vereist.", policy);
     expect(found.map((f) => f.label)).toEqual(["3 jaar"]);
+  });
+
+  it.each([
+    ["3-5 years", "3-5 years"],
+    ["3 - 5 years", "3-5 years"],
+    ["3–5 years", "3-5 years"],
+    ["3—5 years", "3-5 years"],
+    ["3/5 years", "3-5 years"],
+    ["3 to 5 years", "3-5 years"],
+    ["3to5 years", "3-5 years"],
+    ["2 tot 5 jaar", "2-5 jaar"],
+    ["2tot5 jaar", "2-5 jaar"],
+    ["1.5 years", "1.5 years"],
+    ["1,5 jaar", "1,5 jaar"],
+    ["5+ years", "5+ years"],
+    ["3-5+ years", "3-5+ years"],
+  ])("keeps the full numeric experience value in %s", (text, label) => {
+    const found = keywordFindings(text, enable("experience-years"));
+    expect(found.map((f) => f.label)).toEqual([label]);
+    expect(found[0]?.match).toBe(text);
+  });
+
+  it("does not invent ranges from arbitrary separators or across lines", () => {
+    const policy = enable("experience-years");
+    expect(keywordFindings("3 or 5 years", policy).map((f) => f.label)).toEqual(["5 years"]);
+    expect(keywordFindings("3\nyears", policy)).toEqual([]);
   });
 
   it("matches user terms in any script — ASCII \\b would silently miss these", () => {
@@ -155,6 +181,16 @@ describe("keywordFindings", () => {
     const text = "Salary €2.800 gross per month.\nBonus of 1.500 euro on top.";
     const labels = keywordFindings(text, policy).map((f) => f.label);
     expect(labels).toEqual(["€2.800", "1.500 euro"]);
+  });
+
+  it("does not attach a currency amount from another line", () => {
+    const policy = enable("pay");
+    expect(keywordFindings("Budget 2.800\neuro paid.", policy).map((f) => f.label)).toEqual([
+      "euro",
+    ]);
+    expect(keywordFindings("Salary €\n2.800 per month.", policy).map((f) => f.label)).toEqual([
+      "€",
+    ]);
   });
 
   it("flags a currency term with no amount next to it", () => {

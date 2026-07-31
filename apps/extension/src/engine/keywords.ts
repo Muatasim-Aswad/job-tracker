@@ -42,8 +42,9 @@ interface SignalDef {
   // Human-facing name and one-line help for the settings UI.
   label: string;
   help: string;
-  // true → match a count in front of the term ("5+ years"), and the label reads back
-  // the number + unit. Otherwise whole-word match, label is the word.
+  // true → match a count or range before the term; the label reads back the full
+  // numeric value and unit (for example, "5+ years" or "3-5 years"). Otherwise
+  // whole-word match, label is the word.
   numeric?: boolean;
   // true → also take an adjacent amount into the match, before or after the term, so
   // both "€2.800" and "2.800 euro" surface the figure the user is scanning for. The
@@ -63,7 +64,7 @@ export const SIGNAL_CATALOG: SignalDef[] = [
     label: "Experience in years",
     help: "Words that follow the number e.g. years.",
     numeric: true,
-    deriveLabel: (m) => `${m[1]} ${m[2].toLowerCase()}`,
+    deriveLabel: (m) => `${normalizeNumericValue(m[1])} ${m[2].toLowerCase()}`,
     default: {
       enabled: true,
       scope: "description",
@@ -235,6 +236,21 @@ const B_END = "(?![\\p{L}\\p{N}_])";
 // each separator keeps a sentence-ending "." out of the match.
 const AMOUNT = `\\d+(?:[.,]\\d+)*k?${B_END}`;
 
+// Numeric signals accept decimal counts and an optional explicit range separator.
+// Horizontal whitespace is optional around recognized separators to tolerate
+// missing spacing; excluding newlines prevents separate list items from joining.
+const COUNT = "\\d+(?:[.,]\\d+)?";
+const HORIZONTAL_SPACE = "[^\\S\\r\\n]*";
+const RANGE_SEPARATOR = "[-–—/]|tot|to";
+const RANGE_SEPARATOR_RE = new RegExp(
+  `${HORIZONTAL_SPACE}(?:${RANGE_SEPARATOR})${HORIZONTAL_SPACE}`,
+  "iu",
+);
+
+function normalizeNumericValue(value: string): string {
+  return value.replace(RANGE_SEPARATOR_RE, "-");
+}
+
 // Alternation of the signal's terms, each escaped so a term like "c++" matches
 // literally, and word-boundaried only on the edges that are word characters. A sign
 // like "€" gets no boundary there, so it still matches flush against its figure.
@@ -254,9 +270,14 @@ function termAlternation(terms: string[]): string {
 function bodySource(sig: KeywordSignal): string | null {
   const def = DEF_BY_ID.get(sig.id);
   if (!def || !sig.terms.length) return null;
-  if (def.numeric) return `(\\d+\\+?)\\s*(${sig.terms.map(escapeRegExp).join("|")})${B_END}`;
+  if (def.numeric) {
+    const value = `(?:${COUNT}${HORIZONTAL_SPACE}(?:${RANGE_SEPARATOR})${HORIZONTAL_SPACE})?${COUNT}\\+?`;
+    return `(${value})${HORIZONTAL_SPACE}(${sig.terms.map(escapeRegExp).join("|")})${B_END}`;
+  }
   const alt = termAlternation(sig.terms);
-  return def.currency ? `(?:${AMOUNT}\\s*)?(?:${alt})(?:\\s*${AMOUNT})?` : `(?:${alt})`;
+  return def.currency
+    ? `(?:${AMOUNT}${HORIZONTAL_SPACE})?(?:${alt})(?:${HORIZONTAL_SPACE}${AMOUNT})?`
+    : `(?:${alt})`;
 }
 
 function escapeRegExp(s: string): string {
