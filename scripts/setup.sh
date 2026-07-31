@@ -27,21 +27,19 @@ command -v corepack >/dev/null 2>&1 ||
 corepack pnpm --version >/dev/null 2>&1 ||
   fail "pnpm is unavailable through Corepack. Run 'corepack enable' and retry."
 
-command -v python3 >/dev/null 2>&1 ||
-  fail "Python 3.14+ is required. Install Python 3.14, then rerun this command."
-python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 14))' ||
-  fail "Python 3.14+ is required; found $(python3 --version 2>&1)."
-
 command -v uv >/dev/null 2>&1 ||
   fail "uv is required. Install it from https://docs.astral.sh/uv/ and retry."
 
 cd "$ROOT"
+uv python find --project apps/api >/dev/null ||
+  fail "uv could not find or download the Python version required by apps/api/.python-version and apps/api/pyproject.toml. Check the uv error above and retry."
 corepack pnpm install --frozen-lockfile
-uv sync --directory apps/api --frozen
+uv sync --directory apps/api --frozen ||
+  fail "uv could not create the API environment. Check the uv error above and retry."
 corepack pnpm run build:web
 corepack pnpm run build:ext
 
 printf '\nSetup complete.\n'
 printf 'Dashboard: http://localhost:3456\n'
 printf 'Extension directory: %s/apps/extension/dist\n' "$ROOT"
-printf 'Start Job Tracker with: bash scripts/dev.sh\n'
+printf 'Start Job Tracker with: bash scripts/start.sh\n'

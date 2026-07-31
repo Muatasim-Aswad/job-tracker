@@ -1,15 +1,14 @@
 # Development guide
 
-Project-wide policy for working on Job Tracker: the quality gate, what counts as a generated file, how comments and Markdown are written, and the rules that govern migrations and releases.
-
-This guide owns policy only. Where another document is the authority, it links there instead of repeating it:
+Repository-wide contributor setup and policy live here; component-specific implementation and commands stay with their component documentation:
 
 | Topic | Authority |
 | --- | --- |
-| Setup, install, and day-to-day run commands | [`README.md`](../README.md) |
+| End-user prerequisites, setup, install, and normal startup | [`README.md`](../README.md) |
+| Repository-wide contributor setup, full-app launcher, and quality gate | This guide |
 | User-facing features and workflows | [`docs/FEATURES.md`](FEATURES.md) |
 | Component structure and invariants | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
-| API, configuration, database modes, backup/restore | [`apps/api/README.md`](../apps/api/README.md) |
+| API-specific commands, configuration, database modes, backup/restore | [`apps/api/README.md`](../apps/api/README.md) |
 | Extension build, adapters, keyboard controls | [`apps/extension/README.md`](../apps/extension/README.md) |
 | Dashboard development | [`apps/web/README.md`](../apps/web/README.md) |
 | Private/local adapter overlay | [`docs/PRIVATE.md`](PRIVATE.md) |
@@ -17,6 +16,22 @@ This guide owns policy only. Where another document is the authority, it links t
 | Threat model and reporting | [`SECURITY.md`](../SECURITY.md) |
 | Release history | [`CHANGELOG.md`](../CHANGELOG.md) |
 | Contribution and support workflow | [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
+
+## Local development
+
+After cloning or forking the repository, install the prerequisites listed in the root [README](../README.md#requirements), then prepare the whole workspace from the repository root:
+
+```bash
+bash scripts/setup.sh
+```
+
+Start the assembled application for contributor work with:
+
+```bash
+bash scripts/dev.sh
+```
+
+The development launcher performs the same built-dashboard preflight as the normal launcher, binds to `127.0.0.1:3456`, and enables Uvicorn's automatic reload. For a component-only workflow such as Vite hot reload or starting just the API, use the commands in the relevant component README.
 
 ## Quality gate
 
@@ -101,6 +116,6 @@ Individual commits do not bump the version. Bump once while preparing a release,
 
 ## Platform support
 
-Linux and macOS are supported. Windows is not: the setup and run scripts are Bash, `scripts/setup.sh` requires `python3`, and the locked `libsql`/`pyturso` dependency set has no straightforward native-Windows wheel path. WSL2 supplies the supported Linux userspace and those locked Linux wheels, so it may work, but it is currently untested and unsupported.
+Linux and macOS are supported. Windows is not: the setup and run scripts are Bash, and the locked `libsql`/`pyturso` dependency set has no straightforward native-Windows wheel path. WSL2 supplies the supported Linux userspace and those locked Linux wheels, so it may work, but it is currently untested and unsupported.
 
 Supporting native Windows would require supported dependency artifacts or a database-driver decision, portable launcher commands and paths, and a Windows setup/runtime CI smoke test. Until those exist, do not add speculative compatibility edits that no test can hold in place.

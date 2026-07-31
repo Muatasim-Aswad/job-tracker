@@ -11,4 +11,4 @@ For a code change:
 
 This is a local-first personal project, not a hosted service. Community support is best-effort, and public-internet deployments are outside the supported threat model. Report security issues privately as described in [`SECURITY.md`](SECURITY.md).
 
-Project-wide developer policy — the quality gate, generated files, comment and Markdown style, migration compatibility, and release versioning — lives in the [development guide](docs/DEVELOPMENT.md). Read it before your first change.
+Repository-wide contributor setup and developer policy live in the [development guide](docs/DEVELOPMENT.md). Read it before your first change.

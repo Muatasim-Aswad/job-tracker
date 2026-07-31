@@ -2,10 +2,10 @@
 
 Local FastAPI backend for the personal job tracker (see [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)). Runs on **port 3456**, against a libSQL/SQLite file by default, with optional Turso sync for cross-device state.
 
-## Run
+## Run the API directly
 
 ```bash
-uv run uvicorn app.main:app --port 3456 --reload
+uv run uvicorn app.main:app --host 127.0.0.1 --port 3456 --reload
 ```
 
 Every feature route is mounted under `/api` (e.g. `POST /api/events`); OpenAPI docs stay unprefixed at <http://localhost:3456/docs>. The schema is created on startup (`jobtracker.db` in this directory by default).

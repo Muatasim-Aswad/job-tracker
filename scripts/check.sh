@@ -8,6 +8,8 @@ cd "$ROOT"
 # copies. This also opts the gitignored overlay into formatting and linting;
 # typecheck, tests, and builds below see it in the full public app context.
 bash scripts/check-private.sh
+bash scripts/test-setup.sh
+bash scripts/test-launchers.sh
 
 pnpm exec vp check
 

@@ -57,8 +57,7 @@ On Gmail, the extension recognizes supported LinkedIn job messages in the browse
 - Linux or macOS (the setup and run scripts use Bash). Windows is not supported. WSL2 may work but is currently untested; native Windows/Git Bash is unsupported.
 - [Node.js](https://nodejs.org/en/download) **as pinned in `.node-version`** (currently 22.22.2)
 - Corepack with [pnpm](https://pnpm.io/installation#using-corepack) (the repository pins the pnpm version)
-- [Python](https://www.python.org/downloads/) **3.14 or newer**
-- [uv](https://docs.astral.sh/uv/getting-started/installation/)
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (downloads the Python version required by the project when necessary)
 - Chrome, Edge, Brave, or another Chromium browser that can load unpacked Manifest V3 extensions
 
 ## Install
@@ -74,7 +73,7 @@ This validates prerequisites, installs JavaScript and Python dependencies from t
 Start the usable local application with:
 
 ```bash
-bash scripts/dev.sh
+bash scripts/start.sh
 ```
 
 Open <http://localhost:3456>. The server creates `apps/api/jobtracker.db` on first start.
