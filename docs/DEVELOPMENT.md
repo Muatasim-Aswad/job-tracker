@@ -5,6 +5,7 @@ Repository-wide contributor setup and policy live here; component-specific imple
 | Topic | Authority |
 | --- | --- |
 | End-user prerequisites, setup, install, and normal startup | [`README.md`](../README.md) |
+| Distribution artifacts, packaged paths, lifecycle, upgrades, and platform support | [`docs/DISTRIBUTION.md`](DISTRIBUTION.md) |
 | Repository-wide contributor setup, full-app launcher, and quality gate | This guide |
 | User-facing features and workflows | [`docs/FEATURES.md`](FEATURES.md) |
 | Component structure and invariants | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
