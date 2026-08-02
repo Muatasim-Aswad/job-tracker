@@ -10,6 +10,19 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 3456 --reload
 
 Every feature route is mounted under `/api` (e.g. `POST /api/events`); OpenAPI docs stay unprefixed at <http://localhost:3456/docs>. The schema is created on startup (`jobtracker.db` in this directory by default).
 
+This direct command intentionally keeps cwd-relative `jobtracker.db`, `.env`, and `script-output` defaults. It still acquires `.job-tracker-state/server.lock` before opening the database, so a second direct or wrapped server cannot use the same profile.
+
+The delayed-import CLI is also available from this directory:
+
+```bash
+uv run python -m app.cli --profile direct start [--port PORT]
+uv run python -m app.cli --profile direct status
+uv run python -m app.cli --profile direct paths
+uv run python -m app.cli --profile direct version
+```
+
+`start` binds only to `127.0.0.1` and runs in the foreground. `status` never opens or mutates the database. Source launchers and packaged operation select their profile explicitly; see the authoritative [distribution and lifecycle contract](../../docs/DISTRIBUTION.md).
+
 ## Dashboard (web UI)
 
 A React + TS + Vite Kanban dashboard lives in [`../web/`](../web). It talks to this API over relative `/api/...` paths, so it runs the same in dev and prod.
@@ -38,8 +51,9 @@ Feature modules follow the same `router → service → repository` dependency d
 
 ```
 app/
-├── core/       config (Settings + get_settings), db, schema.sql, enums, ids,
-│               text, timeutil, similarity, hashing, sync, errors, deps
+├── core/       paths, config, lifecycle/process lock, db, schema.sql, enums,
+│               ids, text, timeutil, similarity, hashing, sync, errors, deps
+├── cli.py      delayed-import start/status/paths/version entry point
 ├── jobs/       /jobs, /jobs/states, /jobs/matches, /jobs/{id}
 ├── listings/   /listings, /listings/{id}  (link_listing_to_job cascade lives here)
 ├── events/     /events, /jobs/{id}/corrections, /jobs/{id}/status/revert
@@ -55,6 +69,8 @@ app/
 ## Configuration
 
 Copy `.env.example` to `.env` only to override defaults (`DB_PATH`, `PORT`, `SCRIPTS_OUTPUT_DIR`, the `TURSO_*` sync settings — see `.env.example` for the full list).
+
+Direct development reads this directory's `.env`. Source and packaged profiles instead resolve the explicit `JOB_TRACKER_CONFIG_FILE` (or their profile default), with process environment values taking precedence. Direct development and the source launchers retain their `apps/api/` compatibility anchor for relative settings; the packaged profile anchors `DB_PATH` and `SCRIPTS_OUTPUT_DIR` to its data root and `WEB_DIST_PATH` to its application root.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |

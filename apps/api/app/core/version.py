@@ -1,4 +1,4 @@
-"""The product version, read from the repository's canonical `VERSION` file.
+"""The product version, read from the selected application's canonical file.
 
 The extension manifest, the API metadata, and the `vX.Y.Z` release tag all
 derive from that one file, so a release bump is a single edit and no component
@@ -10,8 +10,8 @@ Read at import rather than copied into a constant: a missing or unreadable
 silently disagrees with the shipped extension.
 """
 
-from pathlib import Path
+from app.core.paths import resolve_paths
 
-VERSION_PATH = Path(__file__).resolve().parents[4] / "VERSION"
+VERSION_PATH = resolve_paths().version_file
 
 PRODUCT_VERSION = VERSION_PATH.read_text().strip()

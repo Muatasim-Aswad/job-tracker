@@ -212,6 +212,17 @@ Ordinary uninstall stops the server, removes the loaded extension, user launcher
 
 A purge is a separate, explicitly confirmed procedure. It may remove the local packaged data, configuration, state, and default backup roots after showing their resolved paths and confirming that the server is stopped. It never removes a user-selected external backup and never deletes or modifies a Turso remote. Remote deletion is a separate provider operation performed directly by the user. Source-checkout removal follows the current root README because its legacy database and configuration live inside the checkout; external backups and remotes still remain separate.
 
+## Current command surface
+
+The delayed-import `job-tracker` entry point now provides the shared command surface used by staged applications and later packaged artifacts:
+
+- `job-tracker start [--port PORT]` runs the server in the foreground on `127.0.0.1`; Ctrl-C performs the normal FastAPI shutdown, including final sync and lock release.
+- `job-tracker status` reads advisory-lock ownership and performs a bounded loopback health check. It reports `stopped`, `healthy`, or `lock-held-but-unhealthy` and never opens or creates the database or lock.
+- `job-tracker paths` prints the selected application, data, configuration, state, database, dashboard, schema, and version paths without configuration values or credentials.
+- `job-tracker version` prints the selected application's canonical `VERSION` value.
+
+The command defaults to the packaged profile because it is the installed/staged entry point. Source-checkout use selects `--profile source` or uses the root launchers; direct `uvicorn app.main:app` from `apps/api/` remains the explicit direct-development compatibility profile.
+
 ## Support and artifact matrix
 
 | Surface | Status | Runtime/tooling contract |
@@ -220,7 +231,8 @@ A purge is a separate, explicitly confirmed procedure. It may remove the local p
 | macOS source checkout | Supported source path, tested separately | Same source toolchain. It is not evidence of a macOS runtime bundle or wheel. |
 | Linux x86_64 uv-managed runtime bundle | Planned first prebuilt target | Requires `uv`; no Git or Node/pnpm at runtime. Not a native executable. |
 | Public Chromium extension ZIP | Planned release artifact | Separate archive with the same version as the server; Chromium-family browser required. |
-| Python wheel and `job-tracker` CLI | Planned after the bundle contract stabilizes | Requires a compatible Python environment; the wheel does not contain Python. |
+| `job-tracker` CLI | Implemented for source and staged application layouts | Foreground `start`, read-only `status`/`paths`, and `version`; no released packaged artifact is implied. |
+| Python wheel | Planned after the bundle contract stabilizes | Requires a compatible Python environment; the wheel does not contain Python. |
 | WSL2 on x86_64 | Candidate, unsupported pending recorded validation | Uses the Linux artifact inside WSL2; active database files must stay on the Linux filesystem, not `/mnt/c`. |
 | Native Windows | Unsupported | Reserved paths only; no native installer, launcher, driver validation, or support claim. |
 | macOS runtime bundle or wheel | Not currently planned as a released artifact | Source-checkout support does not overcome the absence of a matching locked prebuilt dependency set. |

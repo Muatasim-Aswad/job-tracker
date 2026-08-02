@@ -22,6 +22,8 @@ cat >"$TEST_TMP/bin/uv" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$PWD" >"$LAUNCHER_CWD_FILE"
 printf '%s\n' "$*" >"$LAUNCHER_ARGS_FILE"
+env | grep '^JOB_TRACKER_\|^WEB_DIST_PATH=' | sort \
+  >"$LAUNCHER_ENV_FILE"
 EOF
 chmod +x "$TEST_TMP/bin/uv"
 
@@ -43,8 +45,10 @@ run_launcher() {
   local args_file="$TEST_TMP/$launcher.args"
   local cwd_file="$TEST_TMP/$launcher.cwd"
   local output_file="$TEST_TMP/$launcher.output"
+  local env_file="$TEST_TMP/$launcher.env"
 
   LAUNCHER_ARGS_FILE="$args_file" LAUNCHER_CWD_FILE="$cwd_file" \
+    LAUNCHER_ENV_FILE="$env_file" \
     PATH="$TEST_TMP/bin:$PATH" bash "$TEST_TMP/repo/scripts/$launcher.sh" >"$output_file"
 
   [[ "$(cat "$cwd_file")" == "$TEST_TMP/repo/apps/api" ]] ||
@@ -53,6 +57,12 @@ run_launcher() {
     fail "$launcher.sh invoked uv with unexpected arguments: $(cat "$args_file")"
   [[ "$(cat "$output_file")" == *'Job Tracker: http://localhost:3456'* ]] ||
     fail "$launcher.sh did not print the localhost URL"
+  grep -Fx "JOB_TRACKER_PROFILE=source" "$env_file" >/dev/null ||
+    fail "$launcher.sh did not select the source profile"
+  grep -Fx "JOB_TRACKER_APP_DIR=$TEST_TMP/repo" "$env_file" >/dev/null ||
+    fail "$launcher.sh did not pass the checkout application root"
+  grep -Fx "WEB_DIST_PATH=$TEST_TMP/repo/apps/web/dist" "$env_file" >/dev/null ||
+    fail "$launcher.sh did not pass the checkout dashboard path"
 }
 
 run_launcher start 'run uvicorn app.main:app --host 127.0.0.1 --port 3456'

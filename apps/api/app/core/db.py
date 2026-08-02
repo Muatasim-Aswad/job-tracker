@@ -18,12 +18,15 @@ import libsql
 
 from app.core.config import Settings
 from app.core.errors import DataIntegrityError
+from app.core.paths import resolve_paths
 from app.core.timeutil import utc_now
 
 Row = dict[str, Any]
 Params = Sequence[Any]
 
-_SCHEMA_PATH = Path(__file__).with_name("schema.sql")
+# Kept as the public test/tool compatibility handle; it now follows the selected
+# application profile instead of assuming a repository parent layout.
+_SCHEMA_PATH = resolve_paths().schema_file
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -228,7 +231,7 @@ def _apply_data_migrations(conn: Conn) -> None:
             raise
 
 
-def init_schema(conn: Conn) -> None:
+def init_schema(conn: Conn, schema_path: Path | None = None) -> None:
     """Bring a connection's database to the current schema, idempotently.
 
     Order matters. Foreign-key enforcement is enabled and verified first, covering
@@ -241,7 +244,8 @@ def init_schema(conn: Conn) -> None:
     completes, so schema changes can't remain local while the Turso primary keeps
     an older column layout."""
     configure_connection(conn)
-    conn.executescript(_SCHEMA_PATH.read_text())
+    resolved_schema = schema_path or _SCHEMA_PATH
+    conn.executescript(resolved_schema.read_text())
     conn.commit()
     check_foreign_keys(conn)
     for table, column, ddl in _COLUMN_MIGRATIONS:

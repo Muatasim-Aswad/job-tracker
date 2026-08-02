@@ -78,6 +78,16 @@ bash scripts/start.sh
 
 Open <http://localhost:3456>. The server creates `apps/api/jobtracker.db` on first start.
 
+The same checkout also exposes the initial CLI. From the repository root, inspect it without starting the server:
+
+```bash
+uv run --directory apps/api python -m app.cli --profile source --app-dir "$PWD" paths
+uv run --directory apps/api python -m app.cli --profile source --app-dir "$PWD" status
+uv run --directory apps/api python -m app.cli --profile source --app-dir "$PWD" version
+```
+
+`status` is read-only and distinguishes a stopped server from a healthy server and a lock owner whose loopback health check is failing. The complete source and packaged path/lifecycle contract is in [Distribution and lifecycle](docs/DISTRIBUTION.md).
+
 ### Load the extension
 
 After setup:

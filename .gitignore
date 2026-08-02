@@ -21,6 +21,7 @@ apps/api/**/*.db
 apps/api/**/*.db-*
 apps/api/**/*.db.sync*
 apps/api/**/backups/
+apps/api/.job-tracker-state/
 apps/api/script-output/
 
 # Private overlays — absent from the public build (see docs/PRIVATE.md)

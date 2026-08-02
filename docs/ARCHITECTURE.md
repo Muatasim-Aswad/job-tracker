@@ -31,6 +31,10 @@ Job Tracker is a single-user application. FastAPI and the dashboard run on the u
 
 The server is designed for localhost, not direct public exposure. Trusted-host checks, a CORS allowlist, and the optional API key reduce accidental access but do not provide user authentication. See [`SECURITY.md`](../SECURITY.md) for the supported threat model.
 
+Path selection is a runtime boundary rather than a cwd heuristic. `core.paths` resolves the direct-development, source-checkout, or packaged profile; settings then apply configuration-file values and process overrides against those roots. Root launchers select the source profile explicitly, while the `job-tracker` entry point establishes packaged roots before importing FastAPI, settings, version, or static-resource modules. Version, schema, and dashboard lookup all use the same selected application root.
+
+The FastAPI lifespan owns the profile's advisory process lock. It acquires that lock before opening, pulling, or initializing the database and releases it only after background sync stops and the connection closes. Consequently direct Uvicorn startup and the CLI have the same single-owner database boundary; wrappers are not a separate source of locking truth. The detailed profile, permission, and stale-lock contract is in [`docs/DISTRIBUTION.md`](DISTRIBUTION.md).
+
 ## Domain model
 
 A tracked opportunity and a scraped posting are separate entities:
