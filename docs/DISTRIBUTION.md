@@ -220,6 +220,9 @@ The delayed-import `job-tracker` entry point now provides the shared command sur
 - `job-tracker status` reads advisory-lock ownership and performs a bounded loopback health check. It reports `stopped`, `healthy`, or `lock-held-but-unhealthy` and never opens or creates the database or lock.
 - `job-tracker paths` prints the selected application, data, configuration, state, database, dashboard, schema, and version paths without configuration values or credentials.
 - `job-tracker version` prints the selected application's canonical `VERSION` value.
+- `job-tracker backup OUTPUT.sqlite` creates a private, validated, atomic snapshot of the stopped profile's effective local store.
+- `job-tracker restore BACKUP.sqlite [--target TARGET.sqlite] [--replace]` validates and migrates a local candidate before installation. Turso profiles require a separate explicit recovery target and never reseed a primary.
+- `job-tracker migrate-checkout CHECKOUT` snapshots a stopped legacy checkout into an empty local packaged destination without copying configuration, credentials, or other checkout state.
 
 The command defaults to the packaged profile because it is the installed/staged entry point. Source-checkout use selects `--profile source` or uses the root launchers; direct `uvicorn app.main:app` from `apps/api/` remains the explicit direct-development compatibility profile.
 
@@ -231,7 +234,7 @@ The command defaults to the packaged profile because it is the installed/staged 
 | macOS source checkout | Supported source path, tested separately | Same source toolchain. It is not evidence of a macOS runtime bundle or wheel. |
 | Linux x86_64 uv-managed runtime bundle | Planned first prebuilt target | Requires `uv`; no Git or Node/pnpm at runtime. Not a native executable. |
 | Public Chromium extension ZIP | Planned release artifact | Separate archive with the same version as the server; Chromium-family browser required. |
-| `job-tracker` CLI | Implemented for source and staged application layouts | Foreground `start`, read-only `status`/`paths`, and `version`; no released packaged artifact is implied. |
+| `job-tracker` CLI | Implemented for source and staged application layouts | Foreground `start`, read-only `status`/`paths`, `version`, offline backup/restore, and packaged checkout adoption; no released packaged artifact is implied. |
 | Python wheel | Planned after the bundle contract stabilizes | Requires a compatible Python environment; the wheel does not contain Python. |
 | WSL2 on x86_64 | Candidate, unsupported pending recorded validation | Uses the Linux artifact inside WSL2; active database files must stay on the Linux filesystem, not `/mnt/c`. |
 | Native Windows | Unsupported | Reserved paths only; no native installer, launcher, driver validation, or support claim. |

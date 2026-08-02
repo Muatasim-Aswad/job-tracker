@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
@@ -76,5 +77,67 @@ def test_status_reports_stopped_without_creating_state(tmp_path: Path, monkeypat
     try:
         assert cli.main(["--app-dir", str(app_dir), "status"]) == 1
         assert not (home / ".local/state/job-tracker").exists()
+    finally:
+        _reset_settings()
+
+
+def test_backup_command_uses_only_synthetic_packaged_paths(
+    tmp_path: Path, monkeypatch: object, capsys: object
+) -> None:
+    app_dir, home = _app_tree(tmp_path)
+    database = home / ".local/share/job-tracker/jobtracker.db"
+    database.parent.mkdir(parents=True)
+    with sqlite3.connect(database) as conn:
+        conn.execute("CREATE TABLE payload (value TEXT)")
+        conn.execute("INSERT INTO payload VALUES ('safe')")
+    environment = {
+        "HOME": str(home),
+        "TURSO_DATABASE_URL": "",
+        "TURSO_AUTH_TOKEN": "never-print-me",
+    }
+    monkeypatch.setattr(cli.os, "environ", environment)  # type: ignore[attr-defined]
+    output = tmp_path / "backup.sqlite"
+    _reset_settings()
+    try:
+        assert cli.main(["--app-dir", str(app_dir), "backup", str(output)]) == 0
+        captured = capsys.readouterr()  # type: ignore[attr-defined]
+        assert "backup created" in captured.out
+        assert "never-print-me" not in captured.out + captured.err
+        with sqlite3.connect(output) as conn:
+            assert conn.execute("SELECT value FROM payload").fetchone() == ("safe",)
+    finally:
+        _reset_settings()
+
+
+def test_turso_restore_requires_target_without_disclosing_credentials(
+    tmp_path: Path, monkeypatch: object, capsys: object
+) -> None:
+    app_dir, home = _app_tree(tmp_path)
+    config_file = tmp_path / "isolated-config.env"
+    config_file.write_text(
+        "TURSO_DATABASE_URL=libsql://synthetic.invalid\nTURSO_AUTH_TOKEN=never-print-me\n"
+    )
+    backup = tmp_path / "backup.sqlite"
+    with sqlite3.connect(backup) as conn:
+        conn.execute("CREATE TABLE payload (value TEXT)")
+    monkeypatch.setattr(cli.os, "environ", {"HOME": str(home)})  # type: ignore[attr-defined]
+    _reset_settings()
+    try:
+        assert (
+            cli.main(
+                [
+                    "--app-dir",
+                    str(app_dir),
+                    "--config-file",
+                    str(config_file),
+                    "restore",
+                    str(backup),
+                ]
+            )
+            == 2
+        )
+        captured = capsys.readouterr()  # type: ignore[attr-defined]
+        assert "requires --target" in captured.err
+        assert "never-print-me" not in captured.out + captured.err
     finally:
         _reset_settings()

@@ -112,7 +112,7 @@ Reload the unpacked extension from `chrome://extensions` after rebuilding. Schem
 
 ## Backup, restore, and remove
 
-The API README has the tested [SQLite/Turso backup and restore procedure](apps/api/README.md#backup--restore). Back up before upgrades and keep the SQL dump outside the repository.
+Stop the server before maintenance. The API README has the tested [SQLite/Turso backup, restore, and checkout-adoption procedure](apps/api/README.md#backup--restore). Back up before upgrades and keep the validated SQLite snapshot outside the repository; synced restores use a separate local recovery target and never reseed the Turso primary.
 
 To uninstall:
 

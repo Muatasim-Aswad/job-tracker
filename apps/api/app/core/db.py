@@ -18,7 +18,7 @@ import libsql
 
 from app.core.config import Settings
 from app.core.errors import DataIntegrityError
-from app.core.paths import resolve_paths
+from app.core.paths import resolve_paths, settings_paths
 from app.core.timeutil import utc_now
 
 Row = dict[str, Any]
@@ -92,6 +92,15 @@ def connect(settings: Settings) -> Conn:
        write-through to the primary.
     3. plain local file (no Turso vars): no sync at all.
     """
+    # Preserve an existing replica before constructing a Turso driver: construction
+    # itself may bootstrap or pull, so doing this later could lose unsynced local
+    # writes left by a crashed process. A missing store is a first-run bootstrap and
+    # needs no recovery point.
+    if settings.turso_database_url:
+        from app.maintenance.backup import preserve_before_startup_pull
+
+        preserve_before_startup_pull(settings, settings_paths(settings))
+
     # db_path may point into a not-yet-created dir (.test-db/ under APP_ENV=test) and
     # the drivers won't mkdir it. A no-op for the default cwd-relative path.
     Path(settings.db_path).parent.mkdir(parents=True, exist_ok=True)

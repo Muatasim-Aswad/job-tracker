@@ -34,6 +34,16 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("status", help="report stopped, healthy, or unhealthy-lock state")
     commands.add_parser("paths", help="print the resolved non-secret path inventory")
     commands.add_parser("version", help="print the product version")
+    backup = commands.add_parser("backup", help="create a validated offline SQLite snapshot")
+    backup.add_argument("output", type=Path)
+    restore = commands.add_parser("restore", help="restore through a validated local candidate")
+    restore.add_argument("backup", type=Path)
+    restore.add_argument("--target", type=Path)
+    restore.add_argument("--replace", action="store_true")
+    migrate = commands.add_parser(
+        "migrate-checkout", help="adopt a legacy checkout into an empty packaged profile"
+    )
+    migrate.add_argument("checkout", type=Path)
     return parser
 
 
@@ -99,6 +109,34 @@ def main(argv: Sequence[str] | None = None) -> int:
         status = inspect_server(paths)
         print(f"{status.state}: {status.detail}")
         return {"healthy": 0, "stopped": 1, "lock-held-but-unhealthy": 2}[status.state]
+
+    try:
+        if args.command == "backup":
+            from app.maintenance.backup import backup_profile
+
+            output = backup_profile(settings, paths, args.output.resolve())
+            print(f"backup created: {output}")
+            return 0
+
+        if args.command == "restore":
+            from app.maintenance.restore import restore_profile
+
+            target = args.target.resolve() if args.target is not None else None
+            restored = restore_profile(
+                settings, paths, args.backup.resolve(), target=target, replace=args.replace
+            )
+            print(f"restore created: {restored}")
+            return 0
+
+        if args.command == "migrate-checkout":
+            from app.maintenance.migrate_checkout import migrate_checkout
+
+            adopted = migrate_checkout(settings, paths, args.checkout.resolve())
+            print(f"checkout adopted: {adopted}")
+            return 0
+    except (OSError, RuntimeError) as exc:
+        print(f"job-tracker: {exc}", file=sys.stderr)
+        return 2
 
     # Importing uvicorn does not import app.main. Its import string is resolved only
     # after every packaged path/config override above is in place.

@@ -35,6 +35,8 @@ Path selection is a runtime boundary rather than a cwd heuristic. `core.paths` r
 
 The FastAPI lifespan owns the profile's advisory process lock. It acquires that lock before opening, pulling, or initializing the database and releases it only after background sync stops and the connection closes. Consequently direct Uvicorn startup and the CLI have the same single-owner database boundary; wrappers are not a separate source of locking truth. The detailed profile, permission, and stale-lock contract is in [`docs/DISTRIBUTION.md`](DISTRIBUTION.md).
 
+Offline database maintenance lives under `app.maintenance`. Its snapshot primitive uses the SQLite API, validates integrity and foreign keys, and installs temporary siblings atomically; restore applies schema migrations only to a candidate. The CLI owns user-facing backup, restore, and checkout-adoption dispatch, while `core.db` invokes only the recovery-snapshot hook before constructing a Turso driver that can perform a startup pull. Maintenance never contains a remote-primary mutation path.
+
 ## Domain model
 
 A tracked opportunity and a scraped posting are separate entities:

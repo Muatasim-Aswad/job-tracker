@@ -19,9 +19,11 @@ uv run python -m app.cli --profile direct start [--port PORT]
 uv run python -m app.cli --profile direct status
 uv run python -m app.cli --profile direct paths
 uv run python -m app.cli --profile direct version
+uv run python -m app.cli --profile direct backup /safe/path/job-tracker.sqlite
+uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite
 ```
 
-`start` binds only to `127.0.0.1` and runs in the foreground. `status` never opens or mutates the database. Source launchers and packaged operation select their profile explicitly; see the authoritative [distribution and lifecycle contract](../../docs/DISTRIBUTION.md).
+`start` binds only to `127.0.0.1` and runs in the foreground. `status` never opens or mutates the database. Backup, restore, and checkout adoption are offline-only and refuse while the selected server lock is held. Source launchers and packaged operation select their profile explicitly; see the authoritative [distribution and lifecycle contract](../../docs/DISTRIBUTION.md).
 
 ## Dashboard (web UI)
 
@@ -120,20 +122,34 @@ Provision the remote once:
 
 ### Backup & restore
 
-Every mode keeps a plain SQLite file on disk, so dump it to portable SQL. The file is `DB_PATH`, except in local-first mode where the live data sits in the `<DB_PATH>.sync` sibling:
+Stop the server, then use the delayed-import CLI to create a consistent SQLite snapshot. It selects `DB_PATH` for local and embedded-replica modes and `<DB_PATH>.sync` for local-first mode, validates SQLite integrity and foreign keys, writes a private temporary sibling, and atomically installs the completed output. The output directory must already exist.
 
 ```bash
-sqlite3 jobtracker.db      .dump > backup.sql   # local-file / embedded-replica mode
-sqlite3 jobtracker.db.sync .dump > backup.sql   # local-first mode
+uv run python -m app.cli --profile direct backup /safe/path/job-tracker.sqlite
 ```
 
-Restore into a **fresh, non-existent path**: the dump recreates the schema, so never point it at a DB the server has already initialised.
+Local SQLite restore validates and migrates a fresh candidate before atomically installing it at `DB_PATH`. An existing destination is refused unless `--replace` is explicit; replacement first preserves a verified automatic backup under the selected backup root.
 
 ```bash
-sqlite3 restored.db < backup.sql   # then run with DB_PATH=restored.db
+uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite
+uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite --replace
 ```
 
-In a synced mode the Turso remote is authoritative, and a fresh local-first client rebuilds its `.sync` replica from the primary on first boot, so a restore is only needed when reseeding that primary.
+In either Turso mode, general restore never reseeds the primary or overwrites the configured replica. Supply a separate, explicit local recovery target for inspection:
+
+```bash
+uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite --target /safe/path/recovery.sqlite
+```
+
+Startup preserves and validates an existing local Turso store at `<backup root>/recovery/pre-pull.sqlite` before constructing a driver that can pull remote state. If that recovery snapshot fails, startup refuses before contacting the driver.
+
+Packaged installations can adopt an older checkout only while both installations are stopped and the packaged database family is empty:
+
+```bash
+job-tracker migrate-checkout /path/to/old-checkout
+```
+
+The command snapshots the checkout's effective local database without copying its `.env`, credentials, private overlays, logs, or script output, and leaves the checkout unchanged. Validate the adopted local database before configuring Turso separately.
 
 ### Testing against a throwaway DB
 
