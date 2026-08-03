@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import stat
 import sys
 from collections.abc import MutableMapping, Sequence
 from pathlib import Path
@@ -34,6 +35,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("status", help="report stopped, healthy, or unhealthy-lock state")
     commands.add_parser("paths", help="print the resolved non-secret path inventory")
     commands.add_parser("version", help="print the product version")
+    commands.add_parser("doctor", help="run bounded, redacted local diagnostics")
     backup = commands.add_parser("backup", help="create a validated offline SQLite snapshot")
     backup.add_argument("output", type=Path)
     restore = commands.add_parser("restore", help="restore through a validated local candidate")
@@ -81,6 +83,79 @@ def _load_runtime() -> tuple[Settings, ResolvedPaths]:
     return settings, paths
 
 
+def _product_version(paths: ResolvedPaths) -> str:
+    return paths.version_file.read_text().strip()
+
+
+def _configured_mode(settings: Settings) -> str:
+    if not settings.turso_database_url:
+        return "local-sqlite"
+    return "local-first" if settings.turso_local_first else "embedded-replica"
+
+
+def _permission_diagnostics(paths: ResolvedPaths, database: Path) -> tuple[str, bool]:
+    if os.name != "posix":
+        return "unsupported on this platform", False
+    problems: list[str] = []
+    for path, expected in (
+        (paths.data_dir, 0o700),
+        (paths.config_dir, 0o700),
+        (paths.state_dir, 0o700),
+        (paths.backup_dir, 0o700),
+        (paths.config_file, 0o600),
+        (database, 0o600),
+        (paths.lock_file, 0o600),
+    ):
+        if path.exists():
+            actual = stat.S_IMODE(path.stat().st_mode)
+            if actual != expected:
+                problems.append(f"{path} is {actual:04o}, expected {expected:04o}")
+    return ("ok" if not problems else "; ".join(problems[:4])), bool(problems)
+
+
+def _doctor(settings: Settings, paths: ResolvedPaths) -> int:
+    from app.core.lifecycle import inspect_server
+    from app.maintenance.backup import effective_store, validate_snapshot
+    from app.maintenance.base import MaintenanceError
+
+    failed = False
+    print(f"product_version: {_product_version(paths)}")
+    print(
+        f"python_version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
+    print(f"profile: {paths.profile}")
+    print(f"mode: {_configured_mode(settings)}")
+    for name, value in paths.display().items():
+        if name != "profile":
+            print(f"path_{name}: {value}")
+
+    try:
+        server = inspect_server(paths)
+        print(f"server: {server.state} ({server.detail})")
+    except (OSError, RuntimeError) as exc:
+        server = None
+        failed = True
+        print(f"server: unavailable ({exc})")
+
+    database = effective_store(settings, paths)
+    if not database.exists():
+        print("database_integrity: not-created")
+    elif server is not None and server.state != "stopped":
+        print("database_integrity: skipped while server lock is held")
+    else:
+        try:
+            validate_snapshot(database)
+            print("database_integrity: ok")
+        except MaintenanceError as exc:
+            failed = True
+            print(f"database_integrity: failed ({exc})")
+
+    permissions, permission_failure = _permission_diagnostics(paths, database)
+    failed = failed or permission_failure
+    print(f"permissions: {permissions}")
+    return 2 if failed else 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -97,11 +172,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "version":
         try:
-            print(paths.version_file.read_text().strip())
+            print(_product_version(paths))
         except OSError as exc:
             print(f"job-tracker: cannot read product version: {exc}", file=sys.stderr)
             return 2
         return 0
+
+    if args.command == "doctor":
+        try:
+            return _doctor(settings, paths)
+        except (OSError, RuntimeError) as exc:
+            print(f"job-tracker: doctor failed: {exc}", file=sys.stderr)
+            return 2
 
     if args.command == "status":
         from app.core.lifecycle import inspect_server

@@ -91,14 +91,15 @@ jobs:
           VERSION="$(tr -d '[:space:]' <VERSION)"
           [[ "$TAG" == "v$VERSION" ]]
           bash scripts/check-release-contents.sh "$RELEASE_DIR"
-      - name: Smoke-test the downloaded runtime bundle
+      - name: Smoke-test the downloaded runtime bundle and wheel
         env:
           RELEASE_DIR: ${{ runner.temp }}/release
         run: |
           set -euo pipefail
           VERSION="$(tr -d '[:space:]' <VERSION)"
           bash scripts/smoke-release.sh "$RELEASE_DIR/job-tracker-$VERSION-linux-x86_64.tar.gz"
-      - name: Create one GitHub Release and upload its three verified files
+          bash scripts/smoke-wheel.sh "$RELEASE_DIR/job_tracker-$VERSION-py3-none-any.whl"
+      - name: Create one GitHub Release and upload its four verified files
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
@@ -110,6 +111,7 @@ jobs:
           gh release create "$TAG" \
             "$RELEASE_DIR/job-tracker-$VERSION-linux-x86_64.tar.gz" \
             "$RELEASE_DIR/job-tracker-extension-$VERSION.zip" \
+            "$RELEASE_DIR/job_tracker-$VERSION-py3-none-any.whl" \
             "$RELEASE_DIR/SHA256SUMS" \
             --verify-tag \
             --title "Job Tracker $VERSION" \

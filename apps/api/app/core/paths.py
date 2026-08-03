@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -72,8 +73,15 @@ class ResolvedPaths:
 
 
 def inferred_application_root() -> Path:
-    """Return the source/runtime-bundle root from this module's fixed layout."""
+    """Return the source, runtime-bundle, or installed-wheel application root."""
+    wheel_resources = Path(__file__).resolve().parents[1] / "resources"
+    if (wheel_resources / "VERSION").is_file():
+        return wheel_resources
     return Path(__file__).resolve().parents[4]
+
+
+def _wheel_resource_root() -> Path:
+    return Path(__file__).resolve().parents[1] / "resources"
 
 
 def _absolute(value: str | Path, name: str) -> Path:
@@ -100,6 +108,7 @@ def resolve_paths(
     profile: Profile | None = None,
     environ: Mapping[str, str] | None = None,
     cwd: Path | None = None,
+    platform: str | None = None,
 ) -> ResolvedPaths:
     """Resolve one path profile without consulting cwd to select that profile.
 
@@ -148,27 +157,41 @@ def resolve_paths(
         if not app_value:
             raise PathResolutionError("packaged profile requires JOB_TRACKER_APP_DIR")
         app_dir = _absolute(app_value, "JOB_TRACKER_APP_DIR")
+        host_platform = sys.platform if platform is None else platform
         home_value = environment.get("HOME")
-        xdg_data = environment.get("XDG_DATA_HOME")
-        xdg_config = environment.get("XDG_CONFIG_HOME")
-        xdg_state = environment.get("XDG_STATE_HOME")
-        if not home_value and not (xdg_data and xdg_config and xdg_state):
-            raise PathResolutionError(
-                "packaged profile requires HOME or explicit XDG data/config/state roots"
+        if host_platform == "darwin":
+            if not home_value:
+                raise PathResolutionError("packaged macOS profile requires HOME")
+            support = _absolute(home_value, "HOME") / "Library/Application Support/Job Tracker"
+            data_default = support / "data"
+            config_default = support / "configuration"
+            state_default = support / "state"
+        elif host_platform.startswith("linux"):
+            xdg_data = environment.get("XDG_DATA_HOME")
+            xdg_config = environment.get("XDG_CONFIG_HOME")
+            xdg_state = environment.get("XDG_STATE_HOME")
+            if not home_value and not (xdg_data and xdg_config and xdg_state):
+                raise PathResolutionError(
+                    "packaged Linux profile requires HOME or explicit XDG data/config/state roots"
+                )
+            home = _absolute(home_value, "HOME") if home_value else Path("/")
+            data_default = (
+                _absolute(xdg_data, "XDG_DATA_HOME") if xdg_data else home / ".local/share"
             )
-        home = _absolute(home_value, "HOME") if home_value else Path("/")
-        data_default = _absolute(xdg_data, "XDG_DATA_HOME") if xdg_data else home / ".local/share"
-        config_default = (
-            _absolute(xdg_config, "XDG_CONFIG_HOME") if xdg_config else home / ".config"
-        )
-        state_default = (
-            _absolute(xdg_state, "XDG_STATE_HOME") if xdg_state else home / ".local/state"
-        )
-        data_dir = _env_path(environment, "JOB_TRACKER_DATA_DIR", data_default / "job-tracker")
-        config_dir = _env_path(
-            environment, "JOB_TRACKER_CONFIG_DIR", config_default / "job-tracker"
-        )
-        state_dir = _env_path(environment, "JOB_TRACKER_STATE_DIR", state_default / "job-tracker")
+            config_default = (
+                _absolute(xdg_config, "XDG_CONFIG_HOME") if xdg_config else home / ".config"
+            )
+            state_default = (
+                _absolute(xdg_state, "XDG_STATE_HOME") if xdg_state else home / ".local/state"
+            )
+            data_default /= "job-tracker"
+            config_default /= "job-tracker"
+            state_default /= "job-tracker"
+        else:
+            raise PathResolutionError(f"packaged profile is unsupported on {host_platform}")
+        data_dir = _env_path(environment, "JOB_TRACKER_DATA_DIR", data_default)
+        config_dir = _env_path(environment, "JOB_TRACKER_CONFIG_DIR", config_default)
+        state_dir = _env_path(environment, "JOB_TRACKER_STATE_DIR", state_default)
         config_file = _owned_path(
             environment.get("JOB_TRACKER_CONFIG_FILE"), config_dir, config_dir / "config.env"
         )
@@ -184,6 +207,8 @@ def resolve_paths(
     web_dist = _owned_path(
         environment.get("WEB_DIST_PATH"), web_owner, app_dir / "apps" / "web" / "dist"
     )
+    wheel_resources = _wheel_resource_root()
+    wheel_install = app_dir == wheel_resources and (wheel_resources / "VERSION").is_file()
     return ResolvedPaths(
         profile=selected_profile,
         runtime_cwd=working_dir,
@@ -197,7 +222,11 @@ def resolve_paths(
         scripts_output_dir=scripts_output,
         web_dist=web_dist,
         version_file=app_dir / "VERSION",
-        schema_file=app_dir / "apps" / "api" / "app" / "core" / "schema.sql",
+        schema_file=(
+            Path(__file__).resolve().with_name("schema.sql")
+            if wheel_install
+            else app_dir / "apps" / "api" / "app" / "core" / "schema.sql"
+        ),
         lock_file=state_dir / "server.lock",
     )
 

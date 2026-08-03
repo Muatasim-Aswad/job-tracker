@@ -81,6 +81,33 @@ def test_status_reports_stopped_without_creating_state(tmp_path: Path, monkeypat
         _reset_settings()
 
 
+def test_doctor_is_bounded_validates_database_and_redacts_credentials(
+    tmp_path: Path, monkeypatch: object, capsys: object
+) -> None:
+    app_dir, home = _app_tree(tmp_path)
+    data_dir = home / ".local/share/job-tracker"
+    data_dir.mkdir(parents=True, mode=0o700)
+    data_dir.chmod(0o700)
+    database = data_dir / "jobtracker.db"
+    with sqlite3.connect(database) as conn:
+        conn.execute("CREATE TABLE payload (value TEXT)")
+    database.chmod(0o600)
+    environment = {"HOME": str(home), "TURSO_AUTH_TOKEN": "never-print-doctor-token"}
+    monkeypatch.setattr(cli.os, "environ", environment)  # type: ignore[attr-defined]
+    _reset_settings()
+    try:
+        assert cli.main(["--app-dir", str(app_dir), "doctor"]) == 0
+        captured = capsys.readouterr()  # type: ignore[attr-defined]
+        assert "mode: local-sqlite" in captured.out
+        assert "server: stopped" in captured.out
+        assert "database_integrity: ok" in captured.out
+        assert "permissions: ok" in captured.out
+        assert "never-print-doctor-token" not in captured.out + captured.err
+        assert len(captured.out.splitlines()) < 20
+    finally:
+        _reset_settings()
+
+
 def test_backup_command_uses_only_synthetic_packaged_paths(
     tmp_path: Path, monkeypatch: object, capsys: object
 ) -> None:

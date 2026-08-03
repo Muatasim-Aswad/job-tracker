@@ -95,6 +95,7 @@ rm -rf -- "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 RUNTIME_ARCHIVE="$RELEASE_DIR/job-tracker-$VERSION-linux-x86_64.tar.gz"
 EXTENSION_ARCHIVE="$RELEASE_DIR/job-tracker-extension-$VERSION.zip"
+WHEEL="$RELEASE_DIR/job_tracker-$VERSION-py3-none-any.whl"
 
 tar --sort=name --mtime="@$EPOCH" --owner=0 --group=0 --numeric-owner \
   -C "$RUNTIME" -cf - . | gzip -n >"$RUNTIME_ARCHIVE"
@@ -105,11 +106,20 @@ tar --sort=name --mtime="@$EPOCH" --owner=0 --group=0 --numeric-owner \
   find . -type f -print | LC_ALL=C sort | zip -X -q "$EXTENSION_ARCHIVE" -@
 )
 
+JOB_TRACKER_RELEASE_DIR="$RELEASE_DIR" \
+  JOB_TRACKER_WEB_DIST="$BUILD_SOURCE/apps/web/dist" \
+  bash "$ROOT/scripts/build-wheel.sh"
+[[ -f "$WHEEL" ]] || fail "wheel builder did not produce the expected artifact."
+
 (
   cd "$RELEASE_DIR"
-  sha256sum "$(basename "$RUNTIME_ARCHIVE")" "$(basename "$EXTENSION_ARCHIVE")" >SHA256SUMS
+  sha256sum \
+    "$(basename "$RUNTIME_ARCHIVE")" \
+    "$(basename "$EXTENSION_ARCHIVE")" \
+    "$(basename "$WHEEL")" >SHA256SUMS
 )
 
 printf 'built runtime bundle: %s\n' "$RUNTIME_ARCHIVE"
 printf 'built extension ZIP: %s\n' "$EXTENSION_ARCHIVE"
+printf 'built wheel: %s\n' "$WHEEL"
 printf 'built checksums: %s/SHA256SUMS\n' "$RELEASE_DIR"

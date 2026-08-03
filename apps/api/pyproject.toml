@@ -1,7 +1,7 @@
 [project]
 name = "job-tracker-api"
-# Packaging metadata uv requires, not the product version: the root VERSION file
-# owns that and app/core/version.py is what the API advertises.
+# Source-checkout metadata only. scripts/build-wheel.sh replaces the staged name
+# and version from the root VERSION file when it generates the end-user wheel.
 version = "0.1.0"
 description = "Local FastAPI backend for the personal job tracker"
 readme = "README.md"
@@ -17,6 +17,14 @@ dependencies = [
 
 [project.scripts]
 job-tracker = "app.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = ""
 
 [dependency-groups]
 dev = [

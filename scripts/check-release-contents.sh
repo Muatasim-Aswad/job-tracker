@@ -16,10 +16,11 @@ fail() {
 RELEASE_DIR="$(realpath -e "$RELEASE_DIR")" || fail "release directory does not exist."
 RUNTIME="job-tracker-$VERSION-linux-x86_64.tar.gz"
 EXTENSION="job-tracker-extension-$VERSION.zip"
-EXPECTED=(SHA256SUMS "$RUNTIME" "$EXTENSION")
+WHEEL="job_tracker-$VERSION-py3-none-any.whl"
+EXPECTED=(SHA256SUMS "$RUNTIME" "$EXTENSION" "$WHEEL")
 
 mapfile -t actual < <(find "$RELEASE_DIR" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)
-[[ "${actual[*]}" == "${EXPECTED[*]}" ]] || fail "release directory must contain only $RUNTIME, $EXTENSION, and SHA256SUMS."
+[[ "${actual[*]}" == "${EXPECTED[*]}" ]] || fail "release directory must contain only $RUNTIME, $EXTENSION, $WHEEL, and SHA256SUMS."
 
 (
   cd "$RELEASE_DIR"
@@ -77,5 +78,35 @@ if (actualHosts.size !== expectedHosts.size || [...expectedHosts].some((host) =>
   throw new Error(`public host allowlist mismatch: ${[...actualHosts].join(", ")}`);
 }
 NODE
+
+mapfile -t wheel_paths < <(unzip -Z1 "$RELEASE_DIR/$WHEEL" | LC_ALL=C sort)
+for required in \
+  app/cli.py \
+  app/core/schema.sql \
+  app/resources/VERSION \
+  app/resources/apps/web/dist/index.html \
+  "job_tracker-$VERSION.dist-info/METADATA" \
+  "job_tracker-$VERSION.dist-info/licenses/LICENSE" \
+  "job_tracker-$VERSION.dist-info/entry_points.txt"; do
+  printf '%s\n' "${wheel_paths[@]}" | grep -Fxq "$required" || fail "wheel is missing $required."
+done
+for path in "${wheel_paths[@]}"; do
+  case "$path" in
+    /* | ./* | */../* | ../* | *'.env'* | *'.db'* | *'__pycache__'* | *'.pyc' | *'.map' | *'node_modules'* | *'/local/'* | *'/tests/'* | *'fixture'* | *'docs/plans/'*)
+      fail "wheel contains forbidden path: $path"
+      ;;
+  esac
+done
+unzip -p "$RELEASE_DIR/$WHEEL" "job_tracker-$VERSION.dist-info/METADATA" >"$WORK/wheel-metadata"
+grep -Fxq 'Name: job-tracker' "$WORK/wheel-metadata" || fail "wheel distribution name is not canonical."
+grep -Fxq "Version: $VERSION" "$WORK/wheel-metadata" || fail "wheel version disagrees with VERSION."
+unzip -p "$RELEASE_DIR/$WHEEL" app/resources/VERSION | grep -Fxq "$VERSION" || fail "wheel resource version disagrees with VERSION."
+unzip -p "$RELEASE_DIR/$WHEEL" "job_tracker-$VERSION.dist-info/entry_points.txt" |
+  grep -Fxq 'job-tracker = app.cli:main' || fail "wheel has no job-tracker console entry point."
+mkdir "$WORK/wheel"
+unzip -q "$RELEASE_DIR/$WHEEL" -d "$WORK/wheel"
+if rg -a -Fq "$ROOT" "$WORK/wheel"; then
+  fail "wheel contains a build-machine absolute path."
+fi
 
 printf 'release contents OK: %s\n' "$RELEASE_DIR"
