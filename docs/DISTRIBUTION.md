@@ -56,6 +56,22 @@ Resource lookup uses the selected application layout and never walks repository 
 
 A missing version, schema, or required packaged dashboard is a broken installation and fails loudly. Moving an intact extracted runtime application directory must not change resource resolution.
 
+## Runtime-bundle build and verification
+
+`bash scripts/build-release.sh` creates the local release-preparation output under `dist/release/`:
+
+```text
+job-tracker-<version>-linux-x86_64.tar.gz
+job-tracker-extension-<version>.zip
+SHA256SUMS
+```
+
+The runtime tarball has its application files at archive root: `job-tracker`, `VERSION`, `LICENSE`, public API source with `pyproject.toml`/`uv.lock`, and the prebuilt dashboard. The extension ZIP has its public built extension contents, including `manifest.json`, at ZIP root. The generator first builds both frontends from a tracked-files-only temporary source tree. It therefore does not read or package ignored private overlays, checkout `.env` files, databases, credentials, fixtures, or local build output.
+
+`bash scripts/check-release-contents.sh dist/release` verifies the exact three-file release directory, checksums, canonical versions, the runtime allowlist, absence of source maps and private/developer artifacts, and the public extension host allowlist. `bash scripts/smoke-release.sh dist/release/job-tracker-<version>-linux-x86_64.tar.gz` extracts a runtime into disposable paths, moves it before startup, uses temporary XDG roots and loopback port `34656`, verifies health/OpenAPI/dashboard serving, and replaces the application directory while preserving data, configuration, and state.
+
+The archives normalize owner, ordering, timestamps (default `SOURCE_DATE_EPOCH=315532800`), and compression metadata. `bash scripts/test-release-build.sh` builds twice in independent disposable roots and compares the outputs byte-for-byte. Determinism is scoped to identical tracked working-tree inputs and the pinned build toolchain; a changed toolchain or dependency lock is a new build input.
+
 ## Path inventory
 
 All examples use `/` for readability. Implementations use native path objects and separators.
@@ -232,8 +248,8 @@ The command defaults to the packaged profile because it is the installed/staged 
 | --- | --- | --- |
 | Linux x86_64 source checkout | Supported current path | Git, pinned Node/pnpm, and `uv`; public setup and checks cover it. |
 | macOS source checkout | Supported source path, tested separately | Same source toolchain. It is not evidence of a macOS runtime bundle or wheel. |
-| Linux x86_64 uv-managed runtime bundle | Planned first prebuilt target | Requires `uv`; no Git or Node/pnpm at runtime. Not a native executable. |
-| Public Chromium extension ZIP | Planned release artifact | Separate archive with the same version as the server; Chromium-family browser required. |
+| Linux x86_64 uv-managed runtime bundle | Implemented local release-preparation artifact; publication pending | Requires `uv`; no Git or Node/pnpm at runtime. Not a native executable. |
+| Public Chromium extension ZIP | Implemented local release-preparation artifact; publication pending | Separate archive with the same version as the server; Chromium-family browser required. |
 | `job-tracker` CLI | Implemented for source and staged application layouts | Foreground `start`, read-only `status`/`paths`, `version`, offline backup/restore, and packaged checkout adoption; no released packaged artifact is implied. |
 | Python wheel | Planned after the bundle contract stabilizes | Requires a compatible Python environment; the wheel does not contain Python. |
 | WSL2 on x86_64 | Candidate, unsupported pending recorded validation | Uses the Linux artifact inside WSL2; active database files must stay on the Linux filesystem, not `/mnt/c`. |

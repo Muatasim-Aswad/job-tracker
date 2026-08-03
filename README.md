@@ -99,6 +99,25 @@ After setup:
 
 The extension defaults to <http://localhost:3456>. To use another address, follow [Configure the server address](apps/extension/README.md#configure-the-server-address) and rebuild the extension.
 
+### Runtime bundle (Linux x86_64)
+
+Release preparation produces a **uv-managed runtime bundle**, not a native executable. It needs `uv` when run, but needs neither Git nor Node/pnpm after extraction. Build the public runtime bundle, separate public extension ZIP, and their checksums from a prepared checkout with:
+
+```bash
+bash scripts/build-release.sh
+bash scripts/check-release-contents.sh dist/release
+```
+
+The generated `dist/release/` directory contains `job-tracker-<version>-linux-x86_64.tar.gz`, `job-tracker-extension-<version>.zip`, and `SHA256SUMS`. Verify the checksum before extracting the runtime into a replaceable application directory, then run its top-level launcher:
+
+```bash
+sha256sum -c SHA256SUMS
+tar -xzf job-tracker-<version>-linux-x86_64.tar.gz -C /path/to/job-tracker-release
+/path/to/job-tracker-release/job-tracker start
+```
+
+The runtime uses the packaged XDG data, configuration, and state paths; replacing its extracted application directory does not move those paths. Load the separate extension ZIP with your Chromium browser's extension tooling. See [Distribution and lifecycle](docs/DISTRIBUTION.md) for the supported-platform, upgrade, backup, and removal contract.
+
 ## Update
 
 Back up first. If the checkout has local changes, review the upstream changes before updating. Then stop the server and run:
