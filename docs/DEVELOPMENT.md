@@ -36,7 +36,7 @@ The development launcher performs the same built-dashboard preflight as the norm
 
 ## Quality gate
 
-`bash scripts/check.sh` is the single local entry point and runs the CI-equivalent gates: private-overlay drift, formatting, linting, type checking, tests, builds, generated-API drift, Markdown formatting, and version consistency. Run it before calling a change done; a green run is what CI reproduces.
+`bash scripts/check.sh` is the single local entry point and runs the CI-equivalent gates: private-overlay drift, launcher/setup and deterministic release-contract tests, formatting, linting, type checking, tests, builds, generated-API drift, Markdown formatting, and version consistency. Its WSL2 check is a static Linux self-test, not external WSL2 evidence, and it does not run Docker, use credentials, publish, or contact a Turso database. Run it before calling a change done; a green run is what CI reproduces.
 
 Git hooks run a subset earlier so failures surface sooner. Install them once:
 
@@ -117,6 +117,8 @@ Individual commits do not bump the version. Bump once while preparing a release,
 
 ## Platform support
 
-Linux and macOS are supported. Windows is not: the setup and run scripts are Bash, and the locked `libsql`/`pyturso` dependency set has no straightforward native-Windows wheel path. WSL2 supplies the supported Linux userspace and those locked Linux wheels, so it may work, but it is currently untested and unsupported.
+Linux and macOS source checkouts are supported. Packaged support is narrower: the runtime bundle and wheel are proven only on Linux x86_64, and the optional container is Linux/amd64 only. A passing source-checkout gate on macOS is not evidence for a macOS runtime bundle or wheel.
+
+Native Windows is unsupported: the setup and run scripts are Bash, and the locked `libsql`/`pyturso` dependency set has no straightforward native-Windows wheel path. WSL2 x86_64 remains candidate/unsupported until its external Linux-filesystem harness and Windows Chromium checks are completed and reviewed.
 
 Supporting native Windows would require supported dependency artifacts or a database-driver decision, portable launcher commands and paths, and a Windows setup/runtime CI smoke test. Until those exist, do not add speculative compatibility edits that no test can hold in place.

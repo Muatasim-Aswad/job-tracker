@@ -54,13 +54,15 @@ On Gmail, the extension recognizes supported LinkedIn job messages in the browse
 
 ## Requirements
 
-- Linux or macOS (the setup and run scripts use Bash). Windows is not supported. WSL2 may work but is currently untested; native Windows/Git Bash is unsupported.
-- [Node.js](https://nodejs.org/en/download) **as pinned in `.node-version`** (currently 22.22.2)
-- Corepack with [pnpm](https://pnpm.io/installation#using-corepack) (the repository pins the pnpm version)
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) (downloads the Python version required by the project when necessary)
-- Chrome, Edge, Brave, or another Chromium browser that can load unpacked Manifest V3 extensions
+Choose one server installation path:
 
-## Install
+- **Source checkout on Linux or macOS:** Git, [Node.js](https://nodejs.org/en/download) as pinned in `.node-version` (currently 22.22.2), Corepack with the repository-pinned [pnpm](https://pnpm.io/installation#using-corepack), and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+- **Runtime bundle or wheel on Linux x86_64:** `uv`. The runtime bundle is not a native executable; `uv` provisions its locked Python environment. The wheel does not contain Python and requires platform-compatible dependency wheels. These packaged paths have been smoke-tested only on Linux x86_64.
+- **Optional container on Linux/amd64:** Docker Engine with Docker Compose. This path does not require Node, pnpm, `uv`, or Python on the host.
+
+The browser extension requires Chrome, Edge, Brave, or another Chromium browser that can load an unpacked Manifest V3 extension. macOS is a supported source-checkout path, not a supported packaged target. WSL2 x86_64 remains a [candidate and unsupported](docs/WSL2.md); native Windows and Git Bash are unsupported.
+
+## Install from source
 
 ```bash
 git clone https://github.com/Muatasim-Aswad/job-tracker.git
@@ -68,7 +70,7 @@ cd job-tracker
 bash scripts/setup.sh
 ```
 
-This validates prerequisites, installs JavaScript and Python dependencies from the lockfiles, and builds the dashboard and extension. It's safe to rerun and never creates or overwrites `apps/api/.env` or `apps/extension/.env`.
+This validates prerequisites, installs JavaScript and Python dependencies from the lockfiles, and builds the dashboard and extension. It is safe to rerun and never creates or overwrites `apps/api/.env` or `apps/extension/.env`.
 
 Start the usable local application with:
 
@@ -88,7 +90,7 @@ uv run --directory apps/api python -m app.cli --profile source --app-dir "$PWD" 
 
 `status` is read-only and distinguishes a stopped server from a healthy server and a lock owner whose loopback health check is failing. The complete source and packaged path/lifecycle contract is in [Distribution and lifecycle](docs/DISTRIBUTION.md).
 
-### Load the extension
+### Load the source extension
 
 After setup:
 
@@ -99,28 +101,57 @@ After setup:
 
 The extension defaults to <http://localhost:3456>. To use another address, follow [Configure the server address](apps/extension/README.md#configure-the-server-address) and rebuild the extension.
 
-### Runtime bundle (Linux x86_64)
+## Install a packaged server on Linux x86_64
 
-Release preparation produces a **uv-managed runtime bundle**, not a native executable. It needs `uv` when run, but needs neither Git nor Node/pnpm after extraction. Build the public runtime bundle, separate public extension ZIP, and their checksums from a prepared checkout with:
+Release preparation produces a **uv-managed runtime bundle** and a **Python wheel**. Both carry the API and prebuilt dashboard, and neither is a native executable or contains Python. The separate extension ZIP carries the matching browser extension.
+
+From a prepared checkout, build and verify the four-file release inventory:
 
 ```bash
 bash scripts/build-release.sh
 bash scripts/check-release-contents.sh dist/release
 ```
 
-The generated `dist/release/` directory contains `job-tracker-<version>-linux-x86_64.tar.gz`, `job-tracker-extension-<version>.zip`, and `SHA256SUMS`. Verify the checksum before extracting the runtime into a replaceable application directory, then run its top-level launcher:
+The generated `dist/release/` directory contains the runtime tarball, extension ZIP, wheel, and `SHA256SUMS`. Keep those files together and verify them before installation:
 
 ```bash
-sha256sum -c SHA256SUMS
-tar -xzf job-tracker-<version>-linux-x86_64.tar.gz -C /path/to/job-tracker-release
+(cd dist/release && sha256sum -c SHA256SUMS)
+```
+
+For the runtime bundle, extract into a replaceable application directory and run its top-level launcher:
+
+```bash
+mkdir -p /path/to/job-tracker-release
+tar -xzf dist/release/job-tracker-<version>-linux-x86_64.tar.gz -C /path/to/job-tracker-release
 /path/to/job-tracker-release/job-tracker start
 ```
 
-The runtime uses the packaged XDG data, configuration, and state paths; replacing its extracted application directory does not move those paths. Load the separate extension ZIP with your Chromium browser's extension tooling. See [Distribution and lifecycle](docs/DISTRIBUTION.md) for the supported-platform, upgrade, backup, and removal contract.
+For the wheel, install it as an isolated tool and run the same foreground CLI:
+
+```bash
+uv tool install dist/release/job_tracker-<version>-py3-none-any.whl
+job-tracker start
+```
+
+Both packaged paths use persistent XDG data, configuration, and state roots outside replaceable application files. See [Packaged CLI](docs/CLI.md) for commands and [Distribution and lifecycle](docs/DISTRIBUTION.md) for the complete path, upgrade, backup, and removal contract.
+
+### Load the release extension
+
+Extract `job-tracker-extension-<version>.zip` into a versioned directory, then open `chrome://extensions`, enable **Developer mode**, select **Load unpacked**, and choose that extracted directory. Keep the extension version matched to the server version and reload it after an upgrade. The ZIP is an unpacked-extension artifact, not a Chrome Web Store installation.
+
+### Optional Docker Compose
+
+The released source tree also provides an optional Linux/amd64 Compose path. It publishes only to `127.0.0.1:3456`, runs as a non-root user, and keeps data, configuration, state, and backups in separate named volumes:
+
+```bash
+docker compose up -d --build
+```
+
+Follow [Containers](docs/CONTAINERS.md) for stopped-server backups, updates, verification, and destructive-volume warnings.
 
 ## Update
 
-Back up first. If the checkout has local changes, review the upstream changes before updating. Then stop the server and run:
+Back up the stopped server first. For a source checkout, review local and upstream changes, then run:
 
 ```bash
 git pull --ff-only
@@ -129,18 +160,20 @@ bash scripts/setup.sh
 
 Reload the unpacked extension from `chrome://extensions` after rebuilding. Schema updates run when the server starts.
 
-## Backup, restore, and remove
+For a runtime bundle, verify the new checksum, extract into a new sibling release directory, switch the `current` link only after extraction completes, start it, and verify the product version, health, dashboard, and extension before removing the retained prior release. For a wheel, install the verified replacement with `uv tool install --force <wheel>` and run the same checks. After a schema or data migration, switching older application files back is not a supported database downgrade; use the offline recovery procedure. For Compose, create an external copy of a stopped-server backup before rebuilding or replacing the image. The authoritative sequence and rollback boundary are in [Distribution and lifecycle](docs/DISTRIBUTION.md#upgrade-downgrade-and-replacement).
+
+## Backup, restore, and uninstall
 
 Stop the server before maintenance. The API README has the tested [SQLite/Turso backup, restore, and checkout-adoption procedure](apps/api/README.md#backup--restore). Back up before upgrades and keep the validated SQLite snapshot outside the repository; synced restores use a separate local recovery target and never reseed the Turso primary.
 
-To uninstall:
+Ordinary uninstall removes application files but preserves data unless you explicitly purge it:
 
-1. Stop the server and remove the unpacked extension in `chrome://extensions`.
-2. Delete the configured `DB_PATH` (default `apps/api/jobtracker.db`) and, when present, its `.sync` sibling.
-3. If you configured Turso, delete the remote database separately.
-4. Delete the checkout and any backups once you no longer need them.
+- **Source checkout:** stop the server, export any database you want to keep outside the repository, remove the extension, and then remove the checkout. The legacy source database and configuration live inside that checkout, so deleting it also deletes those local files.
+- **Runtime bundle:** remove the user launcher, active pointer, and selected release directories. Leave the XDG data, configuration, state, and backup roots in place for reinstall or recovery.
+- **Wheel:** run `uv tool uninstall job-tracker`. This removes the tool environment and launcher, not packaged data, configuration, state, or backups.
+- **Compose:** run `docker compose down` to remove the container while preserving named volumes. Never use `docker compose down -v` as ordinary uninstall because it deletes the volumes.
 
-Removing the extension clears its browser preferences but erases no server records.
+Removing the extension clears its browser preferences but erases no server records. Purging persistent local roots is a separate, explicit action after confirming the server is stopped and backups are safe. No uninstall or purge command deletes or modifies a Turso primary; remote deletion is a separate provider operation performed directly by the user.
 
 ## Project documentation
 

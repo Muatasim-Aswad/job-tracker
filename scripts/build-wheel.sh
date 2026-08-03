@@ -76,9 +76,10 @@ cp "$ROOT/LICENSE" "$STAGE/LICENSE"
 # isolated staging copy receives the canonical distribution name and VERSION.
 sed -i 's/^name = "job-tracker-api"$/name = "job-tracker"/' "$STAGE/pyproject.toml"
 sed -i "s/^version = \"0.1.0\"$/version = \"$VERSION\"/" "$STAGE/pyproject.toml"
-sed -i '/^description = /a license = "MIT"\nlicense-files = ["LICENSE"]' "$STAGE/pyproject.toml"
+sed -i '/^description = /a readme = "README.md"\nlicense = "MIT"\nlicense-files = ["LICENSE"]' "$STAGE/pyproject.toml"
 grep -Fxq 'name = "job-tracker"' "$STAGE/pyproject.toml" || fail "could not stage wheel name."
 grep -Fxq "version = \"$VERSION\"" "$STAGE/pyproject.toml" || fail "could not stage wheel version."
+grep -Fxq 'readme = "README.md"' "$STAGE/pyproject.toml" || fail "could not stage wheel readme."
 grep -Fxq 'license-files = ["LICENSE"]' "$STAGE/pyproject.toml" || fail "could not stage wheel license."
 
 mkdir -p "$STAGE/app/resources/apps/web/dist"

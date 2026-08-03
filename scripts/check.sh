@@ -10,6 +10,9 @@ cd "$ROOT"
 bash scripts/check-private.sh
 bash scripts/test-setup.sh
 bash scripts/test-launchers.sh
+bash scripts/test-release-workflow.sh
+bash scripts/test-validate-wsl2.sh
+bash scripts/test-release-build.sh
 
 pnpm exec vp check
 

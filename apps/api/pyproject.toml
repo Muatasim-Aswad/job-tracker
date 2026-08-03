@@ -4,7 +4,6 @@ name = "job-tracker-api"
 # and version from the root VERSION file when it generates the end-user wheel.
 version = "0.1.0"
 description = "Local FastAPI backend for the personal job tracker"
-readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.140.13",

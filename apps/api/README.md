@@ -19,11 +19,12 @@ uv run python -m app.cli --profile direct start [--port PORT]
 uv run python -m app.cli --profile direct status
 uv run python -m app.cli --profile direct paths
 uv run python -m app.cli --profile direct version
+uv run python -m app.cli --profile direct doctor
 uv run python -m app.cli --profile direct backup /safe/path/job-tracker.sqlite
 uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite
 ```
 
-`start` binds only to `127.0.0.1` and runs in the foreground. `status` never opens or mutates the database. Backup, restore, and checkout adoption are offline-only and refuse while the selected server lock is held. Source launchers and packaged operation select their profile explicitly; see the authoritative [distribution and lifecycle contract](../../docs/DISTRIBUTION.md).
+`start` binds only to `127.0.0.1` and runs in the foreground. `status` never opens or mutates the database. `doctor` reports redacted path, version, mode, lock/health, permission, and safe integrity diagnostics. Backup, restore, and checkout adoption are offline-only and refuse while the selected server lock is held. Source launchers and packaged operation select their profile explicitly; see the authoritative [distribution and lifecycle contract](../../docs/DISTRIBUTION.md).
 
 ## Dashboard (web UI)
 

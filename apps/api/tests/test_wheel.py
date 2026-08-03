@@ -76,6 +76,7 @@ def test_generated_wheel_has_canonical_metadata_and_runtime_resources(tmp_path: 
         assert f"Version: {VERSION}\n" in metadata
         assert "Name: job-tracker\n" in metadata
         assert "License-Expression: MIT\n" in metadata
+        assert "Description-Content-Type: text/markdown\n" in metadata
         assert not any("/tests/" in name or name.endswith(".map") for name in names)
 
     extracted = tmp_path / "installed"

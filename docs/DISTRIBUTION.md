@@ -2,14 +2,14 @@
 
 This document is the authority for end-user distribution: artifact names, installation profiles, path resolution, persistent-state boundaries, permissions, lifecycle operations, upgrades, removal, and platform support. Component documentation may explain commands, but it must link here instead of defining a second distribution contract.
 
-The contract is deliberately broader than the artifacts available today. The repository checkout remains the current installation method. A surface marked **planned** or **candidate** below is not supported merely because its paths are reserved here.
+The contract includes source and packaged surfaces with different evidence. Linux x86_64 runtime-bundle and wheel artifacts and the optional Linux/amd64 Compose path have isolated smoke coverage; release publication is still a separate coordinator action. A surface marked **candidate**, **reserved**, or **unsupported** below is not supported merely because paths or validation tooling exist.
 
 ## Terms and profiles
 
 - The **source checkout** is a Git working tree prepared with the repository setup scripts. It requires the contributor/end-user toolchain documented in the root README.
 - The **runtime bundle** is a versioned archive containing the API application, locked production metadata, prebuilt dashboard, product version, notices, and a launcher. It is not a native executable: its launcher requires `uv`, which provisions the pinned Python runtime and dependencies. It requires neither Git nor Node/pnpm after extraction.
 - The **extension ZIP** contains the built public Chromium extension at the archive root. It is separate from the runtime bundle, but both carry the same product version.
-- The later **wheel** contains the Python application and dashboard resources. It does not contain Python and remains subject to the native-wheel support of its dependencies.
+- The **wheel** contains the Python application and dashboard resources. It does not contain Python and remains subject to the native-wheel support of its dependencies.
 - The **application root** contains replaceable program files. The **data root**, **configuration root**, **state root**, and backup locations contain user state and are never children of a packaged application root.
 - A **profile** is one resolved application, data, configuration, state, and database path set. Source launchers select the source-checkout profile explicitly; a packaged launcher selects the packaged profile explicitly. The server never guesses a profile from the current working directory.
 
@@ -63,12 +63,13 @@ A missing version, schema, or required packaged dashboard is a broken installati
 ```text
 job-tracker-<version>-linux-x86_64.tar.gz
 job-tracker-extension-<version>.zip
+job_tracker-<version>-py3-none-any.whl
 SHA256SUMS
 ```
 
-The runtime tarball has its application files at archive root: `job-tracker`, `VERSION`, `LICENSE`, public API source with `pyproject.toml`/`uv.lock`, and the prebuilt dashboard. The extension ZIP has its public built extension contents, including `manifest.json`, at ZIP root. The generator first builds both frontends from a tracked-files-only temporary source tree. It therefore does not read or package ignored private overlays, checkout `.env` files, databases, credentials, fixtures, or local build output.
+The runtime tarball has its application files at archive root: `job-tracker`, `VERSION`, `LICENSE`, public API source with `pyproject.toml`/`uv.lock`, and the prebuilt dashboard. The extension ZIP has its public built extension contents, including `manifest.json`, at ZIP root. The wheel carries the API, schema, version, license, console entry point, and prebuilt dashboard as installed package resources. The generator first builds both frontends from a tracked-files-only temporary source tree. It therefore does not read or package ignored private overlays, checkout `.env` files, databases, credentials, fixtures, or local build output.
 
-`bash scripts/check-release-contents.sh dist/release` verifies the exact three-file release directory, checksums, canonical versions, the runtime allowlist, absence of source maps and private/developer artifacts, and the public extension host allowlist. `bash scripts/smoke-release.sh dist/release/job-tracker-<version>-linux-x86_64.tar.gz` extracts a runtime into disposable paths, moves it before startup, uses temporary XDG roots and loopback port `34656`, verifies health/OpenAPI/dashboard serving, and replaces the application directory while preserving data, configuration, and state.
+`bash scripts/check-release-contents.sh dist/release` verifies the exact four-file release directory, checksums, canonical versions, runtime and wheel allowlists, absence of source maps and private/developer artifacts, and the public extension host allowlist. `bash scripts/smoke-release.sh dist/release/job-tracker-<version>-linux-x86_64.tar.gz` extracts a runtime into disposable paths, moves it before startup, uses temporary XDG roots and loopback port `34656`, verifies health/OpenAPI/dashboard serving, and replaces the application directory while preserving data, configuration, and state. `bash scripts/smoke-wheel.sh dist/release/job_tracker-<version>-py3-none-any.whl` uses a fresh isolated `uv tool` environment outside the checkout on port `34657`, then verifies startup, backup, diagnostics, uninstall, and persistence.
 
 The archives normalize owner, ordering, timestamps (default `SOURCE_DATE_EPOCH=315532800`), and compression metadata. `bash scripts/test-release-build.sh` builds twice in independent disposable roots and compares the outputs byte-for-byte. Determinism is scoped to identical tracked working-tree inputs and the pinned build toolchain; a changed toolchain or dependency lock is a new build input.
 
@@ -167,7 +168,7 @@ The optional container profile uses explicit roots rather than a home directory:
 | State root, lock, lifecycle marker | `/state`, then `server.lock` and `lifecycle.json` | Explicit runtime volume |
 | Backup root | `/backups` | Separate named volume or host bind if backups must survive a data-volume purge |
 
-Compose must pass every root explicitly. `docker compose down` preserves volumes; `down -v` is destructive and must not be presented as ordinary uninstall. Container support remains planned until its image and smoke tests exist.
+Compose passes every root explicitly. `docker compose down` preserves volumes; `down -v` is destructive and must not be presented as ordinary uninstall. The optional Linux/amd64 image and Compose path are covered by `bash scripts/test-container.sh`, which uses a unique project, fresh volumes, and an automatically chosen loopback host port. Image publication remains a separate canonical-tag workflow action.
 
 ## Permissions and secrets
 
@@ -220,7 +221,7 @@ An upgrade follows this order:
 
 Application replacement is atomic; database migration is a separate startup transaction and is not made reversible by switching the application pointer. If the new release has not changed the database, switching `current` back to a retained release is the normal application rollback. After a schema or data migration, running older code is unsupported unless that release's notes explicitly declare downgrade compatibility. Restore the verified pre-upgrade backup offline to a local recovery target when necessary; do not use general restore to roll a Turso primary backward. Additive columns may physically remain understandable to older SQLite code, but that is not a downgrade guarantee.
 
-Configuration files are persistent user input. An upgrade may validate or document new keys, but never replace the file or copy a release's example over it. The runtime bundle, extension ZIP, and later wheel from one release must report the same canonical product version.
+Configuration files are persistent user input. An upgrade may validate or document new keys, but never replace the file or copy a release's example over it. The runtime bundle, extension ZIP, and wheel from one release must report the same canonical product version.
 
 ## Uninstall and purge
 
@@ -236,6 +237,7 @@ The delayed-import `job-tracker` entry point now provides the shared command sur
 - `job-tracker status` reads advisory-lock ownership and performs a bounded loopback health check. It reports `stopped`, `healthy`, or `lock-held-but-unhealthy` and never opens or creates the database or lock.
 - `job-tracker paths` prints the selected application, data, configuration, state, database, dashboard, schema, and version paths without configuration values or credentials.
 - `job-tracker version` prints the selected application's canonical `VERSION` value.
+- `job-tracker doctor` reports redacted product/runtime, profile, database-mode, path, lock/health, integrity, and permission diagnostics. It skips database inspection while the lock is held and returns nonzero for a diagnostic failure.
 - `job-tracker backup OUTPUT.sqlite` creates a private, validated, atomic snapshot of the stopped profile's effective local store.
 - `job-tracker restore BACKUP.sqlite [--target TARGET.sqlite] [--replace]` validates and migrates a local candidate before installation. Turso profiles require a separate explicit recovery target and never reseed a primary.
 - `job-tracker migrate-checkout CHECKOUT` snapshots a stopped legacy checkout into an empty local packaged destination without copying configuration, credentials, or other checkout state.
@@ -248,14 +250,14 @@ The command defaults to the packaged profile because it is the installed/staged 
 | --- | --- | --- |
 | Linux x86_64 source checkout | Supported current path | Git, pinned Node/pnpm, and `uv`; public setup and checks cover it. |
 | macOS source checkout | Supported source path, tested separately | Same source toolchain. It is not evidence of a macOS runtime bundle or wheel. |
-| Linux x86_64 uv-managed runtime bundle | Implemented local release-preparation artifact; publication pending | Requires `uv`; no Git or Node/pnpm at runtime. Not a native executable. |
-| Public Chromium extension ZIP | Implemented local release-preparation artifact; publication pending | Separate archive with the same version as the server; Chromium-family browser required. |
-| `job-tracker` CLI | Implemented for source and staged application layouts | Foreground `start`, read-only `status`/`paths`, `version`, offline backup/restore, and packaged checkout adoption; no released packaged artifact is implied. |
-| Python wheel | Planned after the bundle contract stabilizes | Requires a compatible Python environment; the wheel does not contain Python. |
+| Linux x86_64 uv-managed runtime bundle | Built and smoke-tested release artifact; publication pending | Requires `uv`; no Git or Node/pnpm at runtime. Not a native executable. |
+| Public Chromium extension ZIP | Built and content-verified release artifact; publication pending | Separate unpacked-extension archive with the same version as the server; Chromium-family browser required. |
+| `job-tracker` CLI | Implemented for source, runtime-bundle, wheel, and container layouts | Foreground `start`, read-only `status`/`paths`, `version`, `doctor`, offline backup/restore, and packaged checkout adoption; no daemon or automatic updater. |
+| Python wheel on Linux x86_64 | Built and fresh-environment smoke-tested release artifact; publication pending | Installed with `uv tool`; contains no Python runtime and requires platform-compatible dependency wheels. |
 | WSL2 on x86_64 | Candidate, unsupported pending recorded validation | Uses the Linux artifact inside WSL2; active database files must stay on the Linux filesystem, not `/mnt/c`. |
 | Native Windows | Unsupported | Reserved paths only; no native installer, launcher, driver validation, or support claim. |
 | macOS runtime bundle or wheel | Not currently planned as a released artifact | Source-checkout support does not overcome the absence of a matching locked prebuilt dependency set. |
 | Linux arm64 runtime bundle or image | Unsupported | No matching locked `libsql` wheel in the current dependency set. |
-| Linux amd64 container and Compose | Optional planned surface | Explicit `/app`, `/data`, `/config`, `/state`, and `/backups` roots; no publication claim until built and tested. |
+| Linux amd64 container and Compose | Optional built and smoke-tested path | Explicit `/app`, `/data`, `/config`, `/state`, and `/backups` roots; GHCR publication occurs only from the canonical-tag workflow. |
 
 The locked `libsql 0.1.11` dependency currently supplies a CPython 3.14 wheel only for manylinux x86_64. That makes Linux x86_64 the only straightforward prebuilt target. Building an sdist on another platform is not equivalent to a reproducible, tested release artifact and must not be used to imply support.
