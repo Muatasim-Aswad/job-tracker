@@ -12,6 +12,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Fixed
 
+- A salary range reported as three pay signals: “€4500-€6000 euro” counted as three figures, not one.
 - Missing action bar on the classic LinkedIn search page, after LinkedIn renamed the detail pane's top card.
 - Wrong posting age on the newer search page: it was read from the first job in the results, not the open one.
 

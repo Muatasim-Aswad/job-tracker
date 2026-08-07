@@ -204,10 +204,35 @@ describe("keywordFindings", () => {
     // "euro" still must not match inside a longer word.
     const policy = enable("pay");
     expect(keywordFindings("Range: €3.000–€4.000.", policy).map((f) => f.label)).toEqual([
-      "€3.000",
-      "€4.000",
+      "€3.000–€4.000",
     ]);
     expect(keywordFindings("Eurofins is hiring.", policy)).toEqual([]);
+  });
+
+  it("reads a restated salary range as one figure", () => {
+    // Signed on both ends and closed by the currency word, this line otherwise yields
+    // three findings — "€4500", "€6000", "euro" — each quoting the same line.
+    const policy = enable("pay");
+    const text = "Een salaris tussen de €4500-€6000 euro bruto op basis van 36 uur";
+    const found = keywordFindings(text, policy);
+    expect(found.map((f) => f.label)).toEqual(["€4500-€6000 euro"]);
+    expect(found[0].match).toBe("€4500-€6000 euro");
+  });
+
+  it("joins a money phrase over spacing and a written range word", () => {
+    const policy = enable("pay");
+    expect(
+      keywordFindings("Salaris €4500 tot €6000 per maand.", policy).map((f) => f.label),
+    ).toEqual(["€4500 tot €6000"]);
+  });
+
+  it("still separates two figures that a word stands between", () => {
+    // A base and a bonus are different numbers to read, so they stay two findings.
+    const policy = enable("pay");
+    expect(keywordFindings("€4500 base plus €500 bonus.", policy).map((f) => f.label)).toEqual([
+      "€4500",
+      "€500",
+    ]);
   });
 
   it("takes a shorthand amount but stops at a sentence period", () => {

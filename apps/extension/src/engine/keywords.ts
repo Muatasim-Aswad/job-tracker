@@ -48,7 +48,8 @@ interface SignalDef {
   numeric?: boolean;
   // true → also take an adjacent amount into the match, before or after the term, so
   // both "€2.800" and "2.800 euro" surface the figure the user is scanning for. The
-  // amount is optional: a bare "euro" is still worth flagging.
+  // amount is optional: a bare "euro" is still worth flagging, and a phrase that
+  // restates itself ("€4500-€6000 euro") matches whole.
   currency?: boolean;
   // true → exempt from PER_RULE_CAP, for a signal whose vocabulary is open-ended and
   // so outgrows a budget sized for a focused one. Honored only while the signal sorts
@@ -251,6 +252,11 @@ function normalizeNumericValue(value: string): string {
   return value.replace(RANGE_SEPARATOR_RE, "-");
 }
 
+// What may join the halves of one money phrase: spacing, optionally around a range
+// separator. Nothing else — a gap carrying a word ("€4500 base plus €500 bonus") means
+// two figures, and excluding newlines keeps two list items apart.
+const MONEY_GLUE = `${HORIZONTAL_SPACE}(?:(?:${RANGE_SEPARATOR})${HORIZONTAL_SPACE})?`;
+
 // Alternation of the signal's terms, each escaped so a term like "c++" matches
 // literally, and word-boundaried only on the edges that are word characters. A sign
 // like "€" gets no boundary there, so it still matches flush against its figure.
@@ -275,9 +281,12 @@ function bodySource(sig: KeywordSignal): string | null {
     return `(${value})${HORIZONTAL_SPACE}(${sig.terms.map(escapeRegExp).join("|")})${B_END}`;
   }
   const alt = termAlternation(sig.terms);
-  return def.currency
-    ? `(?:${AMOUNT}${HORIZONTAL_SPACE})?(?:${alt})(?:${HORIZONTAL_SPACE}${AMOUNT})?`
-    : `(?:${alt})`;
+  if (!def.currency) return `(?:${alt})`;
+  // One half of a money phrase: a currency term with an amount on either side. A pay
+  // line restates its figure in several of these, so the phrase repeats the half and
+  // one figure stays one finding.
+  const half = `(?:${AMOUNT}${HORIZONTAL_SPACE})?(?:${alt})(?:${HORIZONTAL_SPACE}${AMOUNT})?`;
+  return `${half}(?:${MONEY_GLUE}${half})*`;
 }
 
 function escapeRegExp(s: string): string {
