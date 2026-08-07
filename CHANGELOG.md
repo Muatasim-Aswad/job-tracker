@@ -9,10 +9,18 @@ One version covers the whole product. The extension, the dashboard, and the serv
 ### Added
 
 - Support for LinkedIn's newer job search page, reached from job-alert notifications. Its cards and detail pane now carry action bars, and jobs opened there are captured.
+- A ⚠ alert on a LinkedIn job that is no longer accepting applications, from the same sign that already closes it automatically.
+
+### Changed
+
+- Posting age and apply clicks now show on every LinkedIn job, compactly (`17d`, `25 clicks`), in a quiet strip at the top of the job. Age is tinted green, amber or grey by how far past fresh it is; the click count is tinted only where LinkedIn caps it at 100+.
+- Apply clicks are labelled as clicks: LinkedIn counts who opened the apply flow, not who applied.
+- The job's flags are three separate boxes now — the facts strip, then keyword findings, then alerts — and ⚠ appears only on an alert. Keyword findings no longer raise a warning: they are what you asked to be shown.
 
 ### Fixed
 
 - A salary range reported as three pay signals: “€4500-€6000 euro” counted as three figures, not one.
+- The stale-posting flag ignored the unit: it fired on a job posted 16 hours ago and stayed silent on one posted 3 weeks ago.
 - Missing action bar on the classic LinkedIn search page, after LinkedIn renamed the detail pane's top card.
 - Wrong posting age on the newer search page: it was read from the first job in the results, not the open one.
 

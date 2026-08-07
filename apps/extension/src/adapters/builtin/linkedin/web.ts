@@ -1,6 +1,7 @@
 import type { Adapter } from "../../types";
 import type { ListingRecord } from "../../../messages";
 import {
+  type BannerChip,
   autoEmit,
   bannerSignature,
   captureListingOnce,
@@ -19,6 +20,7 @@ import {
 } from "../../../engine.js";
 import { postedFromExact, postedFromRelative } from "../../posted.js";
 import { platformMeta } from "@job-tracker/shared/platforms";
+import { fmtSpan } from "@job-tracker/shared/time";
 import { ICON } from "../../../icons.js";
 import { LINKEDIN_PREFIX, linkedinJobId, linkedinRenderKey } from "./identity.js";
 
@@ -308,6 +310,26 @@ function listCardPostedDay(platformId: string): string | null {
   return time?.getAttribute("datetime")?.trim() || null;
 }
 
+// Fresh enough that competition has not built up, against clearly cooled. Whole days,
+// so the tint cannot disagree with the "3d" the chip shows.
+const AGE_FRESH_DAYS = 7;
+const AGE_COOLED_DAYS = 21;
+const DAY_MS = 86_400_000;
+// Where LinkedIn stops counting and renders "100+" instead of a number.
+const APPLY_CLICK_CAP = 100;
+
+// Posting age as one compact chip, tinted by distance from fresh. Resolved through the
+// shared parser so the UNIT counts: "16 hours ago" is not sixteen days old. Unparseable
+// wording still shows, untinted.
+function ageChip(postedAge: string): BannerChip {
+  const title = "Posted " + postedAge;
+  const { at } = postedFromRelative(postedAge, new Date().toISOString());
+  if (!at) return { text: postedAge, title };
+  const days = (Date.now() - new Date(at).getTime()) / DAY_MS;
+  const tone = days <= AGE_FRESH_DAYS ? "good" : days <= AGE_COOLED_DAYS ? "warn" : "faded";
+  return { text: fmtSpan(at), tone, title };
+}
+
 // ── Detail head (warnings banner + copy button) ──────────────────────────────
 // A strip at the top card carrying two independent things, both gated on the JD
 // being present: the ⚠ keyword/analytics banner (only when there's something to
@@ -320,26 +342,42 @@ function renderDetailHead(detail: HTMLElement) {
   const text = elementToText(detail);
   if (!text) return; // no JD → neither banner nor copy button
 
-  // Warnings — keyword findings, header analytics, and the block flag. May be empty;
+  // Keyword findings, header analytics, and the block flag. All may be empty;
   // placeBanner then adds nothing and the head is just the copy button.
   const findings = keywordFindings(text);
-  const chips: string[] = [];
+  const chips: BannerChip[] = [];
+  const alerts: string[] = [];
+  // The two things here that are wrong rather than merely worth knowing. Closed sorts
+  // first: it decides whether the rest is worth reading at all.
+  if (listingClosed()) alerts.push("closed to applications");
   // Explain why a blocked listing is not captured.
   const { company } = detailIdentity();
-  const blocked = isCompanyBlocked(company, "linkedin");
-  if (blocked) chips.push("blocked company");
-  // Analytics from the page header (never inside the JD element).
+  if (isCompanyBlocked(company, "linkedin")) alerts.push("blocked company");
+  // Analytics from the page header (never inside the JD element). Both show whenever
+  // the page states them: a threshold would make their absence ambiguous, unable to
+  // separate a fresh posting from one LinkedIn simply did not date.
   const { applicants, applyClicksShown, postedAge } = scanJobSignals(detail);
+  if (postedAge) chips.push(ageChip(postedAge));
   if (applyClicksShown) {
-    chips.push(applicants != null ? applicants + " applicants" : "100+ applicants");
+    // "clicks", one word, because the strip is scanned rather than read; the title
+    // carries the full wording. Clicks, not applications: LinkedIn counts who opened the
+    // apply flow. Tinted only at the cap, where the count stops being role-dependent.
+    const saturated = applicants == null || applicants >= APPLY_CLICK_CAP;
+    const count = applicants ?? APPLY_CLICK_CAP + "+";
+    chips.push({
+      text: count + " clicks",
+      title: saturated
+        ? `Applications have saturated — LinkedIn stops counting at ${APPLY_CLICK_CAP}`
+        : `${count} people clicked apply`,
+      ...(saturated ? { tone: "warn" as const } : {}),
+    });
   }
-  if (postedAge && parseInt(postedAge) > 14) chips.push("stale (" + postedAge + ")");
 
   // Rebuild only when what the head would show changes. Scraping first and keying on
   // the result is what lets the applicant count, the posting age and the JD arrive in
   // different scans and still reach the banner; an unchanged scrape means no rebuild,
   // so a transient "Copied ✓" label survives the next scan tick.
-  const content = { chips, findings };
+  const content = { chips, findings, alerts };
   const signature = bannerSignature(content);
   const existing = document.querySelector(".jh-detail-head") as HTMLElement | null;
   if (existing) {
@@ -349,7 +387,7 @@ function renderDetailHead(detail: HTMLElement) {
   const head = document.createElement("div");
   head.className = "jh-detail-head";
   head.dataset.jhSignature = signature;
-  placeBanner(content, head, { danger: blocked, position: "append" });
+  placeBanner(content, head, { position: "append" });
 
   head.appendChild(makeCopyButton());
 
@@ -447,11 +485,17 @@ function detectApplied(jobId: string) {
   if (hasLegacyStatus || hasAppliedLink || hasAppliedFeedback) void autoEmit(jobId, "applied");
 }
 
-function detectClosed(jobId: string) {
-  const isClosed = [...document.querySelectorAll("p")].some(
+// LinkedIn's own closed sign. One definition, two readers: this drives the automatic
+// closure, and the head raises it as an alert — they must not disagree about what
+// "closed" means on screen.
+function listingClosed() {
+  return [...document.querySelectorAll("p")].some(
     (el) => el.textContent!.trim() === "No longer accepting applications",
   );
-  if (isClosed) markListingClosed(jobId).catch(() => {});
+}
+
+function detectClosed(jobId: string) {
+  if (listingClosed()) markListingClosed(jobId).catch(() => {});
 }
 
 // ── Listing capture ──────────────────────────────────────────────────────────

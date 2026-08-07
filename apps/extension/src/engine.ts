@@ -4,6 +4,7 @@ import { createEngine } from "./engine/create.js";
 // Keep adapters independent of the engine's internal module layout.
 export { toNaturalKey } from "./registry.js";
 export {
+  type BannerChip,
   detailText,
   elementToText,
   bannerCurrent,

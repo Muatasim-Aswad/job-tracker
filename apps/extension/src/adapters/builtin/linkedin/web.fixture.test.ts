@@ -58,14 +58,94 @@ describe("linkedin adapter — detail head", () => {
     applicants.remove();
 
     linkedinAdapter.scanDetail!();
-    expect(chipTexts()).toEqual(["stale (17 days ago)"]);
+    expect(chipTexts()).toEqual(["17d"]);
 
     document
       .querySelector(".job-details-jobs-unified-top-card__container--two-pane")!
       .appendChild(applicants);
     linkedinAdapter.scanDetail!();
 
-    expect(chipTexts()).toEqual(["25 applicants", "stale (17 days ago)"]);
+    expect(chipTexts()).toEqual(["17d", "25 clicks"]);
+  });
+
+  // The chip's own text is the fact; the tint only ranks it. Reading the unit is what
+  // separates the two — a plain leading number calls a 16-hour-old posting 16 days old.
+  it.each([
+    ["16 hours ago", "16h", "jh-banner-chip--good"],
+    ["17 days ago", "17d", "jh-banner-chip--warn"],
+    // Days, not "2 months ago": a calendar month's length would move the expectation.
+    ["40 days ago", "40d", "jh-banner-chip--faded"],
+  ])("tints a posting of %s by its real age", (age, text, tone) => {
+    document.body.innerHTML = loadFixture("linkedin-detail.html");
+    window.history.pushState({}, "", "/jobs/view/100001/");
+    installFakeChrome();
+    const posted = [...document.querySelectorAll("span")].find(
+      (el) => el.textContent!.trim() === "17 days ago",
+    )!;
+    posted.textContent = age;
+
+    linkedinAdapter.scanDetail!();
+
+    const chip = document.querySelector(".jh-detail-head .jh-banner-chip")!;
+    expect(chip.textContent).toBe(text);
+    expect(chip.classList.contains(tone)).toBe(true);
+    expect((chip as HTMLElement).title).toBe("Posted " + age);
+  });
+
+  // An ordinary job raises no ⚠ at all. Box stacking across all three kinds is covered
+  // in dom.test.ts, where a policy is loaded; this fixture's storage never lands one,
+  // so it yields no keyword findings.
+  it("shows a quiet stats strip and no ⚠ on an ordinary job", () => {
+    document.body.innerHTML = loadFixture("linkedin-detail.html");
+    window.history.pushState({}, "", "/jobs/view/100001/");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    const boxes = [...document.querySelectorAll(".jh-detail-banner > *")].map((b) => b.className);
+    expect(boxes).toEqual(["jh-banner-stats"]);
+    expect(document.querySelector(".jh-banner-icon")).toBeNull();
+  });
+
+  it("tints the apply-click count only at LinkedIn's cap", () => {
+    document.body.innerHTML = loadFixture("linkedin-detail.html");
+    window.history.pushState({}, "", "/jobs/view/100001/");
+    installFakeChrome();
+    const clicks = [...document.querySelectorAll("span")].find((el) =>
+      el.textContent!.includes("clicked apply"),
+    )!;
+    const lastChip = () => [...document.querySelectorAll(".jh-banner-chip")].at(-1)!;
+
+    linkedinAdapter.scanDetail!();
+    // Below the cap the number is role-dependent: stated, not ranked.
+    expect(lastChip().textContent).toBe("25 clicks");
+    expect(lastChip().className).toBe("jh-banner-chip");
+
+    clicks.textContent = "Over 100 people clicked apply for this job";
+    linkedinAdapter.scanDetail!();
+
+    expect(lastChip().textContent).toBe("100 clicks");
+    expect(lastChip().classList.contains("jh-banner-chip--warn")).toBe(true);
+  });
+
+  // The same sign that closes the job automatically. Reading it twice from one
+  // predicate is what keeps the alert from claiming a state the funnel disagrees with.
+  it("raises LinkedIn's closed sign as an alert", () => {
+    document.body.innerHTML = loadFixture("linkedin-detail.html");
+    window.history.pushState({}, "", "/jobs/view/100001/");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+    expect(document.querySelector(".jh-banner-alert")).toBeNull();
+
+    const sign = document.createElement("p");
+    sign.textContent = "No longer accepting applications";
+    document.querySelector(".job-details-jobs-unified-top-card__container--two-pane")!.append(sign);
+    linkedinAdapter.scanDetail!();
+
+    const alert = document.querySelector(".jh-banner-alert")!;
+    expect(alert.textContent).toContain("closed to applications");
+    expect(alert.querySelector(".jh-banner-icon")!.textContent).toBe("⚠");
   });
 
   it("leaves an unchanged head in place, so a copy confirmation survives a scan", () => {

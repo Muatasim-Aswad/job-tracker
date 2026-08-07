@@ -46,48 +46,86 @@
   margin: 0; /* the head owns the outer spacing; the banner just stacks inside it */
 }
 
+/* Up to three stacked boxes, quietest first. */
 .jh-detail-banner {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
   max-width: 680px;
-  background: #fff3cd;
-  color: #664d03;
-  border: 1px solid #e6a817;
-  padding: 6px 10px;
   font-size: 12px;
   font-weight: 500;
   margin: 6px 0;
-  border-radius: 4px;
   color-scheme: light; /* pin readable text on a host dark theme, like the bars */
 }
-/* Same red as the card-level .jh-red outline, for flags too urgent to blend
-   in with routine JD flags (e.g. a blocked company silently not enriching). */
-.jh-detail-banner--danger {
-  background: #fde2e2;
-  color: #7a1f1f;
-  border-color: #e53e3e;
+.jh-banner-stats,
+.jh-banner-findings,
+.jh-banner-alert {
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 6px 10px;
 }
-
-.jh-banner-icon {
-  flex-shrink: 0;
-  line-height: 1.5;
-}
-.jh-banner-body {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.jh-banner-chips {
+/* Routine facts, on every job. */
+.jh-banner-stats {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 10px;
+  background: #f3f5f7;
+  color: #33404d;
+  border-color: #dce0e4;
+}
+/* Keyword matches keep the original yellow: they are the reason to stop and read, so
+   the box has to pull the eye down from the facts strip. Loud, but not the alert red —
+   they flag nothing wrong. */
+.jh-banner-findings {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  background: #fff3cd;
+  color: #664d03;
+  border-color: #e6a817;
+}
+/* Same red as the card-level .jh-red outline. */
+.jh-banner-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  background: #fde2e2;
+  color: #7a1f1f;
+  border-color: #e53e3e;
+}
+.jh-banner-icon {
+  flex-shrink: 0;
+  line-height: 1.5;
 }
 .jh-banner-chip {
   font-weight: 600;
   white-space: nowrap;
+}
+/* Tinted chips rank a fact that has a direction, on the .jh-match-pct ramp: green
+   fresh, amber cooling, grey gone quiet. An untinted chip inherits the strip's text. */
+.jh-banner-chip--good,
+.jh-banner-chip--warn,
+.jh-banner-chip--faded {
+  border-radius: 5px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+}
+.jh-banner-chip--good {
+  background: #e6f7f0;
+  color: #1a7f5a;
+  border-color: #b7e4cf;
+}
+.jh-banner-chip--warn {
+  background: #fff3cd;
+  color: #664d03;
+  border-color: #e6cf87;
+}
+.jh-banner-chip--faded {
+  background: #eef0f2;
+  color: #56687a;
+  border-color: #dce0e4;
 }
 /* One finding: a fixed-width label so the highlighted contexts line up under
    each other, then the JD snippet. */
@@ -117,10 +155,6 @@
   background: #e6a817;
   color: #3d2c00;
   font-weight: 700;
-}
-.jh-detail-banner--danger mark {
-  background: #e53e3e;
-  color: #fff;
 }
 
 /* The copy button — a standalone light chip in the head, under the banner (or alone

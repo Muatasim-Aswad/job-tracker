@@ -86,8 +86,9 @@ export function bannerSignature(content: BannerContent) {
 // What the banner shows, flattened. A finding is identified by its rule and matched
 // word, so shifting context around the same match is not a change worth rebuilding for.
 function bannerKey(content: BannerContent) {
+  const chips = (content.chips ?? []).map((c) => `${c.tone ?? ""}:${c.text}`);
   const findings = (content.findings ?? []).map((f) => `${f.ruleId}:${f.match}`);
-  return [...(content.chips ?? []), ...findings].join("|");
+  return [...chips, ...findings, ...(content.alerts ?? [])].join("|");
 }
 
 // Banner dedup: true if a still-valid banner is already up, so the caller can skip
@@ -104,57 +105,87 @@ export function bannerCurrent(content?: BannerContent) {
   return false;
 }
 
-// What the ⚠ banner renders: short standalone `chips` (blocked company, applicant
-// count, staleness — flags with no useful JD context) on one row, then one line per
-// keyword `finding` with the matched word highlighted in its surrounding context.
-export interface BannerContent {
-  chips?: string[];
-  findings?: KeywordFinding[];
+// A short standalone fact on the stats strip: the job's context in one place, so it is
+// read here rather than hunted for around the host page. `tone` tints it by state —
+// left off for a fact that carries no direction, since a colour the data does not
+// support reads as a verdict. `title` holds the unabbreviated wording.
+export interface BannerChip {
+  text: string;
+  tone?: "good" | "warn" | "faded";
+  title?: string;
 }
 
-// Place the ⚠ banner relative to `anchor`: immediately before it, or as its last
-// child under `position: "append"`, so an adapter can drop it inside the top card
-// rather than before some later section. No-op when there's nothing to flag or
-// nowhere to hang it. `danger` swaps the mild-warning yellow for the red of a card's
-// jh-red outline, for flags that shouldn't blend in with routine JD ones (e.g.
-// "blocked company", where the listing silently won't be enriched further).
+// The three things a banner can say, each rendered as its own box:
+//   chips    — routine facts, present on every job (posting age, apply clicks)
+//   findings — the keyword matches the user asked to be shown, with JD context
+//   alerts   — something is genuinely wrong; ⚠ appears here and nowhere else
+// Separate boxes because one warning frame around all three would flag every job.
+export interface BannerContent {
+  chips?: BannerChip[];
+  findings?: KeywordFinding[];
+  alerts?: string[];
+}
+
+// Place the banner relative to `anchor`: immediately before it, or as its last child
+// under `position: "append"`, so an adapter can drop it inside the top card rather than
+// before some later section. No-op when there is nothing to say or nowhere to hang it.
+// The boxes stack in one fixed order — stats, findings, alerts — so the strip that
+// shows on every job holds a steady position instead of sliding under whatever else
+// happened to appear.
 export function placeBanner(
   content: BannerContent,
   anchor: Element | null,
-  opts?: { danger?: boolean; position?: "before" | "append" },
+  opts?: { position?: "before" | "append" },
 ) {
   const chips = content.chips ?? [];
   const findings = content.findings ?? [];
-  if ((!chips.length && !findings.length) || !anchor) return;
+  const alerts = content.alerts ?? [];
+  if ((!chips.length && !findings.length && !alerts.length) || !anchor) return;
 
   const banner = document.createElement("div");
   banner.dataset.jhBanner = "1";
   banner.dataset.jhFingerprint = bannerFingerprint();
   banner.dataset.jhContent = bannerKey(content);
-  banner.className = "jh-detail-banner" + (opts?.danger ? " jh-detail-banner--danger" : "");
+  banner.className = "jh-detail-banner";
 
+  if (chips.length) banner.appendChild(statsStrip(chips));
+  if (findings.length) banner.appendChild(findingsBox(findings));
+  if (alerts.length) banner.appendChild(alertBox(alerts));
+
+  if (opts?.position === "append") anchor.appendChild(banner);
+  else anchor.parentNode!.insertBefore(banner, anchor);
+}
+
+function statsStrip(chips: BannerChip[]): HTMLElement {
+  const strip = document.createElement("div");
+  strip.className = "jh-banner-stats";
+  for (const c of chips) {
+    const chip = document.createElement("span");
+    chip.className = "jh-banner-chip" + (c.tone ? ` jh-banner-chip--${c.tone}` : "");
+    chip.textContent = c.text;
+    if (c.title) chip.title = c.title;
+    strip.appendChild(chip);
+  }
+  return strip;
+}
+
+function findingsBox(findings: KeywordFinding[]): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "jh-banner-findings";
+  for (const f of findings) box.appendChild(findingRow(f));
+  return box;
+}
+
+function alertBox(alerts: string[]): HTMLElement {
+  const box = document.createElement("div");
+  box.className = "jh-banner-alert";
   const icon = document.createElement("span");
   icon.className = "jh-banner-icon";
   icon.textContent = "⚠";
-
-  const body = document.createElement("div");
-  body.className = "jh-banner-body";
-  if (chips.length) {
-    const row = document.createElement("div");
-    row.className = "jh-banner-chips";
-    for (const c of chips) {
-      const chip = document.createElement("span");
-      chip.className = "jh-banner-chip";
-      chip.textContent = c;
-      row.appendChild(chip);
-    }
-    body.appendChild(row);
-  }
-  for (const f of findings) body.appendChild(findingRow(f));
-
-  banner.append(icon, body);
-  if (opts?.position === "append") anchor.appendChild(banner);
-  else anchor.parentNode!.insertBefore(banner, anchor);
+  const text = document.createElement("span");
+  text.textContent = alerts.join(" · ");
+  box.append(icon, text);
+  return box;
 }
 
 // One finding line: a normalized label chip, then the JD context with the matched

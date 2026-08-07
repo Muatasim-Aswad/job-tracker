@@ -41,8 +41,8 @@ Decision signals lift useful details out of a listing while retaining the surrou
 - pay information;
 - seniority and custom terms;
 - applicant and apply-click counts;
-- listing age;
-- blocked-company warnings.
+- listing age, shown compactly and tinted by how far past fresh it is;
+- closed-listing and blocked-company warnings.
 
 On LinkedIn, Job Tracker can also show how many times you previously applied to the same company. These signals help you inspect relevant evidence faster; they do not replace your judgment or claim to measure decision accuracy.
 
