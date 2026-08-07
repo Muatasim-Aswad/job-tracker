@@ -6,6 +6,15 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+### Added
+
+- Support for LinkedIn's newer job search page, reached from job-alert notifications. Its cards and detail pane now carry action bars, and jobs opened there are captured.
+
+### Fixed
+
+- Missing action bar on the classic LinkedIn search page, after LinkedIn renamed the detail pane's top card.
+- Wrong posting age on the newer search page: it was read from the first job in the results, not the open one.
+
 ## [1.0.0] - 2026-07-29
 
 Initial public release.

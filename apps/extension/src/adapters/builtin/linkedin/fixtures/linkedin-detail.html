@@ -1,9 +1,24 @@
 <!-- Search-side-panel detail layout. The top card is outside #job-details, and
-     the relative age is the only posting-date evidence in this fixture. -->
-<div class="job-details-jobs-unified-top-card">
+     the relative age is the only posting-date evidence in this fixture.
+
+     The top card's own block class is `__container--two-pane`. The bare
+     `job-details-jobs-unified-top-card` this fixture used to carry is no longer
+     served, and its disappearance silently removed the detail action bar from the
+     whole layout, because the bar's anchor was scoped to it. The element classes
+     (`__job-title`, `__company-name`, `__top-buttons`) survived that change.
+
+     The action bar anchors to the `__top-buttons` cluster, not to a button inside
+     it: the overflow control there carries no aria-label — its accessible name is
+     the "Show more options" text — so nothing in the cluster is addressable by
+     attribute. -->
+<div class="relative job-details-jobs-unified-top-card__container--two-pane">
   <h1 class="job-details-jobs-unified-top-card__job-title">Example Backend Engineer</h1>
   <div class="job-details-jobs-unified-top-card__company-name">
     <a href="https://www.linkedin.com/company/example-labs/">Example Labs</a>
+  </div>
+  <div class="job-details-jobs-unified-top-card__top-buttons">
+    <button aria-label="Share">Share</button>
+    <button class="artdeco-button artdeco-button--tertiary">Show more options</button>
   </div>
   <span>17 days ago</span>
   <span>25 people clicked apply</span>

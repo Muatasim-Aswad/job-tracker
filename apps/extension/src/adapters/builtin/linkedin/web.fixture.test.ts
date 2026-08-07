@@ -60,7 +60,9 @@ describe("linkedin adapter — detail head", () => {
     linkedinAdapter.scanDetail!();
     expect(chipTexts()).toEqual(["stale (17 days ago)"]);
 
-    document.querySelector(".job-details-jobs-unified-top-card")!.appendChild(applicants);
+    document
+      .querySelector(".job-details-jobs-unified-top-card__container--two-pane")!
+      .appendChild(applicants);
     linkedinAdapter.scanDetail!();
 
     expect(chipTexts()).toEqual(["25 applicants", "stale (17 days ago)"]);
@@ -238,42 +240,10 @@ describe("linkedin adapter — layout resolution", () => {
     expect(document.querySelector(".jh-detail-head .jh-banner-copy")).not.toBeNull();
   });
 
-  // Layout C — the search-results pane. This asserts the trap itself: the fixture
-  // matches layout B's description selector, so anything that resolves the JD by
-  // trying that selector would treat this page as B.
-  it("does not resolve the search-results layout as the standalone one", () => {
-    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
-    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
-    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
-    installFakeChrome();
-
-    // The premise: layout B's job-description selector matches this page.
-    expect(document.querySelector('[componentkey^="JobDetails_AboutTheJob"]')).not.toBeNull();
-
-    linkedinAdapter.scanDetail!();
-
-    // Yet no head is built, because the layout is recognized as C and reports no
-    // description — rather than being read as B and yielding an empty one.
-    expect(document.querySelector(".jh-detail-head")).toBeNull();
-  });
-
-  // Cards and detail share one document here, so a page-wide "More options" query
-  // would anchor the bar to a card. Layout C offers no detail anchor at all yet, and
-  // must not fall back to the card's button.
-  it("anchors no detail bar to a search-results card", () => {
-    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
-    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
-    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
-    installFakeChrome();
-
-    linkedinAdapter.scanDetail!();
-
-    expect(document.querySelector(".jh-detail-actions")).toBeNull();
-  });
-
-  // Capture is gated on a description, so an unserved layout stores nothing at all
-  // rather than a title-only stub.
-  it("captures nothing from the search-results layout", () => {
+  // Layout C — the search-results pane. It shares B's description container, so the
+  // layouts are told apart by their own markers, not by which selectors happen to
+  // resolve; what differs is the anchor, which C alone must keep clear of its cards.
+  it("captures the search-results layout", () => {
     document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
     document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
     window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
@@ -281,6 +251,265 @@ describe("linkedin adapter — layout resolution", () => {
 
     linkedinAdapter.capture!();
 
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const [message] = sendMessage.mock.calls[0]!;
+    expect(message).toMatchObject({
+      type: "listing",
+      payload: {
+        platform_id: "100005",
+        url: "https://www.linkedin.com/jobs/view/100005/",
+        title: "Example Senior Backend Engineer",
+        company: "Example Labs",
+        meta: {
+          description:
+            "We build developer tools used by thousands of engineers.\n\n" +
+            "Requirements: 5+ years of experience with TypeScript and distributed systems.",
+        },
+      },
+    });
+  });
+
+  it("gives the search-results layout a detail head", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    expect(document.querySelector(".jh-detail-head .jh-banner-copy")).not.toBeNull();
+  });
+
+  // Cards and detail share one document here, so a page-wide "More options" query
+  // anchors the bar inside a card. The detail button is the one outside every card.
+  it("anchors the detail bar outside the search-results cards", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    const bar = document.querySelector(".jh-detail-actions");
+    expect(bar).not.toBeNull();
+    expect(bar!.closest('[componentkey^="job-card-component-ref-"]')).toBeNull();
+    expect(bar!.closest('[data-testid="lazy-column"]')).not.toBeNull();
+  });
+
+  // The pane serves an empty skeleton for a long time before its description lands.
+  // Capture must wait for it rather than store a title-only stub — a stub is what
+  // every job on this surface became while the layout reported no description at all.
+  it("stores nothing until the search-results description arrives", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail-loading.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    const { sendMessage } = installFakeChrome();
+
+    // The container resolves; it is simply still empty.
+    expect(document.querySelector('[componentkey^="JobDetails_AboutTheJob"]')).not.toBeNull();
+
+    linkedinAdapter.capture!();
     expect(sendMessage).not.toHaveBeenCalled();
+    expect(document.querySelector(".jh-detail-head")).toBeNull();
+
+    // The description lands on a later scan, and that scan captures.
+    document.querySelector('[componentkey^="JobDetails_AboutTheJob"] > div')!.innerHTML =
+      "<p>We build developer tools used by thousands of engineers.</p>";
+    linkedinAdapter.capture!();
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+  });
+});
+// Layout C's list. No card carries an anchor, so identity and the posting url both
+// come from the componentkey.
+describe("linkedin adapter — search-results cards", () => {
+  it("tags each card once, from its componentkey", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-card.html");
+
+    const cards = linkedinAdapter.findCards(document);
+
+    // Four elements carry a card key — an outer and an inner per job — and tagging
+    // both would give every job two action bars.
+    expect(document.querySelectorAll('[componentkey^="job-card-component-ref-"]')).toHaveLength(4);
+    expect(cards).toHaveLength(2);
+    expect(cards.map((c) => c.dataset.jhId)).toEqual(["LI-100002", "LI-100003"]);
+    expect(cards.map((c) => c.dataset.jobTitle)).toEqual([
+      "Example Backend Engineer",
+      "Example Platform Engineer",
+    ]);
+    expect(cards.map((c) => c.dataset.jobCompany)).toEqual(["Example Labs", "Example Labs"]);
+    // No anchor exists on this surface; the canonical url is rebuilt from the id.
+    expect(cards[0]!.querySelectorAll("a")).toHaveLength(0);
+    expect(cards[0]!.dataset.jobUrl).toBe("https://www.linkedin.com/jobs/view/100002/");
+    expect(cards[0]!.dataset.jhCompact).toBe("1");
+  });
+
+  it("is idempotent across scans", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-card.html");
+
+    expect(linkedinAdapter.findCards(document)).toHaveLength(2);
+    expect(linkedinAdapter.findCards(document)).toHaveLength(0);
+  });
+
+  // The state line is a bare <p> sharing its slot with "Viewed" and "Saved", so the
+  // match is on exact text — a substring test would also hit a job titled
+  // "Applied AI Engineer" and mark an untouched posting as applied.
+  it("reads the applied state without matching a title containing it", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-card.html");
+    const [plain, applied] = linkedinAdapter.findCards(document);
+
+    expect(linkedinAdapter.isAppliedCard!(applied!)).toBe(true);
+    expect(linkedinAdapter.isAppliedCard!(plain!)).toBe(false);
+
+    plain!.querySelector("p")!.textContent = "Applied AI Engineer";
+    expect(linkedinAdapter.isAppliedCard!(plain!)).toBe(false);
+  });
+
+  // LinkedIn's own dismiss control is labelled per job here, not by a stable class.
+  it("drives the site's own dismiss control", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-card.html");
+    const [card] = linkedinAdapter.findCards(document);
+    const btn = card!.querySelector('[aria-label^="Dismiss"]') as HTMLElement;
+    const clicked = vi.fn();
+    btn.addEventListener("click", clicked);
+
+    linkedinAdapter.nativeDismiss!(card!)!();
+
+    expect(clicked).toHaveBeenCalledTimes(1);
+  });
+
+  // The classic list must keep its own strategy: both surfaces answer to /jobs paths.
+  it("leaves the classic search list to the layout-A strategy", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-card.html");
+
+    const cards = linkedinAdapter.findCards(document);
+
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.dataset.jhId).toBe("LI-100001");
+    expect(cards[0]!.tagName).toBe("LI");
+  });
+});
+
+// Where the card's action bar mounts. Layout C's card element is itself a flex row,
+// so a bar appended to it lands beside the content rather than under it and takes
+// half the card's width from the title and company.
+describe("linkedin adapter — card bar anchor", () => {
+  it("resolves a search-results card's bar anchor inside the card", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-card.html");
+    const [card] = linkedinAdapter.findCards(document);
+
+    const body = card!.querySelector(linkedinAdapter.cardBodySelector!);
+
+    expect(body).not.toBeNull();
+    expect(body).not.toBe(card);
+    expect(body!.parentElement).toBe(card);
+  });
+
+  // The two alternatives in the selector must stay mutually exclusive: only layout
+  // C's cards carry a componentkey, so the classic card keeps its own resolution.
+  it("does not reach into a classic search card", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-card.html");
+    const [card] = linkedinAdapter.findCards(document);
+
+    expect(card!.querySelector(`[componentkey^="job-card-component-ref-"] > div`)).toBeNull();
+  });
+});
+
+// The side panel's detail bar had no test, and LinkedIn's rename of the top card
+// removed it from the layout without any check noticing.
+describe("linkedin adapter — side-panel detail bar", () => {
+  it("anchors the detail bar in the top card", () => {
+    document.body.innerHTML = loadFixture("linkedin-detail.html");
+    window.history.pushState({}, "", "/jobs/search/?currentJobId=100001");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    const bar = document.querySelector(".jh-detail-actions");
+    expect(bar).not.toBeNull();
+    expect(bar!.closest(".job-details-jobs-unified-top-card__container--two-pane")).not.toBeNull();
+  });
+
+  // The side panel renders cards and detail in one document, so a page-wide query
+  // for a card's control must never win the anchor.
+  it("does not anchor the detail bar to a list card", () => {
+    document.body.innerHTML =
+      loadFixture("linkedin-search-card.html") + loadFixture("linkedin-detail.html");
+    window.history.pushState({}, "", "/jobs/search/?currentJobId=100001");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    const bar = document.querySelector(".jh-detail-actions");
+    expect(bar).not.toBeNull();
+    expect(bar!.closest("li[data-occludable-job-id]")).toBeNull();
+  });
+});
+
+// The open job's age is scraped page-wide, and on the search-results layout the card
+// column precedes the detail pane. Without scoping, the first card's age wins and
+// every capture is dated by whichever job sits at the top of the list.
+describe("linkedin adapter — posting age scope", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(CAPTURED_AT));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("ignores a list card's age when dating the open job", () => {
+    document.body.innerHTML =
+      loadFixture("linkedin-search-results-card.html") +
+      loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    const { sendMessage } = installFakeChrome();
+
+    // The cards carry their own, older ages, ahead of the detail pane in the document.
+    expect(document.body.textContent).toContain("2 weeks ago");
+    expect(document.body.textContent).toContain("3 months ago");
+
+    linkedinAdapter.capture!();
+
+    const [message] = sendMessage.mock.calls[0]!;
+    expect((message as { payload: { meta: Record<string, unknown> } }).payload.meta).toMatchObject({
+      posted_age: "22 hours ago",
+    });
+  });
+});
+
+// The top card provides no inset of its own — its content column does — so a head
+// appended beside that column sits flush against the pane's left edge while every
+// LinkedIn row is indented.
+describe("linkedin adapter — detail head placement", () => {
+  it("puts the head in the column that aligns the title, not beside it", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    const head = document.querySelector(".jh-detail-head")!;
+    const titleLink = document.querySelector('a[href*="/jobs/view/100005/"]')!;
+    // Same column as the rows LinkedIn aligns, rather than a sibling of the column.
+    expect(head.parentElement).toBe(titleLink.closest("div")!.parentElement);
+    expect(head.parentElement).not.toBe(document.querySelector('[data-testid="lazy-column"]'));
+  });
+
+  // No inline spacing is applied: alignment must come from the container, because
+  // the rows that carry the inset are display:contents and expose no usable margin.
+  it("adds no inline margin of its own", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    const head = document.querySelector(".jh-detail-head") as HTMLElement;
+    expect(head.style.marginLeft).toBe("");
+    expect(head.style.marginRight).toBe("");
   });
 });

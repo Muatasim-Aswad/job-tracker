@@ -5,47 +5,57 @@
      from "More options" to the column boundary — the walk standaloneTopCard()
      already does for layout B.
 
-     Identity has no stable classes here, so it comes from document.title the same
-     way layout B's does. The tests set that title themselves; it is not markup. -->
+     Identity has no stable classes here, so it comes from document.title, as layout
+     B's does. The tests set that title themselves; it is not markup.
 
-<!-- A stripped search card, present ONLY so the detail anchor stays honest: this
-     surface renders cards and the detail pane in one document, and every card
-     carries its own "More options". A page-wide query for that label hits this
-     one first, so the detail anchor must be scoped to the column. Everything else
-     about the card lives in the card fixture, not here. -->
+     The nesting is load-bearing. The top card holds a content column, and that
+     column aligns every row LinkedIn renders; the top card itself provides no inset.
+     So the head goes INTO the column, not beside it — and the inset cannot be copied
+     from a neighbour either, those rows being `display: contents` and boxless. -->
+
+<!-- A stripped card, here only to keep the detail anchor honest: cards and detail
+     share this document and every card has its own "More options", which a page-wide
+     query would hit first. -->
 <div role="button" tabindex="0" componentkey="job-card-component-ref-100002">
   <button type="button" aria-label="More options" aria-expanded="false"></button>
 </div>
 
 <div data-testid="lazy-column" data-component-type="LazyColumn" componentkey="d0c2b92a-53b3-4d9d-ba95-a4f5ff17a058">
-  <div>
-    <div data-display-contents="true">
-      <button type="button" aria-label="More options" aria-expanded="false"></button>
+  <!-- Top card. Its own children are NOT inset. -->
+  <div class="_51373152 bfc7dd66 _391bbe46">
+    <!-- The content column: everything in here shares one alignment. -->
+    <div class="_51373152 _6c1ad861 _26eb8f69">
+      <!-- Company row, which also carries the pane's own overflow button. -->
+      <div class="_6c1ad861 c9d5d8ed _5658ec6e">
+        <div class="_13225c48" data-display-contents="true" style="display: contents">
+          <a href="https://www.linkedin.com/company/example-labs/life/">Example Labs</a>
+        </div>
+        <button type="button" aria-label="More options" aria-expanded="false"></button>
+      </div>
+      <div class="_13225c48" data-display-contents="true" style="display: contents">
+        <p><a href="https://www.linkedin.com/jobs/view/100005/">Example Senior Backend Engineer</a></p>
+      </div>
+      <p>
+        <span>Exampleland</span><span> · </span><span>22 hours ago</span><span> · </span><span>76 applicants</span>
+      </p>
     </div>
-    <div>
-      <p>Example Labs</p>
+    <div class="_6c1ad861 acb01448">
+      <a aria-disabled="false" href="#">On-site</a>
+      <a aria-disabled="false" href="#">Full-time</a>
     </div>
-    <div>
-      <p>Example Senior Backend Engineer</p>
+    <div class="_51373152 _5658ec6e">
+      <a aria-disabled="false" aria-label="Easy Apply to this job" href="#">Easy Apply</a>
+      <button type="button" aria-label="Save the job">Save</button>
     </div>
-    <p>
-      <span>Exampleland</span><span> · </span><span>22 hours ago</span><span> · </span><span>76 applicants</span>
-    </p>
-    <a aria-disabled="false" aria-label="Easy Apply to this job" href="#">Easy Apply</a>
-    <a aria-disabled="false" aria-label="Save the job" href="#">Save</a>
   </div>
 
-  <!-- The job description container, empty because that is its steady state on
-       this surface — it renders as a skeleton and never fills, so the rescan
-       ladder cannot win it. This is what makes layout C look already handled:
-       detailElement()'s layout-B selector matches this element, so layout C never
-       reaches a missing-element case. It takes the layout-B path and dies at
-       renderDetailHead's `if (!text) return`. Capture and the keyword banner both
-       depend on a JD, so neither is buildable here until one is reachable. -->
+  <!-- The description, in the same AboutTheJob container layout B uses. This pane
+       serves an empty skeleton until it fills; linkedin-search-results-detail-loading.html
+       pins that state. -->
   <div class="_2bedb7c3 _40124eee" componentkey="JobDetails_AboutTheJob_100005">
     <div componentkey="JobDetails_AboutTheJob_100005">
-      <div></div>
-      <div></div>
+      <p>We build developer tools used by thousands of engineers.</p>
+      <p>Requirements: 5+ years of experience with TypeScript and distributed systems.</p>
     </div>
   </div>
 </div>

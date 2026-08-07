@@ -1,0 +1,42 @@
+<!-- Layout C's detail pane before its description arrives: the markup of
+     linkedin-search-results-detail.html with the AboutTheJob container still an empty
+     skeleton. It can hold this for minutes, so it is what a scan usually sees, not a
+     rare race.
+
+     The container still resolves as the description. Reporting none instead leaves
+     the job a bare stub — tracked by `seen`, with a listing carrying no title, url or
+     text. Both consumers wait: the head bails on empty text, capture holds out for a
+     description. -->
+
+<div role="button" tabindex="0" componentkey="job-card-component-ref-100002">
+  <button type="button" aria-label="More options" aria-expanded="false"></button>
+</div>
+
+<div data-testid="lazy-column" data-component-type="LazyColumn" componentkey="d0c2b92a-53b3-4d9d-ba95-a4f5ff17a058">
+  <div class="_51373152 bfc7dd66 _391bbe46">
+    <div class="_51373152 _6c1ad861 _26eb8f69">
+      <div class="_6c1ad861 c9d5d8ed _5658ec6e">
+        <div class="_13225c48" data-display-contents="true" style="display: contents">
+          <a href="https://www.linkedin.com/company/example-labs/life/">Example Labs</a>
+        </div>
+        <button type="button" aria-label="More options" aria-expanded="false"></button>
+      </div>
+      <div class="_13225c48" data-display-contents="true" style="display: contents">
+        <p><a href="https://www.linkedin.com/jobs/view/100005/">Example Senior Backend Engineer</a></p>
+      </div>
+      <p>
+        <span>Exampleland</span><span> · </span><span>22 hours ago</span><span> · </span><span>76 applicants</span>
+      </p>
+    </div>
+    <div class="_51373152 _5658ec6e">
+      <a aria-disabled="false" aria-label="Easy Apply to this job" href="#">Easy Apply</a>
+    </div>
+  </div>
+
+  <div class="_2bedb7c3 _40124eee" componentkey="JobDetails_AboutTheJob_100005">
+    <div componentkey="JobDetails_AboutTheJob_100005">
+      <div></div>
+      <div></div>
+    </div>
+  </div>
+</div>

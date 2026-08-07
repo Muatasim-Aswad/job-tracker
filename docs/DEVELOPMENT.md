@@ -63,10 +63,10 @@ Build output (`apps/*/dist/`), including `apps/extension/dist/manifest.json`, to
 
 Treat comments and documentation as release artifacts:
 
+- Use always concise, plain language, without dropping necessary meaning.
 - Explain intent, invariants, constraints, and non-obvious tradeoffs.
 - Prefer clearer code and names over comments that restate the implementation.
 - Remove historical narration, repeated facts, padding, and phrases that add no useful context.
-- Use concise, plain language, especially in UI copy, without dropping necessary meaning. Layouts must still handle legitimate long text safely.
 - Keep each fact in one authoritative place and link to it when needed.
 - Keep examples, commands, behavior descriptions, and version information accurate in the same change that affects them.
 - Preserve important context when shortening text. A comment should explain why the code exists or what must remain true, not translate the code into prose.

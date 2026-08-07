@@ -34,6 +34,11 @@ const postingUrl = (platformId: string) => LINKEDIN.buildUrl!(platformId)!;
 // views. Full capture. All LinkedIn DOM knowledge lives HERE; the engine it drives
 // is site-agnostic.
 
+// Layout C names each card `job-card-component-ref-<id>`. One constant, because the
+// selector that finds the card and the slice that reads its id must agree.
+const RESULTS_CARD_KEY = "job-card-component-ref-";
+const RESULTS_CARD_SEL = `[componentkey^="${RESULTS_CARD_KEY}"]`;
+
 // LinkedIn's DOM contract — every selector the adapter keys on, grouped by surface,
 // and the single map to update when LinkedIn reshuffles its markup. Layout A = the
 // list/search side panel (stable BEM-ish classes); layouts B and C are SDUI, with
@@ -41,8 +46,14 @@ const postingUrl = (platformId: string) => LINKEDIN.buildUrl!(platformId)!;
 // /jobs/view page, C the /jobs/search-results/ search page. `jobDetailsId` and
 // `applyButtonId` are bare element ids; the rest are query selectors.
 const SEL = {
-  // Detail top card / anchor
-  topCard: ".job-details-jobs-unified-top-card",
+  // Detail top card / anchor. Both block classes are listed because LinkedIn renamed
+  // the top card to `__container--two-pane` and runs its rollouts concurrently; the
+  // element classes below survived the rename. The bar anchors to the top-buttons
+  // cluster rather than a control inside it, the overflow button there having no
+  // aria-label — its accessible name is its "Show more options" text.
+  topCard:
+    ".job-details-jobs-unified-top-card, .job-details-jobs-unified-top-card__container--two-pane",
+  topButtons: ".job-details-jobs-unified-top-card__top-buttons",
   moreOptions: 'button[aria-label="More options"]',
   componentKey: "[componentkey]",
   // Job-description container (resolved across both layouts, in order)
@@ -72,7 +83,7 @@ const SEL = {
   posterLink: ".hirer-card__hirer-information a",
   // Layout C's search cards. The id lives in this key and nowhere else on the card,
   // which is also what makes the key the surface's identifying marker.
-  resultsCard: '[componentkey^="job-card-component-ref-"]',
+  resultsCard: RESULTS_CARD_SEL,
   // Search-list cards
   searchCard: "li[data-occludable-job-id]",
   searchCardLink: 'a[aria-label][href*="/jobs/view/"]',
@@ -81,11 +92,18 @@ const SEL = {
   lockupSubtitle: ".artdeco-entity-lockup__subtitle",
   cardFooterState: ".job-card-container__footer-job-state",
   dismiss: '[aria-label^="Dismiss"]',
-  cardBody: '[class*="job-card-container"] > div:first-child',
+  // Where a card's action bar mounts. Layout C's card is a flex ROW, so a bar
+  // appended to it lands beside the content and halves the width the title gets; its
+  // inner wrapper is the column the bar belongs in. The alternatives cannot collide,
+  // only layout C's cards carrying a componentkey.
+  cardBody: `[class*="job-card-container"] > div:first-child, ${RESULTS_CARD_SEL} > div`,
   // jobs-tracker wall cards
   trackerJobLink: 'a[href*="/jobs/view/"]',
   overflowMenu: 'button[aria-label="Overflow menu"]',
 } as const;
+
+// Every list-card container. Page-wide scrapes of the open job must skip these.
+const CARD_SCOPES = `${SEL.searchCard}, ${SEL.resultsCard}`;
 
 // ── Identifier / URL ─────────────────────────────────────────────────────────
 // The current LinkedIn detail-view job, from the standalone path OR the list-page
@@ -98,13 +116,11 @@ function currentDetailId(): string | null {
 }
 
 // ── Detail DOM resolution (three layouts) ────────────────────────────────────
-// Each resolver below used to feature-detect its own way through the layouts, and
-// that is precisely what let layout C hide: C carries the same AboutTheJob
-// componentkey that identifies layout B's job description, so B's branch claimed it
-// and the mismatch surfaced far downstream as an empty description rather than as an
-// unrecognized page. So the layout is decided once, up front, from markers that only
-// one layout has, and every resolver keys off that decision. Layouts stay disjoint,
-// and one we cannot serve fails where it is detected instead of halfway through.
+// The layout is decided once, from markers only one layout has, and every resolver
+// keys off that decision. Resolvers that each feature-detected their own way through
+// the layouts is what let C hide: it carries the same AboutTheJob componentkey that
+// identifies B's description, so B's branch claimed it and the mismatch surfaced far
+// downstream, as empty content rather than an unrecognized page.
 type Layout = "A" | "B" | "C";
 
 // Order matters: `#job-details` is layout A's own description container and neither
@@ -157,6 +173,36 @@ function titleIdentity(): DetailIdentity {
   return { title, company, companyUrl: companyA?.href || null };
 }
 
+// The job description, for both SDUI layouts. It renders lazily and can sit empty for
+// minutes, so it is returned unfilled: both consumers retry, the head bailing on empty
+// text and captureListingOnce holding out for a description rather than storing a
+// title-only record. The expandable-text-box span is a legacy last resort — it wraps
+// the description as <span><p>…</p></span>, which every HTML parser auto-closes at the
+// first block <p>, leaving it empty.
+function sduiJd(): HTMLElement | null {
+  return (
+    (document.querySelector(SEL.aboutJob) as HTMLElement | null) ||
+    (document.querySelector(SEL.expandableText) as HTMLElement | null)
+  );
+}
+
+// Head placement for both SDUI layouts: inside the top card's content column, which
+// aligns the company, title and meta rows. The top card itself provides no inset, so
+// a head appended beside the column sits flush against the pane's edge; the inset
+// cannot be copied either, its rows being `display: contents` and boxless. The column
+// is the overflow button's grandparent — that button is the only hook here that is
+// neither hashed nor a per-build uuid — bounded by the top card so an unexpected tree
+// falls back instead of walking out into the page.
+function sduiPlaceHead(head: HTMLElement, detail: HTMLElement) {
+  const topCard = standaloneTopCard();
+  if (!topCard) {
+    jdAdjacent(head, detail);
+    return;
+  }
+  const column = detailAnchor()?.parentElement?.parentElement;
+  (column && topCard.contains(column) ? column : topCard).appendChild(head);
+}
+
 // Last-resort head placement: right before the description container. Shared, because
 // every layout's preferred slot is optional and this one only needs the JD, which
 // renderDetailHead has already resolved before it places anything.
@@ -166,10 +212,19 @@ function jdAdjacent(head: HTMLElement, detail: HTMLElement) {
 }
 
 const LAYOUTS: Record<Layout, DetailLayout> = {
-  // A — the list/search side panel. Everything is addressable by class.
+  // A — the list/search side panel. Everything is addressable by class. The anchor
+  // stays scoped to the detail top card because every list card in the same document
+  // has its own "More options"; a page-wide query hits one of those and puts the bar
+  // on a card.
   A: {
-    anchor: () =>
-      document.querySelector(SEL.topCard)?.querySelector(SEL.moreOptions) ?? pathScopedAnchor(),
+    anchor: () => {
+      const topCard = document.querySelector(SEL.topCard);
+      return (
+        topCard?.querySelector(SEL.topButtons) ??
+        topCard?.querySelector(SEL.moreOptions) ??
+        pathScopedAnchor()
+      );
+    },
     jd: () => document.getElementById(SEL.jobDetailsId),
     identity: () => {
       const companyA = document.querySelector(SEL.companyLink) as HTMLAnchorElement | null;
@@ -188,36 +243,25 @@ const LAYOUTS: Record<Layout, DetailLayout> = {
   },
 
   // B — the standalone /jobs/view/ SDUI page. No cards, so the page-wide anchor is
-  // safe here. The nominal expandable-text-box span is a legacy last resort for the
-  // JD: it wraps the description as <span><p>…</p></span>, which every HTML parser
-  // auto-closes at the first block <p>, leaving it empty.
+  // safe here.
   B: {
     anchor: pathScopedAnchor,
-    jd: () =>
-      (document.querySelector(SEL.aboutJob) as HTMLElement | null) ||
-      (document.querySelector(SEL.expandableText) as HTMLElement | null),
+    jd: sduiJd,
     identity: titleIdentity,
-    // No fit-level chips on this layout, so the head appends under the top card.
-    placeHead: (head, detail) => {
-      const topCard = standaloneTopCard();
-      if (topCard) topCard.appendChild(head);
-      else jdAdjacent(head, detail);
-    },
+    placeHead: sduiPlaceHead,
   },
 
-  // C — the /jobs/search-results/ SDUI search page. Recognized but not yet served:
-  // the bar and the card surface are still to come, and the description is not
-  // merely late but absent — the AboutTheJob container renders as a skeleton that
-  // never fills, so no rescan wins it. Returning it as the JD is what produced empty
-  // captures, hence null here: an absent description reads as absent rather than as
-  // an empty one. Identity still resolves, so `seen`, the repost check and a
-  // description-less capture all keep working on this surface.
+  // C — the /jobs/search-results/ SDUI search page. Identical to B but for the
+  // anchor: cards and detail share this document and every card has its own "More
+  // options", so the detail one is the only such button outside a card — which holds
+  // however LinkedIn nests the columns around it, all hashed or per-build uuids.
   C: {
-    anchor: () => null,
-    jd: () => null,
+    anchor: () =>
+      [...document.querySelectorAll(SEL.moreOptions)].find((b) => !b.closest(SEL.resultsCard)) ??
+      null,
+    jd: sduiJd,
     identity: titleIdentity,
-    // Unreachable while `jd` is null; C's real slot is part of serving the layout.
-    placeHead: jdAdjacent,
+    placeHead: sduiPlaceHead,
   },
 };
 
@@ -235,6 +279,10 @@ function scanJobSignals(detail: HTMLElement | null) {
   let postedAge: string | null = null; // e.g. "17 days ago"
   document.querySelectorAll("span").forEach((el) => {
     if (!detail || el === detail || detail.contains(el)) return;
+    // A span inside a list card belongs to that card, never to the open job. The
+    // search-results cards precede the detail pane, so without this the first card's
+    // age wins and every capture is dated by whichever job leads the list.
+    if (el.closest(CARD_SCOPES)) return;
     const t = el.textContent!.trim();
     if (!applyClicksShown && /clicked apply/i.test(t)) {
       applyClicksShown = true;
@@ -535,6 +583,12 @@ export const linkedinAdapter: Adapter = {
     captureListingOnce(currentDetailId(), captureDetail);
   },
   isAppliedCard(card) {
+    // Layout C states this in a bare <p> with no class, sharing its slot with
+    // "Viewed" and "Saved". Match the exact text: a substring test over the card also
+    // hits a job titled "Applied AI Engineer", marking an untouched job as applied.
+    if (detectLayout() === "C") {
+      return [...card.querySelectorAll("p")].some((p) => p.textContent!.trim() === "Applied");
+    }
     const state = card.querySelector(SEL.cardFooterState);
     return state?.textContent?.trim() === "Applied";
   },
@@ -590,6 +644,32 @@ export const linkedinAdapter: Adapter = {
         // import isn't clustered at now(). autoWallCards reads jhTs.
         const ts = appliedAgeToIso(card.innerText);
         if (ts) card.dataset.jhTs = ts;
+        cards.push(card);
+      });
+      return cards;
+    }
+
+    // Layout C's cards carry no anchor — clicking one rewrites `currentJobId` — so
+    // the id comes from the componentkey, the only place it appears, and the url is
+    // rebuilt from it. Title and company are positional, no class or aria naming
+    // them.
+    if (detectLayout() === "C") {
+      const cards: HTMLElement[] = [];
+      doc.querySelectorAll(SEL.resultsCard).forEach((el) => {
+        const card = el as HTMLElement;
+        // Each card renders twice under one key, an outer interactive wrapper around
+        // an inner copy; only the outer carries role=button, and tagging both would
+        // give every job two bars.
+        if (card.getAttribute("role") !== "button" || card.dataset.jhId) return;
+        const id = card.getAttribute("componentkey")!.slice(RESULTS_CARD_KEY.length);
+        if (!id) return;
+        const [title, company] = [...card.querySelectorAll("p")].map((p) => p.textContent!.trim());
+        card.dataset.jhId = PREFIX + id;
+        card.dataset.jobUrl = postingUrl(id);
+        card.dataset.jobTitle = title || "";
+        card.dataset.jobCompany = company || "";
+        // As tight as the classic search list, so the bar folds Open into the ⋯ menu.
+        card.dataset.jhCompact = "1";
         cards.push(card);
       });
       return cards;
