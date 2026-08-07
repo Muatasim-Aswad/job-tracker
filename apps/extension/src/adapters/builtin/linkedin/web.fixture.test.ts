@@ -183,3 +183,104 @@ describe("linkedin adapter — detail capture", () => {
     });
   });
 });
+
+// The three job layouts must stay disjoint. Layout C carries the very componentkey
+// that identifies layout B's job description, so a resolver that feature-detects its
+// own way through the layouts reads C as B and fails downstream, on empty content,
+// instead of at the point the page is recognized.
+describe("linkedin adapter — layout resolution", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(CAPTURED_AT));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Layout B — the standalone SDUI page. No stable classes, so identity comes from
+  // document.title and the description from the AboutTheJob componentkey.
+  it("captures the standalone SDUI layout through its title and componentkey", () => {
+    document.body.innerHTML = loadFixture("linkedin-detail-sdui.html");
+    document.title = "Example Senior Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/view/100004/");
+    const { sendMessage } = installFakeChrome();
+
+    linkedinAdapter.capture!();
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const [message] = sendMessage.mock.calls[0]!;
+    expect(message).toMatchObject({
+      type: "listing",
+      payload: {
+        platform_id: "100004",
+        title: "Example Senior Engineer",
+        company: "Example Labs",
+        apply_type: "easy_apply",
+        meta: {
+          company_url: "https://www.linkedin.com/company/example-labs/",
+          posted_age: "5 days ago",
+          description:
+            "We build developer tools used by thousands of engineers.\n\n" +
+            "Requirements: 5+ years of experience with TypeScript and distributed systems.",
+        },
+      },
+    });
+  });
+
+  it("gives the standalone SDUI layout a detail head", () => {
+    document.body.innerHTML = loadFixture("linkedin-detail-sdui.html");
+    document.title = "Example Senior Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/view/100004/");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    expect(document.querySelector(".jh-detail-head .jh-banner-copy")).not.toBeNull();
+  });
+
+  // Layout C — the search-results pane. This asserts the trap itself: the fixture
+  // matches layout B's description selector, so anything that resolves the JD by
+  // trying that selector would treat this page as B.
+  it("does not resolve the search-results layout as the standalone one", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    installFakeChrome();
+
+    // The premise: layout B's job-description selector matches this page.
+    expect(document.querySelector('[componentkey^="JobDetails_AboutTheJob"]')).not.toBeNull();
+
+    linkedinAdapter.scanDetail!();
+
+    // Yet no head is built, because the layout is recognized as C and reports no
+    // description — rather than being read as B and yielding an empty one.
+    expect(document.querySelector(".jh-detail-head")).toBeNull();
+  });
+
+  // Cards and detail share one document here, so a page-wide "More options" query
+  // would anchor the bar to a card. Layout C offers no detail anchor at all yet, and
+  // must not fall back to the card's button.
+  it("anchors no detail bar to a search-results card", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    expect(document.querySelector(".jh-detail-actions")).toBeNull();
+  });
+
+  // Capture is gated on a description, so an unserved layout stores nothing at all
+  // rather than a title-only stub.
+  it("captures nothing from the search-results layout", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    const { sendMessage } = installFakeChrome();
+
+    linkedinAdapter.capture!();
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+});

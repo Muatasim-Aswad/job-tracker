@@ -1,0 +1,74 @@
+<!-- Layout C search cards — the SDUI surface at /jobs/search-results/, which
+     job-alert notifications link to. It runs in parallel with the classic
+     /jobs/search/ layout, which is unchanged: a second page, not a reskin.
+
+     A card's id exists only in its `componentkey`, because no card holds a
+     /jobs/view/ anchor — clicking rewrites the `currentJobId` param. Title,
+     company and location are therefore positional, the card's first three <p>s,
+     and the posting url must be synthesized from the id. Each card is an outer
+     div[role=button] wrapping an inner div carrying the SAME componentkey, so
+     only `role=button` separates the two. No <time datetime> exists here, so this
+     surface offers no exact-day evidence, only the relative age.
+
+     Two text traps are reproduced verbatim rather than tidied:
+       - Ages are doubled across a screen-reader and an aria-hidden span, so
+         p.textContent reads "Posted 3 months ago3 months ago".
+       - The state line is a bare <p>Applied</p> with no class. A substring test
+         for "Applied" over a card also matches the title of a real job named
+         "Applied AI Engineer", so the state <p> must be matched on exact text. -->
+
+<div class="_6d0b28b9 _8342bca6" data-testid="job-search-results">
+  <!-- No state line. Kept minimal — the third <p> and everything after the
+       footer's first <p> is scraped only for display, never for identity. -->
+  <div role="button" tabindex="0" componentkey="job-card-component-ref-100002">
+    <div componentkey="job-card-component-ref-100002">
+      <div data-display-contents="true">
+        <p>
+          <span></span><span aria-hidden="true">Example Backend Engineer</span>
+        </p>
+      </div>
+      <div>
+        <p>Example Labs</p>
+      </div>
+      <p>Example City (Hybrid)</p>
+      <div>
+        <button type="button" aria-label="More options" aria-expanded="false"></button>
+        <button type="button" aria-label="Dismiss Example Backend Engineer job"></button>
+      </div>
+      <div>
+        <p>
+          <span>Posted 2 weeks ago</span><span aria-hidden="true">2 weeks ago</span>
+        </p>
+        <p>·</p>
+        <p>Promoted</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Carries a state line. "Applied" here must reach isAppliedCard; the sibling
+       "Viewed" and "Saved" values the same slot also emits must NOT. -->
+  <div role="button" tabindex="0" componentkey="job-card-component-ref-100003">
+    <div componentkey="job-card-component-ref-100003">
+      <div data-display-contents="true">
+        <p>
+          <span></span><span aria-hidden="true">Example Platform Engineer</span>
+        </p>
+      </div>
+      <div>
+        <p>Example Labs</p>
+      </div>
+      <p>Example City (Remote)</p>
+      <div>
+        <button type="button" aria-label="More options" aria-expanded="false"></button>
+        <button type="button" aria-label="Dismiss Example Platform Engineer job"></button>
+      </div>
+      <div>
+        <p>Applied</p>
+        <p>·</p>
+        <p>
+          <span>Posted 3 months ago</span><span aria-hidden="true">3 months ago</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
