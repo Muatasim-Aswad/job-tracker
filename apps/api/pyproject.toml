@@ -50,7 +50,10 @@ pythonpath = ["."]
 # `turso`-marked tests hit a real throwaway Turso DB; keep them out of the default
 # offline run. Opt in with `pytest -m turso` (also needs TURSO_TEST_* in the env).
 addopts = "-m 'not turso'"
-markers = ["turso: integration test against a real Turso DB (needs TURSO_TEST_* env)"]
+markers = [
+    "turso: integration test against a real Turso DB (needs TURSO_TEST_* env)",
+    "wheel: cross-toolchain wheel build that needs the installed pnpm workspace",
+]
 
 [tool.ruff]
 line-length = 100

@@ -6,6 +6,8 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from app.core.paths import resolve_paths
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -48,6 +50,7 @@ def test_release_workflow_smokes_the_downloaded_wheel_with_fresh_tool_roots() ->
     assert "--with" not in smoke
 
 
+@pytest.mark.wheel
 def test_generated_wheel_has_canonical_metadata_and_runtime_resources(tmp_path: Path) -> None:
     release_dir = tmp_path / "release"
     environment = os.environ.copy()
@@ -60,7 +63,6 @@ def test_generated_wheel_has_canonical_metadata_and_runtime_resources(tmp_path: 
         env=environment,
         check=True,
         text=True,
-        capture_output=True,
     )
 
     wheel = release_dir / f"job_tracker-{VERSION}-py3-none-any.whl"
