@@ -6,6 +6,8 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-11
+
 ### Added
 
 - Linux x86_64 release preparation for a smoke-tested uv-managed runtime bundle and installable wheel, a separately loadable matching extension ZIP, optional Linux/amd64 Docker Compose operation, offline backup/restore and checkout adoption, redacted diagnostics, and isolated release-readiness rehearsals. WSL2 remains candidate/unsupported, and no native Windows, packaged macOS, multiarch container, background service, or automatic-update support is claimed.
@@ -48,5 +50,6 @@ Initial public release.
 - Verified per-connection foreign-key enforcement, an orphan pre-flight where supported by the database driver, atomic migrations, and collision-safe listing identifiers.
 - Localhost threat model with a CORS allowlist, a DNS-rebinding guard, and an optional API key; see [`SECURITY.md`](SECURITY.md).
 
-[Unreleased]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Muatasim-Aswad/job-tracker/releases/tag/v1.0.0
