@@ -6,7 +6,7 @@ catalog:
   vite-plus: 0.2.6
 overrides:
   vite: "catalog:"
-  "@redocly/openapi-core>js-yaml": "4.3.0"
+  "@redocly/openapi-core>js-yaml": "4.3.1"
 peerDependencyRules:
   allowAny:
     - vite
