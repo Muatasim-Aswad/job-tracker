@@ -43,11 +43,14 @@ def test_release_workflow_smokes_the_downloaded_wheel_with_fresh_tool_roots() ->
         "UV_TOOL_DIR=$TOOL_DIR",
         "UV_TOOL_BIN_DIR=$BIN_DIR",
         'cd "$OUTSIDE"',
+        "install_options=(--python 3.14)",
         'uv tool install "${install_options[@]}" "$WHEEL"',
         "uv tool uninstall job-tracker",
     ):
         assert required in smoke
     assert "--with" not in smoke
+    assert "uv python find" not in smoke
+    assert "UV_PYTHON_DOWNLOADS=never" not in smoke
 
 
 @pytest.mark.wheel

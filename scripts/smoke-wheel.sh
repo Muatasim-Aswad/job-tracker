@@ -40,7 +40,6 @@ mkdir -p "$HOME_ROOT" "$DATA" "$CONFIG/job-tracker" "$STATE" "$BIN_DIR" "$OUTSID
 printf 'TURSO_AUTH_TOKEN=never-print-wheel-smoke\n' >"$CONFIG/job-tracker/config.env"
 chmod 0600 "$CONFIG/job-tracker/config.env"
 
-PYTHON="$(UV_CACHE_DIR="$UV_CACHE" uv python find 3.14)"
 tool_env=(
   env -i
   "PATH=$PATH"
@@ -51,13 +50,12 @@ tool_env=(
   "UV_CACHE_DIR=$UV_CACHE"
   "UV_TOOL_DIR=$TOOL_DIR"
   "UV_TOOL_BIN_DIR=$BIN_DIR"
-  "UV_PYTHON_DOWNLOADS=never"
 )
 for uv_option in UV_OFFLINE UV_FIND_LINKS UV_NO_INDEX; do
   if [[ -n "${!uv_option:-}" ]]; then tool_env+=("$uv_option=${!uv_option}"); fi
 done
 
-install_options=(--python "$PYTHON")
+install_options=(--python 3.14)
 if [[ -n "${UV_FIND_LINKS:-}" ]]; then install_options+=(--find-links "$UV_FIND_LINKS"); fi
 if [[ -n "${UV_NO_INDEX:-}" ]]; then install_options+=(--no-index); fi
 "${tool_env[@]}" uv tool install "${install_options[@]}" "$WHEEL"
