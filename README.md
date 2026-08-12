@@ -62,6 +62,8 @@ Choose one server installation path:
 
 The browser extension requires Chrome, Edge, Brave, or another Chromium browser that can load an unpacked Manifest V3 extension. macOS is a supported source-checkout path, not a supported packaged target. WSL2 x86_64 remains a [candidate and unsupported](docs/WSL2.md); native Windows and Git Bash are unsupported.
 
+On Linux, the complete source quality gate and release preparation also require `curl`, `tar`, `gzip`, `zip`, `unzip`, and GNU core utilities. Normal runtime-bundle or wheel use does not require these build tools.
+
 ## Install from source
 
 ```bash

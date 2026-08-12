@@ -12,6 +12,9 @@ fail() {
   exit 1
 }
 
+command -v zip >/dev/null 2>&1 ||
+  fail "zip is required to build the extension archive; install it and retry."
+
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "VERSION must be plain SemVer."
 [[ "$EPOCH" =~ ^[0-9]+$ ]] || fail "SOURCE_DATE_EPOCH must be an integer."
 

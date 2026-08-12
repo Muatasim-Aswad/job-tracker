@@ -16,13 +16,28 @@ usage: validate-wsl2.sh --artifact PATH --extension PATH --checksums PATH [--kee
        validate-wsl2.sh --self-test
 
 Run this inside WSL2. The active database and every mutable root are created
-under the Linux filesystem; do not place them under /mnt/c.
+under the Linux filesystem; do not place them under /mnt/c. --keep-work retains
+its profile under the persistent XDG state root so it survives wsl --shutdown.
 EOF
 }
 
 fail() {
   printf 'validate-wsl2: %s\n' "$1" >&2
   exit 1
+}
+
+select_work_parent() {
+  if "$KEEP_WORK"; then
+    [[ -n "${HOME:-}" ]] || fail "HOME is required with --keep-work"
+    local parent="${XDG_STATE_HOME:-$HOME/.local/state}/job-tracker-validation"
+    case "$parent" in /mnt/*) fail "refusing retained work root under /mnt: $parent" ;; esac
+    mkdir -p "$parent"
+    parent="$(realpath -e "$parent")"
+    case "$parent" in /mnt/*) fail "refusing retained work root under /mnt: $parent" ;; esac
+    printf '%s\n' "$parent"
+  else
+    printf '%s\n' "${TMPDIR:-/tmp}"
+  fi
 }
 
 while (($#)); do
@@ -43,7 +58,14 @@ if "$SELF_TEST"; then
   grep -Fq 'Candidate, unsupported' "$ROOT/docs/WSL2.md"
   grep -Fq '/mnt/c' "$ROOT/docs/WSL2.md"
   grep -Fq 'Windows Chromium' "$ROOT/docs/evidence/wsl2-template.md"
-  printf 'WSL2 harness self-test OK (static safety and evidence contract only)\n'
+  if [[ "$(uname -s)" == Linux ]]; then
+    SELF_TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/job-tracker-wsl2-self-test.XXXXXX")"
+    trap 'rm -rf -- "$SELF_TEST_ROOT"' EXIT
+    EXPECTED_PARENT="$SELF_TEST_ROOT/home/.local/state/job-tracker-validation"
+    ACTUAL_PARENT="$(HOME="$SELF_TEST_ROOT/home" XDG_STATE_HOME= KEEP_WORK=true select_work_parent)"
+    [[ "$ACTUAL_PARENT" == "$EXPECTED_PARENT" ]] || fail "--keep-work did not select persistent state storage"
+  fi
+  printf 'WSL2 harness self-test OK (static safety, retained-work, and evidence contract only)\n'
   exit 0
 fi
 
@@ -81,7 +103,8 @@ verify_supplied_hash() {
 verify_supplied_hash "$ARTIFACT"
 verify_supplied_hash "$EXTENSION"
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/job-tracker-wsl2.XXXXXX")"
+WORK_PARENT="$(select_work_parent)"
+WORK="$(mktemp -d "$WORK_PARENT/job-tracker-wsl2.XXXXXX")"
 SERVER_PID=""
 LAUNCH_PID=""
 cleanup() {

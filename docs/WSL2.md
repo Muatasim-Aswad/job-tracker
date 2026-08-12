@@ -17,7 +17,7 @@ bash scripts/validate-wsl2.sh \
 
 After the harness passes, complete the human Windows-host checks in the evidence template:
 
-1. Re-run the harness with `--keep-work` and note the printed retained path as `WSL2_WORK`. Start the published default port only against its retained synthetic profile — never normal user roots:
+1. Re-run the harness with `--keep-work` and note the printed retained path as `WSL2_WORK`. This mode stores its retained profile below `${XDG_STATE_HOME:-$HOME/.local/state}/job-tracker-validation`, rather than `/tmp`, so a tmpfs-backed temporary directory cannot erase the persistence evidence during `wsl --shutdown`. The harness rejects a retained root under `/mnt`. Start the published default port only against this retained synthetic profile — never normal user roots:
 
    ```bash
    env -i PATH="$PATH" HOME="$WSL2_WORK/home" \
