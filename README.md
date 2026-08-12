@@ -56,11 +56,11 @@ On Gmail, the extension recognizes supported LinkedIn job messages in the browse
 
 Every path needs a Chromium browser — Chrome, Edge, or Brave — that can load an unpacked extension. The rest depends on which installation path you pick:
 
-| Path | Needs `git clone`? | Platforms | Host tools |
+| Path | Get the files | Platforms | Host tools |
 | --- | --- | --- | --- |
-| [Source checkout](#install-from-source) | Yes | Linux, macOS | Git, [Node.js](https://nodejs.org/en/download) as pinned in `.node-version`, [pnpm through Corepack](https://pnpm.io/installation#using-corepack), [uv](https://docs.astral.sh/uv/getting-started/installation/) |
-| [Linux release](#install-a-linux-x86_64-release) | No — download the release files | Linux x86_64, including Windows 11 [WSL2](docs/WSL2.md) x86_64 | [uv](https://docs.astral.sh/uv/getting-started/installation/) |
-| [Docker Compose](#run-with-docker-compose) | No — use a checkout or downloaded source tree | Linux/amd64 | Docker Engine with Compose |
+| [Source checkout](#install-from-source) | Clone the repository | Linux, macOS | Git, [Node.js](https://nodejs.org/en/download) as pinned in `.node-version`, [pnpm through Corepack](https://pnpm.io/installation#using-corepack), [uv](https://docs.astral.sh/uv/getting-started/installation/) |
+| [Docker Compose](#run-with-docker-compose) | Clone the repository or download the source archive | Linux/amd64 | Docker Engine with Compose |
+| [Linux release](#install-a-linux-x86_64-release) | Download the release files | Linux x86_64, including Windows 11 [WSL2](docs/WSL2.md) x86_64 | [uv](https://docs.astral.sh/uv/getting-started/installation/) |
 
 Neither the runtime bundle nor the wheel is a native executable, and neither contains Python: `uv` provisions the pinned Python runtime and dependencies. Native Windows and Git Bash are unsupported, and there is no packaged macOS artifact — on macOS, install from source.
 
@@ -73,13 +73,21 @@ bash scripts/setup.sh
 bash scripts/start.sh
 ```
 
-Setup installs the locked dependencies and builds the dashboard and extension; it is safe to rerun. Open <http://localhost:3456>, then [load the extension](#load-the-extension) from the absolute `apps/extension/dist` path that setup prints.
+Setup installs the locked dependencies and builds the dashboard and extension. It prints the absolute extension path needed below. The [development guide](docs/DEVELOPMENT.md) covers the contributor launcher, quality gate, and per-component commands.
 
-The [development guide](docs/DEVELOPMENT.md) covers the contributor launcher, the quality gate, and per-component commands.
+## Run with Docker Compose
+
+From the cloned repository or extracted source archive:
+
+```bash
+docker compose up -d --build
+```
+
+The container serves the API and dashboard; use the matching release's extension ZIP in the shared step below. [Containers](docs/CONTAINERS.md) covers configuration, volumes, backups, and updates.
 
 ## Install a Linux x86_64 release
 
-No checkout is involved. Download the runtime archive, extension ZIP, wheel, and `SHA256SUMS` from one release into a single directory, then verify them:
+Download the runtime archive, extension ZIP, wheel, and `SHA256SUMS` from one release into a single directory, then verify them:
 
 ```bash
 sha256sum -c SHA256SUMS
@@ -100,28 +108,18 @@ uv tool install job_tracker-<version>-py3-none-any.whl
 job-tracker start
 ```
 
-Open <http://localhost:3456>, then [load the extension](#load-the-extension) from the extracted `job-tracker-extension-<version>.zip`. On Windows 11, run this path inside a WSL2 distribution and follow [WSL2](docs/WSL2.md) for its requirements.
-
-## Run with Docker Compose
-
-Optional, and Linux/amd64 only. Compose builds the image from a checkout or downloaded source tree containing `compose.yaml`; it does not run from the packaged release artifacts:
-
-```bash
-docker compose up -d --build
-```
-
-Open <http://127.0.0.1:3456>. The container serves the API and dashboard only, so take the extension from the matching version's extension ZIP and [load it](#load-the-extension) separately. [Containers](docs/CONTAINERS.md) covers configuration, volumes, backups, and updates.
+On Windows 11, run this path inside a WSL2 distribution and follow [WSL2](docs/WSL2.md) for its requirements.
 
 ## Load the extension
 
-The extension is always loaded unpacked, and its version has to match the server's:
+After starting the server with any method above, open <http://localhost:3456>. Then load the matching extension unpacked:
 
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Select **Load unpacked**.
-4. Choose `apps/extension/dist` for a source checkout, or the directory extracted from `job-tracker-extension-<version>.zip` for a release or container installation.
+4. Choose the `apps/extension/dist` path printed by source setup, or the directory extracted from `job-tracker-extension-<version>.zip` for a release or container installation.
 
-Reload the extension after updating the server. It connects to <http://localhost:3456> by default; another address means [reconfiguring](apps/extension/README.md#configure-the-server-address) and rebuilding it from source.
+Reload the extension after updating the server. It uses the local address above by default; another address means [reconfiguring](apps/extension/README.md#configure-the-server-address) and rebuilding it from source.
 
 ## Update, back up, and uninstall
 
