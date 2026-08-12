@@ -4,6 +4,8 @@ This is the coordinator procedure for publishing the Linux x86_64 uv-managed run
 
 The [release workflow](../.github/workflows/release.yml) starts only for a canonical `vX.Y.Z` tag. It checks out that exact tag with credentials not persisted, validates that the tag is the root `VERSION`, installs the pinned toolchains, runs `bash scripts/check.sh`, builds the artifacts, validates their exact contents and checksums, then re-checks and smoke-tests the downloaded runtime and wheel. Only its final publication job has `contents: write`; it creates one GitHub Release containing exactly the runtime tarball, extension ZIP, wheel, and `SHA256SUMS`.
 
+The container workflow publishes the same tag separately after its Compose smoke test. If container publication alone fails, leave the release and tag unchanged, fix the workflow on `main`, then manually dispatch `Container` with the existing canonical tag. Recovery checks out and validates that tag before publishing; it never rebuilds from `main`.
+
 ## Local no-publish rehearsal
 
 Run this from a prepared checkout:

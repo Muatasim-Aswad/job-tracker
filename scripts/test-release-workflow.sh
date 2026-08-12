@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/release.yml"
+CONTAINER_WORKFLOW="$ROOT/.github/workflows/container.yml"
 REHEARSAL="$ROOT/scripts/rehearse-release.sh"
 CHECK="$ROOT/scripts/check.sh"
 
@@ -12,7 +13,7 @@ fail() {
   exit 1
 }
 
-for path in "$WORKFLOW" "$REHEARSAL" "$CHECK" "$ROOT/scripts/test-release-workflow.sh"; do
+for path in "$WORKFLOW" "$CONTAINER_WORKFLOW" "$REHEARSAL" "$CHECK" "$ROOT/scripts/test-release-workflow.sh"; do
   [[ -f "$path" ]] || fail "missing $path"
 done
 bash -n "$REHEARSAL" "$ROOT/scripts/test-release-workflow.sh"
@@ -30,6 +31,16 @@ grep -A5 '^  publish:' "$WORKFLOW" | grep -Fq 'contents: write' || fail "publica
 [[ "$(grep -Fc 'ref: ${{ github.ref }}' "$WORKFLOW")" == 2 ]] || fail "every checkout must select the pushed ref."
 [[ "$(grep -Fc 'astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9' "$WORKFLOW")" == 2 ]] || fail "every job that runs release scripts must install pinned uv."
 [[ "$(grep -Fc 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' "$WORKFLOW")" == 2 ]] || fail "every job that verifies release contents must install pinned Node."
+grep -Fq 'workflow_dispatch:' "$CONTAINER_WORKFLOW" || fail "container workflow lacks manual release recovery."
+[[ "$(grep -Fc "format('refs/tags/{0}', inputs.tag)" "$CONTAINER_WORKFLOW")" == 2 ]] ||
+  fail "container recovery must check out the requested tag in both jobs."
+grep -Fq 'IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"' "$CONTAINER_WORKFLOW" ||
+  fail "container image repository must be normalized to lowercase."
+grep -Fq 'SOURCE_SHA="$(git rev-parse HEAD)"' "$CONTAINER_WORKFLOW" ||
+  fail "container SHA tag must identify the checked-out release commit."
+if grep -Fq 'github.repository_owner' "$CONTAINER_WORKFLOW"; then
+  fail "container image path must not preserve mixed-case repository ownership."
+fi
 for required in \
   'astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9' \
   'pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86' \

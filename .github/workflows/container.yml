@@ -5,6 +5,12 @@ on:
   push:
     branches: [main]
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing canonical release tag to publish
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,11 +22,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - run: docker compose config -q
       - run: bash scripts/test-container.sh
 
   publish:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || github.event_name == 'workflow_dispatch'
     needs: smoke
     runs-on: ubuntu-latest
     permissions:
@@ -31,11 +38,15 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - name: Verify canonical tag
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
           VERSION="$(tr -d '[:space:]' < VERSION)"
-          [[ "$GITHUB_REF_NAME" == "v$VERSION" ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$RELEASE_TAG" == "v$VERSION" ]]
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -44,10 +55,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish Linux/amd64 image
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/job-tracker
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          SOURCE_SHA="$(git rev-parse HEAD)"
           docker buildx build --platform linux/amd64 --pull --push \
             --tag "$IMAGE:$TAG" \
-            --tag "$IMAGE:sha-${GITHUB_SHA}" \
+            --tag "$IMAGE:sha-$SOURCE_SHA" \
             .
