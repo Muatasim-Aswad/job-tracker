@@ -55,7 +55,7 @@ done
 if "$SELF_TEST"; then
   [[ -z "$ARTIFACT" && -z "$EXTENSION" && -z "$CHECKSUMS" ]] || fail "--self-test accepts no artifact arguments"
   bash -n "$ROOT/scripts/validate-wsl2.sh"
-  grep -Fq 'Candidate, unsupported' "$ROOT/docs/WSL2.md"
+  grep -Fq 'supported inside Windows 11 WSL2' "$ROOT/docs/WSL2.md"
   grep -Fq '/mnt/c' "$ROOT/docs/WSL2.md"
   grep -Fq 'Windows Chromium' "$ROOT/docs/evidence/wsl2-template.md"
   if [[ "$(uname -s)" == Linux ]]; then

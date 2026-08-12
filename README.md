@@ -60,7 +60,7 @@ Choose one server installation path:
 - **Runtime bundle or wheel on Linux x86_64:** `uv`. The runtime bundle is not a native executable; `uv` provisions its locked Python environment. The wheel does not contain Python and requires platform-compatible dependency wheels. These packaged paths have been smoke-tested only on Linux x86_64.
 - **Optional container on Linux/amd64:** Docker Engine with Docker Compose. This path does not require Node, pnpm, `uv`, or Python on the host.
 
-The browser extension requires Chrome, Edge, Brave, or another Chromium browser that can load an unpacked Manifest V3 extension. macOS is a supported source-checkout path, not a supported packaged target. WSL2 x86_64 remains a [candidate and unsupported](docs/WSL2.md); native Windows and Git Bash are unsupported.
+The browser extension requires Chrome, Edge, Brave, or another Chromium browser that can load an unpacked Manifest V3 extension. macOS is a supported source-checkout path, not a supported packaged target. The Linux runtime bundle is supported on [Windows 11 WSL2 x86_64](docs/WSL2.md); native Windows and Git Bash are unsupported.
 
 On Linux, the complete source quality gate and release preparation also require `curl`, `tar`, `gzip`, `zip`, `unzip`, and GNU core utilities. Normal runtime-bundle or wheel use does not require these build tools.
 

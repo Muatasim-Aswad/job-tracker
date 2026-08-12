@@ -119,6 +119,6 @@ Individual commits do not bump the version. Bump once while preparing a release,
 
 Linux and macOS source checkouts are supported. Packaged support is narrower: the runtime bundle and wheel are proven only on Linux x86_64, and the optional container is Linux/amd64 only. A passing source-checkout gate on macOS is not evidence for a macOS runtime bundle or wheel.
 
-Native Windows is unsupported: the setup and run scripts are Bash, and the locked `libsql`/`pyturso` dependency set has no straightforward native-Windows wheel path. WSL2 x86_64 remains candidate/unsupported until its external Linux-filesystem harness and Windows Chromium checks are completed and reviewed.
+Native Windows is unsupported: the setup and run scripts are Bash, and the locked `libsql`/`pyturso` dependency set has no straightforward native-Windows wheel path. The Linux runtime bundle is supported on Windows 11 WSL2 x86_64 when all mutable state stays in the Linux filesystem; the external lifecycle and Windows Chromium evidence is recorded in [`docs/evidence/wsl2-1.1.0.md`](evidence/wsl2-1.1.0.md).
 
 Supporting native Windows would require supported dependency artifacts or a database-driver decision, portable launcher commands and paths, and a Windows setup/runtime CI smoke test. Until those exist, do not add speculative compatibility edits that no test can hold in place.

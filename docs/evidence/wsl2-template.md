@@ -1,6 +1,6 @@
 # WSL2 runtime validation evidence template
 
-Copy this template to an approved evidence location and complete it without personal job, browser, credential, database, or log data. A blank or failed item is evidence that WSL2 remains candidate/unsupported.
+Copy this template to an approved evidence location and complete it without personal job, browser, credential, database, or log data. A blank or failed item means the candidate release lacks complete WSL2 approval evidence.
 
 ## Environment
 
@@ -37,4 +37,4 @@ Copy this template to an approved evidence location and complete it without pers
 
 ## Conclusion
 
-WSL2 support status remains **Candidate, unsupported** unless every required result is recorded as pass and the evidence is reviewed. Notes:
+The candidate release is not approved for the supported Windows 11 WSL2 x86_64 path unless every required result is recorded as pass and the evidence is reviewed. Notes:

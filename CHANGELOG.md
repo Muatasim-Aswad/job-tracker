@@ -6,11 +6,11 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-08-11
+## [1.1.0] - 2026-08-12
 
 ### Added
 
-- Linux x86_64 release preparation for a smoke-tested uv-managed runtime bundle and installable wheel, a separately loadable matching extension ZIP, optional Linux/amd64 Docker Compose operation, offline backup/restore and checkout adoption, redacted diagnostics, and isolated release-readiness rehearsals. WSL2 remains candidate/unsupported, and no native Windows, packaged macOS, multiarch container, background service, or automatic-update support is claimed.
+- Linux x86_64 release preparation for a smoke-tested uv-managed runtime bundle and installable wheel, a separately loadable matching extension ZIP, optional Linux/amd64 Docker Compose operation, Windows 11 WSL2 x86_64 runtime support, offline backup/restore and checkout adoption, redacted diagnostics, and isolated release-readiness rehearsals. No native Windows, packaged macOS, multiarch container, background service, or automatic-update support is claimed.
 - Support for LinkedIn's newer job search page, reached from job-alert notifications. Its cards and detail pane now carry action bars, and jobs opened there are captured.
 - A ⚠ alert on a LinkedIn job that is no longer accepting applications, from the same sign that already closes it automatically.
 

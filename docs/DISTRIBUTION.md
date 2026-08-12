@@ -254,7 +254,7 @@ The command defaults to the packaged profile because it is the installed/staged 
 | Public Chromium extension ZIP | Built and content-verified release artifact; publication pending | Separate unpacked-extension archive with the same version as the server; Chromium-family browser required. |
 | `job-tracker` CLI | Implemented for source, runtime-bundle, wheel, and container layouts | Foreground `start`, read-only `status`/`paths`, `version`, `doctor`, offline backup/restore, and packaged checkout adoption; no daemon or automatic updater. |
 | Python wheel on Linux x86_64 | Built and fresh-environment smoke-tested release artifact; publication pending | Installed with `uv tool`; contains no Python runtime and requires platform-compatible dependency wheels. |
-| WSL2 on x86_64 | Candidate, unsupported pending recorded validation | Uses the Linux artifact inside WSL2; active database files must stay on the Linux filesystem, not `/mnt/c`. |
+| Windows 11 WSL2 on x86_64 | Supported Linux-runtime path | Uses the Linux artifact inside WSL2; active database files must stay on the Linux filesystem, not `/mnt/c`. Version 1.1.0 evidence covers Ubuntu 26.04 LTS, Chrome, Edge, and persistence across `wsl --shutdown`. |
 | Native Windows | Unsupported | Reserved paths only; no native installer, launcher, driver validation, or support claim. |
 | macOS runtime bundle or wheel | Not currently planned as a released artifact | Source-checkout support does not overcome the absence of a matching locked prebuilt dependency set. |
 | Linux arm64 runtime bundle or image | Unsupported | No matching locked `libsql` wheel in the current dependency set. |
