@@ -32,15 +32,15 @@ grep -A5 '^  publish:' "$WORKFLOW" | grep -Fq 'contents: write' || fail "publica
 [[ "$(grep -Fc 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' "$WORKFLOW")" == 2 ]] || fail "every job that verifies release contents must install pinned Node."
 for required in \
   'astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9' \
-  'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271' \
+  'pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86' \
   'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' \
   'pnpm install --frozen-lockfile' \
   'bash scripts/check.sh' \
   'bash scripts/build-release.sh' \
   'bash scripts/check-release-contents.sh' \
   'bash scripts/smoke-release.sh' \
-  'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' \
-  'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093' \
+  'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' \
+  'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' \
   'gh release create'; do
   grep -Fq "$required" "$WORKFLOW" || fail "workflow is missing $required."
 done
