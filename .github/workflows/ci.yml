@@ -26,7 +26,7 @@ jobs:
       - run: uv run ruff format --check
       - run: uv run ruff check
       - run: uv run mypy
-      - run: uv run pytest -q
+      - run: uv run pytest -q -m "not turso and not wheel"
       # Resolved-dependency vulnerability check (pip-audit via uv's own
       # resolution, so it reflects exactly what uv sync installed).
       - run: uv export --no-hashes -o "$RUNNER_TEMP/requirements-audit.txt"
@@ -82,6 +82,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: uv sync
         working-directory: apps/api
+      # The wheel bundles the dashboard, so exercise it in the job that has
+      # both the Python and Node workspaces installed.
+      - run: uv run --directory apps/api pytest -q -m wheel
       # Fails if the committed types drifted from an API change that wasn't
       # regenerated. (The funnel/text cross-language fixtures are guarded the same way
       # by the API pytest job, which writes-and-asserts them.)

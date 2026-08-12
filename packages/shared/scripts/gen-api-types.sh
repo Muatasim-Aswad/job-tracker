@@ -28,7 +28,7 @@ trap 'rm -f "$SCHEMA" "$GENERATED"' EXIT
 
 # --alphabetize keeps the output stable across runs regardless of schema traversal
 # order, so the drift diff only ever reflects a real API change.
-pnpm --filter @job-tracker/shared exec openapi-typescript "$SCHEMA" \
+"$ROOT/packages/shared/node_modules/.bin/openapi-typescript" "$SCHEMA" \
   --output "$GENERATED" \
   --alphabetize
 

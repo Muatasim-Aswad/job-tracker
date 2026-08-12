@@ -21,9 +21,14 @@ from pathlib import Path
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.paths import resolve_paths
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # The selected profile, not pydantic's import location or the current home,
+    # chooses the config file in get_settings(). Direct Settings construction is
+    # intentionally environment-only, which keeps unit tests isolated by default.
+    model_config = SettingsConfigDict(extra="ignore")
 
     # "local" (default) or "test". `APP_ENV=test` points the whole app at a throwaway
     # Turso database: the remote comes from the `turso_test_*` vars and the local
@@ -34,10 +39,8 @@ class Settings(BaseSettings):
 
     db_path: str = "jobtracker.db"
     port: int = 3456
-    # The built dashboard SPA `main.py` mounts at `/`. Computed relative to this file
-    # (core/config.py -> repo root -> apps/web/dist) so it survives any cwd;
-    # overridable for deployments that build the SPA elsewhere.
-    web_dist_path: Path = Path(__file__).resolve().parents[4] / "apps" / "web" / "dist"
+    # Relative path settings are anchored by core.paths after config loading.
+    web_dist_path: Path | None = None
 
     turso_database_url: str | None = None
     turso_auth_token: str | None = None
@@ -117,7 +120,8 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """The process-wide `Settings`, constructed lazily on first use and cached, so
-    importing this module never has the side effect of reading the environment or
-    `.env`. Tests can `get_settings.cache_clear()` to force a fresh read."""
-    return Settings()
+    """Load the selected profile's config, then let process env override it."""
+    paths = resolve_paths()
+    return Settings(  # type: ignore[call-arg]
+        _env_file=paths.config_file, _env_file_encoding="utf-8"
+    )

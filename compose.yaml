@@ -1,0 +1,40 @@
+services:
+  job-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: job-tracker:compose
+    platform: linux/amd64
+    init: true
+    user: "10001:10001"
+    ports:
+      - "127.0.0.1:${JOB_TRACKER_HOST_PORT:-3456}:3456"
+    environment:
+      JOB_TRACKER_PROFILE: packaged
+      JOB_TRACKER_APP_DIR: /app
+      JOB_TRACKER_DATA_DIR: /data
+      JOB_TRACKER_CONFIG_DIR: /config
+      JOB_TRACKER_STATE_DIR: /state
+      JOB_TRACKER_BACKUP_DIR: /backups
+      DB_PATH: /data/jobtracker.db
+      SCRIPTS_OUTPUT_DIR: /data/script-output
+      WEB_DIST_PATH: /app/apps/web/dist
+      PORT: "3456"
+      TURSO_DATABASE_URL: ${TURSO_DATABASE_URL:-}
+      TURSO_AUTH_TOKEN: ${TURSO_AUTH_TOKEN:-}
+    volumes:
+      - job-tracker-data:/data
+      - job-tracker-config:/config
+      - job-tracker-state:/state
+      - job-tracker-backups:/backups
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+volumes:
+  job-tracker-data:
+  job-tracker-config:
+  job-tracker-state:
+  job-tracker-backups:

@@ -5,6 +5,7 @@ Repository-wide contributor setup and policy live here; component-specific imple
 | Topic | Authority |
 | --- | --- |
 | End-user prerequisites, setup, install, and normal startup | [`README.md`](../README.md) |
+| Distribution artifacts, packaged paths, lifecycle, upgrades, and platform support | [`docs/DISTRIBUTION.md`](DISTRIBUTION.md) |
 | Repository-wide contributor setup, full-app launcher, and quality gate | This guide |
 | User-facing features and workflows | [`docs/FEATURES.md`](FEATURES.md) |
 | Component structure and invariants | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
@@ -35,7 +36,7 @@ The development launcher performs the same built-dashboard preflight as the norm
 
 ## Quality gate
 
-`bash scripts/check.sh` is the single local entry point and runs the CI-equivalent gates: private-overlay drift, formatting, linting, type checking, tests, builds, generated-API drift, Markdown formatting, and version consistency. Run it before calling a change done; a green run is what CI reproduces.
+`bash scripts/check.sh` is the single local entry point and runs the CI-equivalent gates: private-overlay drift, launcher/setup and release-contract tests, formatting, linting, type checking, tests, builds, generated-API drift, Markdown formatting, and version consistency. Linux also runs deterministic production of the Linux x86_64 artifacts; macOS skips that Linux-only production step while retaining every source-checkout gate. Its WSL2 check is a static safety self-test, not external WSL2 evidence, and it does not run Docker, use credentials, publish, or contact a Turso database. Run it before calling a change done; a green run is what CI reproduces for that platform, while release approval still requires the Linux artifact gates documented in the release procedure.
 
 Git hooks run a subset earlier so failures surface sooner. Install them once:
 
@@ -116,6 +117,8 @@ Individual commits do not bump the version. Bump once while preparing a release,
 
 ## Platform support
 
-Linux and macOS are supported. Windows is not: the setup and run scripts are Bash, and the locked `libsql`/`pyturso` dependency set has no straightforward native-Windows wheel path. WSL2 supplies the supported Linux userspace and those locked Linux wheels, so it may work, but it is currently untested and unsupported.
+Linux and macOS source checkouts are supported. Packaged support is narrower: the runtime bundle and wheel are proven only on Linux x86_64, and the optional container is Linux/amd64 only. A passing source-checkout gate on macOS is not evidence for a macOS runtime bundle or wheel.
+
+Native Windows is unsupported: the setup and run scripts are Bash, and the locked `libsql`/`pyturso` dependency set has no straightforward native-Windows wheel path. The Linux runtime bundle is supported on Windows 11 WSL2 x86_64 when all mutable state stays in the Linux filesystem; the external lifecycle and Windows Chromium evidence is recorded in [`docs/evidence/wsl2-1.1.0.md`](evidence/wsl2-1.1.0.md).
 
 Supporting native Windows would require supported dependency artifacts or a database-driver decision, portable launcher commands and paths, and a Windows setup/runtime CI smoke test. Until those exist, do not add speculative compatibility edits that no test can hold in place.

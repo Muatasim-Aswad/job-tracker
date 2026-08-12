@@ -48,70 +48,90 @@ Capture job details, review decision signals, and update tracked opportunities w
 
 ## Data and privacy
 
-Job Tracker is a single-user, self-hosted application designed for localhost use. By default, records stay in the local SQLite file `apps/api/jobtracker.db`; Turso synchronization is optional. The extension talks only to the configured Job Tracker server, uses no third-party analytics, and keeps optional search diagnostics off by default.
+Job Tracker is a single-user, self-hosted application designed for localhost use. By default, records stay in a local SQLite file on your own machine; Turso synchronization is optional. The extension talks only to the configured Job Tracker server, uses no third-party analytics, and keeps optional search diagnostics off by default.
 
 On Gmail, the extension recognizes supported LinkedIn job messages in the browser and sends only the structured job and action data needed by the tracker; it does not send or store the email body as a job description. See [Privacy](PRIVACY.md) for captured fields, permissions, retention, and deletion, and [Security](SECURITY.md) for the supported localhost threat model.
 
 ## Requirements
 
-- Linux or macOS (the setup and run scripts use Bash). Windows is not supported. WSL2 may work but is currently untested; native Windows/Git Bash is unsupported.
-- [Node.js](https://nodejs.org/en/download) **as pinned in `.node-version`** (currently 22.22.2)
-- Corepack with [pnpm](https://pnpm.io/installation#using-corepack) (the repository pins the pnpm version)
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) (downloads the Python version required by the project when necessary)
-- Chrome, Edge, Brave, or another Chromium browser that can load unpacked Manifest V3 extensions
+Every path needs a Chromium browser — Chrome, Edge, or Brave — that can load an unpacked extension. The rest depends on which installation path you pick:
 
-## Install
+| Path | Needs `git clone`? | Platforms | Host tools |
+| --- | --- | --- | --- |
+| [Source checkout](#install-from-source) | Yes | Linux, macOS | Git, [Node.js](https://nodejs.org/en/download) as pinned in `.node-version`, [pnpm through Corepack](https://pnpm.io/installation#using-corepack), [uv](https://docs.astral.sh/uv/getting-started/installation/) |
+| [Linux release](#install-a-linux-x86_64-release) | No — download the release files | Linux x86_64, including Windows 11 [WSL2](docs/WSL2.md) x86_64 | [uv](https://docs.astral.sh/uv/getting-started/installation/) |
+| [Docker Compose](#run-with-docker-compose) | No — use a checkout or downloaded source tree | Linux/amd64 | Docker Engine with Compose |
+
+Neither the runtime bundle nor the wheel is a native executable, and neither contains Python: `uv` provisions the pinned Python runtime and dependencies. Native Windows and Git Bash are unsupported, and there is no packaged macOS artifact — on macOS, install from source.
+
+## Install from source
 
 ```bash
 git clone https://github.com/Muatasim-Aswad/job-tracker.git
 cd job-tracker
 bash scripts/setup.sh
-```
-
-This validates prerequisites, installs JavaScript and Python dependencies from the lockfiles, and builds the dashboard and extension. It's safe to rerun and never creates or overwrites `apps/api/.env` or `apps/extension/.env`.
-
-Start the usable local application with:
-
-```bash
 bash scripts/start.sh
 ```
 
-Open <http://localhost:3456>. The server creates `apps/api/jobtracker.db` on first start.
+Setup installs the locked dependencies and builds the dashboard and extension; it is safe to rerun. Open <http://localhost:3456>, then [load the extension](#load-the-extension) from the absolute `apps/extension/dist` path that setup prints.
 
-### Load the extension
+The [development guide](docs/DEVELOPMENT.md) covers the contributor launcher, the quality gate, and per-component commands.
 
-After setup:
+## Install a Linux x86_64 release
+
+No checkout is involved. Download the runtime archive, extension ZIP, wheel, and `SHA256SUMS` from one release into a single directory, then verify them:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+Install the runtime bundle:
+
+```bash
+mkdir -p job-tracker-app
+tar -xzf job-tracker-<version>-linux-x86_64.tar.gz -C job-tracker-app
+job-tracker-app/job-tracker start
+```
+
+Or install the wheel instead:
+
+```bash
+uv tool install job_tracker-<version>-py3-none-any.whl
+job-tracker start
+```
+
+Open <http://localhost:3456>, then [load the extension](#load-the-extension) from the extracted `job-tracker-extension-<version>.zip`. On Windows 11, run this path inside a WSL2 distribution and follow [WSL2](docs/WSL2.md) for its requirements.
+
+## Run with Docker Compose
+
+Optional, and Linux/amd64 only. Compose builds the image from a checkout or downloaded source tree containing `compose.yaml`; it does not run from the packaged release artifacts:
+
+```bash
+docker compose up -d --build
+```
+
+Open <http://127.0.0.1:3456>. The container serves the API and dashboard only, so take the extension from the matching version's extension ZIP and [load it](#load-the-extension) separately. [Containers](docs/CONTAINERS.md) covers configuration, volumes, backups, and updates.
+
+## Load the extension
+
+The extension is always loaded unpacked, and its version has to match the server's:
 
 1. Open `chrome://extensions`.
 2. Enable **Developer mode**.
 3. Select **Load unpacked**.
-4. Choose the absolute `apps/extension/dist` directory printed by setup.
+4. Choose `apps/extension/dist` for a source checkout, or the directory extracted from `job-tracker-extension-<version>.zip` for a release or container installation.
 
-The extension defaults to <http://localhost:3456>. To use another address, follow [Configure the server address](apps/extension/README.md#configure-the-server-address) and rebuild the extension.
+Reload the extension after updating the server. It connects to <http://localhost:3456> by default; another address means [reconfiguring](apps/extension/README.md#configure-the-server-address) and rebuilding it from source.
 
-## Update
+## Update, back up, and uninstall
 
-Back up first. If the checkout has local changes, review the upstream changes before updating. Then stop the server and run:
+Stop the server first. Each path then has one authoritative procedure:
 
-```bash
-git pull --ff-only
-bash scripts/setup.sh
-```
+- **Source checkout:** run `git pull --ff-only`, `bash scripts/setup.sh`, and reload the extension. This path keeps its database and configuration inside the checkout, so removing the checkout removes them too.
+- **Runtime bundle or wheel:** [Distribution and lifecycle](docs/DISTRIBUTION.md#upgrade-downgrade-and-replacement) for upgrading, removal, and purging; [Packaged CLI](docs/CLI.md) for the `backup`, `restore`, and diagnostic commands.
+- **Docker Compose:** [Containers](docs/CONTAINERS.md).
 
-Reload the unpacked extension from `chrome://extensions` after rebuilding. Schema updates run when the server starts.
-
-## Backup, restore, and remove
-
-The API README has the tested [SQLite/Turso backup and restore procedure](apps/api/README.md#backup--restore). Back up before upgrades and keep the SQL dump outside the repository.
-
-To uninstall:
-
-1. Stop the server and remove the unpacked extension in `chrome://extensions`.
-2. Delete the configured `DB_PATH` (default `apps/api/jobtracker.db`) and, when present, its `.sync` sibling.
-3. If you configured Turso, delete the remote database separately.
-4. Delete the checkout and any backups once you no longer need them.
-
-Removing the extension clears its browser preferences but erases no server records.
+The [API guide](apps/api/README.md#backup--restore) holds the tested backup and restore procedure for every local and Turso mode.
 
 ## Project documentation
 

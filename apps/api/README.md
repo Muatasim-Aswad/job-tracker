@@ -10,6 +10,22 @@ uv run uvicorn app.main:app --host 127.0.0.1 --port 3456 --reload
 
 Every feature route is mounted under `/api` (e.g. `POST /api/events`); OpenAPI docs stay unprefixed at <http://localhost:3456/docs>. The schema is created on startup (`jobtracker.db` in this directory by default).
 
+This direct command intentionally keeps cwd-relative `jobtracker.db`, `.env`, and `script-output` defaults. It still acquires `.job-tracker-state/server.lock` before opening the database, so a second direct or wrapped server cannot use the same profile.
+
+The delayed-import CLI is also available from this directory:
+
+```bash
+uv run python -m app.cli --profile direct start [--port PORT]
+uv run python -m app.cli --profile direct status
+uv run python -m app.cli --profile direct paths
+uv run python -m app.cli --profile direct version
+uv run python -m app.cli --profile direct doctor
+uv run python -m app.cli --profile direct backup /safe/path/job-tracker.sqlite
+uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite
+```
+
+`start` binds only to `127.0.0.1` and runs in the foreground. `status` never opens or mutates the database. `doctor` reports redacted path, version, mode, lock/health, permission, and safe integrity diagnostics. Backup, restore, and checkout adoption are offline-only and refuse while the selected server lock is held. Source launchers and packaged operation select their profile explicitly; see the authoritative [distribution and lifecycle contract](../../docs/DISTRIBUTION.md).
+
 ## Dashboard (web UI)
 
 A React + TS + Vite Kanban dashboard lives in [`../web/`](../web). It talks to this API over relative `/api/...` paths, so it runs the same in dev and prod.
@@ -38,8 +54,9 @@ Feature modules follow the same `router → service → repository` dependency d
 
 ```
 app/
-├── core/       config (Settings + get_settings), db, schema.sql, enums, ids,
-│               text, timeutil, similarity, hashing, sync, errors, deps
+├── core/       paths, config, lifecycle/process lock, db, schema.sql, enums,
+│               ids, text, timeutil, similarity, hashing, sync, errors, deps
+├── cli.py      delayed-import start/status/paths/version entry point
 ├── jobs/       /jobs, /jobs/states, /jobs/matches, /jobs/{id}
 ├── listings/   /listings, /listings/{id}  (link_listing_to_job cascade lives here)
 ├── events/     /events, /jobs/{id}/corrections, /jobs/{id}/status/revert
@@ -55,6 +72,8 @@ app/
 ## Configuration
 
 Copy `.env.example` to `.env` only to override defaults (`DB_PATH`, `PORT`, `SCRIPTS_OUTPUT_DIR`, the `TURSO_*` sync settings — see `.env.example` for the full list).
+
+Direct development reads this directory's `.env`. Source and packaged profiles instead resolve the explicit `JOB_TRACKER_CONFIG_FILE` (or their profile default), with process environment values taking precedence. Direct development and the source launchers retain their `apps/api/` compatibility anchor for relative settings; the packaged profile anchors `DB_PATH` and `SCRIPTS_OUTPUT_DIR` to its data root and `WEB_DIST_PATH` to its application root.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
@@ -104,20 +123,34 @@ Provision the remote once:
 
 ### Backup & restore
 
-Every mode keeps a plain SQLite file on disk, so dump it to portable SQL. The file is `DB_PATH`, except in local-first mode where the live data sits in the `<DB_PATH>.sync` sibling:
+Stop the server, then use the delayed-import CLI to create a consistent SQLite snapshot. It selects `DB_PATH` for local and embedded-replica modes and `<DB_PATH>.sync` for local-first mode, validates SQLite integrity and foreign keys, writes a private temporary sibling, and atomically installs the completed output. The output directory must already exist.
 
 ```bash
-sqlite3 jobtracker.db      .dump > backup.sql   # local-file / embedded-replica mode
-sqlite3 jobtracker.db.sync .dump > backup.sql   # local-first mode
+uv run python -m app.cli --profile direct backup /safe/path/job-tracker.sqlite
 ```
 
-Restore into a **fresh, non-existent path**: the dump recreates the schema, so never point it at a DB the server has already initialised.
+Local SQLite restore validates and migrates a fresh candidate before atomically installing it at `DB_PATH`. An existing destination is refused unless `--replace` is explicit; replacement first preserves a verified automatic backup under the selected backup root.
 
 ```bash
-sqlite3 restored.db < backup.sql   # then run with DB_PATH=restored.db
+uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite
+uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite --replace
 ```
 
-In a synced mode the Turso remote is authoritative, and a fresh local-first client rebuilds its `.sync` replica from the primary on first boot, so a restore is only needed when reseeding that primary.
+In either Turso mode, general restore never reseeds the primary or overwrites the configured replica. Supply a separate, explicit local recovery target for inspection:
+
+```bash
+uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite --target /safe/path/recovery.sqlite
+```
+
+Startup preserves and validates an existing local Turso store at `<backup root>/recovery/pre-pull.sqlite` before constructing a driver that can pull remote state. If that recovery snapshot fails, startup refuses before contacting the driver.
+
+Packaged installations can adopt an older checkout only while both installations are stopped and the packaged database family is empty:
+
+```bash
+job-tracker migrate-checkout /path/to/old-checkout
+```
+
+The command snapshots the checkout's effective local database without copying its `.env`, credentials, private overlays, logs, or script output, and leaves the checkout unchanged. Validate the adopted local database before configuring Turso separately.
 
 ### Testing against a throwaway DB
 

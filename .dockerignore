@@ -1,0 +1,44 @@
+# Default-deny the Docker build context. Only public application sources and the
+# metadata required by the two build stages are restored below.
+*
+!Dockerfile
+!.dockerignore
+!VERSION
+!LICENSE
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!vite.config.ts
+!apps/
+!apps/api/
+!apps/api/README.md
+!apps/api/pyproject.toml
+!apps/api/uv.lock
+!apps/api/app/
+!apps/api/app/**
+!apps/web/
+!apps/web/**
+!packages/
+!packages/shared/
+!packages/shared/**
+
+# These remain excluded even if a future allowlist expansion includes a parent.
+.env
+.env.*
+*.db
+*.db-*
+*.db.sync*
+**/backups/
+**/script-output/
+**/.job-tracker-state/
+apps/extension/src/adapters/local/
+apps/web/src/platforms/local/
+apps/api/scripts/local/
+node_modules/
+**/node_modules/
+dist/
+.git/
+.agents/
+.codex/
+docs/plans/

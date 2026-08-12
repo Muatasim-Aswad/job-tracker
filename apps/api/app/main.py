@@ -16,6 +16,8 @@ from app.core.config import get_settings
 from app.core.db import Database, connect, init_schema
 from app.core.deps import require_api_key
 from app.core.errors import NotFoundError, ValidationError
+from app.core.lifecycle import ServerLock, private_creation_mask, protect_new_database
+from app.core.paths import settings_paths
 from app.core.sync import PushScheduler
 from app.core.version import PRODUCT_VERSION
 from app.documents.router import router as documents_router
@@ -56,35 +58,56 @@ def _timestamp_uvicorn_logs() -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _timestamp_uvicorn_logs()
     settings = get_settings()
-    conn = connect(settings)  # pyturso mode already pulled the latest remote state
-    init_schema(conn)
-    db = Database(conn)
-    app.state.db = db
-
-    # In local-first mode, a debounced background push keeps local writes off the
-    # request path, and a periodic pull surfaces another laptop's writes without a
-    # restart.
-    scheduler = (
-        PushScheduler(
-            db, settings.turso_push_debounce_seconds, settings.turso_pull_interval_seconds
+    paths = settings_paths(settings)
+    lock = ServerLock(paths, port=settings.port, version=PRODUCT_VERSION)
+    with private_creation_mask():
+        lock.acquire()  # before open/pull/init; direct Uvicorn cannot bypass it
+        conn = None
+        scheduler = None
+        live_path = (
+            paths.database.with_name(f"{paths.database.name}.sync")
+            if settings.turso_local_first and settings.turso_database_url
+            else paths.database
         )
-        if db.syncable
-        else None
-    )
-    app.state.push_scheduler = scheduler
-    if scheduler is not None:
-        scheduler.start()
+        existed_before_open = live_path.exists()
+        try:
+            conn = connect(settings)  # pyturso mode already pulled the latest remote state
+            protect_new_database(live_path, existed_before_open=existed_before_open)
+            init_schema(conn, paths.schema_file)
+            db = Database(conn)
+            app.state.db = db
 
-    yield
+            # In local-first mode, a debounced background push keeps local writes off the
+            # request path, and a periodic pull surfaces another laptop's writes without a
+            # restart.
+            scheduler = (
+                PushScheduler(
+                    db, settings.turso_push_debounce_seconds, settings.turso_pull_interval_seconds
+                )
+                if db.syncable
+                else None
+            )
+            app.state.push_scheduler = scheduler
+            if scheduler is not None:
+                scheduler.start()
 
-    if scheduler is not None:
-        scheduler.stop()  # flushes any pending writes with a final push
-    conn.close()
+            yield
+        finally:
+            try:
+                if scheduler is not None:
+                    scheduler.stop()  # flushes pending writes before database close
+            finally:
+                try:
+                    if conn is not None:
+                        conn.close()
+                finally:
+                    lock.release()  # only after database cleanup has been attempted
 
 
 app = FastAPI(title="Job Tracker API", version=PRODUCT_VERSION, lifespan=lifespan)
 
 settings = get_settings()
+paths = settings_paths(settings)
 
 # Browser-facing allowlist: only the Vite dev server and the extension's fixed
 # chrome-extension:// origin ever legitimately call this API from a browser. Prod
@@ -101,6 +124,11 @@ app.add_middleware(
 # proportionate hardening, not a substitute for real auth on a service that left
 # localhost.
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
+
+
+@app.get("/health", include_in_schema=False)
+async def health() -> dict[str, str]:
+    return {"status": "ok", "version": PRODUCT_VERSION}
 
 
 # 404 is routine here — the deep-link `/listings/lookup` misses by design — so logging
@@ -150,5 +178,5 @@ app.include_router(api_router, prefix="/api")
 # frontend has been built; frontend dev uses Vite's own server, which proxies the API
 # back here. `html=True` makes it a real SPA host, falling unknown paths back to
 # index.html for client routing.
-if settings.web_dist_path.is_dir():
-    app.mount("/", StaticFiles(directory=settings.web_dist_path, html=True), name="dashboard")
+if paths.web_dist.is_dir():
+    app.mount("/", StaticFiles(directory=paths.web_dist, html=True), name="dashboard")
