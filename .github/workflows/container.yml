@@ -11,6 +11,11 @@ on:
         description: Existing canonical release tag to publish
         required: true
         type: string
+      update_latest:
+        description: Move latest to this tag; use only for the current stable release
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -56,11 +61,18 @@ jobs:
       - name: Publish Linux/amd64 image
         env:
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          UPDATE_LATEST: ${{ github.event_name == 'push' || inputs.update_latest }}
         run: |
           set -euo pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           SOURCE_SHA="$(git rev-parse HEAD)"
+          TAGS=(
+            --tag "$IMAGE:$TAG"
+            --tag "$IMAGE:sha-$SOURCE_SHA"
+          )
+          if [[ "$UPDATE_LATEST" == "true" ]]; then
+            TAGS+=(--tag "$IMAGE:latest")
+          fi
           docker buildx build --platform linux/amd64 --pull --push \
-            --tag "$IMAGE:$TAG" \
-            --tag "$IMAGE:sha-$SOURCE_SHA" \
+            "${TAGS[@]}" \
             .

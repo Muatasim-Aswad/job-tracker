@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: job-tracker:compose
+    image: ${JOB_TRACKER_IMAGE:-ghcr.io/muatasim-aswad/job-tracker:latest}
     platform: linux/amd64
     init: true
     user: "10001:10001"
