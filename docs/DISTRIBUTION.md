@@ -250,14 +250,14 @@ The command defaults to the packaged profile because it is the installed/staged 
 | --- | --- | --- |
 | Linux x86_64 source checkout | Supported current path | Git, pinned Node/pnpm, and `uv`; public setup and checks cover it. |
 | macOS source checkout | Supported source path, tested separately | Same source toolchain. It is not evidence of a macOS runtime bundle or wheel. |
-| Linux x86_64 uv-managed runtime bundle | Built and smoke-tested release artifact; publication pending | Requires `uv`; no Git or Node/pnpm at runtime. Not a native executable. |
-| Public Chromium extension ZIP | Built and content-verified release artifact; publication pending | Separate unpacked-extension archive with the same version as the server; Chromium-family browser required. |
+| Linux x86_64 uv-managed runtime bundle | Published and smoke-tested release artifact | Requires `uv`; no Git or Node/pnpm at runtime. Not a native executable. |
+| Public Chromium extension ZIP | Published and content-verified release artifact | Separate unpacked-extension archive with the same version as the server; Chromium-family browser required. |
 | `job-tracker` CLI | Implemented for source, runtime-bundle, wheel, and container layouts | Foreground `start`, read-only `status`/`paths`, `version`, `doctor`, offline backup/restore, and packaged checkout adoption; no daemon or automatic updater. |
-| Python wheel on Linux x86_64 | Built and fresh-environment smoke-tested release artifact; publication pending | Installed with `uv tool`; contains no Python runtime and requires platform-compatible dependency wheels. |
+| Python wheel on Linux x86_64 | Published and fresh-environment smoke-tested release artifact | Installed with `uv tool`; contains no Python runtime and requires platform-compatible dependency wheels. |
 | Windows 11 WSL2 on x86_64 | Supported Linux-runtime path | Uses the Linux artifact inside WSL2; active database files must stay on the Linux filesystem, not `/mnt/c`. Version 1.1.0 evidence covers Ubuntu 26.04 LTS, Chrome, Edge, and persistence across `wsl --shutdown`. |
 | Native Windows | Unsupported | Reserved paths only; no native installer, launcher, driver validation, or support claim. |
 | macOS runtime bundle or wheel | Not currently planned as a released artifact | Source-checkout support does not overcome the absence of a matching locked prebuilt dependency set. |
 | Linux arm64 runtime bundle or image | Unsupported | No matching locked `libsql` wheel in the current dependency set. |
-| Linux amd64 container and Compose | Optional built and smoke-tested path | Explicit `/app`, `/data`, `/config`, `/state`, and `/backups` roots; GHCR publication occurs only from the canonical-tag workflow. |
+| Linux amd64 container and Compose | Published optional path; built and smoke-tested | Explicit `/app`, `/data`, `/config`, `/state`, and `/backups` roots; GHCR provides version, commit-SHA, and current-stable `latest` tags. |
 
 The locked `libsql 0.1.11` dependency currently supplies a CPython 3.14 wheel only for manylinux x86_64. That makes Linux x86_64 the only straightforward prebuilt target. Building an sdist on another platform is not equivalent to a reproducible, tested release artifact and must not be used to imply support.
