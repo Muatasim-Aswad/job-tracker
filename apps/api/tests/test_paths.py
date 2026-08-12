@@ -12,7 +12,9 @@ def _packaged_env(tmp_path: Path) -> dict[str, str]:
 
 
 def test_packaged_profile_uses_an_injected_home_and_separate_roots(tmp_path: Path) -> None:
-    paths = resolve_paths(profile="packaged", environ=_packaged_env(tmp_path), cwd=tmp_path)
+    paths = resolve_paths(
+        profile="packaged", environ=_packaged_env(tmp_path), cwd=tmp_path, platform="linux"
+    )
 
     assert paths.app_dir == (tmp_path / "app").resolve()
     assert paths.data_dir == (tmp_path / "home/.local/share/job-tracker").resolve()
@@ -28,7 +30,9 @@ def test_packaged_relative_values_anchor_to_their_owning_roots(tmp_path: Path) -
         "WEB_DIST_PATH": "dashboard",
         "SCRIPTS_OUTPUT_DIR": "reports",
     }
-    paths = resolve_paths(profile="packaged", environ=environment, cwd=tmp_path / "elsewhere")
+    paths = resolve_paths(
+        profile="packaged", environ=environment, cwd=tmp_path / "elsewhere", platform="linux"
+    )
 
     assert paths.database == paths.data_dir / "db/custom.sqlite"
     assert paths.web_dist == paths.app_dir / "dashboard"

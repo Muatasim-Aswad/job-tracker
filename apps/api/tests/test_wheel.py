@@ -53,6 +53,10 @@ def test_release_workflow_smokes_the_downloaded_wheel_with_fresh_tool_roots() ->
     assert "UV_PYTHON_DOWNLOADS=never" not in smoke
 
 
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="the released wheel is built and dependency-smoked only on Linux x86_64",
+)
 @pytest.mark.wheel
 def test_generated_wheel_has_canonical_metadata_and_runtime_resources(tmp_path: Path) -> None:
     release_dir = tmp_path / "release"

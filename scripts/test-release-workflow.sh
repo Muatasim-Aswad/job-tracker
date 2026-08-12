@@ -5,16 +5,22 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/release.yml"
 REHEARSAL="$ROOT/scripts/rehearse-release.sh"
+CHECK="$ROOT/scripts/check.sh"
 
 fail() {
   printf 'test-release-workflow: %s\n' "$1" >&2
   exit 1
 }
 
-for path in "$WORKFLOW" "$REHEARSAL" "$ROOT/scripts/test-release-workflow.sh"; do
+for path in "$WORKFLOW" "$REHEARSAL" "$CHECK" "$ROOT/scripts/test-release-workflow.sh"; do
   [[ -f "$path" ]] || fail "missing $path"
 done
 bash -n "$REHEARSAL" "$ROOT/scripts/test-release-workflow.sh"
+
+grep -Fq 'Linux) bash scripts/test-release-build.sh ;;' "$CHECK" ||
+  fail "Linux check gate must run deterministic release production."
+grep -Fq "Darwin) printf '%s\\n' 'release build determinism: skipped (Linux x86_64 artifact only)' ;;" "$CHECK" ||
+  fail "macOS check gate must skip only Linux artifact production."
 
 grep -Fq 'tags: ["v[0-9]+.[0-9]+.[0-9]+"]' "$WORKFLOW" || fail "workflow tag filter is not canonical SemVer."
 grep -Fq 'contents: read' "$WORKFLOW" || fail "workflow lacks read-only default permissions."

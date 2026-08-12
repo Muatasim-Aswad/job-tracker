@@ -4,7 +4,10 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from app import cli
+from app.core import paths as core_paths
 from app.core.config import get_settings
 
 
@@ -18,6 +21,12 @@ def _app_tree(tmp_path: Path) -> tuple[Path, Path]:
 
 def _reset_settings() -> None:
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _select_linux_packaged_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These CLI assertions specify the released Linux packaged profile."""
+    monkeypatch.setattr(core_paths.sys, "platform", "linux")
 
 
 def test_version_and_paths_use_only_the_injected_packaged_profile(

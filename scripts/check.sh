@@ -12,7 +12,18 @@ bash scripts/test-setup.sh
 bash scripts/test-launchers.sh
 bash scripts/test-release-workflow.sh
 bash scripts/test-validate-wsl2.sh
-bash scripts/test-release-build.sh
+
+# Release artifacts are Linux x86_64 only. Keep their deterministic production
+# mandatory on Linux, while macOS runs the supported source-checkout gates below
+# without requiring a GNU userland merely to build unsupported artifacts.
+case "$(uname -s)" in
+  Linux) bash scripts/test-release-build.sh ;;
+  Darwin) printf '%s\n' 'release build determinism: skipped (Linux x86_64 artifact only)' ;;
+  *)
+    printf 'check: unsupported source platform: %s\n' "$(uname -s)" >&2
+    exit 1
+    ;;
+esac
 
 pnpm exec vp check
 
