@@ -21,7 +21,7 @@ pnpm build          # emits the loadable extension into dist/
 
 Then in the browser: `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select the **`dist/`** folder. After any source change, run `pnpm build` again and hit the reload ↻ on the extension card.
 
-For a versioned release ZIP, follow the root [release-extension loading procedure](../../README.md#load-the-release-extension). Keep its version matched to the installed server artifact.
+For a versioned release ZIP, follow the root [extension loading procedure](../../README.md#load-the-extension). Keep its version matched to the installed server artifact.
 
 > The loaded artifact is always `dist/`, never the raw source. The build (Vite + [`@crxjs/vite-plugin`](https://crxjs.dev)) bundles the content script, service worker, and popup, and generates the MV3 `manifest.json`.
 
