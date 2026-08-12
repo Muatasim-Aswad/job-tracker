@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/release.yml"
 CONTAINER_WORKFLOW="$ROOT/.github/workflows/container.yml"
+COMPOSE="$ROOT/compose.yaml"
 REHEARSAL="$ROOT/scripts/rehearse-release.sh"
 CHECK="$ROOT/scripts/check.sh"
 
@@ -13,7 +14,7 @@ fail() {
   exit 1
 }
 
-for path in "$WORKFLOW" "$CONTAINER_WORKFLOW" "$REHEARSAL" "$CHECK" "$ROOT/scripts/test-release-workflow.sh"; do
+for path in "$WORKFLOW" "$CONTAINER_WORKFLOW" "$COMPOSE" "$REHEARSAL" "$CHECK" "$ROOT/scripts/test-release-workflow.sh"; do
   [[ -f "$path" ]] || fail "missing $path"
 done
 bash -n "$REHEARSAL" "$ROOT/scripts/test-release-workflow.sh"
@@ -38,6 +39,14 @@ grep -Fq 'IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"' "$CONTAINER_WORKFLOW" ||
   fail "container image repository must be normalized to lowercase."
 grep -Fq 'SOURCE_SHA="$(git rev-parse HEAD)"' "$CONTAINER_WORKFLOW" ||
   fail "container SHA tag must identify the checked-out release commit."
+grep -A5 '^      update_latest:' "$CONTAINER_WORKFLOW" | grep -Fq 'default: false' ||
+  fail "manual container recovery must not move latest by default."
+grep -Fq "UPDATE_LATEST: \${{ github.event_name == 'push' || inputs.update_latest }}" "$CONTAINER_WORKFLOW" ||
+  fail "canonical tag pushes must update latest."
+grep -Fq 'TAGS+=(--tag "$IMAGE:latest")' "$CONTAINER_WORKFLOW" ||
+  fail "container publication lacks the current-stable latest alias."
+grep -Fq 'image: ${JOB_TRACKER_IMAGE:-ghcr.io/muatasim-aswad/job-tracker:latest}' "$COMPOSE" ||
+  fail "Compose must default to the published current-stable image."
 if grep -Fq 'github.repository_owner' "$CONTAINER_WORKFLOW"; then
   fail "container image path must not preserve mixed-case repository ownership."
 fi

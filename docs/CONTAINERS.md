@@ -7,9 +7,12 @@ Docker Compose is an optional Linux/amd64 deployment path. It runs the public Jo
 From a released source tree or checked-out release containing `compose.yaml`:
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose ps
 ```
+
+Compose uses `ghcr.io/muatasim-aswad/job-tracker:latest`, the current stable image. Set `JOB_TRACKER_IMAGE` to a version tag for a pinned deployment, or run `docker compose up -d --build` to build the checked-out source instead.
 
 The default publication is deliberately loopback-only: `127.0.0.1:3456:3456`. Open <http://127.0.0.1:3456>; do not change it to a public interface. The service runs as UID/GID `10001`, has no added Linux capabilities, and uses its image only for replaceable application files.
 
