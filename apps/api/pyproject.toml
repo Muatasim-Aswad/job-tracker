@@ -6,9 +6,9 @@ version = "0.1.0"
 description = "Local FastAPI backend for the personal job tracker"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.140.13",
+    "fastapi>=0.141.0",
     "libsql>=0.1.11",
-    "pyturso>=0.7.1",
+    "pyturso>=0.7.2",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",
     "uvicorn[standard]>=0.52.1",
@@ -18,7 +18,7 @@ dependencies = [
 job-tracker = "app.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.11.28,<0.12.0"]
+requires = ["uv_build>=0.12.3,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
@@ -32,7 +32,7 @@ dev = [
     "mypy>=2.3.0",
     "pre-commit>=4.6.1",
     "pytest>=9.1.1",
-    "ruff>=0.16.0",
+    "ruff>=0.16.1",
 ]
 
 [tool.mypy]
