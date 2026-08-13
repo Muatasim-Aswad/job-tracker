@@ -1,5 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { api } from "./api/client";
+import type {
+  AnswerCreate,
+  AnswerFilters,
+  AnswerUpdate,
+  CaptureApply,
+  CaptureConflictResolve,
+  CaptureFilters,
+  CaptureUpdate,
+  MappingPut,
+  MappingUpdate,
+  QuestionFilters,
+  QuestionReviewUpdate,
+} from "./api/client";
 import type {
   DocumentCreate,
   DocumentUpdate,
@@ -342,6 +361,160 @@ export function useRelinkListing() {
       void qc.invalidateQueries({ queryKey: jobKey(res.job_id) });
     },
   });
+}
+
+// ── Form Fill knowledge workspace ───────────────────────────────────────────
+// Knowledge is server-authoritative: none of these mutations has onMutate or writes
+// query data. A successful write invalidates the whole bounded workspace graph so
+// Answer, Question, Match, Capture, presence, and detail projections stay coherent.
+
+const FORM_FILL_KEY = ["form-fill"] as const;
+const answerDetailKey = (id: string) => [...FORM_FILL_KEY, "answer", id] as const;
+const captureDetailKey = (id: string) => [...FORM_FILL_KEY, "capture", id] as const;
+const questionDetailKey = (id: string) => [...FORM_FILL_KEY, "question", id] as const;
+
+export function useFormFillAnswers(filters: Omit<AnswerFilters, "cursor">) {
+  return useInfiniteQuery({
+    queryKey: [...FORM_FILL_KEY, "answers", filters] as const,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => api.listFormFillAnswers({ ...filters, cursor: pageParam }),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
+  });
+}
+
+export function useFormFillAnswer(answerId: string | null) {
+  return useQuery({
+    queryKey: answerDetailKey(answerId ?? ""),
+    queryFn: () => api.getFormFillAnswer(answerId as string),
+    enabled: answerId != null,
+    retry: 1,
+  });
+}
+
+export function useFormFillCaptures(filters: Omit<CaptureFilters, "cursor">) {
+  return useInfiniteQuery({
+    queryKey: [...FORM_FILL_KEY, "captures", filters] as const,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => api.listFormFillCaptures({ ...filters, cursor: pageParam }),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
+  });
+}
+
+export function useFormFillCapture(captureId: string | null) {
+  return useQuery({
+    queryKey: captureDetailKey(captureId ?? ""),
+    queryFn: () => api.getFormFillCapture(captureId as string),
+    enabled: captureId != null,
+    retry: 1,
+  });
+}
+
+export function useFormFillConflictCaptures(captureIds: string[]) {
+  return useQueries({
+    queries: captureIds.map((captureId) => ({
+      queryKey: captureDetailKey(captureId),
+      queryFn: () => api.getFormFillCapture(captureId),
+      retry: 1,
+    })),
+  });
+}
+
+export function useFormFillQuestions(filters: Omit<QuestionFilters, "cursor">) {
+  return useInfiniteQuery({
+    queryKey: [...FORM_FILL_KEY, "questions", filters] as const,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => api.listFormFillQuestions({ ...filters, cursor: pageParam }),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
+  });
+}
+
+export function useFormFillQuestion(questionId: string | null) {
+  return useQuery({
+    queryKey: questionDetailKey(questionId ?? ""),
+    queryFn: () => api.getFormFillQuestion(questionId as string),
+    enabled: questionId != null,
+    retry: 1,
+  });
+}
+
+export function useFormFillReviewPresence() {
+  const capture = useQuery({
+    queryKey: [...FORM_FILL_KEY, "presence", "captures"] as const,
+    queryFn: () => api.listFormFillCaptures({ status: "current", limit: 1 }),
+  });
+  const question = useQuery({
+    queryKey: [...FORM_FILL_KEY, "presence", "questions"] as const,
+    queryFn: () => api.listFormFillQuestions({ review_state: "open", limit: 1 }),
+  });
+  return {
+    hasReview: !!capture.data?.items.length || !!question.data?.items.length,
+    isLoading: capture.isLoading || question.isLoading,
+  };
+}
+
+function useFormFillMutation<TVariables, TData>(
+  mutationFn: (variables: TVariables) => Promise<TData>,
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => qc.invalidateQueries({ queryKey: FORM_FILL_KEY }),
+  });
+}
+
+export function useCreateFormFillAnswer() {
+  return useFormFillMutation((body: AnswerCreate) => api.createFormFillAnswer(body));
+}
+
+export function useUpdateFormFillAnswer() {
+  return useFormFillMutation(({ answerId, body }: { answerId: string; body: AnswerUpdate }) =>
+    api.updateFormFillAnswer(answerId, body),
+  );
+}
+
+export function useUpdateFormFillCapture() {
+  return useFormFillMutation(({ captureId, body }: { captureId: string; body: CaptureUpdate }) =>
+    api.updateFormFillCapture(captureId, body),
+  );
+}
+
+export function useApplyFormFillCapture() {
+  return useFormFillMutation(({ captureId, body }: { captureId: string; body: CaptureApply }) =>
+    api.applyFormFillCapture(captureId, body),
+  );
+}
+
+export function useUpdateFormFillQuestion() {
+  return useFormFillMutation(
+    ({ questionId, body }: { questionId: string; body: QuestionReviewUpdate }) =>
+      api.updateFormFillQuestion(questionId, body),
+  );
+}
+
+export function usePutFormFillMapping() {
+  return useFormFillMutation(({ questionId, body }: { questionId: string; body: MappingPut }) =>
+    api.putFormFillMapping(questionId, body),
+  );
+}
+
+export function useUpdateFormFillMapping() {
+  return useFormFillMutation(({ questionId, body }: { questionId: string; body: MappingUpdate }) =>
+    api.updateFormFillMapping(questionId, body),
+  );
+}
+
+export function useResolveFormFillCaptureConflict() {
+  return useFormFillMutation(
+    ({ questionId, body }: { questionId: string; body: CaptureConflictResolve }) =>
+      api.resolveFormFillCaptureConflict(questionId, body),
+  );
+}
+
+export function useRemoveFormFillDetail() {
+  const qc = useQueryClient();
+  return (kind: "answer" | "capture" | "question", id: string) => {
+    qc.removeQueries({ queryKey: [...FORM_FILL_KEY, kind, id], exact: true });
+  };
 }
 
 // Edit a listing's own fields (url, JD in meta, …). Exposed only for manual listings:
