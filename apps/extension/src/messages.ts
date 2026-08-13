@@ -36,6 +36,8 @@ export interface JobState {
 
 export type FormFillResolutionRequest = components["schemas"]["ResolutionRequest"];
 export type FormFillResolutionResponse = components["schemas"]["ResolutionResponse"];
+export type FormFillCaptureRequest = components["schemas"]["CaptureCreate"];
+export type FormFillCaptureResponse = components["schemas"]["CaptureCreateResponse"];
 
 /** Everything the content script can ask the service worker to do. */
 export type BridgeRequest =
@@ -57,6 +59,8 @@ export type BridgeRequest =
   | { type: "unblock-company"; company_key: string; platform: string }
   // Resolution observes Questions on the server but never writes a host form value.
   | { type: "form-fill-resolve"; payload: FormFillResolutionRequest }
+  // Captures retain an eligible user-originated value for one exact Question.
+  | { type: "form-fill-capture"; payload: FormFillCaptureRequest }
   // Is the server reachable? The popup and content scripts ask on open/start to
   // paint an offline state up front rather than waiting for the first failed
   // write. Answered from the worker's `serverReachable` flag, so no fetch.
@@ -87,6 +91,7 @@ export type BridgeResult =
   | BlockedCompany // "block-company"
   | ListingUpsertResult // "listing", "link-job"
   | FormFillResolutionResponse // "form-fill-resolve"
+  | FormFillCaptureResponse // "form-fill-capture"
   | ReachabilityState // "reachability"
   | null; // 204s — "false-match", "unblock-company"
 

@@ -1,4 +1,10 @@
-import type { DiscoveredField, ManualField, ResolutionField, SupportedField } from "./types.js";
+import type {
+  DiscoveredField,
+  ManualField,
+  ResolutionField,
+  SupportedField,
+  SupportedOptionTarget,
+} from "./types.js";
 
 export const EASY_APPLY_ROOT = ".jobs-easy-apply-modal, [data-test-easy-apply-modal]";
 const QUESTION = "[data-test-form-element]";
@@ -56,7 +62,7 @@ function fieldHandle(container: HTMLElement, control: HTMLElement, index: number
   return container.getAttribute("data-test-form-element") || `question-${index}`;
 }
 
-function isSelectPlaceholder(select: HTMLSelectElement, index: number): boolean {
+export function isSelectPlaceholder(select: HTMLSelectElement, index: number): boolean {
   if (index !== 0) return false;
   const option = select.options[index];
   return Boolean(
@@ -112,6 +118,15 @@ function selectOptions(select: HTMLSelectElement, clientFieldId: string) {
       disabled: option.disabled,
     }))
     .filter((option) => option.label);
+}
+
+function selectTargets(select: HTMLSelectElement, clientFieldId: string): SupportedOptionTarget[] {
+  return [...select.options]
+    .filter((_, index) => !isSelectPlaceholder(select, index))
+    .map((option, index) => ({
+      clientOptionId: `${clientFieldId}-option-${index + 1}`,
+      element: option,
+    }));
 }
 
 function radioOptions(fieldset: HTMLFieldSetElement, clientFieldId: string) {
@@ -178,10 +193,12 @@ function classifyQuestion(
   let controlKind: ResolutionField["control_kind"];
   let options: ResolutionField["options"];
   let control: SupportedField["control"] = first;
+  let optionTargets: SupportedOptionTarget[] = [];
 
   if (first instanceof HTMLSelectElement) {
     controlKind = "select";
     options = selectOptions(first, clientFieldId);
+    optionTargets = selectTargets(first, clientFieldId);
     if (options.length === 0) {
       return manual(container, handle, prompt, "No selectable options are available yet.");
     }
@@ -197,10 +214,42 @@ function classifyQuestion(
     }
     controlKind = "radio";
     options = radio.map(({ option }) => option);
+    optionTargets = radio.map(({ input, option }) => ({
+      clientOptionId: option.client_option_id,
+      element: input,
+    }));
     control = radio[0].input;
-  } else if (first.type === "text" || first.type === "email" || first.type === "tel") {
-    if (NUMERIC_HANDLE.test(first.id)) {
-      controlKind = first.inputMode === "decimal" || first.step === "any" ? "decimal" : "integer";
+  } else if (
+    first.type === "text" ||
+    first.type === "email" ||
+    first.type === "tel" ||
+    first.type === "number"
+  ) {
+    if (first.type === "number" || NUMERIC_HANDLE.test(first.id)) {
+      const validationText = text(
+        first.ownerDocument.getElementById(`${first.id}-error`) ??
+          container.querySelector(".artdeco-inline-feedback--error"),
+      );
+      if (
+        first.inputMode === "decimal" ||
+        first.step === "any" ||
+        /\bdecimal\b/i.test(validationText)
+      ) {
+        controlKind = "decimal";
+      } else if (
+        first.type === "number" ||
+        first.inputMode === "numeric" ||
+        /\b(?:whole number|integer)\b/i.test(validationText)
+      ) {
+        controlKind = "integer";
+      } else {
+        return manual(
+          container,
+          handle,
+          prompt,
+          "This numeric format could not be classified safely.",
+        );
+      }
     } else {
       controlKind = "text";
     }
@@ -222,7 +271,7 @@ function classifyQuestion(
     options,
     user_confirmed: false,
   };
-  return { kind: "supported", container, control, handle, request };
+  return { kind: "supported", container, control, handle, optionTargets, request };
 }
 
 function compareDom(a: DiscoveredField, b: DiscoveredField): number {
@@ -286,6 +335,24 @@ export function fieldFingerprint(field: SupportedField): string {
     hasValue: hasValue(control),
     valueFingerprint: privateFingerprint(currentSemanticValue(control)),
     options: request.options?.map((option) => [option.label, option.disabled]),
+  });
+}
+
+export function fieldIdentityFingerprint(field: SupportedField): string {
+  const { request } = field;
+  return JSON.stringify({
+    handle: field.handle,
+    prompt: request.prompt,
+    section: request.section,
+    help: request.help,
+    kind: request.control_kind,
+    autocomplete: request.autocomplete_token,
+    required: request.required,
+    options: request.options?.map((option) => [
+      option.client_option_id,
+      option.label,
+      option.disabled,
+    ]),
   });
 }
 

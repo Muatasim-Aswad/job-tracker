@@ -53,6 +53,7 @@ const MUTATING = new Set<BridgeRequest["type"]>([
   "block-company",
   "unblock-company",
   "form-fill-resolve",
+  "form-fill-capture",
   "notify-change",
 ]);
 
@@ -163,6 +164,8 @@ function handle(msg: BridgeRequest) {
       );
     case "form-fill-resolve":
       return post("/form-fill/resolutions", msg.payload);
+    case "form-fill-capture":
+      return post("/form-fill/captures", msg.payload);
     case "reachability":
       // From the cached flag, no fetch. The poll below keeps it fresh, and a stale
       // "reachable: true" self-corrects on the asker's own next call.

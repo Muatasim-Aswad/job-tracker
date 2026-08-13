@@ -35,7 +35,8 @@
     600 12px/1.5 system-ui,
     sans-serif;
 }
-.jh-ff-marker[data-state="ready"],
+.jh-ff-marker[data-state="filled"],
+.jh-ff-marker[data-state="already"],
 .jh-ff-marker[data-state="remembered"] {
   border-color: #4f8f70;
   background: #edf7f1;
@@ -43,6 +44,8 @@
 }
 .jh-ff-marker[data-state="attention"],
 .jh-ff-marker[data-state="confirmation"],
+.jh-ff-marker[data-state="differs"],
+.jh-ff-marker[data-state="failed"],
 .jh-ff-marker[data-state="error"] {
   border-color: #9b7229;
   background: #fff8e6;
