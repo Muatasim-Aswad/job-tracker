@@ -66,8 +66,10 @@ function progressValue(root: HTMLElement): number | null {
 
 function dashboardQuestionUrl(questionId: string): string {
   const url = new URL(SERVER_URL);
-  url.searchParams.set("workspace", "form-fill");
-  url.searchParams.set("question_id", questionId);
+  url.searchParams.set("view", "form-fill");
+  url.searchParams.set("section", "review");
+  url.searchParams.set("type", "questions");
+  url.searchParams.set("question", questionId);
   return url.toString();
 }
 
@@ -135,6 +137,7 @@ export interface ScannerOptions {
   bridge?: ResolutionBridge;
   captureBridge?: CaptureBridge;
   id?: () => string;
+  isUserEvent?: (event: Event) => boolean;
   settleMs?: number;
   captureSettleMs?: number;
 }
@@ -143,6 +146,7 @@ export class EasyApplyScanner {
   private readonly bridge: ResolutionBridge;
   private readonly captureBridge: CaptureBridge;
   private readonly id: () => string;
+  private readonly isUserEvent: (event: Event) => boolean;
   private readonly settleMs: number;
   private readonly captureSettleMs: number;
   private readonly applicationContextId: string;
@@ -171,6 +175,7 @@ export class EasyApplyScanner {
     this.bridge = options.bridge ?? resolveThroughWorker;
     this.captureBridge = options.captureBridge ?? captureThroughWorker;
     this.id = options.id ?? defaultId;
+    this.isUserEvent = options.isUserEvent ?? ((event) => event.isTrusted);
     this.settleMs = options.settleMs ?? SETTLE_MS;
     this.captureSettleMs = options.captureSettleMs ?? CAPTURE_SETTLE_MS;
     this.applicationContextId = this.id();
@@ -193,6 +198,7 @@ export class EasyApplyScanner {
     if (eventStep === this.stepKey && !this.baselineHandles.has(field.handle)) return;
 
     if (event.type === "focusout") {
+      if (!this.isUserEvent(event)) return;
       const pending = this.pendingCaptures.get(field.handle);
       if (pending) {
         if (pending.numeric && validationEvidence(field) === "clean") {
@@ -217,6 +223,10 @@ export class EasyApplyScanner {
     if (owned && (!snapshotsEqual(current, owned.after) || owned.identity !== identity)) {
       this.ownership.delete(field.handle);
     }
+    if (!this.isUserEvent(event)) {
+      this.schedule();
+      return;
+    }
     const runtime = this.runtimeFields.get(field.handle);
     if (
       runtime &&
@@ -232,8 +242,7 @@ export class EasyApplyScanner {
       if (key.startsWith(`${field.handle}\u0000`)) this.suppressedWrites.delete(key);
     }
 
-    const source: PendingCapture["source"] = event.isTrusted ? "user_input" : "unattributed_change";
-    this.queueCapture(field, source, false);
+    this.queueCapture(field, "user_input", false);
     this.schedule();
   };
 
@@ -390,7 +399,12 @@ export class EasyApplyScanner {
       };
     }
     if (note && note.signature === snapshotKey(current)) {
-      return { ...base, state: note.state, label: note.label, detail: note.detail };
+      return {
+        ...base,
+        state: note.state,
+        label: note.label,
+        detail: note.detail,
+      };
     }
     if (controlMatchesAction(live, result.action)) {
       return {
@@ -529,11 +543,21 @@ export class EasyApplyScanner {
     const live = this.liveField(runtime);
     const note = live ? this.notes.get(live.handle) : undefined;
     if (live && note && note.signature === snapshotKey(snapshotControl(live))) {
-      return { ...base, state: note.state, label: note.label, detail: note.detail };
+      return {
+        ...base,
+        state: note.state,
+        label: note.label,
+        detail: note.detail,
+      };
     }
     const existing = live && !isControlEmpty(live);
     const remember = existing
-      ? [{ label: "Remember existing", run: () => this.rememberExisting(runtime) }]
+      ? [
+          {
+            label: "Remember existing",
+            run: () => this.rememberExisting(runtime),
+          },
+        ]
       : undefined;
     switch (result.status) {
       case "confirmation_required":
@@ -543,12 +567,20 @@ export class EasyApplyScanner {
           label: "Confirm before filling",
           detail: existing ? "The current value was preserved." : undefined,
           actions: [
-            { label: "Confirm", kind: "primary", run: () => void this.confirm(runtime) },
+            {
+              label: "Confirm",
+              kind: "primary",
+              run: () => void this.confirm(runtime),
+            },
             ...(remember ?? []),
           ],
         };
       case "conflict":
-        return { ...base, state: "attention", label: "Review remembered values" };
+        return {
+          ...base,
+          state: "attention",
+          label: "Review remembered values",
+        };
       case "blocked":
         return {
           ...base,
@@ -719,7 +751,10 @@ export class EasyApplyScanner {
         runtime.field.request.control_kind === "decimal"
       ) {
         if (!numericValueSafe(snapshot.value, runtime.field.request.control_kind)) return null;
-        return { cleared: false, value: { kind: "decimal", value: snapshot.value } };
+        return {
+          cleared: false,
+          value: { kind: "decimal", value: snapshot.value },
+        };
       }
       return {
         cleared: false,
@@ -744,7 +779,10 @@ export class EasyApplyScanner {
     return questionOptionId
       ? {
           cleared: false,
-          value: { kind: "single_choice", question_option_id: questionOptionId },
+          value: {
+            kind: "single_choice",
+            question_option_id: questionOptionId,
+          },
         }
       : null;
   }

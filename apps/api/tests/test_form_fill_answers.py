@@ -162,3 +162,17 @@ def test_answer_value_routes_are_no_store(client: TestClient) -> None:
     assert stale.json()["detail"] == "stale_revision"
     assert stale.json()["current"]["revision"] == 2
     assert client.get(f"/api/form-fill/answers/{answer_id}").json()["label"] == "Current API label"
+
+    sentinel = "PRIVATE-INVALID-BODY-VALUE"
+    invalid = client.post(
+        "/api/form-fill/answers",
+        json={
+            "answer_key": "privacy.invalid",
+            "label": "Invalid answer",
+            "value_kind": "text",
+            "value": sentinel,
+        },
+    )
+    assert invalid.status_code == 422
+    assert invalid.headers["cache-control"] == "no-store"
+    assert sentinel not in str(invalid.headers)

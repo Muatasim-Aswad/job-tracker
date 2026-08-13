@@ -27,4 +27,12 @@ pnpm exec vp run -F web typecheck
 pnpm run build:web
 ```
 
+## Form Fill workspace
+
+The **Form Fill** view manages reusable Answers and the **Needs review** queues for provisional Captures and observed Questions. Answer detail is the only Answer collection surface that receives its private value. Question detail exposes its singleton Match, affected Answer relationship, option bindings, sightings, Capture conflict IDs, and value-free lifecycle history.
+
+All mutations use the revision currently shown in the drawer. A `409` keeps the user's draft intact and presents the server's current value-free summary with explicit review, copy, and discard choices; the client does not retry or overwrite optimistically. Applying a Capture is always an explicit create/update/retarget/rebind workflow, and competing Captures require an explicit revision-checked winner.
+
+Form-fill URLs contain only enum view state and opaque Answer, Capture, or Question IDs. Filters and opaque cursors are the only list query data; prompts and values never enter the URL or browser history. Success toasts and the global error path are value-free, and detail cache entries are removed when their drawers close.
+
 Workspace-wide architecture and conventions are documented in [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).

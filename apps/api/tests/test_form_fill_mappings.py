@@ -138,12 +138,25 @@ def test_text_mapping_fill_policies_answer_status_and_match_states_have_distinct
     blocked = service.resolve(_request(_field(), "scan-5")).results[0]
     assert blocked.status == "blocked" and blocked.reason == "mapping_disabled"
 
+    enabled = service.update_mapping(
+        observed.question_id,
+        MappingUpdate(expected_question_revision=1, expected_revision=2, status="active"),
+    )
+    assert enabled.mapping and enabled.mapping.revision == 3
+    assert (
+        service.resolve(_request(_field(), "scan-6")).results[0].status == "confirmation_required"
+    )
+
+    disabled_again = service.update_mapping(
+        observed.question_id,
+        MappingUpdate(expected_question_revision=1, expected_revision=3, status="disabled"),
+    )
     retired = service.update_mapping(
         observed.question_id,
-        MappingUpdate(expected_question_revision=1, expected_revision=2, status="retired"),
+        MappingUpdate(expected_question_revision=1, expected_revision=4, status="retired"),
     )
-    assert retired.mapping and retired.mapping.id == mapping_id
-    provisional = service.resolve(_request(_field(), "scan-6")).results[0]
+    assert disabled_again.mapping and retired.mapping and retired.mapping.id == mapping_id
+    provisional = service.resolve(_request(_field(), "scan-7")).results[0]
     assert provisional.status == "captured"
     assert provisional.action.model_dump()["value"] == "PROVISIONAL"
 
@@ -153,7 +166,7 @@ def test_text_mapping_fill_policies_answer_status_and_match_states_have_distinct
             answer_id=answer.id,
             expected_question_revision=1,
             expected_answer_revision=answer.revision,
-            expected_mapping_revision=3,
+            expected_mapping_revision=5,
             bindings=[],
         ),
     )
@@ -163,14 +176,26 @@ def test_text_mapping_fill_policies_answer_status_and_match_states_have_distinct
     never = service.update_answer(
         answer.id, AnswerUpdate(expected_revision=answer.revision, fill_policy="never")
     )
-    result = service.resolve(_request(_field(), "scan-7")).results[0]
+    result = service.resolve(_request(_field(), "scan-8")).results[0]
     assert result.status == "blocked" and result.reason == "answer_policy_never"
     disabled_answer = service.update_answer(
         answer.id, AnswerUpdate(expected_revision=never.revision, status="disabled")
     )
-    result = service.resolve(_request(_field(), "scan-8")).results[0]
+    result = service.resolve(_request(_field(), "scan-9")).results[0]
     assert result.status == "blocked" and result.reason == "answer_disabled"
     assert disabled_answer.mappings[0].mapping.id == mapping_id
+
+    enabled_answer = service.update_answer(
+        answer.id,
+        AnswerUpdate(
+            expected_revision=disabled_answer.revision, status="active", fill_policy="auto"
+        ),
+    )
+    assert enabled_answer.status == "active"
+    assert enabled_answer.mappings[0].mapping.id == mapping_id
+    restored = service.resolve(_request(_field(), "scan-10")).results[0]
+    assert restored.status == "approved"
+    assert restored.action.model_dump() == {"kind": "set_text", "value": "PRIVATE NAME"}
 
 
 def test_choice_mapping_round_trips_server_option_ids_and_requires_complete_bindings(

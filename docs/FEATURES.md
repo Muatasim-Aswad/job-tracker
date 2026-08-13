@@ -32,6 +32,22 @@ A pre-application job closes automatically only when all of its linked listings 
 
 Jobs from sources without a built-in integration can still be created manually from the extension popup.
 
+## Fill supported Easy Apply questions
+
+On LinkedIn Easy Apply, Job Tracker can reuse knowledge you have reviewed without taking control of the application. It supports ordinary text, numeric, select, and Yes/No radio questions when the page supplies enough stable evidence. The Form Fill workspace separates that knowledge into:
+
+- **Answers**, the reusable values you have verified;
+- **Questions**, exact semantic question identities observed on a supported site; and
+- **Matches**, your explicit connection between one Question and one Answer, including complete option bindings for choice questions.
+
+An active Match to an active Answer may fill the next empty occurrence of that exact Question. A Match can instead ask for confirmation every time or prohibit filling. Both Answers and Matches can be disabled and re-enabled; Matches can also be retired and later reactivated. These state changes retain value-free history rather than deleting the records.
+
+Values you type are remembered only after a trusted user change settles. A value that was already present is not remembered unless you choose **Remember existing**, and an extension-written fill is never remembered as user input. A clear invalidates the current remembered value instead of creating a reusable empty value. Remembered values stay provisional in **Needs review** until you ignore them, use one to update an Answer, or promote one into an Answer and Match. Competing current values fill nothing until you choose a revision-checked winner.
+
+Existing form values are never overwritten automatically. Job Tracker distinguishes an existing value that already agrees, one that differs, and an empty field it can safely fill. Replacing a differing value is an explicit action and is rechecked against the live control first. Each field is independent, so one unresolved field or request failure does not authorize another write.
+
+Unsupported or ambiguous controls stay local and manual; they are not included in resolution requests. This includes typeaheads, non-Yes/No radio groups, repeatable profile sections, file and résumé inputs, consent and utility checkboxes, and shapes whose numeric meaning is uncertain. Job Tracker never clicks Next, Continue, Review, Submit, consent, résumé, or profile controls and never navigates or submits an application.
+
 ## Decide with context
 
 Decision signals lift useful details out of a listing while retaining the surrounding text:
