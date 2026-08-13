@@ -4,6 +4,7 @@ import { AddJobDialog } from "./components/AddJobDialog";
 import { BlockedCompaniesDialog } from "./components/BlockedCompaniesDialog";
 import { Board } from "./components/Board";
 import { DetailDrawer } from "./components/detail/DetailDrawer";
+import { FormFillNav } from "./components/FormFillNav";
 import { HeaderMenu } from "./components/HeaderMenu";
 import { IconButton } from "./components/IconButton";
 import { NoResults } from "./components/NoResults";
@@ -11,7 +12,8 @@ import { ShortcutsDialog } from "./components/ShortcutsDialog";
 import { SortMenu } from "./components/SortMenu";
 import { ViewBar } from "./components/ViewBar";
 import { api } from "./api/client";
-import { useJobEvents, useJobs } from "./hooks";
+import { useFormFillReviewPresence, useJobEvents, useJobs } from "./hooks";
+import { FormFillWorkspace } from "./form-fill/FormFillWorkspace";
 import { countAttention, filterJobs } from "./lib/jobFilters";
 import { usePersistentBoolean } from "./lib/persist";
 import { DEFAULT_SORT_ORDER, SORT_ORDER_VALUES, sortJobs, type SortOrder } from "./lib/jobSort";
@@ -37,10 +39,14 @@ export default function App() {
   const { data: jobs, isLoading, isFetching, isError, error, refetch } = useJobs();
   const events = useJobEvents();
   const { pref: themePref, cycle: cycleTheme } = useTheme();
+  const reviewPresence = useFormFillReviewPresence();
 
+  const [view, setView] = useState<"jobs" | "form-fill">(() =>
+    new URLSearchParams(window.location.search).get("view") === "form-fill" ? "form-fill" : "jobs",
+  );
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [search, setSearch] = useState(
-    () => new URLSearchParams(window.location.search).get("q") ?? "",
+  const [search, setSearch] = useState(() =>
+    view === "jobs" ? (new URLSearchParams(window.location.search).get("q") ?? "") : "",
   );
   const [hideHidden, setHideHidden] = usePersistentBoolean("jt.hideHidden", false);
   const [showStarred, setShowStarred] = usePersistentBoolean("jt.showStarred", false);
@@ -58,6 +64,42 @@ export default function App() {
   // rather than always to the first card.
   const lastCardIdRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    const onPopState = () =>
+      setView(
+        new URLSearchParams(window.location.search).get("view") === "form-fill"
+          ? "form-fill"
+          : "jobs",
+      );
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const changeView = useCallback((next: "jobs" | "form-fill") => {
+    setView(next);
+    setSelectedJobId(null);
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", next);
+    if (next === "form-fill") {
+      url.searchParams.set("section", url.searchParams.get("section") ?? "answers");
+      for (const key of [
+        "job",
+        "platform",
+        "platform_id",
+        "q",
+        "visible",
+        "starred",
+        "attention",
+        "sort",
+      ])
+        url.searchParams.delete(key);
+    } else {
+      for (const key of ["section", "type", "answer", "capture", "question"])
+        url.searchParams.delete(key);
+    }
+    window.history.pushState(null, "", url);
+  }, []);
+
   // Stable across renders, since `mutate` is referentially stable, so
   // React.memo(JobCard) holds and a board mutation re-renders only the changed card.
   const { mutate: mutateEvent } = events;
@@ -70,6 +112,7 @@ export default function App() {
   // `?platform=&platform_id=` link resolves through the listings lookup first. A 404
   // means the posting isn't captured yet.
   useEffect(() => {
+    if (view !== "jobs") return;
     const params = new URLSearchParams(window.location.search);
     const job = params.get("job");
     if (job) {
@@ -87,11 +130,12 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [view]);
 
   // Filter and sort toggles read from the URL on load, so a shared link overrides
   // whatever was last persisted locally. Absent params leave the localStorage default.
   useEffect(() => {
+    if (view !== "jobs") return;
     const params = new URLSearchParams(window.location.search);
     const visible = params.get("visible");
     const starred = params.get("starred");
@@ -103,12 +147,13 @@ export default function App() {
     if (sort && (SORT_ORDER_VALUES as string[]).includes(sort)) {
       setSortOrder(sort as SortOrder);
     }
-  }, []);
+  }, [view]);
 
   // Reflect the open job, search, and active filters in the URL so a refresh,
   // bookmark, or share keeps them, and the one-time natural-key params normalize to a
   // clean `?job=<id>`.
   useEffect(() => {
+    if (view !== "jobs") return;
     const url = new URL(window.location.href);
     if (selectedJobId) url.searchParams.set("job", selectedJobId);
     else url.searchParams.delete("job");
@@ -125,7 +170,7 @@ export default function App() {
     if (sortOrder !== DEFAULT_SORT_ORDER) url.searchParams.set("sort", sortOrder);
     else url.searchParams.delete("sort");
     window.history.replaceState(null, "", url);
-  }, [selectedJobId, search, hideHidden, showStarred, showAttention, sortOrder]);
+  }, [view, selectedJobId, search, hideHidden, showStarred, showAttention, sortOrder]);
 
   // Global shortcuts: `/` jumps to search, `?` opens the help sheet. Suppressed while
   // typing, so they don't eat input, and while a modal owns the screen — the drawer
@@ -133,6 +178,7 @@ export default function App() {
   // behind them.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (view !== "jobs") return;
       if (isTypingTarget(e.target) || selectedJobId || showHelp || showAdd || showBlocked) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "/") {
@@ -187,6 +233,7 @@ export default function App() {
     showStarred,
     showAttention,
     hideHidden,
+    view,
   ]);
 
   // Remember which card last held focus, feeding the "return to the board" jump.
@@ -226,32 +273,37 @@ export default function App() {
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-4 border-b border-line px-4 py-3">
         <h1 className="text-base font-semibold text-ink">Job Tracker</h1>
-        <IconButton
-          label="Refresh data"
-          onClick={() => refetch()}
-          className="text-ink-muted hover:text-ink"
-        >
-          <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} />
-        </IconButton>
-        <ViewBar
-          search={search}
-          onSearchChange={setSearch}
-          searchRef={searchRef}
-          hideHidden={hideHidden}
-          onToggleHidden={() => setHideHidden(!hideHidden)}
-          showStarred={showStarred}
-          onToggleStarred={() => setShowStarred(!showStarred)}
-          showAttention={showAttention}
-          onToggleAttention={() => setShowAttention(!showAttention)}
-          attentionCount={attentionCount}
-          shownCount={filtered.length}
-          totalCount={jobs?.length ?? 0}
-          onClearAll={clearFilters}
-        />
-        <SortMenu value={sortOrder} onChange={setSortOrder} />
-        <IconButton label="Add a job (n)" onClick={() => setShowAdd(true)}>
-          <Plus size={16} />
-        </IconButton>
+        <FormFillNav view={view} hasReview={reviewPresence.hasReview} onChange={changeView} />
+        {view === "jobs" && (
+          <>
+            <IconButton
+              label="Refresh data"
+              onClick={() => refetch()}
+              className="text-ink-muted hover:text-ink"
+            >
+              <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} />
+            </IconButton>
+            <ViewBar
+              search={search}
+              onSearchChange={setSearch}
+              searchRef={searchRef}
+              hideHidden={hideHidden}
+              onToggleHidden={() => setHideHidden(!hideHidden)}
+              showStarred={showStarred}
+              onToggleStarred={() => setShowStarred(!showStarred)}
+              showAttention={showAttention}
+              onToggleAttention={() => setShowAttention(!showAttention)}
+              attentionCount={attentionCount}
+              shownCount={filtered.length}
+              totalCount={jobs?.length ?? 0}
+              onClearAll={clearFilters}
+            />
+            <SortMenu value={sortOrder} onChange={setSortOrder} />
+            <IconButton label="Add a job (n)" onClick={() => setShowAdd(true)}>
+              <Plus size={16} />
+            </IconButton>
+          </>
+        )}
         <HeaderMenu
           onOpenBlocked={() => setShowBlocked(true)}
           onOpenHelp={() => setShowHelp(true)}
@@ -261,25 +313,33 @@ export default function App() {
       </header>
 
       <main className="min-h-0 flex-1">
-        {isLoading && <div className="p-6 text-sm text-ink-muted">Loading jobs…</div>}
-        {isError && (
-          <div className="p-6 text-sm text-red-600 dark:text-red-400">
-            Couldn’t reach the API ({String(error)}). Is the server running on :3456?
-          </div>
+        {view === "form-fill" ? (
+          <FormFillWorkspace />
+        ) : (
+          <>
+            {isLoading && <div className="p-6 text-sm text-ink-muted">Loading jobs…</div>}
+            {isError && (
+              <div className="p-6 text-sm text-red-600 dark:text-red-400">
+                Couldn’t reach the API ({String(error)}). Is the server running on :3456?
+              </div>
+            )}
+            {noResults && (
+              <NoResults
+                query={search}
+                showStarred={showStarred}
+                showAttention={showAttention}
+                hideHidden={hideHidden}
+                onClear={clearFilters}
+              />
+            )}
+            {jobs && !noResults && (
+              <Board jobs={ordered} onOpen={setSelectedJobId} onEvent={onEvent} />
+            )}
+          </>
         )}
-        {noResults && (
-          <NoResults
-            query={search}
-            showStarred={showStarred}
-            showAttention={showAttention}
-            hideHidden={hideHidden}
-            onClear={clearFilters}
-          />
-        )}
-        {jobs && !noResults && <Board jobs={ordered} onOpen={setSelectedJobId} onEvent={onEvent} />}
       </main>
 
-      {selectedJobId && (
+      {view === "jobs" && selectedJobId && (
         <DetailDrawer
           jobId={selectedJobId}
           attention={jobs?.find((job) => job.id === selectedJobId)?.attention ?? null}
