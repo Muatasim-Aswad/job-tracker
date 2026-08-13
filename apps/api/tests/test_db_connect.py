@@ -297,17 +297,19 @@ def test_failed_data_migration_rolls_back_data_and_ledger(conn: sqlite3.Connecti
 # --- 1.0.0 release baseline --------------------------------------------------
 
 
-def test_release_baseline_registers_no_migrations() -> None:
-    # Every pre-release migration is folded into schema.sql, so 1.0.0 ships with
-    # both tables empty. Post-release entries are appended, never edited: this
-    # guards the starting point the append-only rule is defined against.
+def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
+    # Every pre-release migration is folded into schema.sql. Post-release entries
+    # are appended, never edited: the form-fill foundation is the first such data
+    # migration, while the column-migration baseline remains empty.
     assert _COLUMN_MIGRATIONS == ()
-    assert _DATA_MIGRATIONS == ()
+    assert tuple(key for key, _migration in _DATA_MIGRATIONS) == ("create_form_fill_foundation_v1",)
 
 
-def test_fresh_database_records_no_migration_keys(conn: sqlite3.Connection) -> None:
+def test_fresh_database_records_only_form_fill_migration_key(conn: sqlite3.Connection) -> None:
     # conftest's conn is a fresh database that already went through init_schema().
-    assert conn.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 0
+    assert conn.execute("SELECT key FROM schema_migrations").fetchall() == [
+        ("create_form_fill_foundation_v1",)
+    ]
 
 
 def test_legacy_database_opens_under_the_baseline_without_data_loss(
@@ -319,7 +321,8 @@ def test_legacy_database_opens_under_the_baseline_without_data_loss(
     the batch repair classified (`legacy: true`), ambiguous ones it deliberately
     left with NULL meta, and the ledger keys it wrote. 1.0.0 no longer carries
     those migrations, so opening such a database must neither re-run them, drop
-    their ledger rows, nor rewrite any data.
+    their ledger rows, nor rewrite any data. The append-only form-fill migration
+    adds its own ledger key without disturbing that history.
     """
     conn.execute(
         "INSERT INTO jobs (id, status, created_at, updated_at) VALUES ('j1', 'closed', 't', 't')"
@@ -345,9 +348,10 @@ def test_legacy_database_opens_under_the_baseline_without_data_loss(
     init_schema(conn)
 
     assert conn.execute("SELECT id, event, ts, meta FROM events ORDER BY id").fetchall() == before
-    # The already-recorded pre-release keys stay; no new key is invented.
+    # The already-recorded pre-release keys stay alongside the form-fill key.
     assert [row[0] for row in conn.execute("SELECT key FROM schema_migrations ORDER BY key")] == [
         "classify_legacy_automatic_closures",
+        "create_form_fill_foundation_v1",
         "drop_notes_documents",
     ]
     assert conn.execute("SELECT COUNT(*) FROM listings").fetchone()[0] == 1
