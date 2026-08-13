@@ -20,6 +20,94 @@ ControlKind = Literal[
 ChoiceControlKind = Literal["radio", "select", "checkbox_group", "multi_select"]
 ReviewState = Literal["open", "ignored"]
 MappingStatus = Literal["active", "disabled", "retired"]
+AnswerStatus = Literal["active", "disabled"]
+FillPolicy = Literal["auto", "confirm_each_time", "never"]
+AnswerValueKind = Literal[
+    "text", "long_text", "decimal", "boolean", "date", "single_choice", "multi_choice"
+]
+CaptureSource = Literal["user_input", "confirmed_external", "unattributed_change"]
+CaptureStatus = Literal["current", "superseded", "applied", "ignored"]
+
+
+class TextValue(BaseModel):
+    kind: Literal["text"]
+    value: str = Field(min_length=1, max_length=100_000)
+
+
+class LongTextValue(BaseModel):
+    kind: Literal["long_text"]
+    value: str = Field(min_length=1, max_length=100_000)
+
+
+class DecimalValue(BaseModel):
+    kind: Literal["decimal"]
+    value: str = Field(pattern=r"^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$", max_length=128)
+
+
+class BooleanValue(BaseModel):
+    kind: Literal["boolean"]
+    value: bool
+
+
+class DateValue(BaseModel):
+    kind: Literal["date"]
+    value: date
+
+
+class AnswerSingleChoiceValue(BaseModel):
+    kind: Literal["single_choice"]
+    choice_key: str = Field(min_length=1, max_length=128)
+
+
+class AnswerMultiChoiceValue(BaseModel):
+    kind: Literal["multi_choice"]
+    choice_keys: list[str] = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_choice_keys(self) -> AnswerMultiChoiceValue:
+        if len(self.choice_keys) != len(set(self.choice_keys)):
+            raise ValueError("choice_keys must be unique")
+        return self
+
+
+AnswerValue = Annotated[
+    TextValue
+    | LongTextValue
+    | DecimalValue
+    | BooleanValue
+    | DateValue
+    | AnswerSingleChoiceValue
+    | AnswerMultiChoiceValue,
+    Field(discriminator="kind"),
+]
+
+
+class CaptureSingleChoiceValue(BaseModel):
+    kind: Literal["single_choice"]
+    question_option_id: str = Field(min_length=1, max_length=128)
+
+
+class CaptureMultiChoiceValue(BaseModel):
+    kind: Literal["multi_choice"]
+    question_option_ids: list[str] = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_option_ids(self) -> CaptureMultiChoiceValue:
+        if len(self.question_option_ids) != len(set(self.question_option_ids)):
+            raise ValueError("question_option_ids must be unique")
+        return self
+
+
+CaptureValue = Annotated[
+    TextValue
+    | LongTextValue
+    | DecimalValue
+    | BooleanValue
+    | DateValue
+    | CaptureSingleChoiceValue
+    | CaptureMultiChoiceValue,
+    Field(discriminator="kind"),
+]
 
 
 class ResolutionPage(BaseModel):
@@ -143,7 +231,7 @@ class CapturedResult(ResolutionResultBase):
     status: Literal["captured"]
     capture_id: str
     capture_revision: int
-    source: Literal["user_input", "confirmed_external", "unattributed_change"]
+    source: CaptureSource
     action: ResolutionAction
 
 
@@ -207,9 +295,28 @@ class QuestionOptionSummary(BaseModel):
     status: Literal["active", "disabled"]
 
 
-class OptionBindingSummary(BaseModel):
-    question_option_id: str
-    answer_choice_id: str
+class AnswerChoiceInput(BaseModel):
+    choice_key: str = Field(min_length=1, max_length=128)
+    display_label: str = Field(min_length=1, max_length=1000)
+    status: Literal["active", "disabled"] = "active"
+
+
+class AnswerChoiceSummary(AnswerChoiceInput):
+    id: str
+
+
+class OptionBindingInput(BaseModel):
+    question_option_id: str = Field(min_length=1, max_length=128)
+    answer_choice_id: str = Field(min_length=1, max_length=128)
+
+
+class OptionBindingSummary(OptionBindingInput):
+    pass
+
+
+class NewOptionBindingInput(BaseModel):
+    question_option_id: str = Field(min_length=1, max_length=128)
+    answer_choice_key: str = Field(min_length=1, max_length=128)
 
 
 class MappingSummary(BaseModel):
@@ -224,17 +331,23 @@ class AnswerSummary(BaseModel):
     id: str
     answer_key: str
     label: str
-    value_kind: str
-    status: Literal["active", "disabled"]
-    fill_policy: Literal["auto", "confirm_each_time", "never"]
+    value_kind: AnswerValueKind
+    status: AnswerStatus
+    fill_policy: FillPolicy
     revision: int
+
+
+class AnswerListItem(AnswerSummary):
+    description: str | None = None
+    mapping_count: int
+    updated_at: str
 
 
 class CaptureSummary(BaseModel):
     id: str
-    source: Literal["user_input", "confirmed_external", "unattributed_change"]
-    value_kind: str
-    status: Literal["current", "superseded", "applied", "ignored"]
+    source: CaptureSource
+    value_kind: AnswerValueKind
+    status: CaptureStatus
     revision: int
     created_at: str
 
@@ -292,3 +405,255 @@ class QuestionReviewUpdate(BaseModel):
     expected_revision: int = Field(ge=1)
     review_state: ReviewState
     reason: str | None = Field(default=None, max_length=1000)
+
+
+class AnswerCreate(BaseModel):
+    answer_key: str = Field(min_length=1, max_length=256)
+    label: str = Field(min_length=1, max_length=1000)
+    description: str | None = Field(default=None, max_length=4000)
+    value_kind: AnswerValueKind
+    value: AnswerValue
+    choices: list[AnswerChoiceInput] = Field(default_factory=list, max_length=200)
+    fill_policy: FillPolicy = "auto"
+
+    @model_validator(mode="after")
+    def validate_value_and_choices(self) -> AnswerCreate:
+        if self.value.kind != self.value_kind:
+            raise ValueError("value kind must match value_kind")
+        keys = [choice.choice_key for choice in self.choices]
+        if len(keys) != len(set(keys)):
+            raise ValueError("choice_key must be unique within an answer")
+        if self.value_kind in {"single_choice", "multi_choice"} and not self.choices:
+            raise ValueError("choice answers require a complete choice vocabulary")
+        if self.value_kind not in {"single_choice", "multi_choice"} and self.choices:
+            raise ValueError("non-choice answers cannot include choices")
+        active_keys = {choice.choice_key for choice in self.choices if choice.status == "active"}
+        selected_keys: set[str] = set()
+        if isinstance(self.value, AnswerSingleChoiceValue):
+            selected_keys = {self.value.choice_key}
+        elif isinstance(self.value, AnswerMultiChoiceValue):
+            selected_keys = set(self.value.choice_keys)
+        if not selected_keys <= active_keys:
+            raise ValueError("answer value must reference active answer choices")
+        return self
+
+
+class AnswerUpdate(BaseModel):
+    expected_revision: int = Field(ge=1)
+    label: str | None = Field(default=None, min_length=1, max_length=1000)
+    description: str | None = Field(default=None, max_length=4000)
+    value: AnswerValue | None = None
+    choices: list[AnswerChoiceInput] | None = Field(default=None, max_length=200)
+    fill_policy: FillPolicy | None = None
+    status: AnswerStatus | None = None
+    reason: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_choice_keys(self) -> AnswerUpdate:
+        if self.choices is not None:
+            keys = [choice.choice_key for choice in self.choices]
+            if len(keys) != len(set(keys)):
+                raise ValueError("choice_key must be unique within an answer")
+        return self
+
+
+class MappedQuestionSummary(BaseModel):
+    id: str
+    site_scope: str
+    control_kind: ControlKind
+    raw_question: str
+    review_state: ReviewState
+    revision: int
+    mapping: MappingSummary
+
+
+class AnswerDetail(AnswerSummary):
+    description: str | None = None
+    value: AnswerValue
+    choices: list[AnswerChoiceSummary]
+    mappings: list[MappedQuestionSummary]
+    events: list[KnowledgeEventSummary]
+    verified_at: str
+    created_at: str
+    updated_at: str
+
+
+class AnswerListResponse(BaseModel):
+    items: list[AnswerListItem]
+    next_cursor: str | None = None
+
+
+class MappingPut(BaseModel):
+    answer_id: str = Field(min_length=1, max_length=128)
+    expected_question_revision: int = Field(ge=1)
+    expected_answer_revision: int = Field(ge=1)
+    expected_mapping_revision: int | None = Field(default=None, ge=1)
+    bindings: list[OptionBindingInput] = Field(default_factory=list, max_length=200)
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class MappingUpdate(BaseModel):
+    expected_question_revision: int = Field(ge=1)
+    expected_revision: int = Field(ge=1)
+    status: MappingStatus
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class CapturePage(BaseModel):
+    platform: str = Field(min_length=1, max_length=64)
+    platform_id: str = Field(min_length=1, max_length=256)
+
+
+class CaptureCreate(BaseModel):
+    capture_key: str = Field(min_length=1, max_length=256)
+    question_id: str = Field(min_length=1, max_length=128)
+    application_context_id: str = Field(min_length=1, max_length=128)
+    page: CapturePage
+    source: CaptureSource
+    value: CaptureValue | None = None
+    mapping_id: str | None = Field(default=None, min_length=1, max_length=128)
+    answer_revision_used: int | None = Field(default=None, ge=1)
+    mapping_revision_used: int | None = Field(default=None, ge=1)
+    cleared: bool = False
+
+    @model_validator(mode="after")
+    def validate_capture_context(self) -> CaptureCreate:
+        if self.cleared == (self.value is not None):
+            raise ValueError("cleared captures omit value; non-cleared captures require value")
+        context = (self.mapping_id, self.answer_revision_used, self.mapping_revision_used)
+        if any(item is not None for item in context) and not all(
+            item is not None for item in context
+        ):
+            raise ValueError("mapping_id and both used revisions must be supplied together")
+        return self
+
+
+class CaptureRecordSummary(CaptureSummary):
+    question_id: str
+    application_context_id: str
+    job_id: str | None = None
+    listing_id: str | None = None
+    mapping_id: str | None = None
+    answer_revision_used: int | None = None
+    mapping_revision_used: int | None = None
+    value: CaptureValue | None = None
+    updated_at: str
+    resolved_at: str | None = None
+
+
+class CaptureCreateResponse(BaseModel):
+    capture: CaptureRecordSummary
+    superseded_capture_id: str | None = None
+    superseded_capture_ids: list[str] = Field(default_factory=list)
+
+
+class CaptureUpdate(BaseModel):
+    expected_revision: int = Field(ge=1)
+    status: Literal["current", "ignored"]
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class CaptureDetail(CaptureRecordSummary):
+    question: QuestionSummary
+    answer: AnswerSummary | None = None
+    mapping: MappingSummary | None = None
+    events: list[KnowledgeEventSummary]
+
+
+class CaptureListResponse(BaseModel):
+    items: list[CaptureRecordSummary]
+    next_cursor: str | None = None
+
+
+class CreateAnswerAndMapApply(BaseModel):
+    action: Literal["create_answer_and_map"]
+    expected_capture_revision: int = Field(ge=1)
+    expected_question_revision: int = Field(ge=1)
+    expected_mapping_revision: int | None = Field(default=None, ge=1)
+    answer_key: str = Field(min_length=1, max_length=256)
+    label: str = Field(min_length=1, max_length=1000)
+    description: str | None = Field(default=None, max_length=4000)
+    value_kind: AnswerValueKind
+    value: AnswerValue
+    choices: list[AnswerChoiceInput] = Field(default_factory=list, max_length=200)
+    fill_policy: FillPolicy = "auto"
+    bindings: list[NewOptionBindingInput] = Field(default_factory=list, max_length=200)
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class UpdateAnswerApply(BaseModel):
+    action: Literal["update_answer"]
+    expected_capture_revision: int = Field(ge=1)
+    expected_question_revision: int = Field(ge=1)
+    answer_id: str = Field(min_length=1, max_length=128)
+    expected_answer_revision: int = Field(ge=1)
+    expected_mapping_revision: int | None = Field(default=None, ge=1)
+    value: AnswerValue
+    label: str | None = Field(default=None, min_length=1, max_length=1000)
+    description: str | None = Field(default=None, max_length=4000)
+    choices: list[AnswerChoiceInput] | None = Field(default=None, max_length=200)
+    fill_policy: FillPolicy | None = None
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class RetargetMappingApply(BaseModel):
+    action: Literal["retarget_mapping"]
+    expected_capture_revision: int = Field(ge=1)
+    expected_question_revision: int = Field(ge=1)
+    answer_id: str = Field(min_length=1, max_length=128)
+    expected_answer_revision: int = Field(ge=1)
+    expected_mapping_revision: int = Field(ge=1)
+    bindings: list[OptionBindingInput] = Field(default_factory=list, max_length=200)
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+class ReplaceOptionBindingsApply(BaseModel):
+    action: Literal["replace_option_bindings"]
+    expected_capture_revision: int = Field(ge=1)
+    expected_question_revision: int = Field(ge=1)
+    answer_id: str = Field(min_length=1, max_length=128)
+    expected_answer_revision: int = Field(ge=1)
+    mapping_id: str = Field(min_length=1, max_length=128)
+    expected_mapping_revision: int = Field(ge=1)
+    bindings: list[OptionBindingInput] = Field(default_factory=list, max_length=200)
+    reason: str | None = Field(default=None, max_length=1000)
+
+
+CaptureApply = Annotated[
+    CreateAnswerAndMapApply | UpdateAnswerApply | RetargetMappingApply | ReplaceOptionBindingsApply,
+    Field(discriminator="action"),
+]
+
+
+class CaptureApplyResponse(BaseModel):
+    capture: CaptureRecordSummary
+    question: QuestionSummary
+    answer: AnswerSummary
+    mapping: MappingSummary
+
+
+class CaptureRevision(BaseModel):
+    capture_id: str = Field(min_length=1, max_length=128)
+    expected_revision: int = Field(ge=1)
+
+
+class CaptureConflictResolve(BaseModel):
+    expected_question_revision: int = Field(ge=1)
+    winner_capture_id: str = Field(min_length=1, max_length=128)
+    captures: list[CaptureRevision] = Field(min_length=2, max_length=200)
+    reason: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_capture_set(self) -> CaptureConflictResolve:
+        ids = [item.capture_id for item in self.captures]
+        if len(ids) != len(set(ids)):
+            raise ValueError("capture revisions must name each capture exactly once")
+        if self.winner_capture_id not in ids:
+            raise ValueError("winner_capture_id must be included in captures")
+        return self
+
+
+class CaptureConflictResponse(BaseModel):
+    question: QuestionSummary
+    winner: CaptureRecordSummary
+    superseded: list[CaptureSummary]
