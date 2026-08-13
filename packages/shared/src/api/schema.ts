@@ -114,6 +114,58 @@ export interface paths {
         patch: operations["edit_event_api_events__event_id__patch"];
         trace?: never;
     };
+    "/api/form-fill/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Questions */
+        get: operations["list_questions_api_form_fill_questions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/form-fill/questions/{question_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Question */
+        get: operations["get_question_api_form_fill_questions__question_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Question */
+        patch: operations["update_question_api_form_fill_questions__question_id__patch"];
+        trace?: never;
+    };
+    "/api/form-fill/resolutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve Questions */
+        post: operations["resolve_questions_api_form_fill_resolutions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -498,11 +550,58 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnswerSummary */
+        AnswerSummary: {
+            /** Answer Key */
+            answer_key: string;
+            /**
+             * Fill Policy
+             * @enum {string}
+             */
+            fill_policy: "auto" | "confirm_each_time" | "never";
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Revision */
+            revision: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "disabled";
+            /** Value Kind */
+            value_kind: string;
+        };
         /**
          * ApplyType
          * @enum {string}
          */
         ApplyType: "easy_apply" | "external" | "unknown";
+        /** ApprovedResult */
+        ApprovedResult: {
+            /** Action */
+            action: components["schemas"]["SetTextAction"] | components["schemas"]["SetDecimalAction"] | components["schemas"]["SetBooleanAction"] | components["schemas"]["SetDateAction"] | components["schemas"]["SetSingleChoiceAction"] | components["schemas"]["SetMultiChoiceAction"];
+            /** Answer Id */
+            answer_id: string;
+            /** Answer Revision */
+            answer_revision: number;
+            /** Client Field Id */
+            client_field_id: string;
+            /** Mapping Id */
+            mapping_id: string;
+            /** Mapping Revision */
+            mapping_revision: number;
+            /** Option Mappings */
+            option_mappings?: components["schemas"]["OptionIdentityPair"][];
+            /** Question Id */
+            question_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "approved";
+        };
         /**
          * Attention
          * @description Read-only reminder for a stalled post-application stage.
@@ -542,6 +641,68 @@ export interface components {
              */
             platform: string;
         };
+        /** BlockedResult */
+        BlockedResult: {
+            /** Client Field Id */
+            client_field_id: string;
+            /** Option Mappings */
+            option_mappings?: components["schemas"]["OptionIdentityPair"][];
+            /** Question Id */
+            question_id: string;
+            /** Reason */
+            reason: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "blocked";
+        };
+        /** CapturedResult */
+        CapturedResult: {
+            /** Action */
+            action: components["schemas"]["SetTextAction"] | components["schemas"]["SetDecimalAction"] | components["schemas"]["SetBooleanAction"] | components["schemas"]["SetDateAction"] | components["schemas"]["SetSingleChoiceAction"] | components["schemas"]["SetMultiChoiceAction"];
+            /** Capture Id */
+            capture_id: string;
+            /** Capture Revision */
+            capture_revision: number;
+            /** Client Field Id */
+            client_field_id: string;
+            /** Option Mappings */
+            option_mappings?: components["schemas"]["OptionIdentityPair"][];
+            /** Question Id */
+            question_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "user_input" | "confirmed_external" | "unattributed_change";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "captured";
+        };
+        /** CaptureSummary */
+        CaptureSummary: {
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Revision */
+            revision: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "user_input" | "confirmed_external" | "unattributed_change";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "current" | "superseded" | "applied" | "ignored";
+            /** Value Kind */
+            value_kind: string;
+        };
         /**
          * CompanyAppliedCount
          * @description Applied-job count and the normalized company key used for lookup.
@@ -554,6 +715,46 @@ export interface components {
              * @default 0
              */
             count: number;
+        };
+        /** ConfirmationRequiredResult */
+        ConfirmationRequiredResult: {
+            /** Answer Id */
+            answer_id: string;
+            /** Answer Revision */
+            answer_revision: number;
+            /** Client Field Id */
+            client_field_id: string;
+            /** Mapping Id */
+            mapping_id: string;
+            /** Mapping Revision */
+            mapping_revision: number;
+            /** Option Mappings */
+            option_mappings?: components["schemas"]["OptionIdentityPair"][];
+            /** Question Id */
+            question_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "confirmation_required";
+        };
+        /** ConflictResult */
+        ConflictResult: {
+            /** Capture Ids */
+            capture_ids: string[];
+            /** Client Field Id */
+            client_field_id: string;
+            /** Option Mappings */
+            option_mappings?: components["schemas"]["OptionIdentityPair"][];
+            /** Question Id */
+            question_id: string;
+            /** Reason */
+            reason: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "conflict";
         };
         /**
          * CorrectionCreate
@@ -693,6 +894,22 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** IgnoredResult */
+        IgnoredResult: {
+            /** Client Field Id */
+            client_field_id: string;
+            /** Option Mappings */
+            option_mappings?: components["schemas"]["OptionIdentityPair"][];
+            /** Question Id */
+            question_id: string;
+            /** Reason */
+            reason: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "ignored";
         };
         /** Job */
         Job: {
@@ -861,6 +1078,21 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** KnowledgeEventSummary */
+        KnowledgeEventSummary: {
+            /** After Revision */
+            after_revision?: number | null;
+            /** Before Revision */
+            before_revision?: number | null;
+            /** Created At */
+            created_at: string;
+            /** Event */
+            event: string;
+            /** Id */
+            id: string;
+            /** Reason */
+            reason?: string | null;
+        };
         /**
          * LinkJobCreate
          * @description Merge the current listing's complete job with another job.
@@ -968,6 +1200,22 @@ export interface components {
             /** Listing Id */
             listing_id: string;
         };
+        /** MappingSummary */
+        MappingSummary: {
+            /** Answer Id */
+            answer_id: string;
+            /** Bindings */
+            bindings?: components["schemas"]["OptionBindingSummary"][];
+            /** Id */
+            id: string;
+            /** Revision */
+            revision: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "disabled" | "retired";
+        };
         /**
          * MetaKey
          * @description Metadata-key usage, sample values, and inferred value type.
@@ -992,6 +1240,20 @@ export interface components {
             /** Keys */
             keys: components["schemas"]["MetaKey"][];
         };
+        /** OptionBindingSummary */
+        OptionBindingSummary: {
+            /** Answer Choice Id */
+            answer_choice_id: string;
+            /** Question Option Id */
+            question_option_id: string;
+        };
+        /** OptionIdentityPair */
+        OptionIdentityPair: {
+            /** Client Option Id */
+            client_option_id: string;
+            /** Question Option Id */
+            question_option_id: string;
+        };
         /**
          * PrimaryListing
          * @description Preferred listing address for a dashboard card.
@@ -1003,6 +1265,226 @@ export interface components {
             platform_id: string;
             /** Url */
             url?: string | null;
+        };
+        /** QuestionDetail */
+        QuestionDetail: {
+            /** Adapter Id */
+            adapter_id: string;
+            /** Adapter Version */
+            adapter_version: string;
+            answer?: components["schemas"]["AnswerSummary"] | null;
+            /** Autocomplete Token */
+            autocomplete_token?: string | null;
+            /** Capture Conflict */
+            capture_conflict: boolean;
+            /**
+             * Control Kind
+             * @enum {string}
+             */
+            control_kind: "text" | "textarea" | "integer" | "decimal" | "date" | "checkbox_boolean" | "radio" | "select" | "checkbox_group" | "multi_select";
+            /** Current Captures */
+            current_captures?: components["schemas"]["CaptureSummary"][];
+            /** Events */
+            events?: components["schemas"]["KnowledgeEventSummary"][];
+            /** First Seen At */
+            first_seen_at: string;
+            /** Id */
+            id: string;
+            /**
+             * Identity Kind
+             * @enum {string}
+             */
+            identity_kind: "generic_signature" | "adapter_key";
+            /** Last Seen At */
+            last_seen_at: string;
+            /** Last Unresolved Reason */
+            last_unresolved_reason?: string | null;
+            mapping?: components["schemas"]["MappingSummary"] | null;
+            /** Normalized Help */
+            normalized_help: string;
+            /** Normalized Question */
+            normalized_question: string;
+            /** Normalized Section */
+            normalized_section: string;
+            /** Normalizer Version */
+            normalizer_version: number;
+            /** Option Set Hash */
+            option_set_hash?: string | null;
+            /** Options */
+            options: components["schemas"]["QuestionOptionSummary"][];
+            /** Raw Help */
+            raw_help?: string | null;
+            /** Raw Question */
+            raw_question: string;
+            /** Raw Section */
+            raw_section?: string | null;
+            /**
+             * Review State
+             * @enum {string}
+             */
+            review_state: "open" | "ignored";
+            /** Revision */
+            revision: number;
+            /** Seen Count */
+            seen_count: number;
+            /** Signature */
+            signature: string;
+            /** Site Scope */
+            site_scope: string;
+            /** Stable Field Key */
+            stable_field_key?: string | null;
+        };
+        /** QuestionListResponse */
+        QuestionListResponse: {
+            /** Items */
+            items: components["schemas"]["QuestionSummary"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** QuestionOptionSummary */
+        QuestionOptionSummary: {
+            /** Id */
+            id: string;
+            /** Normalized Label */
+            normalized_label: string;
+            /** Raw Label */
+            raw_label: string;
+            /** Stable Option Key */
+            stable_option_key?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "disabled";
+        };
+        /** QuestionReviewUpdate */
+        QuestionReviewUpdate: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Review State
+             * @enum {string}
+             */
+            review_state: "open" | "ignored";
+        };
+        /** QuestionSummary */
+        QuestionSummary: {
+            /** Capture Conflict */
+            capture_conflict: boolean;
+            /**
+             * Control Kind
+             * @enum {string}
+             */
+            control_kind: "text" | "textarea" | "integer" | "decimal" | "date" | "checkbox_boolean" | "radio" | "select" | "checkbox_group" | "multi_select";
+            /** First Seen At */
+            first_seen_at: string;
+            /** Id */
+            id: string;
+            /** Last Seen At */
+            last_seen_at: string;
+            /** Last Unresolved Reason */
+            last_unresolved_reason?: string | null;
+            mapping?: components["schemas"]["MappingSummary"] | null;
+            /** Raw Question */
+            raw_question: string;
+            /**
+             * Review State
+             * @enum {string}
+             */
+            review_state: "open" | "ignored";
+            /** Revision */
+            revision: number;
+            /** Seen Count */
+            seen_count: number;
+            /** Site Scope */
+            site_scope: string;
+        };
+        /** ResolutionField */
+        ResolutionField: {
+            /** Autocomplete Token */
+            autocomplete_token?: string | null;
+            /** Client Field Id */
+            client_field_id: string;
+            /**
+             * Control Kind
+             * @enum {string}
+             */
+            control_kind: "text" | "textarea" | "integer" | "decimal" | "date" | "checkbox_boolean" | "radio" | "select" | "checkbox_group" | "multi_select";
+            /** Has Value */
+            has_value: boolean;
+            /** Help */
+            help?: string | null;
+            /** Max Length */
+            max_length?: number | null;
+            /** Options */
+            options?: components["schemas"]["ResolutionOption"][];
+            /** Prompt */
+            prompt: string;
+            /** Required */
+            required: boolean;
+            /** Section */
+            section?: string | null;
+            /** Stable Field Key */
+            stable_field_key?: string | null;
+            /**
+             * User Confirmed
+             * @default false
+             */
+            user_confirmed: boolean;
+        };
+        /** ResolutionOption */
+        ResolutionOption: {
+            /** Client Option Id */
+            client_option_id: string;
+            /**
+             * Disabled
+             * @default false
+             */
+            disabled: boolean;
+            /** Label */
+            label: string;
+            /** Stable Option Key */
+            stable_option_key?: string | null;
+        };
+        /** ResolutionPage */
+        ResolutionPage: {
+            /** Adapter Id */
+            adapter_id: string;
+            /** Adapter Version */
+            adapter_version: string;
+            /** Platform */
+            platform: string;
+            /** Platform Id */
+            platform_id: string;
+            /** Site Scope */
+            site_scope: string;
+        };
+        /** ResolutionRequest */
+        ResolutionRequest: {
+            /** Application Context Id */
+            application_context_id: string;
+            /** Fields */
+            fields: components["schemas"]["ResolutionField"][];
+            page: components["schemas"]["ResolutionPage"];
+            /** Scan Id */
+            scan_id: string;
+        };
+        /** ResolutionResponse */
+        ResolutionResponse: {
+            listing_context: components["schemas"]["ResolvedListingContext"];
+            /** Results */
+            results: (components["schemas"]["ApprovedResult"] | components["schemas"]["CapturedResult"] | components["schemas"]["ConfirmationRequiredResult"] | components["schemas"]["BlockedResult"] | components["schemas"]["ConflictResult"] | components["schemas"]["UnresolvedResult"] | components["schemas"]["IgnoredResult"])[];
+            /** Scan Id */
+            scan_id: string;
+        };
+        /** ResolvedListingContext */
+        ResolvedListingContext: {
+            /** Job Id */
+            job_id?: string | null;
+            /** Listing Id */
+            listing_id?: string | null;
         };
         /** RuleReport */
         RuleReport: {
@@ -1067,6 +1549,69 @@ export interface components {
             /** Total Clicks */
             total_clicks: number;
         };
+        /** SetBooleanAction */
+        SetBooleanAction: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_boolean";
+            /** Value */
+            value: boolean;
+        };
+        /** SetDateAction */
+        SetDateAction: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_date";
+            /**
+             * Value
+             * Format: date
+             */
+            value: string;
+        };
+        /** SetDecimalAction */
+        SetDecimalAction: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_decimal";
+            /** Value */
+            value: string;
+        };
+        /** SetMultiChoiceAction */
+        SetMultiChoiceAction: {
+            /** Client Option Ids */
+            client_option_ids: string[];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_multi_choice";
+        };
+        /** SetSingleChoiceAction */
+        SetSingleChoiceAction: {
+            /** Client Option Id */
+            client_option_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_single_choice";
+        };
+        /** SetTextAction */
+        SetTextAction: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "set_text";
+            /** Value */
+            value: string;
+        };
         /** Stats */
         Stats: {
             /** Apply Type */
@@ -1085,6 +1630,22 @@ export interface components {
          * @enum {string}
          */
         Status: "new" | "seen" | "to_apply" | "applied" | "in_process" | "offered" | "skipped" | "closed" | "withdrawn" | "rejected" | "ghosted";
+        /** UnresolvedResult */
+        UnresolvedResult: {
+            /** Client Field Id */
+            client_field_id: string;
+            /** Option Mappings */
+            option_mappings?: components["schemas"]["OptionIdentityPair"][];
+            /** Question Id */
+            question_id: string;
+            /** Reason */
+            reason: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "unresolved";
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -1364,6 +1925,152 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Event-Output"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_questions_api_form_fill_questions_get: {
+        parameters: {
+            query?: {
+                answer_id?: string | null;
+                cursor?: string | null;
+                has_current_capture?: boolean | null;
+                limit?: number;
+                mapping_status?: ("active" | "disabled" | "retired" | "none") | null;
+                q?: string | null;
+                review_state?: ("open" | "ignored") | null;
+                site_scope?: string | null;
+                sort?: "last_seen" | "seen_count";
+            };
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_question_api_form_fill_questions__question_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_question_api_form_fill_questions__question_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionReviewUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_questions_api_form_fill_resolutions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolutionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolutionResponse"];
                 };
             };
             /** @description Validation Error */
