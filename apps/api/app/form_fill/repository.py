@@ -283,10 +283,449 @@ class FormFillRepository:
             (answer_id,),
         )
 
+    def get_answer(self, answer_id: str) -> Row | None:
+        return query_one(
+            self.conn,
+            "SELECT id, answer_key, label, description, value_kind, value_json, status, "
+            "fill_policy, revision, verified_at, created_at, updated_at "
+            "FROM form_answers WHERE id = ?",
+            (answer_id,),
+        )
+
+    def get_answer_by_key(self, answer_key: str) -> Row | None:
+        return query_one(
+            self.conn,
+            "SELECT id, answer_key, label, description, value_kind, value_json, status, "
+            "fill_policy, revision, verified_at, created_at, updated_at "
+            "FROM form_answers WHERE answer_key = ?",
+            (answer_key,),
+        )
+
+    def list_answers(
+        self,
+        *,
+        status: str | None,
+        value_kind: str | None,
+        query: str | None,
+        limit: int,
+        cursor_values: tuple[str, str] | None,
+    ) -> tuple[list[Row], bool]:
+        conditions: list[str] = []
+        params: list[object] = []
+        if status is not None:
+            conditions.append("a.status = ?")
+            params.append(status)
+        if value_kind is not None:
+            conditions.append("a.value_kind = ?")
+            params.append(value_kind)
+        if query is not None:
+            conditions.append(
+                "(instr(lower(a.answer_key), ?) > 0 OR instr(lower(a.label), ?) > 0 "
+                "OR instr(lower(coalesce(a.description, '')), ?) > 0)"
+            )
+            params.extend([query, query, query])
+        if cursor_values is not None:
+            updated_at, answer_id = cursor_values
+            conditions.append("(a.updated_at < ? OR (a.updated_at = ? AND a.id < ?))")
+            params.extend([updated_at, updated_at, answer_id])
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        rows = query_all(
+            self.conn,
+            "SELECT a.id, a.answer_key, a.label, a.description, a.value_kind, a.status, "
+            "a.fill_policy, a.revision, a.updated_at, COUNT(m.id) AS mapping_count "
+            "FROM form_answers a LEFT JOIN form_question_mappings m ON m.answer_id = a.id "
+            f"{where} GROUP BY a.id ORDER BY a.updated_at DESC, a.id DESC LIMIT ?",
+            (*params, limit + 1),
+        )
+        return rows[:limit], len(rows) > limit
+
+    def list_answer_choices(self, answer_id: str) -> list[Row]:
+        return query_all(
+            self.conn,
+            "SELECT id, choice_key, display_label, status FROM form_answer_choices "
+            "WHERE answer_id = ? ORDER BY choice_key, id",
+            (answer_id,),
+        )
+
+    def get_answer_choice(self, choice_id: str) -> Row | None:
+        return query_one(
+            self.conn,
+            "SELECT id, answer_id, choice_key, display_label, status "
+            "FROM form_answer_choices WHERE id = ?",
+            (choice_id,),
+        )
+
+    def list_answer_mappings(self, answer_id: str) -> list[Row]:
+        return query_all(
+            self.conn,
+            f"SELECT {_QUALIFIED_QUESTION_COLUMNS}, m.id AS mapping_id, "
+            "m.answer_id AS mapping_answer_id, m.status AS mapping_status, "
+            "m.revision AS mapping_revision FROM form_questions q "
+            "JOIN form_question_mappings m ON m.question_id = q.id "
+            "WHERE m.answer_id = ? ORDER BY q.last_seen_at DESC, q.id DESC",
+            (answer_id,),
+        )
+
+    def list_answer_events(self, answer_id: str, limit: int = 50) -> list[Row]:
+        return query_all(
+            self.conn,
+            "SELECT id, event, before_revision, after_revision, reason, created_at "
+            "FROM form_knowledge_events WHERE answer_id = ? OR before_answer_id = ? "
+            "OR after_answer_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+            (answer_id, answer_id, answer_id, limit),
+        )
+
+    def insert_answer(
+        self,
+        *,
+        answer_id: str,
+        answer_key: str,
+        label: str,
+        description: str | None,
+        value_kind: str,
+        value_json: str,
+        fill_policy: str,
+        now: str,
+    ) -> None:
+        execute(
+            self.conn,
+            "INSERT INTO form_answers (id, answer_key, label, description, value_kind, "
+            "value_json, status, fill_policy, revision, verified_at, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, 'active', ?, 1, ?, ?, ?)",
+            (
+                answer_id,
+                answer_key,
+                label,
+                description,
+                value_kind,
+                value_json,
+                fill_policy,
+                now,
+                now,
+                now,
+            ),
+        )
+
+    def replace_answer_choices(
+        self, answer_id: str, choices: list[tuple[str, str, str, str]], now: str
+    ) -> None:
+        execute(self.conn, "DELETE FROM form_answer_choices WHERE answer_id = ?", (answer_id,))
+        for choice_id, choice_key, display_label, status in choices:
+            execute(
+                self.conn,
+                "INSERT INTO form_answer_choices (id, answer_id, choice_key, display_label, "
+                "status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (choice_id, answer_id, choice_key, display_label, status, now, now),
+            )
+
+    def choice_is_bound(self, choice_id: str) -> bool:
+        return (
+            query_one(
+                self.conn,
+                "SELECT 1 AS present FROM form_mapping_option_bindings "
+                "WHERE answer_choice_id = ? LIMIT 1",
+                (choice_id,),
+            )
+            is not None
+        )
+
+    def update_answer_choice(
+        self, choice_id: str, display_label: str, status: str, now: str
+    ) -> None:
+        execute(
+            self.conn,
+            "UPDATE form_answer_choices SET display_label = ?, status = ?, updated_at = ? "
+            "WHERE id = ?",
+            (display_label, status, now, choice_id),
+        )
+
+    def insert_answer_choice(
+        self,
+        choice_id: str,
+        answer_id: str,
+        choice_key: str,
+        display_label: str,
+        status: str,
+        now: str,
+    ) -> None:
+        execute(
+            self.conn,
+            "INSERT INTO form_answer_choices (id, answer_id, choice_key, display_label, "
+            "status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (choice_id, answer_id, choice_key, display_label, status, now, now),
+        )
+
+    def delete_answer_choice(self, choice_id: str) -> None:
+        execute(self.conn, "DELETE FROM form_answer_choices WHERE id = ?", (choice_id,))
+
+    def update_answer(
+        self,
+        answer_id: str,
+        *,
+        expected_revision: int,
+        label: str,
+        description: str | None,
+        value_json: str,
+        status: str,
+        fill_policy: str,
+        now: str,
+    ) -> None:
+        execute(
+            self.conn,
+            "UPDATE form_answers SET label = ?, description = ?, value_json = ?, status = ?, "
+            "fill_policy = ?, revision = revision + 1, verified_at = ?, updated_at = ? "
+            "WHERE id = ? AND revision = ?",
+            (
+                label,
+                description,
+                value_json,
+                status,
+                fill_policy,
+                now,
+                now,
+                answer_id,
+                expected_revision,
+            ),
+        )
+
+    def insert_mapping(self, mapping_id: str, question_id: str, answer_id: str, now: str) -> None:
+        execute(
+            self.conn,
+            "INSERT INTO form_question_mappings (id, question_id, answer_id, status, "
+            "revision, approved_at, created_at, updated_at) "
+            "VALUES (?, ?, ?, 'active', 1, ?, ?, ?)",
+            (mapping_id, question_id, answer_id, now, now, now),
+        )
+
+    def update_mapping(
+        self, mapping_id: str, *, answer_id: str, status: str, expected_revision: int, now: str
+    ) -> None:
+        execute(
+            self.conn,
+            "UPDATE form_question_mappings SET answer_id = ?, status = ?, "
+            "revision = revision + 1, approved_at = ?, updated_at = ? "
+            "WHERE id = ? AND revision = ?",
+            (answer_id, status, now, now, mapping_id, expected_revision),
+        )
+
+    def replace_bindings(self, mapping_id: str, bindings: list[tuple[str, str]], now: str) -> None:
+        execute(
+            self.conn,
+            "DELETE FROM form_mapping_option_bindings WHERE mapping_id = ?",
+            (mapping_id,),
+        )
+        for question_option_id, answer_choice_id in bindings:
+            execute(
+                self.conn,
+                "INSERT INTO form_mapping_option_bindings "
+                "(mapping_id, question_option_id, answer_choice_id, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (mapping_id, question_option_id, answer_choice_id, now),
+            )
+
+    def get_capture(self, capture_id: str) -> Row | None:
+        return query_one(
+            self.conn,
+            "SELECT id, capture_key, question_id, mapping_id, answer_revision_used, "
+            "mapping_revision_used, application_context_id, job_id, listing_id, source, "
+            "value_kind, value_json, status, superseded_by_id, revision, created_at, "
+            "updated_at, resolved_at FROM form_captures WHERE id = ?",
+            (capture_id,),
+        )
+
+    def get_capture_by_key(self, capture_key: str) -> Row | None:
+        row = query_one(
+            self.conn, "SELECT id FROM form_captures WHERE capture_key = ?", (capture_key,)
+        )
+        return self.get_capture(row["id"]) if row else None
+
+    def list_capture_rows(
+        self,
+        *,
+        status: str | None,
+        source: str | None,
+        question_id: str | None,
+        query: str | None,
+        limit: int,
+        cursor_values: tuple[str, str] | None,
+    ) -> tuple[list[Row], bool]:
+        conditions: list[str] = []
+        params: list[object] = []
+        if status is not None:
+            conditions.append("c.status = ?")
+            params.append(status)
+        if source is not None:
+            conditions.append("c.source = ?")
+            params.append(source)
+        if question_id is not None:
+            conditions.append("c.question_id = ?")
+            params.append(question_id)
+        if query is not None:
+            conditions.append("instr(q.normalized_question, ?) > 0")
+            params.append(query)
+        if cursor_values is not None:
+            updated_at, capture_id = cursor_values
+            conditions.append("(c.updated_at < ? OR (c.updated_at = ? AND c.id < ?))")
+            params.extend([updated_at, updated_at, capture_id])
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        rows = query_all(
+            self.conn,
+            "SELECT c.id, c.capture_key, c.question_id, c.mapping_id, "
+            "c.answer_revision_used, c.mapping_revision_used, c.application_context_id, "
+            "c.job_id, c.listing_id, c.source, c.value_kind, c.value_json, c.status, "
+            "c.superseded_by_id, c.revision, c.created_at, c.updated_at, c.resolved_at "
+            "FROM form_captures c JOIN form_questions q ON q.id = c.question_id "
+            f"{where} ORDER BY c.updated_at DESC, c.id DESC LIMIT ?",
+            (*params, limit + 1),
+        )
+        return rows[:limit], len(rows) > limit
+
+    def insert_capture(
+        self,
+        *,
+        capture_id: str,
+        capture_key: str,
+        question_id: str,
+        mapping_id: str | None,
+        answer_revision_used: int | None,
+        mapping_revision_used: int | None,
+        application_context_id: str,
+        job_id: str | None,
+        listing_id: str | None,
+        source: str,
+        value_kind: str,
+        value_json: str,
+        now: str,
+    ) -> None:
+        execute(
+            self.conn,
+            "INSERT INTO form_captures (id, capture_key, question_id, mapping_id, "
+            "answer_revision_used, mapping_revision_used, application_context_id, job_id, "
+            "listing_id, source, value_kind, value_json, status, revision, created_at, "
+            "updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'current', 1, ?, ?)",
+            (
+                capture_id,
+                capture_key,
+                question_id,
+                mapping_id,
+                answer_revision_used,
+                mapping_revision_used,
+                application_context_id,
+                job_id,
+                listing_id,
+                source,
+                value_kind,
+                value_json,
+                now,
+                now,
+            ),
+        )
+
+    def transition_capture(
+        self,
+        capture_id: str,
+        *,
+        expected_revision: int,
+        status: str,
+        now: str,
+        superseded_by_id: str | None = None,
+        clear_value: bool = False,
+    ) -> None:
+        execute(
+            self.conn,
+            "UPDATE form_captures SET status = ?, superseded_by_id = ?, "
+            "value_json = CASE WHEN ? THEN NULL ELSE value_json END, revision = revision + 1, "
+            "updated_at = ?, resolved_at = CASE WHEN ? = 'current' THEN NULL ELSE ? END "
+            "WHERE id = ? AND revision = ?",
+            (
+                status,
+                superseded_by_id,
+                1 if clear_value else 0,
+                now,
+                status,
+                now,
+                capture_id,
+                expected_revision,
+            ),
+        )
+
+    def set_question_conflict(
+        self, question_id: str, conflict: bool, expected_revision: int, now: str
+    ) -> None:
+        execute(
+            self.conn,
+            "UPDATE form_questions SET capture_conflict = ?, revision = revision + 1, "
+            "last_unresolved_reason = ?, last_seen_at = last_seen_at "
+            "WHERE id = ? AND revision = ?",
+            (
+                1 if conflict else 0,
+                "capture_conflict" if conflict else "no_knowledge",
+                question_id,
+                expected_revision,
+            ),
+        )
+
+    def list_capture_events(self, capture_id: str, limit: int = 50) -> list[Row]:
+        return query_all(
+            self.conn,
+            "SELECT id, event, before_revision, after_revision, reason, created_at "
+            "FROM form_knowledge_events WHERE capture_id = ? "
+            "ORDER BY created_at DESC, id DESC LIMIT ?",
+            (capture_id, limit),
+        )
+
+    def insert_event(
+        self,
+        *,
+        event_id: str,
+        event: str,
+        answer_id: str | None = None,
+        mapping_id: str | None = None,
+        question_id: str | None = None,
+        capture_id: str | None = None,
+        before_answer_id: str | None = None,
+        after_answer_id: str | None = None,
+        before_revision: int | None = None,
+        after_revision: int | None = None,
+        reason: str | None = None,
+        now: str,
+    ) -> None:
+        execute(
+            self.conn,
+            "INSERT INTO form_knowledge_events (id, event, answer_id, mapping_id, "
+            "question_id, capture_id, before_answer_id, after_answer_id, before_revision, "
+            "after_revision, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                event_id,
+                event,
+                answer_id,
+                mapping_id,
+                question_id,
+                capture_id,
+                before_answer_id,
+                after_answer_id,
+                before_revision,
+                after_revision,
+                reason,
+                now,
+            ),
+        )
+
     def list_current_captures(self, question_id: str) -> list[Row]:
         return query_all(
             self.conn,
             "SELECT id, source, value_kind, status, revision, created_at FROM form_captures "
+            "WHERE question_id = ? AND status = 'current' ORDER BY created_at DESC, id DESC",
+            (question_id,),
+        )
+
+    def list_current_capture_records(self, question_id: str) -> list[Row]:
+        return query_all(
+            self.conn,
+            "SELECT id, capture_key, question_id, mapping_id, answer_revision_used, "
+            "mapping_revision_used, application_context_id, job_id, listing_id, source, "
+            "value_kind, value_json, status, superseded_by_id, revision, created_at, "
+            "updated_at, resolved_at FROM form_captures "
             "WHERE question_id = ? AND status = 'current' ORDER BY created_at DESC, id DESC",
             (question_id,),
         )
@@ -312,9 +751,11 @@ class FormFillRepository:
         execute(
             self.conn,
             "UPDATE form_questions SET review_state = ?, revision = revision + 1, "
+            "capture_conflict = CASE WHEN ? = 'ignored' THEN 0 ELSE capture_conflict END, "
             "last_unresolved_reason = ?, last_seen_at = last_seen_at "
             "WHERE id = ? AND revision = ?",
             (
+                review_state,
                 review_state,
                 "question_ignored" if review_state == "ignored" else "no_knowledge",
                 question_id,
