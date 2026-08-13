@@ -2,10 +2,11 @@ import { HideToggle } from "./HideToggle";
 import { ThemeToggle } from "./ThemeToggle";
 import { KeywordSettings } from "./KeywordSettings";
 import { DiagnosticsSettings } from "./DiagnosticsSettings";
+import { EasyApplyToggle } from "./EasyApplyToggle";
 
-// The settings panel — a labelled home for the popup's two display preferences and a
-// static keyboard cheat-sheet, opened from the gear beside search. ThemeToggle and
-// HideToggle own their own storage and apply logic; this is just the layout.
+// The settings panel — a labelled home for extension preferences and a static
+// keyboard cheat-sheet, opened from the gear beside search. Each control owns its
+// storage and apply logic; this is just the layout.
 //
 // The cheat-sheet is a plain read-only list, deliberately not the dashboard's
 // focus-trapped `?` dialog: Esc closes an action popup at the browser level, so a
@@ -40,6 +41,8 @@ export function Settings() {
         <span className="text-[13px] text-popup-fg">Hidden jobs</span>
         <HideToggle />
       </div>
+
+      <EasyApplyToggle />
 
       <KeywordSettings />
 

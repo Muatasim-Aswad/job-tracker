@@ -18,6 +18,43 @@
   outline: 2px solid #1a7f5a;
   border-radius: 6px;
 }
+
+/* Easy Apply field markers remain light-DOM so they sit with their question. The
+   panel itself uses a shadow root and carries its own isolated styles. */
+.jh-ff-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 0 0;
+  border: 1px solid #8c9bab;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #f3f6f8;
+  color: #38434f;
+  font:
+    600 12px/1.5 system-ui,
+    sans-serif;
+}
+.jh-ff-marker[data-state="ready"],
+.jh-ff-marker[data-state="remembered"] {
+  border-color: #4f8f70;
+  background: #edf7f1;
+  color: #24583e;
+}
+.jh-ff-marker[data-state="attention"],
+.jh-ff-marker[data-state="confirmation"],
+.jh-ff-marker[data-state="error"] {
+  border-color: #9b7229;
+  background: #fff8e6;
+  color: #694b18;
+}
+.jh-ff-marker:focus-visible {
+  outline: 2px solid #0a66c2;
+  outline-offset: 2px;
+}
+.jh-ff-marker__symbol {
+  font-weight: 800;
+}
 /* Resolved (applied-or-beyond + terminals): decided, so muted while browsing —
    but a lighter dim than a manual hide, and never removed (unless remove mode). */
 [data-jh-id].jh-resolved {

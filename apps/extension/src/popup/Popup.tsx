@@ -441,7 +441,7 @@ export function Popup() {
                     FOCUS +
                     " [&_svg]:size-4"
               }
-              title="Settings — theme and hidden-job display"
+              title="Settings — Easy Apply, theme, and display"
               aria-label="Settings"
               onClick={toggleSettings}
               dangerouslySetInnerHTML={{ __html: ICON.settings }}
