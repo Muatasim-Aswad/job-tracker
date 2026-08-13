@@ -19,8 +19,8 @@ export function EasyApplyToggle() {
   return (
     <label className="flex items-center justify-between gap-3">
       <span>
-        <span className="block text-[13px] text-popup-fg">Easy Apply field help</span>
-        <span className="block text-[11px] text-popup-faint">Discover and explain fields</span>
+        <span className="block text-[13px] text-popup-fg">Easy Apply form fill</span>
+        <span className="block text-[11px] text-popup-faint">Fill and remember safe fields</span>
       </span>
       <input
         className={"size-4 accent-popup-primary " + FOCUS}
@@ -28,7 +28,7 @@ export function EasyApplyToggle() {
         role="switch"
         checked={enabled}
         onChange={(event) => change(event.target.checked)}
-        aria-label="Enable Easy Apply field help"
+        aria-label="Enable Easy Apply form fill"
       />
     </label>
   );

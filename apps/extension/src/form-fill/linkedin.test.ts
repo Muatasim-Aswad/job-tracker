@@ -135,4 +135,19 @@ describe("LinkedIn Easy Apply discovery", () => {
     expect(fieldFingerprint(field)).not.toContain("synthetic-value");
     expect(fieldFingerprint(field)).toContain('"hasValue":true');
   });
+
+  it("keeps ambiguous numeric text inputs manual", () => {
+    const [field] = discoverLinkedInFields(
+      root(
+        textQuestion(
+          "single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-41-numeric",
+          "Numeric answer",
+        ),
+      ),
+    );
+    expect(field).toMatchObject({
+      kind: "manual",
+      reason: "This numeric format could not be classified safely.",
+    });
+  });
 });
