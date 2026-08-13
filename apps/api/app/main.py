@@ -6,6 +6,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
@@ -15,13 +17,14 @@ from app.blocked.router import router as blocked_router
 from app.core.config import get_settings
 from app.core.db import Database, connect, init_schema
 from app.core.deps import require_api_key
-from app.core.errors import NotFoundError, ValidationError
+from app.core.errors import ConflictError, InvalidCursorError, NotFoundError, ValidationError
 from app.core.lifecycle import ServerLock, private_creation_mask, protect_new_database
 from app.core.paths import settings_paths
 from app.core.sync import PushScheduler
 from app.core.version import PRODUCT_VERSION
 from app.documents.router import router as documents_router
 from app.events.router import router as events_router
+from app.form_fill.router import router as form_fill_router
 from app.jobs.router import router as jobs_router
 from app.listings.router import router as listings_router
 from app.meta.router import router as meta_router
@@ -106,6 +109,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="Job Tracker API", version=PRODUCT_VERSION, lifespan=lifespan)
 
+
+def _form_fill_headers(request: Request) -> dict[str, str]:
+    return {"Cache-Control": "no-store"} if request.url.path.startswith("/api/form-fill/") else {}
+
+
 settings = get_settings()
 paths = settings_paths(settings)
 
@@ -135,7 +143,9 @@ async def health() -> dict[str, str]:
 # it would be noise. 400 and 500 are logged with request context.
 @app.exception_handler(NotFoundError)
 async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
-    return JSONResponse(status_code=404, content={"detail": exc.message})
+    return JSONResponse(
+        status_code=404, content={"detail": exc.message}, headers=_form_fill_headers(request)
+    )
 
 
 @app.exception_handler(ValidationError)
@@ -143,7 +153,34 @@ async def validation_handler(request: Request, exc: ValidationError) -> JSONResp
     # A client error worth seeing: a refused funnel move, a non-note event delete.
     # WARNING carries the reason and the request, but no stack trace — it isn't a bug.
     logger.warning("400 %s %s — %s", request.method, request.url.path, exc.message)
-    return JSONResponse(status_code=400, content={"detail": exc.message})
+    return JSONResponse(
+        status_code=400, content={"detail": exc.message}, headers=_form_fill_headers(request)
+    )
+
+
+@app.exception_handler(ConflictError)
+async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={"detail": exc.message, "current": exc.current},
+        headers=_form_fill_headers(request),
+    )
+
+
+@app.exception_handler(InvalidCursorError)
+async def invalid_cursor_handler(request: Request, exc: InvalidCursorError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422, content={"detail": exc.message}, headers=_form_fill_headers(request)
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={"detail": jsonable_encoder(exc.errors())},
+        headers=_form_fill_headers(request),
+    )
 
 
 @app.exception_handler(Exception)
@@ -152,7 +189,11 @@ async def unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
     # triggered it, since uvicorn alone logs the trace but not the path, and return a
     # consistent JSON body instead of Starlette's plain-text default.
     logger.error("500 %s %s", request.method, request.url.path, exc_info=exc)
-    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"},
+        headers=_form_fill_headers(request),
+    )
 
 
 # Every feature router mounts under /api, the SPA taking / (see the StaticFiles mount
@@ -169,6 +210,7 @@ for _router in (
     search_log_router,
     meta_router,
     blocked_router,
+    form_fill_router,
 ):
     api_router.include_router(_router)
 app.include_router(api_router, prefix="/api")

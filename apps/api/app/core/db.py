@@ -200,7 +200,181 @@ _COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = ()
 
 DataMigration = str | Callable[[Conn], None]
 
-_DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = ()
+
+def _create_form_fill_foundation(conn: Conn) -> None:
+    """Create the additive form-fill knowledge boundary.
+
+    Statements intentionally run one at a time in an explicit transaction. Using
+    `executescript` here would allow drivers to commit between statements and break
+    the migration-ledger atomicity guarantee.
+    """
+    # sqlite3 starts transactions implicitly for DML but not DDL. Beginning here
+    # keeps this migration's schema changes and `_apply_data_migrations`' ledger row
+    # atomic without changing the transaction contract of unrelated migrations.
+    conn.execute("BEGIN")
+    statements = (
+        """
+        CREATE TABLE form_answers (
+            id TEXT PRIMARY KEY,
+            answer_key TEXT NOT NULL UNIQUE,
+            label TEXT NOT NULL,
+            description TEXT,
+            value_kind TEXT NOT NULL,
+            value_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            fill_policy TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+            verified_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX idx_form_answers_browse ON form_answers (status, updated_at DESC, id)",
+        "CREATE INDEX idx_form_answers_kind_status ON form_answers (value_kind, status)",
+        """
+        CREATE TABLE form_answer_choices (
+            id TEXT PRIMARY KEY,
+            answer_id TEXT NOT NULL REFERENCES form_answers (id),
+            choice_key TEXT NOT NULL,
+            display_label TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE (answer_id, choice_key)
+        )
+        """,
+        "CREATE INDEX idx_form_answer_choices_answer ON form_answer_choices (answer_id)",
+        """
+        CREATE TABLE form_questions (
+            id TEXT PRIMARY KEY,
+            signature TEXT NOT NULL UNIQUE,
+            identity_kind TEXT NOT NULL,
+            site_scope TEXT NOT NULL,
+            adapter_id TEXT NOT NULL,
+            adapter_version TEXT NOT NULL,
+            stable_field_key TEXT NOT NULL,
+            normalizer_version INTEGER NOT NULL,
+            control_kind TEXT NOT NULL,
+            normalized_question TEXT NOT NULL,
+            raw_question TEXT NOT NULL,
+            normalized_section TEXT NOT NULL,
+            raw_section TEXT,
+            normalized_help TEXT NOT NULL,
+            raw_help TEXT,
+            autocomplete_token TEXT NOT NULL,
+            option_set_hash TEXT NOT NULL,
+            review_state TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+            capture_conflict INTEGER NOT NULL DEFAULT 0,
+            last_unresolved_reason TEXT,
+            seen_count INTEGER NOT NULL DEFAULT 1,
+            last_seen_scan_id TEXT NOT NULL,
+            first_seen_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX idx_form_questions_review ON form_questions (review_state, last_seen_at DESC, id)",
+        "CREATE INDEX idx_form_questions_seen ON form_questions (seen_count DESC, id)",
+        "CREATE INDEX idx_form_questions_scope ON form_questions (site_scope, last_seen_at DESC, id)",
+        """
+        CREATE TABLE form_question_options (
+            id TEXT PRIMARY KEY,
+            question_id TEXT NOT NULL REFERENCES form_questions (id),
+            normalized_label TEXT NOT NULL,
+            raw_label TEXT NOT NULL,
+            stable_option_key TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE (question_id, normalized_label, stable_option_key)
+        )
+        """,
+        "CREATE INDEX idx_form_question_options_question ON form_question_options (question_id)",
+        """
+        CREATE TABLE form_question_mappings (
+            id TEXT PRIMARY KEY,
+            question_id TEXT NOT NULL UNIQUE REFERENCES form_questions (id),
+            answer_id TEXT NOT NULL REFERENCES form_answers (id),
+            status TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+            approved_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX idx_form_question_mappings_question ON form_question_mappings (question_id)",
+        "CREATE INDEX idx_form_question_mappings_answer ON form_question_mappings (answer_id)",
+        """
+        CREATE TABLE form_mapping_option_bindings (
+            mapping_id TEXT NOT NULL REFERENCES form_question_mappings (id),
+            question_option_id TEXT NOT NULL REFERENCES form_question_options (id),
+            answer_choice_id TEXT NOT NULL REFERENCES form_answer_choices (id),
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (mapping_id, question_option_id),
+            UNIQUE (mapping_id, answer_choice_id)
+        )
+        """,
+        "CREATE INDEX idx_form_bindings_mapping ON form_mapping_option_bindings (mapping_id)",
+        "CREATE INDEX idx_form_bindings_question_option ON form_mapping_option_bindings (question_option_id)",
+        "CREATE INDEX idx_form_bindings_answer_choice ON form_mapping_option_bindings (answer_choice_id)",
+        """
+        CREATE TABLE form_captures (
+            id TEXT PRIMARY KEY,
+            capture_key TEXT NOT NULL UNIQUE,
+            question_id TEXT NOT NULL REFERENCES form_questions (id),
+            mapping_id TEXT REFERENCES form_question_mappings (id),
+            answer_revision_used INTEGER,
+            mapping_revision_used INTEGER,
+            application_context_id TEXT NOT NULL,
+            job_id TEXT REFERENCES jobs (id),
+            listing_id TEXT REFERENCES listings (id),
+            source TEXT NOT NULL,
+            value_kind TEXT NOT NULL,
+            value_json TEXT,
+            status TEXT NOT NULL,
+            superseded_by_id TEXT REFERENCES form_captures (id),
+            revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            resolved_at TEXT
+        )
+        """,
+        "CREATE INDEX idx_form_captures_question_status ON form_captures (question_id, status, created_at DESC)",
+        "CREATE INDEX idx_form_captures_status_updated ON form_captures (status, updated_at DESC, id)",
+        "CREATE INDEX idx_form_captures_mapping ON form_captures (mapping_id)",
+        "CREATE INDEX idx_form_captures_job ON form_captures (job_id)",
+        "CREATE INDEX idx_form_captures_listing ON form_captures (listing_id)",
+        "CREATE INDEX idx_form_captures_superseded_by ON form_captures (superseded_by_id)",
+        """
+        CREATE TABLE form_knowledge_events (
+            id TEXT PRIMARY KEY,
+            event TEXT NOT NULL,
+            answer_id TEXT REFERENCES form_answers (id),
+            mapping_id TEXT REFERENCES form_question_mappings (id),
+            question_id TEXT REFERENCES form_questions (id),
+            capture_id TEXT REFERENCES form_captures (id),
+            before_answer_id TEXT REFERENCES form_answers (id),
+            after_answer_id TEXT REFERENCES form_answers (id),
+            before_revision INTEGER,
+            after_revision INTEGER,
+            reason TEXT,
+            created_at TEXT NOT NULL
+        )
+        """,
+        "CREATE INDEX idx_form_events_answer ON form_knowledge_events (answer_id, created_at DESC)",
+        "CREATE INDEX idx_form_events_mapping ON form_knowledge_events (mapping_id, created_at DESC)",
+        "CREATE INDEX idx_form_events_question ON form_knowledge_events (question_id, created_at DESC)",
+        "CREATE INDEX idx_form_events_capture ON form_knowledge_events (capture_id, created_at DESC)",
+        "CREATE INDEX idx_form_events_before_answer ON form_knowledge_events (before_answer_id)",
+        "CREATE INDEX idx_form_events_after_answer ON form_knowledge_events (after_answer_id)",
+    )
+    for statement in statements:
+        conn.execute(statement)
+
+
+_DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = (
+    ("create_form_fill_foundation_v1", _create_form_fill_foundation),
+)
 
 
 def _ensure_column(conn: Conn, table: str, column: str, ddl: str) -> None:

@@ -16,6 +16,23 @@ class ValidationError(Exception):
         super().__init__(message)
 
 
+class ConflictError(Exception):
+    """A revision-checked write observed newer state and changed nothing."""
+
+    def __init__(self, message: str, current: object) -> None:
+        self.message = message
+        self.current = current
+        super().__init__(message)
+
+
+class InvalidCursorError(Exception):
+    """An opaque list cursor is malformed or belongs to other filters."""
+
+    def __init__(self, message: str = "invalid_cursor") -> None:
+        self.message = message
+        super().__init__(message)
+
+
 class DataIntegrityError(Exception):
     """A startup-time database-integrity failure: the driver refused foreign-key
     enforcement, or an existing database carries rows whose foreign keys point at
