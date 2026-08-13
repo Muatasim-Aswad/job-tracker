@@ -41,6 +41,18 @@ The board is the active funnel (`new → … → offered`); drag a card to trans
 
 Attention is read-only derived state, so no read or background process ever writes a status event: the user adds a note, moves or corrects the job, or confirms `Mark ghosted` in the drawer. A normal `ghosted` transition is accepted only from `applied` and `in_process`; anything else needs the correction control.
 
+### Form-fill knowledge
+
+`/api/form-fill` owns the typed, revision-checked knowledge used by supported application forms:
+
+- `POST /resolutions` observes exact Questions and returns one typed result per request field in request order.
+- `/answers` manages reusable verified values and fill policies.
+- `/questions` manages review state and each Question's singleton Match, including complete choice-option bindings.
+- `/captures` stores provisional user-entered or explicitly remembered values for review and applies them through one of the explicit promotion/update workflows.
+- `/questions/{id}/capture-conflicts/resolve` selects a winner only when the Question revision and complete current Capture revision set still agree.
+
+Answer, Question, Match, and Capture writes use expected revisions; a stale write rolls back atomically and returns a current value-free summary. Competing current Captures resolve to no action. Superseding, clearing, ignoring, applying, or losing a conflict removes a Capture's retained value, while lifecycle events never copy Answer or Capture values. Every successful or error response under `/api/form-fill/` carries `Cache-Control: no-store`.
+
 ## Test & type-check
 
 ```bash
@@ -61,6 +73,7 @@ app/
 ├── listings/   /listings, /listings/{id}  (link_listing_to_job cascade lives here)
 ├── events/     /events, /jobs/{id}/corrections, /jobs/{id}/status/revert
 ├── documents/  /jobs/{id}/documents, /documents/{id}
+├── form_fill/  /form-fill resolutions, answers, questions/matches, captures
 ├── meta/       /meta/vocabulary, /meta/note-titles
 ├── stats/      /stats
 ├── blocked/    /blocked-companies
@@ -151,6 +164,8 @@ job-tracker migrate-checkout /path/to/old-checkout
 ```
 
 The command snapshots the checkout's effective local database without copying its `.env`, credentials, private overlays, logs, or script output, and leaves the checkout unchanged. Validate the adopted local database before configuring Turso separately.
+
+Every database mode, manual snapshot, automatic pre-replacement backup, and pre-pull recovery snapshot includes retained form Answer values and current remembered values. Treat those files and the configured Turso database as private data, and delete each copy separately when removing that data.
 
 ### Testing against a throwaway DB
 

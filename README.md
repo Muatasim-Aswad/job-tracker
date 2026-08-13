@@ -12,6 +12,7 @@ Job Tracker is a self-hosted workspace built around one lasting record per job. 
 
 - **One opportunity, one history.** Keep multiple listing URLs, status changes, notes, events, decisions, and materials connected to the same job.
 - **Capture what can be captured.** Record supported listing details and lifecycle updates while you browse instead of retyping them later.
+- **Reuse answers without giving up control.** Fill supported LinkedIn Easy Apply questions from exact, reviewed Matches; preserve existing values and keep unsupported controls, navigation, and submission manual.
 - **Catch reposts without losing control.** Review suggested matches, confirm genuine reposts, and preserve the history already gathered; merging is never automatic.
 - **Decide with context.** Surface experience requirements, languages, pay, seniority, applicant activity, listing age, custom terms, and company history with the evidence around each signal.
 - **Act where you encounter the job.** Use in-page controls or the context-seeded popup to search, update status, backdate events, comment, add notes, or create a job manually.
@@ -24,7 +25,7 @@ Job Tracker is a self-hosted workspace built around one lasting record per job. 
 
 | Surface | Support |
 | --- | --- |
-| LinkedIn jobs | Listing capture and in-page triage on search cards and job details |
+| LinkedIn jobs | Listing capture and in-page triage on search cards and job details; user-controlled filling for supported Easy Apply questions |
 | LinkedIn job emails in Gmail | Recognizes supported messages and adds tracker actions |
 | Sites without a built-in integration | Add a job manually from the popup |
 
@@ -48,7 +49,7 @@ Capture job details, review decision signals, and update tracked opportunities w
 
 ## Data and privacy
 
-Job Tracker is a single-user, self-hosted application designed for localhost use. By default, records stay in a local SQLite file on your own machine; Turso synchronization is optional. The extension talks only to the configured Job Tracker server, uses no third-party analytics, and keeps optional search diagnostics off by default.
+Job Tracker is a single-user, self-hosted application designed for localhost use. By default, records—including verified form Answers and remembered values awaiting review—stay in a local SQLite file on your own machine; Turso synchronization is optional. Database backups and optional Turso synchronization include those retained private values. The extension talks only to the configured Job Tracker server, uses no third-party analytics, and keeps optional search diagnostics off by default.
 
 On Gmail, the extension recognizes supported LinkedIn job messages in the browser and sends only the structured job and action data needed by the tracker; it does not send or store the email body as a job description. See [Privacy](PRIVACY.md) for captured fields, permissions, retention, and deletion, and [Security](SECURITY.md) for the supported localhost threat model.
 

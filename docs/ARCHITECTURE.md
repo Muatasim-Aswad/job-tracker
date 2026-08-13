@@ -96,6 +96,19 @@ When the extension detects that a posting no longer accepts applications, it rec
 
 `GET /jobs` derives an attention suggestion for stalled `applied` and `in_process` jobs. The clock starts at the latest status-setting event or note; older rows without either fall back to `jobs.updated_at`. Reading attention never writes an event or changes status. Thresholds are server configuration and zero disables the corresponding stage.
 
+### Form-fill knowledge
+
+Form filling uses durable semantic identities rather than page-local selectors:
+
+- A **Question** is the exact normalized prompt, section, help, control kind, stable field evidence, and active option vocabulary within a site scope. DOM handles and client option IDs exist only for one resolution request.
+- An **Answer** is a reusable typed value with an explicit fill policy and revision. Choice Answers own their reusable vocabulary.
+- A **Match** is the singleton relationship for one Question. It points to one Answer and, for choice controls, binds every active Question option to an Answer choice.
+- A **Capture** is a provisional value attributed to trusted user input or the explicit **Remember existing** action. It remains reviewable until cleared, superseded, ignored, applied, or selected as a conflict winner.
+
+Mutations compare expected revisions inside the same transaction. Stale Answer, Question, Match, Capture, and conflict-resolution writes have no effect and return current value-free summaries for review. Resolution gives an eligible active Match priority, then an unambiguous current Capture, and otherwise returns a typed non-fill result. Muted Questions, disabled or retired Matches, disabled Answers, `never` policies, incomplete option bindings, and competing Captures cannot produce an automatic action.
+
+Current Answer and Capture values are deliberately retained private data. Superseding, clearing, ignoring, or applying a Capture removes its reusable value; lifecycle history records IDs, event kinds, timestamps, and optional reasons but never copies Answer or Capture values. Callers that supply an optional reason are responsible for keeping private values out of that metadata.
+
 ## API boundaries
 
 All feature routes are mounted under `/api`; `/docs` and `/openapi.json` remain unprefixed. OpenAPI is the contract for endpoint and payload detail.
@@ -107,6 +120,7 @@ The main boundaries are:
 - Dashboard identity edits do not write funnel state.
 - Batch listing-state reads return one self-describing result per requested platform ID, including `untracked` results.
 - Attention, duplicate matches, and statistics are read projections.
+- `/form-fill` routes own resolution, Answer, Question, Match, Capture, and conflict-review workflows. Every success and error response under that boundary carries `Cache-Control: no-store`.
 
 The shared TypeScript API schema is generated from FastAPI's OpenAPI output. Repository checks fail if the generated file differs from the server contract.
 
@@ -130,7 +144,9 @@ The API supports three connection modes:
 - **Embedded replica:** reads use the local replica and writes go through to the Turso primary.
 - **Local-first:** reads and writes use a local pyturso replica; a background scheduler pushes after a quiet period and periodically pulls remote changes.
 
-All modes initialize the same schema. Foreign-key enforcement is enabled and verified for every connection. `schema.sql` is the 1.0.0 baseline, so the additive column and one-time data migration tables both start empty. Startup applies any registered migration that has no row in the `schema_migrations` ledger; each logical migration and its ledger write commit together, so a failed one rolls back whole and the next start retries it. The rules for adding a migration are in the [development guide](DEVELOPMENT.md#database-migration-compatibility).
+All modes initialize the same schema. Foreign-key enforcement is enabled and verified for every connection. `schema.sql` is the 1.0.0 baseline; additive column and one-time data migrations are append-only compatibility layers, including the form-fill foundation migration. Startup applies any registered migration that has no row in the `schema_migrations` ledger; each logical migration and its ledger write commit together, so a failed one rolls back whole and the next start retries it. The rules for adding a migration are in the [development guide](DEVELOPMENT.md#database-migration-compatibility).
+
+Form Answers and current remembered values are ordinary database rows. Embedded-replica and local-first modes therefore synchronize them to the configured Turso database, and every full database snapshot or automatic recovery backup retains them until that copy is deleted or replaced. Value-free history does not make the current value tables value-free.
 
 The local-first scheduler never discards a failed push. Local data remains on disk, the dirty state remains set, and a later cycle retries. Shutdown performs a final push for pending writes.
 
@@ -141,6 +157,8 @@ Each supported surface implements the adapter contract in `apps/extension/src/ad
 A debounced scan runs after DOM mutations and single-page navigation. It tags cards, refreshes their state in one batch, processes the active detail view, and retries incomplete captures on a later scan. List actions first capture the available card fields so their events do not create titleless stubs.
 
 Content scripts relay API calls through the background service worker. This keeps cross-origin access in the extension context covered by manifest host permissions. Listing state is cached in `chrome.storage` for synchronous card rendering and refreshed from the server in batches; the server remains the source of truth.
+
+LinkedIn Easy Apply uses a dedicated content entry in every matching frame, including same-origin application frames. Its scanner settles lazy DOM changes, establishes a per-step baseline, and re-resolves on forward, backward, and repeated steps. Unsupported or newly conditional controls remain local and manual. Supported controls are written only when empty or after an explicit, live-value-checked replacement; native input/change events are dispatched for host validation, but the scanner never invokes host navigation, review, consent, profile, résumé, or submission actions. Form values are not placed in browser storage.
 
 Built-in adapters ship with the public extension. Optional local adapters are loaded from gitignored overlay directories and require no server changes. See [`docs/PRIVATE.md`](PRIVATE.md) for that boundary.
 

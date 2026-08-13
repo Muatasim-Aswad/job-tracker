@@ -42,6 +42,18 @@ pnpm build
 
 `VITE_SERVER_URL` feeds both the in-page fetches ([config.ts](src/config.ts)) and the manifest's `host_permissions` ([manifest.config.ts](manifest.config.ts)), defaulting to `http://localhost:3456`. The extension never stores or sends the server's optional `X-API-Key`, so keep `API_KEY` unset for a direct local connection or put a trusted intermediary in front to inject the header — otherwise every API call gets a `401`.
 
+## LinkedIn Easy Apply form fill
+
+The **Settings → Easy Apply form fill** switch is enabled by default. Turning it off immediately removes form-fill markers and the panel and stops further scans or captures. Its Boolean state is the only form-fill value saved in `chrome.storage`; question and answer values are never stored there.
+
+The dedicated LinkedIn entry runs in the top document and matching same-origin frames. It waits for lazy fields to settle and re-establishes its safe baseline on forward, backward, and repeated steps. Supported controls are ordinary text and textarea inputs, classified numeric inputs, selects, and Yes/No radio groups whose request-local options can be bound to server-owned option IDs.
+
+Existing values are preserved. An empty field can receive an eligible verified or provisional fill; an agreeing value is reported without being written, and a differing value requires the explicit **Use my answer** action after a live-value recheck. **Revert** affects only a value the extension still owns. One failed or unresolved field does not block an independent safe fill.
+
+Only a trusted user change is remembered automatically after it settles. A value already present when scanning is remembered only through **Remember existing**, and a value written by the extension is never captured as user input. Clearing sends no old value and invalidates the current remembered value. Numeric capture waits for clean host-validation evidence or forward step progress.
+
+Typeaheads, ambiguous numeric fields, non-Yes/No radio groups, conditional controls that appear after a step baseline, utility/consent checkboxes, repeatable profile sections, résumés, and file inputs stay local and manual and are omitted from resolution requests. The scanner never clicks or invokes Next, Continue, Review, Submit, consent, profile, file, or résumé actions, and it never navigates or submits an application.
+
 ## Keyboard
 
 Open the popup from any tab with **Alt+J** (rebind or clear it at `chrome://extensions/shortcuts`). Inside the popup the flow is keyboard-first — type to search, then:
@@ -166,10 +178,11 @@ extension/
     config.ts            # SERVER_URL / API_BASE_URL (from VITE_SERVER_URL)
     icons.ts             # inline SVG icons for injected UI
     content.css          # injected card/banner styles
+    form-fill/           # all-frame LinkedIn discovery, safe scanner, settings, UI
     popup/               # the standalone React popup mini-client:
                          #   Popup/Detail/AddForm/Results/Settings + main.tsx,
                          #   api.ts (direct fetch — the popup is on the extension
-                         #   origin), seed.ts, subject.ts, eventDate.ts, theme.ts
+                         #   origin), EasyApplyToggle, seed, subject, eventDate, theme
     adapters/
       types.ts           # the Adapter contract
       posted.ts          # shared posting-date helpers

@@ -320,6 +320,12 @@ def test_capture_apply_create_answer_and_map_is_atomic_and_clears_applied_value(
     }
     assert "PROMOTED" not in str(conn.execute("SELECT * FROM form_knowledge_events").fetchall())
 
+    verified = service.resolve(_request(_field(), scan="scan-after-promotion")).results[0]
+    assert verified.status == "approved"
+    assert verified.answer_id == applied.answer.id
+    assert verified.mapping_id == applied.mapping.id
+    assert verified.action.model_dump() == {"kind": "set_text", "value": "PROMOTED"}
+
 
 def test_capture_apply_update_answer_checks_all_revisions_and_returns_current_summaries(
     conn: Conn,

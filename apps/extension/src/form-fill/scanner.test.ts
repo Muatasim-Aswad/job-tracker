@@ -67,7 +67,11 @@ describe("generation-based safe form filling", () => {
         request.fields.map((item) => unresolved(item.client_field_id)),
       ),
     }));
-    const scanner = new EasyApplyScanner(document, { id: ids(), bridge, settleMs: 180 });
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      bridge,
+      settleMs: 180,
+    });
     scanner.setEnabled(true);
     await vi.advanceTimersByTimeAsync(100);
     document.querySelector("footer")!.insertAdjacentHTML("beforebegin", field(1, "Lazy question"));
@@ -80,7 +84,7 @@ describe("generation-based safe form filling", () => {
     scanner.setEnabled(false);
   });
 
-  it("batches fields in DOM order and renders independent result states", async () => {
+  it("fills a safe field while an independent missing result stays untouched", async () => {
     fixture(field(1, "First question") + field(2, "Second question"));
     const requests: FormFillResolutionRequest[] = [];
     const scanner = new EasyApplyScanner(document, {
@@ -88,7 +92,22 @@ describe("generation-based safe form filling", () => {
       settleMs: 60_000,
       bridge: async (request) => {
         requests.push(request);
-        return { ok: true, result: response(request, [unresolved("field-1")]) };
+        return {
+          ok: true,
+          result: response(request, [
+            {
+              status: "approved",
+              client_field_id: "field-1",
+              question_id: "question-field-1",
+              answer_id: "answer-1",
+              answer_revision: 1,
+              mapping_id: "mapping-1",
+              mapping_revision: 1,
+              action: { kind: "set_text", value: "safe-first-value" },
+              option_mappings: [],
+            },
+          ]),
+        };
       },
     });
     scanner.setEnabled(true);
@@ -107,12 +126,40 @@ describe("generation-based safe form filling", () => {
       "Second question",
     ]);
     const markers = [...document.querySelectorAll<HTMLElement>(".jh-ff-marker")];
-    expect(markers.map((marker) => marker.dataset.state)).toEqual(["unresolved", "error"]);
+    expect(markers.map((marker) => marker.dataset.state)).toEqual(["filled", "error"]);
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value),
+    ).toEqual(["safe-first-value", ""]);
     const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
     expect(panel.textContent).toContain(
-      "0 filled · 0 already match · 2 needs attention · 0 manual",
+      "1 filled · 0 already match · 1 needs attention · 0 manual",
     );
     expect(panel.textContent).toContain("Job Tracker never continues or submits");
+    scanner.setEnabled(false);
+  });
+
+  it("links unresolved fields to the dashboard's non-sensitive Question route", async () => {
+    fixture(field(1, "Dashboard question"));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [{ ...unresolved("field-1"), question_id: "question-opaque" }]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    const url = new URL(panel.querySelector<HTMLAnchorElement>("a")!.href);
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      view: "form-fill",
+      section: "review",
+      type: "questions",
+      question: "question-opaque",
+    });
+    expect(url.toString()).not.toContain("Dashboard question");
     scanner.setEnabled(false);
   });
 
@@ -132,7 +179,10 @@ describe("generation-based safe form filling", () => {
             releaseFirst = resolve;
           });
         }
-        return Promise.resolve({ ok: true, result: response(request, [unresolved("field-1")]) });
+        return Promise.resolve({
+          ok: true,
+          result: response(request, [unresolved("field-1")]),
+        });
       },
     });
     scanner.setEnabled(true);
@@ -233,6 +283,47 @@ describe("generation-based safe form filling", () => {
 
     expect(requests[1].fields.map((item) => item.prompt)).toEqual(["Second-step question"]);
     expect(document.body.textContent).not.toContain("Complete this manually");
+
+    document.querySelector("h3")!.textContent = "Screening questions";
+    document.querySelector("[data-test-form-element]")!.outerHTML = field(1, "First-step question");
+    await Promise.resolve();
+    await scanner.scan();
+    expect(requests[2].fields.map((item) => item.prompt)).toEqual(["First-step question"]);
+    expect(document.body.textContent).not.toContain("Complete this manually");
+    scanner.setEnabled(false);
+  });
+
+  it("uses the same safe scanner contract in a same-origin frame document", async () => {
+    const frameDocument = document.implementation.createHTMLDocument("Easy Apply frame");
+    frameDocument.body.innerHTML = `
+      <div class="jobs-easy-apply-modal">
+        <h3>Screening questions</h3>
+        ${field(7, "Frame question")}
+        <footer></footer>
+      </div>`;
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(frameDocument, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return {
+          ok: true,
+          result: response(
+            request,
+            request.fields.map((item) => unresolved(item.client_field_id)),
+          ),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].page.platform_id).toBe("123456");
+    expect(requests[0].fields.map((item) => item.prompt)).toEqual(["Frame question"]);
+    const panel = frameDocument.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.textContent).toContain("Job Tracker never continues or submits");
     scanner.setEnabled(false);
   });
 
@@ -389,7 +480,7 @@ describe("generation-based safe form filling", () => {
     scanner.setEnabled(false);
   });
 
-  it("captures one settled external change, never captures its own fill, and clears value-free", async () => {
+  it("captures one settled user change, never captures its own fill, and clears value-free", async () => {
     vi.useFakeTimers();
     fixture(field(1, "Remember me"));
     const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
@@ -398,6 +489,7 @@ describe("generation-based safe form filling", () => {
     }));
     const scanner = new EasyApplyScanner(document, {
       id: ids(),
+      isUserEvent: () => true,
       settleMs: 60_000,
       captureSettleMs: 20,
       captureBridge,
@@ -416,7 +508,7 @@ describe("generation-based safe form filling", () => {
     expect(captureBridge).toHaveBeenCalledOnce();
     expect(captureBridge.mock.calls[0][0]).toMatchObject({
       question_id: "question-field-1",
-      source: "unattributed_change",
+      source: "user_input",
       cleared: false,
       value: { kind: "text", value: "user-entered-value" },
     });
@@ -429,12 +521,48 @@ describe("generation-based safe form filling", () => {
 
     input.value = "";
     input.dispatchEvent(
-      new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" }),
+      new InputEvent("input", {
+        bubbles: true,
+        inputType: "deleteContentBackward",
+      }),
     );
     await vi.advanceTimersByTimeAsync(0);
     expect(captureBridge).toHaveBeenCalledTimes(2);
-    expect(captureBridge.mock.calls[1][0]).toMatchObject({ cleared: true, value: null });
+    expect(captureBridge.mock.calls[1][0]).toMatchObject({
+      cleared: true,
+      value: null,
+    });
     expect(JSON.stringify(captureBridge.mock.calls[1][0])).not.toContain("user-entered-value");
+    scanner.setEnabled(false);
+  });
+
+  it("preserves an untrusted host change without remembering it automatically", async () => {
+    vi.useFakeTimers();
+    fixture(field(1, "Host-managed value"));
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      captureSettleMs: 20,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+
+    input.value = "host-programmatic-value";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(input.value).toBe("host-programmatic-value");
+    expect(captureBridge).not.toHaveBeenCalled();
     scanner.setEnabled(false);
   });
 
@@ -534,10 +662,19 @@ describe("generation-based safe form filling", () => {
             answer_revision: 1,
             mapping_id: "mapping-select",
             mapping_revision: 1,
-            action: { kind: "set_single_choice", client_option_id: "field-1-option-2" },
+            action: {
+              kind: "set_single_choice",
+              client_option_id: "field-1-option-2",
+            },
             option_mappings: [
-              { client_option_id: "field-1-option-1", question_option_id: "option-alpha" },
-              { client_option_id: "field-1-option-2", question_option_id: "option-beta" },
+              {
+                client_option_id: "field-1-option-1",
+                question_option_id: "option-alpha",
+              },
+              {
+                client_option_id: "field-1-option-2",
+                question_option_id: "option-beta",
+              },
             ],
           },
           {
@@ -548,10 +685,19 @@ describe("generation-based safe form filling", () => {
             answer_revision: 1,
             mapping_id: "mapping-radio",
             mapping_revision: 1,
-            action: { kind: "set_single_choice", client_option_id: "field-2-option-1" },
+            action: {
+              kind: "set_single_choice",
+              client_option_id: "field-2-option-1",
+            },
             option_mappings: [
-              { client_option_id: "field-2-option-1", question_option_id: "option-yes" },
-              { client_option_id: "field-2-option-2", question_option_id: "option-no" },
+              {
+                client_option_id: "field-2-option-1",
+                question_option_id: "option-yes",
+              },
+              {
+                client_option_id: "field-2-option-2",
+                question_option_id: "option-no",
+              },
             ],
           },
         ]),
@@ -635,6 +781,7 @@ describe("generation-based safe form filling", () => {
     }));
     const scanner = new EasyApplyScanner(document, {
       id: ids(),
+      isUserEvent: () => true,
       settleMs: 60_000,
       captureBridge,
       bridge: async (request) => ({
@@ -644,8 +791,14 @@ describe("generation-based safe form filling", () => {
             ...unresolved("field-1"),
             question_id: "question-select",
             option_mappings: [
-              { client_option_id: "field-1-option-1", question_option_id: "option-alpha" },
-              { client_option_id: "field-1-option-2", question_option_id: "option-beta" },
+              {
+                client_option_id: "field-1-option-1",
+                question_option_id: "option-alpha",
+              },
+              {
+                client_option_id: "field-1-option-2",
+                question_option_id: "option-beta",
+              },
             ],
           },
         ]),
@@ -679,6 +832,7 @@ describe("generation-based safe form filling", () => {
     }));
     const scanner = new EasyApplyScanner(document, {
       id: ids(),
+      isUserEvent: () => true,
       settleMs: 60_000,
       captureSettleMs: 20,
       captureBridge,
@@ -724,6 +878,7 @@ describe("generation-based safe form filling", () => {
     }));
     const scanner = new EasyApplyScanner(document, {
       id: ids(),
+      isUserEvent: () => true,
       settleMs: 60_000,
       captureSettleMs: 20,
       captureBridge,
@@ -748,7 +903,10 @@ describe("generation-based safe form filling", () => {
     await Promise.resolve();
     await scanner.scan();
     expect(captureBridge).toHaveBeenCalledOnce();
-    expect(captureBridge.mock.calls[0][0].value).toEqual({ kind: "decimal", value: "5" });
+    expect(captureBridge.mock.calls[0][0].value).toEqual({
+      kind: "decimal",
+      value: "5",
+    });
     scanner.setEnabled(false);
   });
 
@@ -817,7 +975,10 @@ describe("generation-based safe form filling", () => {
                   answer_revision: 1,
                   mapping_id: "mapping-confirm",
                   mapping_revision: 1,
-                  action: { kind: "set_text" as const, value: "confirmed-value" },
+                  action: {
+                    kind: "set_text" as const,
+                    value: "confirmed-value",
+                  },
                   option_mappings: [],
                 }
               : {
@@ -921,7 +1082,10 @@ describe("generation-based safe form filling", () => {
     const scanner = new EasyApplyScanner(document, {
       id: ids(),
       settleMs: 60_000,
-      bridge: async (request) => ({ ok: true, result: response(request, [unresolved("field-1")]) }),
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
     });
     scanner.setEnabled(true);
     await scanner.scan();
