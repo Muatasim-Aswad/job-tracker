@@ -12,7 +12,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Fixed
 
-- Easy Apply review queues now refresh while the dashboard remains open, omit Questions already handled by an active Match, and open the queue that actually contains work. Later-rendered supported Questions stabilize into normal observation, pending answers flush before a step change, and transient capture failures can be retried. The dashboard entry document also revalidates after a rebuild instead of silently retaining an obsolete bundle.
+- Easy Apply review queues now refresh while the dashboard remains open, omit Questions already handled by an active Match, and open the queue that actually contains work. Later-rendered supported Questions stabilize into normal observation, pending answers flush before a step change, and transient capture failures can be retried. Résumé selectors and CV upload inputs no longer create manual-status rows. The dashboard entry document also revalidates after a rebuild instead of silently retaining an obsolete bundle.
 
 ## [1.1.0] - 2026-08-12
 

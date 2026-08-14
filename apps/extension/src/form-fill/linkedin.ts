@@ -157,26 +157,25 @@ function classifyQuestion(
   container: HTMLElement,
   index: number,
   clientFieldId: string,
-): DiscoveredField {
-  const controls = [
+): DiscoveredField | null {
+  const enabledControls = [
     ...container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
       "input, textarea, select",
     ),
   ].filter((control) => !control.disabled);
+  const controls = enabledControls.filter((control) => !control.matches(RESUME));
   const first = controls[0];
   const prompt =
     associatedLabel(container, first ?? container) || text(container.querySelector("legend"));
   const handle = fieldHandle(container, first ?? container, index);
 
+  if (!first && enabledControls.some((control) => control.matches(RESUME))) return null;
   if (!first) return manual(container, handle, prompt, "This control shape is not supported.");
   if (!prompt) {
     return manual(container, handle, prompt, "Question text could not be identified safely.");
   }
   if (container.querySelector(REPEATABLE)) {
     return manual(container, handle, prompt, "Profile entries must be reviewed manually.");
-  }
-  if (first.matches(RESUME)) {
-    return manual(container, handle, prompt, "Résumés and files stay under your control.");
   }
   if (first.matches(UTILITY_CHECKBOX)) {
     return manual(container, handle, prompt, "This LinkedIn option is left unchanged.");
@@ -283,13 +282,11 @@ function compareDom(a: DiscoveredField, b: DiscoveredField): number {
 }
 
 export function discoverLinkedInFields(root: HTMLElement): DiscoveredField[] {
-  const found: DiscoveredField[] = [...root.querySelectorAll<HTMLElement>(QUESTION)].map(
-    (container, index) => classifyQuestion(container, index, `field-${index + 1}`),
-  );
+  const found = [...root.querySelectorAll<HTMLElement>(QUESTION)]
+    .map((container, index) => classifyQuestion(container, index, `field-${index + 1}`))
+    .filter((field): field is DiscoveredField => field !== null);
   const owned = new Set(found.map((field) => field.container));
-  const supplementary = root.querySelectorAll<HTMLElement>(
-    `${REPEATABLE}, ${RESUME}, ${UTILITY_CHECKBOX}`,
-  );
+  const supplementary = root.querySelectorAll<HTMLElement>(`${REPEATABLE}, ${UTILITY_CHECKBOX}`);
   for (const element of supplementary) {
     const container =
       element.closest<HTMLElement>(QUESTION) ??
@@ -303,9 +300,7 @@ export function discoverLinkedInFields(root: HTMLElement): DiscoveredField[] {
     const prompt = text(container.querySelector("h3, h4, legend, label"));
     const reason = element.matches(REPEATABLE)
       ? "Profile entries must be reviewed manually."
-      : element.matches(UTILITY_CHECKBOX)
-        ? "This LinkedIn option is left unchanged."
-        : "Résumés and files stay under your control.";
+      : "This LinkedIn option is left unchanged.";
     found.push(manual(container, `manual-${index + 1}`, prompt, reason));
   }
   return found.sort(compareDom);
