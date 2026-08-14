@@ -247,6 +247,27 @@ def test_request_evidence_is_bounded_and_duplicate_local_handles_are_rejected() 
         ResolutionRequest.model_validate(duplicate)
 
 
+def test_option_bound_is_exactly_two_hundred_per_field() -> None:
+    # Adapters mirror this bound to keep an oversized control out of the request:
+    # one over-bound field rejects the whole scan, not just itself.
+    options = [
+        {
+            "client_option_id": f"local-{index}",
+            "label": f"Option {index}",
+            "stable_option_key": None,
+            "disabled": False,
+        }
+        for index in range(201)
+    ]
+    at_bound = _request(_choice_field(control_kind="select", options=options[:200]))
+    assert len(ResolutionRequest.model_validate(at_bound).fields[0].options) == 200
+
+    over_bound = _request(_choice_field(control_kind="select", options=options))
+    with pytest.raises(PydanticValidationError) as rejected:
+        ResolutionRequest.model_validate(over_bound)
+    assert rejected.value.errors()[0]["loc"][-1] == "options"
+
+
 def test_openapi_defines_every_final_result_discriminant_and_typed_action() -> None:
     openapi = app.openapi()
     assert "/api/form-fill/resolutions" in openapi["paths"]
