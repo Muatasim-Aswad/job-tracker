@@ -107,11 +107,15 @@ Form filling uses durable semantic identities rather than page-local selectors:
 
 Mutations compare expected revisions inside the same transaction. Stale Answer, Question, Match, Capture, and conflict-resolution writes have no effect and return current value-free summaries for review. Resolution gives an eligible active Match priority, then an unambiguous current Capture, and otherwise returns a typed non-fill result. Muted Questions, disabled or retired Matches, disabled Answers, `never` policies, incomplete option bindings, and competing Captures cannot produce an automatic action.
 
+Question `review_state` records explicit open/muted intent; actionable review is derived separately as an open Question without an active Match, or one with a Capture conflict. Resolution stores its actual non-fill reason after observation instead of guessing before the Match and Capture state has been evaluated.
+
 Current Answer and Capture values are deliberately retained private data. Superseding, clearing, ignoring, or applying a Capture removes its reusable value; lifecycle history records IDs, event kinds, timestamps, and optional reasons but never copies Answer or Capture values. Callers that supply an optional reason are responsible for keeping private values out of that metadata.
 
 ## API boundaries
 
 All feature routes are mounted under `/api`; `/docs` and `/openapi.json` remain unprefixed. OpenAPI is the contract for endpoint and payload detail.
+
+The built SPA entry document is served with `Cache-Control: no-cache` so an existing browser session revalidates it after a rebuild and loads the current content-hashed assets.
 
 The main boundaries are:
 

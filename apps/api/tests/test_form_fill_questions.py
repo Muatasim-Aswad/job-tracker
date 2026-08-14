@@ -59,6 +59,7 @@ def _list(service: FormFillService, **updates: Any) -> dict[str, Any]:
     arguments: dict[str, Any] = {
         "review_state": None,
         "mapping_status": None,
+        "needs_review": None,
         "has_current_capture": None,
         "site_scope": None,
         "answer_id": None,
@@ -103,6 +104,7 @@ def test_question_list_detail_search_and_cursor_reads(conn: Conn) -> None:
         response=list_response,
         review_state=None,
         mapping_status=None,
+        needs_review=None,
         has_current_capture=None,
         site_scope=None,
         answer_id=None,
@@ -206,6 +208,11 @@ def test_question_detail_and_filters_expose_current_relations_without_values(con
         site_scope="LINKEDIN:EASY-APPLY",
     )
     assert [item["id"] for item in filters["items"]] == [question_id]
+    assert _list(service, needs_review=True)["items"] == []
+
+    conn.execute("UPDATE form_question_mappings SET status = 'disabled' WHERE id = 'mapping-1'")
+    assert [item["id"] for item in _list(service, needs_review=True)["items"]] == [question_id]
+    conn.execute("UPDATE form_question_mappings SET status = 'active' WHERE id = 'mapping-1'")
 
     with pytest.raises(ValidationError):
         service.update_question(

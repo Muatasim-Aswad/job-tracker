@@ -3010,6 +3010,7 @@ export interface operations {
                 has_current_capture?: boolean | null;
                 limit?: number;
                 mapping_status?: ("active" | "disabled" | "retired" | "none") | null;
+                needs_review?: boolean | null;
                 q?: string | null;
                 review_state?: ("open" | "ignored") | null;
                 site_scope?: string | null;

@@ -44,9 +44,11 @@ An active Match to an active Answer may fill the next empty occurrence of that e
 
 Values you type are remembered only after a trusted user change settles. A value that was already present is not remembered unless you choose **Remember existing**, and an extension-written fill is never remembered as user input. A clear invalidates the current remembered value instead of creating a reusable empty value. Remembered values stay provisional in **Needs review** until you ignore them, use one to update an Answer, or promote one into an Answer and Match. Competing current values fill nothing until you choose a revision-checked winner.
 
+The dashboard refreshes its review queues while it remains visible. Questions handled by an active Match leave the actionable queue, while unmatched, disabled, retired, or conflicting Questions remain available for review. A supported Question that appears later in the same application step is observed after its identity stays stable across two scans.
+
 Existing form values are never overwritten automatically. Job Tracker distinguishes an existing value that already agrees, one that differs, and an empty field it can safely fill. Replacing a differing value is an explicit action and is rechecked against the live control first. Each field is independent, so one unresolved field or request failure does not authorize another write.
 
-Unsupported or ambiguous controls stay local and manual; they are not included in resolution requests. This includes typeaheads, non-Yes/No radio groups, repeatable profile sections, file and résumé inputs, consent and utility checkboxes, and shapes whose numeric meaning is uncertain. Job Tracker never clicks Next, Continue, Review, Submit, consent, résumé, or profile controls and never navigates or submits an application.
+Unsupported or ambiguous controls stay local and manual; they are not included in resolution requests. This includes typeaheads, non-Yes/No radio groups, repeatable profile sections, file and résumé inputs, consent and utility checkboxes, and shapes whose numeric meaning is uncertain. Job Tracker flushes eligible pending values before observing a step change but never clicks Next, Continue, Review, Submit, consent, résumé, or profile controls and never navigates or submits an application.
 
 ## Decide with context
 

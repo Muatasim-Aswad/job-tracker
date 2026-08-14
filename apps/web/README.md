@@ -17,7 +17,7 @@ Start the Vite development server in another:
 pnpm --filter web dev
 ```
 
-Open <http://localhost:5173>. Vite proxies `/api`, `/docs`, and `/openapi.json` to the API on port 3456. A production build is emitted to `apps/web/dist`; FastAPI serves that directory at <http://localhost:3456>.
+Open <http://localhost:5173>. Vite proxies `/api`, `/docs`, and `/openapi.json` to the API on port 3456. A production build is emitted to `apps/web/dist`; FastAPI serves that directory at <http://localhost:3456> and requires the SPA entry document to revalidate so rebuilds load the current asset hashes.
 
 Run the dashboard tests and checks from the repository root:
 
@@ -29,7 +29,7 @@ pnpm run build:web
 
 ## Form Fill workspace
 
-The **Form Fill** view manages reusable Answers and the **Needs review** queues for provisional Captures and observed Questions. Answer detail is the only Answer collection surface that receives its private value. Question detail exposes its singleton Match, affected Answer relationship, option bindings, sightings, Capture conflict IDs, and value-free lifecycle history.
+The **Form Fill** view manages reusable Answers and the **Needs review** queues for provisional Captures and actionable Questions. An active Match removes its Question from that queue unless a Capture conflict still needs a decision; unmatched, disabled, and retired Matches remain actionable. The two review queues refresh every two seconds while the dashboard is visible, and an unqualified review link opens the queue that currently has work. Answer detail is the only Answer collection surface that receives its private value. Question detail exposes its singleton Match, affected Answer relationship, option bindings, sightings, Capture conflict IDs, and value-free lifecycle history.
 
 All mutations use the revision currently shown in the drawer. A `409` keeps the user's draft intact and presents the server's current value-free summary with explicit review, copy, and discard choices; the client does not retry or overwrite optimistically. Applying a Capture is always an explicit create/update/retarget/rebind workflow, and competing Captures require an explicit revision-checked winner.
 

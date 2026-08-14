@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+vi.mock("../hooks", () => ({
+  useFormFillReviewPresence: () => ({
+    hasReview: true,
+    hasCaptures: false,
+    hasQuestions: true,
+    isLoading: false,
+  }),
+}));
+
 vi.mock("./AnswerList", () => ({
   AnswerList: ({ onOpen }: { onOpen: (id: string) => void }) => (
     <button type="button" onClick={() => onOpen("answer-opaque")}>
@@ -46,6 +55,14 @@ describe("FormFillWorkspace navigation", () => {
     expect(screen.getByRole("tab", { name: "Remembered values" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "Unresolved Questions" }));
     expect(screen.getByText("Question list")).toBeTruthy();
+    expect(new URLSearchParams(window.location.search).get("type")).toBe("questions");
+  });
+
+  it("lands on actionable Questions when remembered values are empty", async () => {
+    window.history.replaceState(null, "", "/?view=form-fill&section=review");
+    render(<FormFillWorkspace />);
+
+    await waitFor(() => expect(screen.getByText("Question list")).toBeTruthy());
     expect(new URLSearchParams(window.location.search).get("type")).toBe("questions");
   });
 });

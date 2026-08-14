@@ -126,7 +126,8 @@ function selectTargets(select: HTMLSelectElement, clientFieldId: string): Suppor
     .map((option, index) => ({
       clientOptionId: `${clientFieldId}-option-${index + 1}`,
       element: option,
-    }));
+    }))
+    .filter((target) => text(target.element));
 }
 
 function radioOptions(fieldset: HTMLFieldSetElement, clientFieldId: string) {

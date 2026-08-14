@@ -185,11 +185,11 @@ class FormFillService:
             if len({option.key for option in identity.options}) != len(identity.options):
                 raise ValidationError("choice options must have distinct semantic identities")
             question, pairs = self._observe_question(request.scan_id, identity)
-            results.append(
-                self._resolve_question(
-                    question, field, pairs, application_context_id=request.application_context_id
-                )
+            result = self._resolve_question(
+                question, field, pairs, application_context_id=request.application_context_id
             )
+            self.repo.update_resolution_reason(question.id, getattr(result, "reason", None))
+            results.append(result)
         return ResolutionResponse(
             scan_id=request.scan_id,
             listing_context=ResolvedListingContext(
@@ -452,6 +452,7 @@ class FormFillService:
         *,
         review_state: str | None,
         mapping_status: QuestionMappingFilter | None,
+        needs_review: bool | None,
         has_current_capture: bool | None,
         site_scope: str | None,
         answer_id: str | None,
@@ -465,6 +466,7 @@ class FormFillService:
         filters = {
             "review_state": review_state,
             "mapping_status": mapping_status,
+            "needs_review": needs_review,
             "has_current_capture": has_current_capture,
             "site_scope": canonical_scope,
             "answer_id": answer_id,
@@ -475,6 +477,7 @@ class FormFillService:
         page = self.repo.list_questions(
             review_state=review_state,
             mapping_status=mapping_status,
+            needs_review=needs_review,
             has_current_capture=has_current_capture,
             site_scope=canonical_scope,
             answer_id=answer_id,
