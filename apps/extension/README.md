@@ -50,9 +50,9 @@ The dedicated LinkedIn entry runs in the top document and matching same-origin f
 
 Existing values are preserved. An empty field can receive an eligible verified or provisional fill; an agreeing value is reported without being written, and a differing value requires the explicit **Use my answer** action after a live-value recheck. **Revert** affects only a value the extension still owns. One failed or unresolved field does not block an independent safe fill.
 
-Only a trusted user change is remembered automatically after it settles. A value already present when scanning is remembered only through **Remember existing**, and a value written by the extension is never captured as user input. Clearing sends no old value and invalidates the current remembered value. Numeric capture waits for clean host-validation evidence or forward step progress.
+Only a trusted user change is remembered automatically after it settles. A value already present when scanning is remembered only through **Remember existing**, and a value written by the extension is never captured as user input. Clearing sends no old value and invalidates the current remembered value. Numeric capture waits for clean host-validation evidence or forward step progress. Eligible pending values flush before a step change, and a failed transport attempt may be retried by changing the field again.
 
-Typeaheads, ambiguous numeric fields, non-Yes/No radio groups, conditional controls that appear after a step baseline, utility/consent checkboxes, repeatable profile sections, résumés, and file inputs stay local and manual and are omitted from resolution requests. The scanner never clicks or invokes Next, Continue, Review, Submit, consent, profile, file, or résumé actions, and it never navigates or submits an application.
+Supported controls that appear after a step's initial render enter resolution only after their identity remains stable across two scans. Typeaheads, ambiguous numeric fields, non-Yes/No radio groups, utility/consent checkboxes, repeatable profile sections, résumés, and file inputs stay local and manual and are omitted from resolution requests. The scanner never clicks or invokes Next, Continue, Review, Submit, consent, profile, file, or résumé actions, and it never navigates or submits an application.
 
 ## Keyboard
 

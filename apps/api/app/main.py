@@ -12,6 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+from starlette.types import Scope
 
 from app.blocked.router import router as blocked_router
 from app.core.config import get_settings
@@ -34,6 +36,16 @@ from app.stats.router import router as stats_router
 # uvicorn's logger is the one with a console handler attached, so app lines — errors,
 # the per-write commit log — render alongside access logs.
 logger = logging.getLogger("uvicorn.error")
+
+
+class DashboardStaticFiles(StaticFiles):
+    """Keep the SPA entry document fresh across dashboard rebuilds."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        if response.headers.get("content-type", "").startswith("text/html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 def _timestamp_uvicorn_logs() -> None:
@@ -221,4 +233,4 @@ app.include_router(api_router, prefix="/api")
 # back here. `html=True` makes it a real SPA host, falling unknown paths back to
 # index.html for client routing.
 if paths.web_dist.is_dir():
-    app.mount("/", StaticFiles(directory=paths.web_dist, html=True), name="dashboard")
+    app.mount("/", DashboardStaticFiles(directory=paths.web_dist, html=True), name="dashboard")

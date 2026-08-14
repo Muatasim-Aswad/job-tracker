@@ -222,7 +222,7 @@ describe("generation-based safe form filling", () => {
     scanner.setEnabled(false);
   });
 
-  it("keeps later same-step fields local as unproven conditional controls", async () => {
+  it("stabilizes and then observes later same-step fields", async () => {
     fixture(field(1, "Initial question"));
     const requests: FormFillResolutionRequest[] = [];
     const scanner = new EasyApplyScanner(document, {
@@ -248,9 +248,16 @@ describe("generation-based safe form filling", () => {
     await scanner.scan();
 
     expect(requests[1].fields.map((item) => item.prompt)).toEqual(["Initial question"]);
-    expect(document.body.textContent).toContain("Complete this manually");
-    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
-    expect(panel.textContent).toContain("A conditional question appeared after this step loaded.");
+    let panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.textContent).toContain("Waiting for this new question to finish rendering.");
+
+    await scanner.scan();
+    expect(requests[2].fields.map((item) => item.prompt)).toEqual([
+      "Initial question",
+      "Conditional question",
+    ]);
+    panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.textContent).not.toContain("Complete this manually");
     scanner.setEnabled(false);
   });
 
@@ -533,6 +540,87 @@ describe("generation-based safe form filling", () => {
       value: null,
     });
     expect(JSON.stringify(captureBridge.mock.calls[1][0])).not.toContain("user-entered-value");
+    scanner.setEnabled(false);
+  });
+
+  it("flushes a pending text capture before the host advances the step", async () => {
+    history.replaceState({}, "", "/jobs/view/example-123456/");
+    document.body.innerHTML = `
+      <div class="jobs-easy-apply-modal">
+        <h3>First step</h3><progress value="1" max="3"></progress>
+        ${field(1, "Fast answer")}
+      </div>`;
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureSettleMs: 60_000,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    input.value = "typed-before-next";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    expect(captureBridge).not.toHaveBeenCalled();
+
+    document.querySelector("h3")!.textContent = "Second step";
+    document.querySelector<HTMLProgressElement>("progress")!.value = 2;
+    await scanner.scan();
+
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(captureBridge.mock.calls[0][0].value).toEqual({
+      kind: "text",
+      value: "typed-before-next",
+    });
+    scanner.setEnabled(false);
+  });
+
+  it("allows the same value to retry after a capture transport failure", async () => {
+    vi.useFakeTimers();
+    fixture(field(1, "Retry answer"));
+    const captureBridge = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false as const })
+      .mockResolvedValue({
+        ok: true as const,
+        result: { capture: {} } as FormFillCaptureResponse,
+      });
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureSettleMs: 20,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    input.value = "retryable-value";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledOnce();
+
+    await scanner.scan();
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledTimes(2);
+    expect(captureBridge.mock.calls[1][0].value).toEqual({
+      kind: "text",
+      value: "retryable-value",
+    });
     scanner.setEnabled(false);
   });
 

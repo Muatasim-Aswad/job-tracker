@@ -86,6 +86,7 @@ export interface QuestionFilters {
   has_current_capture?: boolean;
   limit?: number;
   mapping_status?: "active" | "disabled" | "retired" | "none";
+  needs_review?: boolean;
   review_state?: "open" | "ignored";
   site_scope?: string;
   sort?: "last_seen" | "seen_count";

@@ -13,7 +13,7 @@ export function QuestionList({ onOpen }: Props) {
   const [sort, setSort] = useState<"last_seen" | "seen_count">("last_seen");
   const filters = useMemo(
     () => ({
-      review_state: "open" as const,
+      needs_review: true,
       mapping_status: mappingStatus || undefined,
       sort,
       limit: 30,

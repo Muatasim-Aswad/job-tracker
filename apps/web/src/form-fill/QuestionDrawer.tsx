@@ -212,15 +212,21 @@ export function QuestionDrawer({ questionId, suggestedAnswerId, onClose, onCreat
               <dt className="text-ink-muted">State</dt>
               <dd>{question.review_state === "ignored" ? "Muted" : "Open"}</dd>
             </dl>
-            <button
-              type="button"
-              onClick={() =>
-                void changeReview(question.review_state === "open" ? "ignored" : "open")
-              }
-              className="rounded border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink"
-            >
-              {question.review_state === "open" ? "Mute Question" : "Reopen Question"}
-            </button>
+            {question.review_state === "ignored" || question.mapping?.status !== "active" ? (
+              <button
+                type="button"
+                onClick={() =>
+                  void changeReview(question.review_state === "open" ? "ignored" : "open")
+                }
+                className="rounded border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink"
+              >
+                {question.review_state === "open" ? "Mute Question" : "Reopen Question"}
+              </button>
+            ) : (
+              <p className="text-sm text-ink-muted">
+                This Question is handled by its active Match.
+              </p>
+            )}
           </section>
 
           {question.capture_conflict && (

@@ -10,13 +10,42 @@ vi.mock("./api/client", () => ({
     listJobs: vi.fn(),
     postEvents: vi.fn(),
     getJob: vi.fn(),
+    listFormFillCaptures: vi.fn(),
+    listFormFillQuestions: vi.fn(),
   },
 }));
 
 import { api } from "./api/client";
-import { useJob, useJobEvents, useJobs } from "./hooks";
+import { useFormFillReviewPresence, useJob, useJobEvents, useJobs } from "./hooks";
 
 const mockedApi = vi.mocked(api);
+
+function queryWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  };
+}
+
+describe("form-fill review presence", () => {
+  it("asks for actionable Questions rather than every open Question", async () => {
+    mockedApi.listFormFillCaptures.mockResolvedValue({ items: [], next_cursor: null } as never);
+    mockedApi.listFormFillQuestions.mockResolvedValue({
+      items: [{ id: "question-actionable" }],
+      next_cursor: null,
+    } as never);
+    const { result } = renderHook(() => useFormFillReviewPresence(), {
+      wrapper: queryWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.hasQuestions).toBe(true));
+    expect(result.current.hasCaptures).toBe(false);
+    expect(mockedApi.listFormFillQuestions).toHaveBeenCalledWith({
+      needs_review: true,
+      limit: 1,
+    });
+  });
+});
 
 function makeJob(overrides: Partial<JobSummary> = {}): JobSummary {
   return {

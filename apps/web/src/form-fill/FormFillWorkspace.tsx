@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useFormFillReviewPresence } from "../hooks";
 import { AnswerDrawer } from "./AnswerDrawer";
 import { AnswerList } from "./AnswerList";
 import { CaptureDrawer } from "./CaptureDrawer";
@@ -32,6 +33,7 @@ function readState() {
 
 export function FormFillWorkspace() {
   const [state, setState] = useState(readState);
+  const reviewPresence = useFormFillReviewPresence();
   const [creatingAnswer, setCreatingAnswer] = useState(false);
   const [returnToQuestion, setReturnToQuestion] = useState<string | null>(null);
   const [suggestedAnswerId, setSuggestedAnswerId] = useState<string | null>(null);
@@ -41,6 +43,28 @@ export function FormFillWorkspace() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (
+      state.section !== "review" ||
+      params.has("type") ||
+      reviewPresence.isLoading ||
+      reviewPresence.hasCaptures ||
+      !reviewPresence.hasQuestions
+    ) {
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("type", "questions");
+    window.history.replaceState(null, "", url);
+    setState((current) => ({ ...current, reviewType: "questions" }));
+  }, [
+    reviewPresence.hasCaptures,
+    reviewPresence.hasQuestions,
+    reviewPresence.isLoading,
+    state.section,
+  ]);
 
   useEffect(() => {
     const url = new URL(window.location.href);

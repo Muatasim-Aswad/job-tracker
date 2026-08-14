@@ -119,6 +119,34 @@ def test_unknown_listing_context_stays_unlinked_and_does_not_materialize_a_job(c
     assert conn.execute("SELECT COUNT(*) FROM listings").fetchone() == (0,)
 
 
+def test_last_unresolved_reason_tracks_the_actual_resolution_outcome(conn: Conn) -> None:
+    service = FormFillService(conn)
+    first = _resolve(service, _request(_field()))["results"][0]
+    assert service.get_question(first["question_id"]).last_unresolved_reason == "no_knowledge"
+
+    conn.execute(
+        "INSERT INTO form_answers (id, answer_key, label, value_kind, value_json, status, "
+        "fill_policy, revision, verified_at, created_at, updated_at) "
+        "VALUES ('answer-1', 'years.python', 'Years', 'decimal', ?, 'active', "
+        "'auto', 1, 't', 't', 't')",
+        ('{"kind":"decimal","value":"3"}',),
+    )
+    conn.execute(
+        "INSERT INTO form_question_mappings "
+        "(id, question_id, answer_id, status, revision, approved_at, created_at, updated_at) "
+        "VALUES ('mapping-1', ?, 'answer-1', 'active', 1, 't', 't', 't')",
+        (first["question_id"],),
+    )
+    approved = _resolve(service, _request(_field(), scan_id="scan-2"))["results"][0]
+    assert approved["status"] == "approved"
+    assert service.get_question(first["question_id"]).last_unresolved_reason is None
+
+    conn.execute("UPDATE form_question_mappings SET status = 'disabled' WHERE id = 'mapping-1'")
+    blocked = _resolve(service, _request(_field(), scan_id="scan-3"))["results"][0]
+    assert blocked["reason"] == "mapping_disabled"
+    assert service.get_question(first["question_id"]).last_unresolved_reason == "mapping_disabled"
+
+
 def test_sighting_retry_is_deduplicated_and_option_reordering_preserves_identity(
     conn: Conn,
 ) -> None:

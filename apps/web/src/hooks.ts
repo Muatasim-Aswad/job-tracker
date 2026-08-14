@@ -369,6 +369,7 @@ export function useRelinkListing() {
 // Answer, Question, Match, Capture, presence, and detail projections stay coherent.
 
 const FORM_FILL_KEY = ["form-fill"] as const;
+const FORM_FILL_REFRESH_MS = 2_000;
 const answerDetailKey = (id: string) => [...FORM_FILL_KEY, "answer", id] as const;
 const captureDetailKey = (id: string) => [...FORM_FILL_KEY, "capture", id] as const;
 const questionDetailKey = (id: string) => [...FORM_FILL_KEY, "question", id] as const;
@@ -397,6 +398,8 @@ export function useFormFillCaptures(filters: Omit<CaptureFilters, "cursor">) {
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => api.listFormFillCaptures({ ...filters, cursor: pageParam }),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
+    refetchInterval: FORM_FILL_REFRESH_MS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -425,6 +428,8 @@ export function useFormFillQuestions(filters: Omit<QuestionFilters, "cursor">) {
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => api.listFormFillQuestions({ ...filters, cursor: pageParam }),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
+    refetchInterval: FORM_FILL_REFRESH_MS,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -441,13 +446,21 @@ export function useFormFillReviewPresence() {
   const capture = useQuery({
     queryKey: [...FORM_FILL_KEY, "presence", "captures"] as const,
     queryFn: () => api.listFormFillCaptures({ status: "current", limit: 1 }),
+    refetchInterval: FORM_FILL_REFRESH_MS,
+    refetchIntervalInBackground: false,
   });
   const question = useQuery({
     queryKey: [...FORM_FILL_KEY, "presence", "questions"] as const,
-    queryFn: () => api.listFormFillQuestions({ review_state: "open", limit: 1 }),
+    queryFn: () => api.listFormFillQuestions({ needs_review: true, limit: 1 }),
+    refetchInterval: FORM_FILL_REFRESH_MS,
+    refetchIntervalInBackground: false,
   });
+  const hasCaptures = !!capture.data?.items.length;
+  const hasQuestions = !!question.data?.items.length;
   return {
-    hasReview: !!capture.data?.items.length || !!question.data?.items.length,
+    hasReview: hasCaptures || hasQuestions,
+    hasCaptures,
+    hasQuestions,
     isLoading: capture.isLoading || question.isLoading,
   };
 }

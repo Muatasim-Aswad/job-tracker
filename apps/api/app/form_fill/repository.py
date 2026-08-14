@@ -103,9 +103,6 @@ class FormFillRepository:
         )
         revision_increment = 1 if evidence_changed or options_changed else 0
         seen_increment = 1 if question.last_seen_scan_id != scan_id else 0
-        unresolved_reason = (
-            "question_ignored" if question.review_state == "ignored" else "no_knowledge"
-        )
         execute(
             self.conn,
             "UPDATE form_questions SET normalized_question = ?, raw_question = ?, "
@@ -122,12 +119,19 @@ class FormFillRepository:
                 identity.raw_help,
                 identity.autocomplete_token,
                 revision_increment,
-                unresolved_reason,
+                question.last_unresolved_reason,
                 seen_increment,
                 scan_id,
                 now,
                 question.id,
             ),
+        )
+
+    def update_resolution_reason(self, question_id: str, reason: str | None) -> None:
+        execute(
+            self.conn,
+            "UPDATE form_questions SET last_unresolved_reason = ? WHERE id = ?",
+            (reason, question_id),
         )
 
     def list_options(self, question_id: str) -> list[QuestionOption]:
@@ -205,6 +209,7 @@ class FormFillRepository:
         *,
         review_state: str | None,
         mapping_status: str | None,
+        needs_review: bool | None,
         has_current_capture: bool | None,
         site_scope: str | None,
         answer_id: str | None,
@@ -223,6 +228,12 @@ class FormFillRepository:
         elif mapping_status is not None:
             conditions.append("m.status = ?")
             params.append(mapping_status)
+        if needs_review is not None:
+            actionable = (
+                "(q.review_state = 'open' AND "
+                "(q.capture_conflict = 1 OR m.id IS NULL OR m.status <> 'active'))"
+            )
+            conditions.append(actionable if needs_review else f"NOT {actionable}")
         if has_current_capture is not None:
             predicate = "EXISTS" if has_current_capture else "NOT EXISTS"
             conditions.append(

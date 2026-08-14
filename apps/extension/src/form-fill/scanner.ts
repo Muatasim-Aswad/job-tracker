@@ -161,6 +161,8 @@ export class EasyApplyScanner {
   private ownership = new Map<string, OwnershipRecord>();
   private pendingCaptures = new Map<string, PendingCapture>();
   private captureTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private conditionalIdentities = new Map<string, string>();
+  private conditionalTimer: ReturnType<typeof setTimeout> | undefined;
   private lastCaptureSignatures = new Map<string, string>();
   private notes = new Map<string, FieldNote>();
   private suppressedWrites = new Set<string>();
@@ -233,7 +235,8 @@ export class EasyApplyScanner {
       runtime.identity === identity &&
       snapshotsEqual(current, runtime.expected) &&
       !this.pendingCaptures.has(field.handle) &&
-      !this.lastCaptureSignatures.has(field.handle)
+      !this.lastCaptureSignatures.has(field.handle) &&
+      this.notes.get(field.handle)?.state !== "failed"
     ) {
       return;
     }
@@ -254,6 +257,9 @@ export class EasyApplyScanner {
       if (this.timer) clearTimeout(this.timer);
       for (const timer of this.captureTimers.values()) clearTimeout(timer);
       this.captureTimers.clear();
+      if (this.conditionalTimer) clearTimeout(this.conditionalTimer);
+      this.conditionalTimer = undefined;
+      this.conditionalIdentities.clear();
       this.observer?.disconnect();
       this.observer = undefined;
       this.doc.removeEventListener("input", this.onControlEvent, true);
@@ -825,10 +831,11 @@ export class EasyApplyScanner {
       ...captureValue,
     };
     pending.attempted = true;
-    this.lastCaptureSignatures.set(handle, pending.signature);
     const response = await this.captureBridge(request);
     this.pendingCaptures.delete(handle);
     this.captureTimers.delete(handle);
+    if (response.ok) this.lastCaptureSignatures.set(handle, pending.signature);
+    else this.lastCaptureSignatures.delete(handle);
     const signature = snapshotKey(pending.snapshot);
     this.notes.set(
       handle,
@@ -843,21 +850,29 @@ export class EasyApplyScanner {
         : {
             state: "failed",
             label: "Could not remember this value",
-            detail: "Job Tracker will not retry automatically.",
+            detail: "Change this field again to retry.",
             signature,
           },
     );
     this.schedule();
   }
 
-  private async proveAdvancedNumericCaptures(previousStep: string): Promise<void> {
+  private async flushOutgoingCaptures(previousStep: string, advanced: boolean): Promise<void> {
     const pending = [...this.pendingCaptures.values()].filter(
-      (item) => item.numeric && item.stepKey === previousStep && !item.attempted,
+      (item) => item.stepKey === previousStep && !item.attempted,
     );
     for (const item of pending) {
-      item.numericProven = true;
+      if (item.numeric && advanced) item.numericProven = true;
       await this.flushCapture(item.handle);
     }
+  }
+
+  private scheduleConditionalRescan(): void {
+    if (this.conditionalTimer) return;
+    this.conditionalTimer = setTimeout(() => {
+      this.conditionalTimer = undefined;
+      void this.scan();
+    }, this.settleMs);
   }
 
   async scan(expectedGeneration?: number): Promise<void> {
@@ -873,14 +888,12 @@ export class EasyApplyScanner {
     const discovered = discoverLinkedInFields(root);
     const currentStep = stepIdentity(root);
     const currentProgress = progressValue(root);
-    if (
-      this.stepKey &&
-      currentStep !== this.stepKey &&
-      this.stepProgress !== null &&
-      currentProgress !== null &&
-      currentProgress > this.stepProgress
-    ) {
-      await this.proveAdvancedNumericCaptures(this.stepKey);
+    if (this.stepKey && currentStep !== this.stepKey) {
+      const advanced =
+        this.stepProgress !== null &&
+        currentProgress !== null &&
+        currentProgress > this.stepProgress;
+      await this.flushOutgoingCaptures(this.stepKey, advanced);
     }
     const supported = discovered.filter(
       (field): field is SupportedField => field.kind === "supported",
@@ -890,20 +903,36 @@ export class EasyApplyScanner {
       this.stepKey = currentStep;
       this.stepProgress = currentProgress;
       this.baselineHandles = new Set(supported.map((field) => field.handle));
+      this.conditionalIdentities.clear();
       this.runtimeFields.clear();
     } else {
+      const presentHandles = new Set(supported.map((field) => field.handle));
+      let needsRescan = false;
       for (const field of supported.splice(0, supported.length)) {
         if (this.baselineHandles.has(field.handle)) supported.push(field);
         else {
-          manual.push({
-            kind: "manual",
-            container: field.container,
-            handle: field.handle,
-            prompt: field.request.prompt,
-            reason: "A conditional question appeared after this step loaded.",
-          });
+          const identity = fieldIdentityFingerprint(field);
+          if (this.conditionalIdentities.get(field.handle) === identity) {
+            this.baselineHandles.add(field.handle);
+            this.conditionalIdentities.delete(field.handle);
+            supported.push(field);
+          } else {
+            this.conditionalIdentities.set(field.handle, identity);
+            needsRescan = true;
+            manual.push({
+              kind: "manual",
+              container: field.container,
+              handle: field.handle,
+              prompt: field.request.prompt,
+              reason: "Waiting for this new question to finish rendering.",
+            });
+          }
         }
       }
+      for (const handle of [...this.conditionalIdentities.keys()]) {
+        if (!presentHandles.has(handle)) this.conditionalIdentities.delete(handle);
+      }
+      if (needsRescan) this.scheduleConditionalRescan();
     }
 
     for (const field of supported) {

@@ -5,11 +5,32 @@ from __future__ import annotations
 import sqlite3
 from unittest.mock import patch
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.core.db import init_schema
 from app.core.deps import get_conn
-from app.main import app
+from app.main import DashboardStaticFiles, app
+
+
+def test_dashboard_html_revalidates_without_changing_asset_cache_policy(tmp_path) -> None:
+    web_dist = tmp_path / "dist"
+    assets = web_dist / "assets"
+    assets.mkdir(parents=True)
+    (web_dist / "index.html").write_text("<h1>Dashboard</h1>")
+    (assets / "index-hash.js").write_text("export {};")
+
+    dashboard_app = FastAPI()
+    dashboard_app.mount("/", DashboardStaticFiles(directory=web_dist, html=True), name="dashboard")
+    client = TestClient(dashboard_app)
+
+    document = client.get("/")
+    asset = client.get("/assets/index-hash.js")
+
+    assert document.status_code == 200
+    assert document.headers["cache-control"] == "no-cache"
+    assert asset.status_code == 200
+    assert asset.headers.get("cache-control") != "no-cache"
 
 
 def test_unhandled_exception_returns_json_500() -> None:
