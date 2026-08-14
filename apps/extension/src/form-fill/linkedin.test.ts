@@ -105,6 +105,57 @@ describe("LinkedIn Easy Apply discovery", () => {
     expect(linkedInPlatformId(document, fields)).toBe("987654");
   });
 
+  it("supports localized radios and excludes LinkedIn's presentational required marker", () => {
+    const [field] = discoverLinkedInFields(
+      root(`
+        <div data-test-form-element>
+          <fieldset>
+            <legend>
+              <span data-test-form-builder-radio-button-form-component__title>
+                <span>Hebt u het volgende opleidingsniveau voltooid: Bachelorgraad?</span>
+              </span>
+              <span class="visually-hidden"
+                data-test-form-builder-radio-button-form-component__required> Required </span>
+            </legend>
+            <div><input id="education-0" type="radio" name="education" aria-required="true"><label for="education-0">Ja</label></div>
+            <div><input id="education-1" type="radio" name="education" aria-required="true"><label for="education-1">Nee</label></div>
+          </fieldset>
+        </div>`),
+    );
+
+    expect(field.kind).toBe("supported");
+    expect((field as SupportedField).request).toMatchObject({
+      control_kind: "radio",
+      prompt: "Hebt u het volgende opleidingsniveau voltooid: Bachelorgraad?",
+      required: true,
+    });
+    expect((field as SupportedField).request.options?.map((option) => option.label)).toEqual([
+      "Ja",
+      "Nee",
+    ]);
+  });
+
+  it("supports ordinary non-boolean radio choices without changing meaningful prompt text", () => {
+    const [field] = discoverLinkedInFields(
+      root(`
+        <div data-test-form-element>
+          <fieldset><legend>Which schedule is required?</legend>
+            <label><input type="radio" name="schedule">Morning</label>
+            <label><input type="radio" name="schedule">Afternoon</label>
+            <label><input type="radio" name="schedule">Evening</label>
+          </fieldset>
+        </div>`),
+    );
+
+    expect(field.kind).toBe("supported");
+    expect((field as SupportedField).request.prompt).toBe("Which schedule is required?");
+    expect((field as SupportedField).request.options?.map((option) => option.label)).toEqual([
+      "Morning",
+      "Afternoon",
+      "Evening",
+    ]);
+  });
+
   it("classifies unsafe and unproven shapes locally", () => {
     const form = root(`
       ${textQuestion(
@@ -114,7 +165,7 @@ describe("LinkedIn Easy Apply discovery", () => {
       )}
       <div data-test-form-element><fieldset><legend>Choose a schedule</legend>
         <label><input type="radio" name="schedule">Morning</label>
-        <label><input type="radio" name="schedule">Evening</label>
+        <label><input type="radio" name="different-schedule">Evening</label>
       </fieldset></div>
       <div data-test-form-element><label><input id="synthetic-follow-control" type="checkbox">Follow Example Co to stay up to date with their page.</label></div>
       <div data-test-form-element><label><input name="jobDetailsEasyApplyTopChoiceCheckbox" type="checkbox">Mark this job as a top choice</label></div>
@@ -128,7 +179,7 @@ describe("LinkedIn Easy Apply discovery", () => {
     expect(fields.map((field) => (field.kind === "manual" ? field.reason : ""))).toEqual(
       expect.arrayContaining([
         "Choose a typeahead suggestion manually.",
-        "Only Yes/No radio questions are supported.",
+        "This radio group could not be identified safely.",
         "Profile entries must be reviewed manually.",
       ]),
     );
@@ -216,6 +267,29 @@ describe("LinkedIn Easy Apply discovery", () => {
       kind: "manual",
       prompt: "Phone country code",
       reason: "This list has too many options to check.",
+    });
+    expect(fields[1].kind).toBe("supported");
+    expect((fields[1] as SupportedField).request.prompt).toBe("Preferred name");
+  });
+
+  it("keeps a malformed radio local while resolving its sibling field", () => {
+    const fields = discoverLinkedInFields(
+      root(`
+        <div data-test-form-element><fieldset><legend>Choose one</legend>
+          <label><input type="radio" name="broken">Same</label>
+          <label><input type="radio" name="broken">Same</label>
+        </fieldset></div>
+        ${textQuestion(
+          "single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-53-text",
+          "Preferred name",
+        )}
+      `),
+    );
+
+    expect(fields[0]).toMatchObject({
+      kind: "manual",
+      prompt: "Choose one",
+      reason: "This radio group could not be identified safely.",
     });
     expect(fields[1].kind).toBe("supported");
     expect((fields[1] as SupportedField).request.prompt).toBe("Preferred name");

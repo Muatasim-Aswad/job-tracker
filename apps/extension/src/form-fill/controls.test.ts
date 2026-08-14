@@ -68,6 +68,27 @@ describe("native Easy Apply controls", () => {
     ).toBe(true);
   });
 
+  it("sets an ordinary radio choice by its request-local option ID", () => {
+    const [field] = supported(`
+      <div data-test-form-element>
+        <fieldset><legend>Preferred schedule</legend>
+          <label><input id="schedule-0" type="radio" name="schedule">Morning</label>
+          <label><input id="schedule-1" type="radio" name="schedule">Afternoon</label>
+          <label><input id="schedule-2" type="radio" name="schedule">Evening</label>
+        </fieldset>
+      </div>`);
+    const click = vi.spyOn(HTMLElement.prototype, "click");
+    const action = {
+      kind: "set_single_choice" as const,
+      client_option_id: "field-1-option-3",
+    };
+
+    expect(applyAction(field, action)).toBe(true);
+    expect((field.optionTargets[2].element as HTMLInputElement).checked).toBe(true);
+    expect(controlMatchesAction(field, action)).toBe(true);
+    expect(click).not.toHaveBeenCalled();
+  });
+
   it("rejects unsafe numeric actions and observes host validation errors", () => {
     const [field] = supported(`
       <div data-test-form-element>
