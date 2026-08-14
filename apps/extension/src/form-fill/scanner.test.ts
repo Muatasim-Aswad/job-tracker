@@ -163,6 +163,35 @@ describe("generation-based safe form filling", () => {
     scanner.setEnabled(false);
   });
 
+  it("keeps the user's summary choice across presentation rerenders", async () => {
+    fixture(field(1, "Summary preference"));
+    const saveSummaryOpen = vi.fn();
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      saveSummaryOpen,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setSummaryOpenPreference(false);
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    let panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    let details = panel.querySelector<HTMLDetailsElement>("details")!;
+    expect(details.open).toBe(false);
+    panel.querySelector<HTMLElement>("summary")!.click();
+    await vi.waitFor(() => expect(saveSummaryOpen).toHaveBeenCalledWith(true));
+
+    await scanner.scan();
+    panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    details = panel.querySelector<HTMLDetailsElement>("details")!;
+    expect(details.open).toBe(true);
+    scanner.setEnabled(false);
+  });
+
   it("discards a stale response after a newer generation settles", async () => {
     fixture(field(1, "Current question"));
     let releaseFirst:

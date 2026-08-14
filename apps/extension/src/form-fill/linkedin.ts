@@ -9,8 +9,9 @@ import type {
 export const EASY_APPLY_ROOT = ".jobs-easy-apply-modal, [data-test-easy-apply-modal]";
 const QUESTION = "[data-test-form-element]";
 const REPEATABLE = ".jobs-easy-apply-repeatable-groupings__groupings";
-const UTILITY_CHECKBOX =
-  'input[type="checkbox"][name="jobDetailsEasyApplyTopChoiceCheckbox"], input[type="checkbox"]#follow-company-checkbox';
+const UTILITY_CHECKBOX = 'input[type="checkbox"][name="jobDetailsEasyApplyTopChoiceCheckbox"]';
+const FOLLOW_COMPANY_CHECKBOX = 'input[type="checkbox"]#follow-company-checkbox';
+const FOLLOW_COMPANY_PROMPT = /\bfollow\b.*\bstay up to date\b.*\bpage\b/i;
 const RESUME = 'input[type="file"], input[type="radio"][id^="jobsDocumentCardToggle-ember"]';
 const SENSITIVE =
   /\b(?:captcha|signature|payment|credit card|bank|password|authentication|consent|terms|privacy policy)\b/i;
@@ -176,6 +177,13 @@ function classifyQuestion(
 
   if (!first && enabledControls.some((control) => control.matches(RESUME))) return null;
   if (!first) return manual(container, handle, prompt, "This control shape is not supported.");
+  if (
+    first instanceof HTMLInputElement &&
+    first.type === "checkbox" &&
+    (first.matches(FOLLOW_COMPANY_CHECKBOX) || FOLLOW_COMPANY_PROMPT.test(prompt))
+  ) {
+    return null;
+  }
   if (!prompt) {
     return manual(container, handle, prompt, "Question text could not be identified safely.");
   }

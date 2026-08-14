@@ -27,7 +27,13 @@ import {
   stepIdentity,
 } from "./linkedin.js";
 import { clearPresentation, isPresentationMutation, renderPresentation } from "./presentation.js";
-import { EASY_APPLY_ENABLED_KEY, loadEasyApplyEnabled } from "./settings.js";
+import {
+  EASY_APPLY_ENABLED_KEY,
+  EASY_APPLY_SUMMARY_OPEN_KEY,
+  loadEasyApplyEnabled,
+  loadEasyApplySummaryOpen,
+  saveEasyApplySummaryOpen,
+} from "./settings.js";
 import type {
   FillAction,
   ManualField,
@@ -140,6 +146,7 @@ export interface ScannerOptions {
   isUserEvent?: (event: Event) => boolean;
   settleMs?: number;
   captureSettleMs?: number;
+  saveSummaryOpen?: (open: boolean) => void;
 }
 
 export class EasyApplyScanner {
@@ -149,6 +156,7 @@ export class EasyApplyScanner {
   private readonly isUserEvent: (event: Event) => boolean;
   private readonly settleMs: number;
   private readonly captureSettleMs: number;
+  private readonly saveSummaryOpen: (open: boolean) => void;
   private readonly applicationContextId: string;
   private generation = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -169,6 +177,7 @@ export class EasyApplyScanner {
   private writeDepth = 0;
   private renderedRoot: HTMLElement | null = null;
   private renderedFields: PresentedField[] = [];
+  private summaryOpen: boolean | undefined;
 
   constructor(
     private readonly doc: Document,
@@ -180,7 +189,20 @@ export class EasyApplyScanner {
     this.isUserEvent = options.isUserEvent ?? ((event) => event.isTrusted);
     this.settleMs = options.settleMs ?? SETTLE_MS;
     this.captureSettleMs = options.captureSettleMs ?? CAPTURE_SETTLE_MS;
+    this.saveSummaryOpen = options.saveSummaryOpen ?? saveEasyApplySummaryOpen;
     this.applicationContextId = this.id();
+  }
+
+  setSummaryOpenPreference(open: boolean | undefined): void {
+    if (open === this.summaryOpen) return;
+    this.summaryOpen = open;
+    this.renderCurrent();
+  }
+
+  private rememberSummaryOpen(open: boolean): void {
+    if (open === this.summaryOpen) return;
+    this.summaryOpen = open;
+    this.saveSummaryOpen(open);
   }
 
   private readonly onControlEvent = (event: Event) => {
@@ -358,6 +380,8 @@ export class EasyApplyScanner {
     });
     renderPresentation(this.renderedRoot, this.renderedFields, {
       undoAll: hasOwnedWrites ? () => this.undoAll() : undefined,
+      open: this.summaryOpen,
+      onOpenChange: (open) => this.rememberSummaryOpen(open),
     });
   }
 
@@ -1073,10 +1097,19 @@ export class EasyApplyScanner {
 
 export function startEasyApplyFormFill(doc: Document = document): EasyApplyScanner {
   const scanner = new EasyApplyScanner(doc);
-  loadEasyApplyEnabled((enabled) => scanner.setEnabled(enabled));
+  loadEasyApplySummaryOpen((open) => {
+    scanner.setSummaryOpenPreference(open);
+    loadEasyApplyEnabled((enabled) => scanner.setEnabled(enabled));
+  });
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local" || !changes[EASY_APPLY_ENABLED_KEY]) return;
-    scanner.setEnabled(changes[EASY_APPLY_ENABLED_KEY].newValue !== false);
+    if (area !== "local") return;
+    if (changes[EASY_APPLY_ENABLED_KEY]) {
+      scanner.setEnabled(changes[EASY_APPLY_ENABLED_KEY].newValue !== false);
+    }
+    if (changes[EASY_APPLY_SUMMARY_OPEN_KEY]) {
+      const value = changes[EASY_APPLY_SUMMARY_OPEN_KEY].newValue;
+      scanner.setSummaryOpenPreference(typeof value === "boolean" ? value : undefined);
+    }
   });
   return scanner;
 }

@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   EASY_APPLY_DEFAULT_ENABLED,
   EASY_APPLY_ENABLED_KEY,
+  EASY_APPLY_SUMMARY_OPEN_KEY,
   loadEasyApplyEnabled,
+  loadEasyApplySummaryOpen,
   saveEasyApplyEnabled,
+  saveEasyApplySummaryOpen,
 } from "./settings";
 
 function installStorage(seed: Record<string, unknown> = {}) {
@@ -41,5 +44,24 @@ describe("Easy Apply switch", () => {
     let enabled = true;
     loadEasyApplyEnabled((value) => (enabled = value));
     expect(enabled).toBe(false);
+  });
+});
+
+describe("Easy Apply summary preference", () => {
+  it("has no stored override by default", () => {
+    const store = installStorage();
+    let open: boolean | undefined = true;
+    loadEasyApplySummaryOpen((value) => (open = value));
+    expect(open).toBeUndefined();
+    expect(store).toEqual({});
+  });
+
+  it("persists the user's open or collapsed choice", () => {
+    const store = installStorage();
+    saveEasyApplySummaryOpen(false);
+    expect(store[EASY_APPLY_SUMMARY_OPEN_KEY]).toBe(false);
+    let open: boolean | undefined;
+    loadEasyApplySummaryOpen((value) => (open = value));
+    expect(open).toBe(false);
   });
 });
