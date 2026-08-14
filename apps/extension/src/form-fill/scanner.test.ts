@@ -5,7 +5,7 @@ import type {
   FormFillResolutionRequest,
   FormFillResolutionResponse,
 } from "../messages";
-import { EasyApplyScanner } from "./scanner";
+import { EasyApplyScanner, startEasyApplyFormFill } from "./scanner";
 
 const field = (number: number, prompt: string, value = "") => `
   <div data-test-form-element>
@@ -189,6 +189,54 @@ describe("generation-based safe form filling", () => {
     panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
     details = panel.querySelector<HTMLDetailsElement>("details")!;
     expect(details.open).toBe(true);
+    scanner.setEnabled(false);
+  });
+
+  it("keeps a newer collapsed choice when initial storage loading settles late", async () => {
+    fixture(field(1, "Startup summary preference"));
+    const gets = new Map<string, (data: Record<string, unknown>) => void>();
+    const changeListeners: Array<
+      (changes: Record<string, chrome.storage.StorageChange>, area: string) => void
+    > = [];
+    (globalThis as unknown as { chrome: unknown }).chrome = {
+      runtime: {
+        lastError: undefined,
+        sendMessage: (
+          message: { payload: FormFillResolutionRequest },
+          callback: (result: unknown) => void,
+        ) =>
+          callback({
+            ok: true,
+            result: response(message.payload, [unresolved("field-1")]),
+          }),
+      },
+      storage: {
+        local: {
+          get: (key: string, callback: (data: Record<string, unknown>) => void) => {
+            gets.set(key, callback);
+          },
+          set: vi.fn(),
+        },
+        onChanged: {
+          addListener: (listener: (typeof changeListeners)[number]) => {
+            changeListeners.push(listener);
+          },
+        },
+      },
+    };
+
+    const scanner = startEasyApplyFormFill(document);
+    changeListeners[0]({ easyApplySummaryOpen: { newValue: false } }, "local");
+    gets.get("easyApplySummaryOpen")!({});
+    gets.get("easyApplyEnabled")!({ easyApplyEnabled: true });
+    await scanner.scan();
+
+    let panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.querySelector<HTMLDetailsElement>("details")!.open).toBe(false);
+
+    await scanner.scan();
+    panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.querySelector<HTMLDetailsElement>("details")!.open).toBe(false);
     scanner.setEnabled(false);
   });
 

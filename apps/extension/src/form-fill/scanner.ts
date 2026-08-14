@@ -177,6 +177,7 @@ export class EasyApplyScanner {
   private writeDepth = 0;
   private renderedRoot: HTMLElement | null = null;
   private renderedFields: PresentedField[] = [];
+  private summaryPreferenceKnown = false;
   private summaryOpen: boolean | undefined;
 
   constructor(
@@ -194,12 +195,19 @@ export class EasyApplyScanner {
   }
 
   setSummaryOpenPreference(open: boolean | undefined): void {
+    this.summaryPreferenceKnown = true;
     if (open === this.summaryOpen) return;
     this.summaryOpen = open;
     this.renderCurrent();
   }
 
+  initializeSummaryOpenPreference(open: boolean | undefined): void {
+    if (this.summaryPreferenceKnown) return;
+    this.setSummaryOpenPreference(open);
+  }
+
   private rememberSummaryOpen(open: boolean): void {
+    this.summaryPreferenceKnown = true;
     if (open === this.summaryOpen) return;
     this.summaryOpen = open;
     this.saveSummaryOpen(open);
@@ -1097,10 +1105,6 @@ export class EasyApplyScanner {
 
 export function startEasyApplyFormFill(doc: Document = document): EasyApplyScanner {
   const scanner = new EasyApplyScanner(doc);
-  loadEasyApplySummaryOpen((open) => {
-    scanner.setSummaryOpenPreference(open);
-    loadEasyApplyEnabled((enabled) => scanner.setEnabled(enabled));
-  });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes[EASY_APPLY_ENABLED_KEY]) {
@@ -1110,6 +1114,10 @@ export function startEasyApplyFormFill(doc: Document = document): EasyApplyScann
       const value = changes[EASY_APPLY_SUMMARY_OPEN_KEY].newValue;
       scanner.setSummaryOpenPreference(typeof value === "boolean" ? value : undefined);
     }
+  });
+  loadEasyApplySummaryOpen((open) => {
+    scanner.initializeSummaryOpenPreference(open);
+    loadEasyApplyEnabled((enabled) => scanner.setEnabled(enabled));
   });
   return scanner;
 }
