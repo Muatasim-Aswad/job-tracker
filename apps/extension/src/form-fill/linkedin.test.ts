@@ -106,10 +106,11 @@ describe("LinkedIn Easy Apply discovery", () => {
       </fieldset></div>
       <div data-test-form-element><label><input id="follow-company-checkbox" type="checkbox">Follow company</label></div>
       <div class="jobs-easy-apply-repeatable-groupings__groupings"><h4>Education</h4></div>
-      <input type="file" aria-label="Upload document">
+      <div data-test-form-element><label><input type="file">Upload résumé</label></div>
+      <label><input id="jobsDocumentCardToggle-ember123" type="radio">Selected résumé</label>
     `);
     const fields = discoverLinkedInFields(form);
-    expect(fields).toHaveLength(5);
+    expect(fields).toHaveLength(4);
     expect(fields.every((field) => field.kind === "manual")).toBe(true);
     expect(fields.map((field) => (field.kind === "manual" ? field.reason : ""))).toEqual(
       expect.arrayContaining([
@@ -117,9 +118,11 @@ describe("LinkedIn Easy Apply discovery", () => {
         "Only Yes/No radio questions are supported.",
         "This LinkedIn option is left unchanged.",
         "Profile entries must be reviewed manually.",
-        "Résumés and files stay under your control.",
       ]),
     );
+    expect(
+      fields.map((field) => (field.kind === "manual" ? field.prompt : field.request.prompt)),
+    ).not.toEqual(expect.arrayContaining(["Upload résumé", "Selected résumé"]));
   });
 
   it("fingerprints semantic state without including a value", () => {

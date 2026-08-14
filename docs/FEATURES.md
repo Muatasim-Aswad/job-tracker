@@ -48,7 +48,7 @@ The dashboard refreshes its review queues while it remains visible. Questions ha
 
 Existing form values are never overwritten automatically. Job Tracker distinguishes an existing value that already agrees, one that differs, and an empty field it can safely fill. Replacing a differing value is an explicit action and is rechecked against the live control first. Each field is independent, so one unresolved field or request failure does not authorize another write.
 
-Unsupported or ambiguous controls stay local and manual; they are not included in resolution requests. This includes typeaheads, non-Yes/No radio groups, repeatable profile sections, file and résumé inputs, consent and utility checkboxes, and shapes whose numeric meaning is uncertain. Job Tracker flushes eligible pending values before observing a step change but never clicks Next, Continue, Review, Submit, consent, résumé, or profile controls and never navigates or submits an application.
+Unsupported or ambiguous controls stay local and manual; they are not included in resolution requests. This includes typeaheads, non-Yes/No radio groups, repeatable profile sections, consent and utility checkboxes, and shapes whose numeric meaning is uncertain. File and résumé inputs are ignored entirely and do not appear in the extension's field status. Job Tracker flushes eligible pending values before observing a step change but never clicks Next, Continue, Review, Submit, consent, résumé, or profile controls and never navigates or submits an application.
 
 ## Decide with context
 
