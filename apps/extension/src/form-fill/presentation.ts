@@ -101,6 +101,8 @@ function marker(field: PresentedField): HTMLElement {
 
 export interface PresentationOptions {
   undoAll?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function renderPresentation(
@@ -117,9 +119,12 @@ export function renderPresentation(
   const shadow = ensurePanel(root);
   const summary = counts(fields);
   const details = root.ownerDocument.createElement("details");
-  details.open = summary.attention > 0 || summary.manual > 0;
+  details.open = options.open ?? (summary.attention > 0 || summary.manual > 0);
   const heading = root.ownerDocument.createElement("summary");
   heading.append("Job Tracker");
+  heading.addEventListener("click", () => {
+    queueMicrotask(() => options.onOpenChange?.(details.open));
+  });
   const tally = root.ownerDocument.createElement("span");
   tally.className = "summary";
   tally.setAttribute("aria-live", "polite");

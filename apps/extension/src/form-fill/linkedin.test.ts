@@ -116,7 +116,8 @@ describe("LinkedIn Easy Apply discovery", () => {
         <label><input type="radio" name="schedule">Morning</label>
         <label><input type="radio" name="schedule">Evening</label>
       </fieldset></div>
-      <div data-test-form-element><label><input id="follow-company-checkbox" type="checkbox">Follow company</label></div>
+      <div data-test-form-element><label><input id="synthetic-follow-control" type="checkbox">Follow Example Co to stay up to date with their page.</label></div>
+      <div data-test-form-element><label><input name="jobDetailsEasyApplyTopChoiceCheckbox" type="checkbox">Mark this job as a top choice</label></div>
       <div class="jobs-easy-apply-repeatable-groupings__groupings"><h4>Education</h4></div>
       <div data-test-form-element><label><input type="file">Upload résumé</label></div>
       <label><input id="jobsDocumentCardToggle-ember123" type="radio">Selected résumé</label>
@@ -134,7 +135,20 @@ describe("LinkedIn Easy Apply discovery", () => {
     );
     expect(
       fields.map((field) => (field.kind === "manual" ? field.prompt : field.request.prompt)),
-    ).not.toEqual(expect.arrayContaining(["Upload résumé", "Selected résumé"]));
+    ).not.toEqual(
+      expect.arrayContaining([
+        "Follow Example Co to stay up to date with their page.",
+        "Upload résumé",
+        "Selected résumé",
+      ]),
+    );
+  });
+
+  it("ignores LinkedIn's follow-company checkbox even without a question wrapper", () => {
+    const fields = discoverLinkedInFields(
+      root('<label><input id="follow-company-checkbox" type="checkbox">Follow Example Co</label>'),
+    );
+    expect(fields).toEqual([]);
   });
 
   it("fingerprints semantic state without including a value", () => {
