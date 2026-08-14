@@ -263,6 +263,54 @@ def test_choice_mapping_round_trips_server_option_ids_and_requires_complete_bind
     assert mapped.mapping and len(mapped.mapping.bindings) == 2
 
 
+def test_choice_mapping_supports_complete_five_hundred_twelve_option_vocabulary(conn: Conn) -> None:
+    service = FormFillService(conn)
+    options = [
+        {"client_option_id": f"local-{index}", "label": f"Choice {index}", "disabled": False}
+        for index in range(512)
+    ]
+    field = _choice_field(prompt="Choose one item", control_kind="select", options=options)
+    observed = service.resolve(_request(field, "scan-large-1")).results[0]
+    detail = service.get_question(observed.question_id)
+    question_option_by_label = {option.raw_label: option.id for option in detail.options}
+    answer = service.create_answer(
+        AnswerCreate(
+            answer_key="profile.large_choice",
+            label="Large choice",
+            value_kind="single_choice",
+            value={"kind": "single_choice", "choice_key": "choice-31"},
+            choices=[
+                {"choice_key": f"choice-{index}", "display_label": f"Choice {index}"}
+                for index in range(512)
+            ],
+        )
+    )
+    answer_choice_by_key = {choice.choice_key: choice.id for choice in answer.choices}
+    mapped = service.put_mapping(
+        detail.id,
+        MappingPut(
+            answer_id=answer.id,
+            expected_question_revision=detail.revision,
+            expected_answer_revision=answer.revision,
+            bindings=[
+                {
+                    "question_option_id": question_option_by_label[f"Choice {index}"],
+                    "answer_choice_id": answer_choice_by_key[f"choice-{index}"],
+                }
+                for index in range(512)
+            ],
+        ),
+    )
+
+    result = service.resolve(_request(field, "scan-large-2")).results[0]
+    assert mapped.mapping and len(mapped.mapping.bindings) == 512
+    assert result.status == "approved"
+    assert result.action.model_dump() == {
+        "kind": "set_single_choice",
+        "client_option_id": "local-31",
+    }
+
+
 def test_retarget_reuses_singleton_row_replaces_bindings_and_stale_request_rolls_back(
     conn: Conn,
 ) -> None:

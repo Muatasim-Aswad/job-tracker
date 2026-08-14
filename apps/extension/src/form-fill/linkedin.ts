@@ -22,7 +22,7 @@ const RADIO_JOB = /easyApply:\((\d+),/i;
 // in apps/api/app/form_fill/schemas.py), and it rejects the whole request with it, so
 // one oversized control would leave every other field on the step unchecked. Keep this
 // value equal to that bound.
-const MAX_OPTIONS = 200;
+const MAX_OPTIONS = 512;
 
 function text(element: Element | null | undefined): string {
   return element?.textContent?.replace(/\s+/g, " ").trim() ?? "";
