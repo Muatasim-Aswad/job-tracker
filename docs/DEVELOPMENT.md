@@ -87,7 +87,7 @@ This policy covers Markdown only. Ruff formats Python and the workspace TypeScri
 
 ## Database migration compatibility
 
-`apps/api/app/core/schema.sql` is the 1.0.0 baseline: every pre-release migration is folded into it, so `_COLUMN_MIGRATIONS` and `_DATA_MIGRATIONS` in `apps/api/app/core/db.py` both start empty. See [architecture](ARCHITECTURE.md#database-and-synchronization) for how migrations are applied.
+`apps/api/app/core/schema.sql` is the 1.0.0 baseline: every pre-release migration is folded into it, so `_COLUMN_MIGRATIONS` and `_DATA_MIGRATIONS` in `apps/api/app/core/db.py` were both empty at that release. See [architecture](ARCHITECTURE.md#database-and-synchronization) for how migrations are applied.
 
 After 1.0.0, migrations are **append-only**:
 
