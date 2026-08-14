@@ -29,12 +29,21 @@ function text(element: Element | null | undefined): string {
   return element?.textContent?.replace(/\s+/g, " ").trim() ?? "";
 }
 
+function questionText(element: Element | null | undefined): string {
+  if (!element) return "";
+  const copy = element.cloneNode(true) as Element;
+  copy
+    .querySelectorAll("[data-test-form-builder-radio-button-form-component__required]")
+    .forEach((marker) => marker.remove());
+  return text(copy);
+}
+
 function associatedLabel(container: HTMLElement, control: HTMLElement): string {
   if (control instanceof HTMLInputElement && control.type === "radio") {
-    return text(control.closest("fieldset")?.querySelector(":scope > legend"));
+    return questionText(control.closest("fieldset")?.querySelector(":scope > legend"));
   }
   const labels = "labels" in control ? (control as HTMLInputElement).labels : null;
-  return text(labels?.[0] ?? container.querySelector("label"));
+  return questionText(labels?.[0] ?? container.querySelector("label"));
 }
 
 function sectionFor(container: HTMLElement, root: HTMLElement): string | null {
@@ -221,9 +230,18 @@ function classifyQuestion(
     const fieldset = first.closest("fieldset");
     if (!fieldset) return manual(container, handle, prompt, "This radio group is unclassified.");
     const radio = radioOptions(fieldset, clientFieldId);
-    const labels = radio.map(({ option }) => option.label.toLocaleLowerCase());
-    if (radio.length !== 2 || !labels.includes("yes") || !labels.includes("no")) {
-      return manual(container, handle, prompt, "Only Yes/No radio questions are supported.");
+    const groupName = first.name.trim();
+    const labels = radio.map(({ option }) => option.label);
+    const normalizedLabels = labels.map((label) => label.normalize("NFKC").toLocaleLowerCase());
+    if (
+      radio.length < 2 ||
+      radio.length > MAX_OPTIONS ||
+      !groupName ||
+      radio.some(({ input }) => input.name !== groupName) ||
+      labels.some((label) => !label) ||
+      new Set(normalizedLabels).size !== normalizedLabels.length
+    ) {
+      return manual(container, handle, prompt, "This radio group could not be identified safely.");
     }
     controlKind = "radio";
     options = radio.map(({ option }) => option);

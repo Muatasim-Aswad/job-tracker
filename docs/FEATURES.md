@@ -34,7 +34,7 @@ Jobs from sources without a built-in integration can still be created manually f
 
 ## Fill supported Easy Apply questions
 
-On LinkedIn Easy Apply, Job Tracker can reuse knowledge you have reviewed without taking control of the application. It supports ordinary text, numeric, select, and Yes/No radio questions when the page supplies enough stable evidence. The Form Fill workspace separates that knowledge into:
+On LinkedIn Easy Apply, Job Tracker can reuse knowledge you have reviewed without taking control of the application. It supports ordinary text, numeric, select, and single-choice radio questions when the page supplies enough stable evidence. The Form Fill workspace separates that knowledge into:
 
 - **Answers**, the reusable values you have verified;
 - **Questions**, exact semantic question identities observed on a supported site; and
@@ -50,7 +50,7 @@ The dashboard refreshes its review queues while it remains visible. Questions ha
 
 Existing form values are never overwritten automatically. Job Tracker distinguishes an existing value that already agrees, one that differs, and an empty field it can safely fill. Replacing a differing value is an explicit action and is rechecked against the live control first. Each field is independent, so one unresolved field or request failure does not authorize another write.
 
-Unsupported or ambiguous controls stay local and manual; they are not included in resolution requests. This includes typeaheads, non-Yes/No radio groups, repeatable profile sections, consent checkboxes, other unclassified utility controls, shapes whose numeric meaning is uncertain, and lists with more than 512 options. Long legitimate lists within that bound, including phone-country-code selectors, retain their complete option identity so the selected value can be remembered and reused safely. A control left manual for any of these reasons does not affect the other questions on the same step, which are still checked normally. File and résumé inputs and LinkedIn's follow-company and top-choice preferences are ignored entirely and do not appear in the extension's field status. Job Tracker flushes eligible pending values before observing a step change but never clicks Next, Continue, Review, Submit, consent, résumé, profile, follow-company, or top-choice controls and never navigates or submits an application.
+Unsupported or ambiguous controls stay local and manual; they are not included in resolution requests. This includes typeaheads, malformed or unidentified radio groups, repeatable profile sections, consent checkboxes, other unclassified utility controls, shapes whose numeric meaning is uncertain, and choice controls with more than 512 options. Legitimate choices within that bound, including phone-country-code selectors, retain their complete option identity so the selected value can be remembered and reused safely. A control left manual for any of these reasons does not affect the other questions on the same step, which are still checked normally. File and résumé inputs and LinkedIn's follow-company and top-choice preferences are ignored entirely and do not appear in the extension's field status. Job Tracker flushes eligible pending values before observing a step change but never clicks Next, Continue, Review, Submit, consent, résumé, profile, follow-company, or top-choice controls and never navigates or submits an application.
 
 ## Decide with context
 
