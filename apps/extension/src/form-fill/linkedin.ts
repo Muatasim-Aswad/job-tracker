@@ -18,6 +18,11 @@ const SENSITIVE_AUTOCOMPLETE = /^(?:cc-|current-password|new-password|one-time-c
 const NUMERIC_HANDLE = /-numeric(?:-error)?$/i;
 const FORM_ELEMENT_JOB = /easyApplyFormElement-(\d+)-/i;
 const RADIO_JOB = /easyApply:\((\d+),/i;
+// The API rejects a field carrying more options than this (`ResolutionField.options`
+// in apps/api/app/form_fill/schemas.py), and it rejects the whole request with it, so
+// one oversized control would leave every other field on the step unchecked. Keep this
+// value equal to that bound.
+const MAX_OPTIONS = 200;
 
 function text(element: Element | null | undefined): string {
   return element?.textContent?.replace(/\s+/g, " ").trim() ?? "";
@@ -201,6 +206,9 @@ function classifyQuestion(
     optionTargets = selectTargets(first, clientFieldId);
     if (options.length === 0) {
       return manual(container, handle, prompt, "No selectable options are available yet.");
+    }
+    if (options.length > MAX_OPTIONS) {
+      return manual(container, handle, prompt, "This list has too many options to check.");
     }
   } else if (first instanceof HTMLTextAreaElement) {
     controlKind = "textarea";

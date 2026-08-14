@@ -8,6 +8,18 @@ const textQuestion = (id: string, prompt: string, extra = "") => `
     <input id="${id}" type="text" ${extra}>
   </div>`;
 
+const selectQuestion = (id: string, prompt: string, optionCount: number) => `
+  <div data-test-form-element>
+    <label for="${id}">${prompt}</label>
+    <select id="${id}" required>
+      <option value="Choose an option">Choose an option</option>
+      ${Array.from(
+        { length: optionCount },
+        (_, index) => `<option value="option-${index + 1}">Option ${index + 1}</option>`,
+      ).join("")}
+    </select>
+  </div>`;
+
 function root(html: string): HTMLElement {
   document.body.innerHTML = `<div class="jobs-easy-apply-modal"><h3>Application questions</h3>${html}</div>`;
   return document.querySelector(".jobs-easy-apply-modal")!;
@@ -152,5 +164,43 @@ describe("LinkedIn Easy Apply discovery", () => {
       kind: "manual",
       reason: "This numeric format could not be classified safely.",
     });
+  });
+
+  it("sends a select that sits exactly on the request option bound", () => {
+    const [field] = discoverLinkedInFields(
+      root(
+        selectQuestion(
+          "text-entity-list-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-50-multipleChoice",
+          "Phone country code",
+          200,
+        ),
+      ),
+    );
+    expect(field.kind).toBe("supported");
+    expect((field as SupportedField).request.options).toHaveLength(200);
+  });
+
+  it("keeps an oversized select manual and leaves the rest of the step resolvable", () => {
+    const fields = discoverLinkedInFields(
+      root(`
+        ${selectQuestion(
+          "text-entity-list-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-51-multipleChoice",
+          "Phone country code",
+          201,
+        )}
+        ${textQuestion(
+          "single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-52-text",
+          "Preferred name",
+        )}
+      `),
+    );
+    expect(fields).toHaveLength(2);
+    expect(fields[0]).toMatchObject({
+      kind: "manual",
+      prompt: "Phone country code",
+      reason: "This list has too many options to check.",
+    });
+    expect(fields[1].kind).toBe("supported");
+    expect((fields[1] as SupportedField).request.prompt).toBe("Preferred name");
   });
 });
