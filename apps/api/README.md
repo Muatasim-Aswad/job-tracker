@@ -51,6 +51,8 @@ Attention is read-only derived state, so no read or background process ever writ
 - `/captures` stores provisional user-entered or explicitly remembered values for review and applies them through one of the explicit promotion/update workflows.
 - `/questions/{id}/capture-conflicts/resolve` selects a winner only when the Question revision and complete current Capture revision set still agree.
 
+Choice Questions, Answer vocabularies, and complete Match bindings share a 512-item bound. This covers legitimate long controls such as phone-country-code lists while keeping page-derived request and mutation payloads bounded.
+
 Answer, Question, Match, and Capture writes use expected revisions; a stale write rolls back atomically and returns a current value-free summary. Competing current Captures resolve to no action. Superseding, clearing, ignoring, applying, or losing a conflict removes a Capture's retained value, while lifecycle events never copy Answer or Capture values. Every successful or error response under `/api/form-fill/` carries `Cache-Control: no-store`.
 
 ## Test & type-check

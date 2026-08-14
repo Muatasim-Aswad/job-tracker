@@ -247,7 +247,7 @@ def test_request_evidence_is_bounded_and_duplicate_local_handles_are_rejected() 
         ResolutionRequest.model_validate(duplicate)
 
 
-def test_option_bound_is_exactly_two_hundred_per_field() -> None:
+def test_option_bound_is_exactly_five_hundred_twelve_per_field() -> None:
     # Adapters mirror this bound to keep an oversized control out of the request:
     # one over-bound field rejects the whole scan, not just itself.
     options = [
@@ -257,10 +257,10 @@ def test_option_bound_is_exactly_two_hundred_per_field() -> None:
             "stable_option_key": None,
             "disabled": False,
         }
-        for index in range(201)
+        for index in range(513)
     ]
-    at_bound = _request(_choice_field(control_kind="select", options=options[:200]))
-    assert len(ResolutionRequest.model_validate(at_bound).fields[0].options) == 200
+    at_bound = _request(_choice_field(control_kind="select", options=options[:512]))
+    assert len(ResolutionRequest.model_validate(at_bound).fields[0].options) == 512
 
     over_bound = _request(_choice_field(control_kind="select", options=options))
     with pytest.raises(PydanticValidationError) as rejected:

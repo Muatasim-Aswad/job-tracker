@@ -28,6 +28,8 @@ AnswerValueKind = Literal[
 CaptureSource = Literal["user_input", "confirmed_external", "unattributed_change"]
 CaptureStatus = Literal["current", "superseded", "applied", "ignored"]
 
+MAX_CHOICE_ITEMS = 512
+
 
 class TextValue(BaseModel):
     kind: Literal["text"]
@@ -61,7 +63,7 @@ class AnswerSingleChoiceValue(BaseModel):
 
 class AnswerMultiChoiceValue(BaseModel):
     kind: Literal["multi_choice"]
-    choice_keys: list[str] = Field(min_length=1, max_length=200)
+    choice_keys: list[str] = Field(min_length=1, max_length=MAX_CHOICE_ITEMS)
 
     @model_validator(mode="after")
     def validate_choice_keys(self) -> AnswerMultiChoiceValue:
@@ -89,7 +91,7 @@ class CaptureSingleChoiceValue(BaseModel):
 
 class CaptureMultiChoiceValue(BaseModel):
     kind: Literal["multi_choice"]
-    question_option_ids: list[str] = Field(min_length=1, max_length=200)
+    question_option_ids: list[str] = Field(min_length=1, max_length=MAX_CHOICE_ITEMS)
 
     @model_validator(mode="after")
     def validate_option_ids(self) -> CaptureMultiChoiceValue:
@@ -137,7 +139,7 @@ class ResolutionField(BaseModel):
     max_length: int | None = Field(default=None, ge=1, le=100_000)
     has_value: bool
     user_confirmed: bool = False
-    options: list[ResolutionOption] = Field(default_factory=list, max_length=200)
+    options: list[ResolutionOption] = Field(default_factory=list, max_length=MAX_CHOICE_ITEMS)
 
     @model_validator(mode="after")
     def validate_control_options(self) -> ResolutionField:
@@ -413,7 +415,7 @@ class AnswerCreate(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
     value_kind: AnswerValueKind
     value: AnswerValue
-    choices: list[AnswerChoiceInput] = Field(default_factory=list, max_length=200)
+    choices: list[AnswerChoiceInput] = Field(default_factory=list, max_length=MAX_CHOICE_ITEMS)
     fill_policy: FillPolicy = "auto"
 
     @model_validator(mode="after")
@@ -443,7 +445,7 @@ class AnswerUpdate(BaseModel):
     label: str | None = Field(default=None, min_length=1, max_length=1000)
     description: str | None = Field(default=None, max_length=4000)
     value: AnswerValue | None = None
-    choices: list[AnswerChoiceInput] | None = Field(default=None, max_length=200)
+    choices: list[AnswerChoiceInput] | None = Field(default=None, max_length=MAX_CHOICE_ITEMS)
     fill_policy: FillPolicy | None = None
     status: AnswerStatus | None = None
     reason: str | None = Field(default=None, max_length=1000)
@@ -488,7 +490,7 @@ class MappingPut(BaseModel):
     expected_question_revision: int = Field(ge=1)
     expected_answer_revision: int = Field(ge=1)
     expected_mapping_revision: int | None = Field(default=None, ge=1)
-    bindings: list[OptionBindingInput] = Field(default_factory=list, max_length=200)
+    bindings: list[OptionBindingInput] = Field(default_factory=list, max_length=MAX_CHOICE_ITEMS)
     reason: str | None = Field(default=None, max_length=1000)
 
 
@@ -575,9 +577,9 @@ class CreateAnswerAndMapApply(BaseModel):
     description: str | None = Field(default=None, max_length=4000)
     value_kind: AnswerValueKind
     value: AnswerValue
-    choices: list[AnswerChoiceInput] = Field(default_factory=list, max_length=200)
+    choices: list[AnswerChoiceInput] = Field(default_factory=list, max_length=MAX_CHOICE_ITEMS)
     fill_policy: FillPolicy = "auto"
-    bindings: list[NewOptionBindingInput] = Field(default_factory=list, max_length=200)
+    bindings: list[NewOptionBindingInput] = Field(default_factory=list, max_length=MAX_CHOICE_ITEMS)
     reason: str | None = Field(default=None, max_length=1000)
 
 
@@ -591,7 +593,7 @@ class UpdateAnswerApply(BaseModel):
     value: AnswerValue
     label: str | None = Field(default=None, min_length=1, max_length=1000)
     description: str | None = Field(default=None, max_length=4000)
-    choices: list[AnswerChoiceInput] | None = Field(default=None, max_length=200)
+    choices: list[AnswerChoiceInput] | None = Field(default=None, max_length=MAX_CHOICE_ITEMS)
     fill_policy: FillPolicy | None = None
     reason: str | None = Field(default=None, max_length=1000)
 
@@ -603,7 +605,7 @@ class RetargetMappingApply(BaseModel):
     answer_id: str = Field(min_length=1, max_length=128)
     expected_answer_revision: int = Field(ge=1)
     expected_mapping_revision: int = Field(ge=1)
-    bindings: list[OptionBindingInput] = Field(default_factory=list, max_length=200)
+    bindings: list[OptionBindingInput] = Field(default_factory=list, max_length=MAX_CHOICE_ITEMS)
     reason: str | None = Field(default=None, max_length=1000)
 
 
@@ -615,7 +617,7 @@ class ReplaceOptionBindingsApply(BaseModel):
     expected_answer_revision: int = Field(ge=1)
     mapping_id: str = Field(min_length=1, max_length=128)
     expected_mapping_revision: int = Field(ge=1)
-    bindings: list[OptionBindingInput] = Field(default_factory=list, max_length=200)
+    bindings: list[OptionBindingInput] = Field(default_factory=list, max_length=MAX_CHOICE_ITEMS)
     reason: str | None = Field(default=None, max_length=1000)
 
 

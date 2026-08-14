@@ -172,12 +172,12 @@ describe("LinkedIn Easy Apply discovery", () => {
         selectQuestion(
           "text-entity-list-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-50-multipleChoice",
           "Phone country code",
-          200,
+          512,
         ),
       ),
     );
     expect(field.kind).toBe("supported");
-    expect((field as SupportedField).request.options).toHaveLength(200);
+    expect((field as SupportedField).request.options).toHaveLength(512);
   });
 
   it("keeps an oversized select manual and leaves the rest of the step resolvable", () => {
@@ -186,7 +186,7 @@ describe("LinkedIn Easy Apply discovery", () => {
         ${selectQuestion(
           "text-entity-list-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-51-multipleChoice",
           "Phone country code",
-          201,
+          513,
         )}
         ${textQuestion(
           "single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-52-text",
