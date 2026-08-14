@@ -9,8 +9,8 @@ import type {
 export const EASY_APPLY_ROOT = ".jobs-easy-apply-modal, [data-test-easy-apply-modal]";
 const QUESTION = "[data-test-form-element]";
 const REPEATABLE = ".jobs-easy-apply-repeatable-groupings__groupings";
-const UTILITY_CHECKBOX = 'input[type="checkbox"][name="jobDetailsEasyApplyTopChoiceCheckbox"]';
-const FOLLOW_COMPANY_CHECKBOX = 'input[type="checkbox"]#follow-company-checkbox';
+const IGNORED_LINKEDIN_CHECKBOX =
+  'input[type="checkbox"][name="jobDetailsEasyApplyTopChoiceCheckbox"], input[type="checkbox"]#follow-company-checkbox';
 const FOLLOW_COMPANY_PROMPT = /\bfollow\b.*\bstay up to date\b.*\bpage\b/i;
 const RESUME = 'input[type="file"], input[type="radio"][id^="jobsDocumentCardToggle-ember"]';
 const SENSITIVE =
@@ -180,7 +180,7 @@ function classifyQuestion(
   if (
     first instanceof HTMLInputElement &&
     first.type === "checkbox" &&
-    (first.matches(FOLLOW_COMPANY_CHECKBOX) || FOLLOW_COMPANY_PROMPT.test(prompt))
+    (first.matches(IGNORED_LINKEDIN_CHECKBOX) || FOLLOW_COMPANY_PROMPT.test(prompt))
   ) {
     return null;
   }
@@ -189,9 +189,6 @@ function classifyQuestion(
   }
   if (container.querySelector(REPEATABLE)) {
     return manual(container, handle, prompt, "Profile entries must be reviewed manually.");
-  }
-  if (first.matches(UTILITY_CHECKBOX)) {
-    return manual(container, handle, prompt, "This LinkedIn option is left unchanged.");
   }
   if (
     first.getAttribute("role") === "combobox" ||
@@ -302,22 +299,21 @@ export function discoverLinkedInFields(root: HTMLElement): DiscoveredField[] {
     .map((container, index) => classifyQuestion(container, index, `field-${index + 1}`))
     .filter((field): field is DiscoveredField => field !== null);
   const owned = new Set(found.map((field) => field.container));
-  const supplementary = root.querySelectorAll<HTMLElement>(`${REPEATABLE}, ${UTILITY_CHECKBOX}`);
+  const supplementary = root.querySelectorAll<HTMLElement>(REPEATABLE);
   for (const element of supplementary) {
-    const container =
-      element.closest<HTMLElement>(QUESTION) ??
-      (element.matches(REPEATABLE) ? element : null) ??
-      element.closest<HTMLElement>(".js-jobs-document-upload__container, label") ??
-      element.parentElement ??
-      element;
+    const container = element.closest<HTMLElement>(QUESTION) ?? element;
     if (owned.has(container)) continue;
     owned.add(container);
     const index = found.length;
     const prompt = text(container.querySelector("h3, h4, legend, label"));
-    const reason = element.matches(REPEATABLE)
-      ? "Profile entries must be reviewed manually."
-      : "This LinkedIn option is left unchanged.";
-    found.push(manual(container, `manual-${index + 1}`, prompt, reason));
+    found.push(
+      manual(
+        container,
+        `manual-${index + 1}`,
+        prompt,
+        "Profile entries must be reviewed manually.",
+      ),
+    );
   }
   return found.sort(compareDom);
 }

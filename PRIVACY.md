@@ -15,7 +15,7 @@ The extension reads supported pages' visible job-card and job-detail content. Fo
 
 On LinkedIn Easy Apply, the extension reads visible question prompts, section and help text, supported control characteristics, option labels, and whether a control is already non-empty. Resolution requests do not contain the control's current value. A value is sent only after a trusted user change settles, after you explicitly choose **Remember existing**, or as a value-free clear. Verified Answers returned for filling exist in the page's runtime memory and in the form control they fill, but are not saved to browser storage. The only form-fill browser settings are the on/off and summary expanded/collapsed Boolean preferences.
 
-Unsupported or ambiguous controls are classified in the page and are not sent in the resolution payload. Job Tracker does not read or write file contents, résumé controls, repeatable profile sections, consent controls, follow-company controls, or unsupported choices, and it never navigates, reviews, or submits an application.
+Unsupported or ambiguous controls are classified in the page and are not sent in the resolution payload. Job Tracker does not read or write file contents, résumé controls, repeatable profile sections, consent controls, follow-company controls, top-choice controls, or unsupported choices, and it never navigates, reviews, or submits an application.
 
 ## Storage and diagnostics
 
