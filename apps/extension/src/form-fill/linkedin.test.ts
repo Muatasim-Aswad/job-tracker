@@ -123,13 +123,12 @@ describe("LinkedIn Easy Apply discovery", () => {
       <label><input id="jobsDocumentCardToggle-ember123" type="radio">Selected résumé</label>
     `);
     const fields = discoverLinkedInFields(form);
-    expect(fields).toHaveLength(4);
+    expect(fields).toHaveLength(3);
     expect(fields.every((field) => field.kind === "manual")).toBe(true);
     expect(fields.map((field) => (field.kind === "manual" ? field.reason : ""))).toEqual(
       expect.arrayContaining([
         "Choose a typeahead suggestion manually.",
         "Only Yes/No radio questions are supported.",
-        "This LinkedIn option is left unchanged.",
         "Profile entries must be reviewed manually.",
       ]),
     );
@@ -138,15 +137,19 @@ describe("LinkedIn Easy Apply discovery", () => {
     ).not.toEqual(
       expect.arrayContaining([
         "Follow Example Co to stay up to date with their page.",
+        "Mark this job as a top choice",
         "Upload résumé",
         "Selected résumé",
       ]),
     );
   });
 
-  it("ignores LinkedIn's follow-company checkbox even without a question wrapper", () => {
+  it("ignores LinkedIn utility checkboxes even without a question wrapper", () => {
     const fields = discoverLinkedInFields(
-      root('<label><input id="follow-company-checkbox" type="checkbox">Follow Example Co</label>'),
+      root(`
+        <label><input id="follow-company-checkbox" type="checkbox">Follow Example Co</label>
+        <label><input name="jobDetailsEasyApplyTopChoiceCheckbox" type="checkbox">Mark this job as a top choice</label>
+      `),
     );
     expect(fields).toEqual([]);
   });

@@ -14,7 +14,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 - Easy Apply review queues now refresh while the dashboard remains open, omit Questions already handled by an active Match, and open the queue that actually contains work. Later-rendered supported Questions stabilize into normal observation, pending answers flush before a step change, and transient capture failures can be retried. Résumé selectors and CV upload inputs no longer create manual-status rows. The dashboard entry document also revalidates after a rebuild instead of silently retaining an obsolete bundle.
 - Long legitimate Easy Apply dropdowns such as phone-country-code lists now retain their complete choice identity and can remember the selected value. Lists above the bounded 512-option vocabulary stay manual without preventing the remaining questions on the step from being checked normally.
-- The Easy Apply summary now remembers its expanded or collapsed state in device-local browser storage. LinkedIn follow-company prompts are ignored entirely instead of appearing as manual application Questions.
+- The Easy Apply summary now remembers its expanded or collapsed state in device-local browser storage. LinkedIn follow-company and top-choice prompts are ignored entirely instead of appearing as manual application Questions.
 
 ## [1.1.0] - 2026-08-12
 
