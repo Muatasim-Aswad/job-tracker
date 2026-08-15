@@ -207,6 +207,31 @@ describe("generation-based safe form filling", () => {
     scanner.setEnabled(false);
   });
 
+  it("clears LinkedIn's preselected follow-company control without resolving it", async () => {
+    fixture(`
+      ${field(1, "Application question")}
+      <div data-test-form-element>
+        <label><input id="follow-company" type="checkbox" checked>Follow Example Co to stay up to date with their page.</label>
+      </div>
+    `);
+    const requests: FormFillResolutionRequest[] = [];
+    const follow = document.querySelector<HTMLInputElement>("#follow-company")!;
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return { ok: true, result: response(request, [unresolved("field-1")]) };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(follow.checked).toBe(false);
+    expect(requests[0].fields.map((item) => item.prompt)).toEqual(["Application question"]);
+    scanner.setEnabled(false);
+  });
+
   it("keeps a newer collapsed choice when initial storage loading settles late", async () => {
     fixture(field(1, "Startup summary preference"));
     const gets = new Map<string, (data: Record<string, unknown>) => void>();

@@ -9,8 +9,9 @@ import type {
 export const EASY_APPLY_ROOT = ".jobs-easy-apply-modal, [data-test-easy-apply-modal]";
 const QUESTION = "[data-test-form-element]";
 const REPEATABLE = ".jobs-easy-apply-repeatable-groupings__groupings";
-const IGNORED_LINKEDIN_CHECKBOX =
-  'input[type="checkbox"][name="jobDetailsEasyApplyTopChoiceCheckbox"], input[type="checkbox"]#follow-company-checkbox';
+const TOP_CHOICE_CHECKBOX = 'input[type="checkbox"][name="jobDetailsEasyApplyTopChoiceCheckbox"]';
+const FOLLOW_COMPANY_CHECKBOX = 'input[type="checkbox"]#follow-company-checkbox';
+const IGNORED_LINKEDIN_CHECKBOX = `${TOP_CHOICE_CHECKBOX}, ${FOLLOW_COMPANY_CHECKBOX}`;
 const FOLLOW_COMPANY_PROMPT = /\bfollow\b.*\bstay up to date\b.*\bpage\b/i;
 const RESUME = 'input[type="file"], input[type="radio"][id^="jobsDocumentCardToggle-ember"]';
 const SENSITIVE =
@@ -44,6 +45,46 @@ function associatedLabel(container: HTMLElement, control: HTMLElement): string {
   }
   const labels = "labels" in control ? (control as HTMLInputElement).labels : null;
   return questionText(labels?.[0] ?? container.querySelector("label"));
+}
+
+function isFollowCompanyCheckbox(input: HTMLInputElement): boolean {
+  if (input.matches(FOLLOW_COMPANY_CHECKBOX)) return true;
+  const label = input.labels?.[0] ?? input.closest(QUESTION);
+  return FOLLOW_COMPANY_PROMPT.test(questionText(label));
+}
+
+function setNativeChecked(input: HTMLInputElement, checked: boolean): boolean {
+  let prototype: object | null = Object.getPrototypeOf(input);
+  while (prototype) {
+    const descriptor = Object.getOwnPropertyDescriptor(prototype, "checked");
+    if (descriptor?.set) {
+      descriptor.set.call(input, checked);
+      return true;
+    }
+    prototype = Object.getPrototypeOf(prototype);
+  }
+  return false;
+}
+
+export function clearLinkedInFollowCompanyDefault(
+  root: HTMLElement,
+  handled: WeakSet<HTMLInputElement>,
+): number {
+  let cleared = 0;
+  for (const input of root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+    if (input.disabled || handled.has(input) || !isFollowCompanyCheckbox(input)) continue;
+    if (!input.checked) {
+      handled.add(input);
+      continue;
+    }
+    if (!setNativeChecked(input, false)) continue;
+    handled.add(input);
+    const EventConstructor = input.ownerDocument.defaultView?.Event ?? Event;
+    input.dispatchEvent(new EventConstructor("input", { bubbles: true }));
+    input.dispatchEvent(new EventConstructor("change", { bubbles: true }));
+    cleared += 1;
+  }
+  return cleared;
 }
 
 function sectionFor(container: HTMLElement, root: HTMLElement): string | null {

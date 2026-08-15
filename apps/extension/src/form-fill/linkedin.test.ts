@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { discoverLinkedInFields, fieldFingerprint, linkedInPlatformId } from "./linkedin";
+import {
+  clearLinkedInFollowCompanyDefault,
+  discoverLinkedInFields,
+  fieldFingerprint,
+  linkedInPlatformId,
+} from "./linkedin";
 import type { SupportedField } from "./types";
 
 const textQuestion = (id: string, prompt: string, extra = "") => `
@@ -203,6 +208,35 @@ describe("LinkedIn Easy Apply discovery", () => {
       `),
     );
     expect(fields).toEqual([]);
+  });
+
+  it("clears only LinkedIn's initial follow-company selection once", () => {
+    const form = root(`
+      <div data-test-form-element>
+        <label><input id="synthetic-follow-control" type="checkbox" checked>Follow Example Co to stay up to date with their page.</label>
+      </div>
+      <label><input name="jobDetailsEasyApplyTopChoiceCheckbox" type="checkbox" checked>Mark this job as a top choice</label>
+      <label><input id="ordinary-checkbox" type="checkbox" checked>Ordinary preference</label>
+    `);
+    const follow = form.querySelector<HTMLInputElement>("#synthetic-follow-control")!;
+    const topChoice = form.querySelector<HTMLInputElement>(
+      '[name="jobDetailsEasyApplyTopChoiceCheckbox"]',
+    )!;
+    const ordinary = form.querySelector<HTMLInputElement>("#ordinary-checkbox")!;
+    const events: string[] = [];
+    follow.addEventListener("input", () => events.push("input"));
+    follow.addEventListener("change", () => events.push("change"));
+    const handled = new WeakSet<HTMLInputElement>();
+
+    expect(clearLinkedInFollowCompanyDefault(form, handled)).toBe(1);
+    expect(follow.checked).toBe(false);
+    expect(topChoice.checked).toBe(true);
+    expect(ordinary.checked).toBe(true);
+    expect(events).toEqual(["input", "change"]);
+
+    follow.checked = true;
+    expect(clearLinkedInFollowCompanyDefault(form, handled)).toBe(0);
+    expect(follow.checked).toBe(true);
   });
 
   it("fingerprints semantic state without including a value", () => {
