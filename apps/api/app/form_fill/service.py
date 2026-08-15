@@ -780,6 +780,11 @@ class FormFillService:
                 reason=put.reason,
                 now=now,
             )
+            current_mapping = self.repo.get_mapping(question_id)
+            assert current_mapping is not None
+            self._consume_matching_current_capture(
+                question, answer, current_mapping, now=now, reason=put.reason
+            )
         return self.get_question(question_id)
 
     def update_mapping(self, question_id: str, update: MappingUpdate) -> QuestionDetail:
@@ -1449,6 +1454,46 @@ class FormFillService:
         if not set(answer_ids) <= set(choices):
             raise ValidationError("option bindings must reference active choices on the answer")
         return [(item.question_option_id, item.answer_choice_id) for item in bindings]
+
+    def _consume_matching_current_capture(
+        self, question: Question, answer: Row, mapping: Row, *, now: str, reason: str | None
+    ) -> None:
+        if question.capture_conflict:
+            return
+        current = self.repo.list_current_capture_records(question.id)
+        if len(current) != 1 or current[0]["value_json"] is None:
+            return
+        capture = current[0]
+        answer_value = _ANSWER_VALUE.validate_json(answer["value_json"])
+        capture_value = _CAPTURE_VALUE.validate_json(capture["value_json"])
+        option_pairs = [
+            OptionIdentityPair(client_option_id=option.id, question_option_id=option.id)
+            for option in self.repo.list_options(question.id)
+            if option.status == "active"
+        ]
+        answer_action = self._answer_action(question, answer_value, mapping, option_pairs)
+        capture_action = self._capture_action(question, capture_value, option_pairs)
+        if answer_action is None or capture_action is None or answer_action != capture_action:
+            return
+        self.repo.transition_capture(
+            capture["id"],
+            expected_revision=capture["revision"],
+            status="applied",
+            now=now,
+            clear_value=True,
+        )
+        self.repo.insert_event(
+            event_id=_new_id(),
+            event="capture_applied",
+            answer_id=answer["id"],
+            mapping_id=mapping["id"],
+            question_id=question.id,
+            capture_id=capture["id"],
+            before_revision=capture["revision"],
+            after_revision=capture["revision"] + 1,
+            reason=reason,
+            now=now,
+        )
 
     def _check_mapping_revisions(
         self, question: Question, answer: Row, mapping: Row | None, put: MappingPut
