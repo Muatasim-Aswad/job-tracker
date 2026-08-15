@@ -308,19 +308,8 @@ function classifyQuestion(
         /\bdecimal\b/i.test(validationText)
       ) {
         controlKind = "decimal";
-      } else if (
-        first.type === "number" ||
-        first.inputMode === "numeric" ||
-        /\b(?:whole number|integer)\b/i.test(validationText)
-      ) {
-        controlKind = "integer";
       } else {
-        return manual(
-          container,
-          handle,
-          prompt,
-          "This numeric format could not be classified safely.",
-        );
+        controlKind = "integer";
       }
     } else {
       controlKind = "text";

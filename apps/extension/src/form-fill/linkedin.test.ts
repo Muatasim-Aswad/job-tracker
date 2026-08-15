@@ -253,18 +253,37 @@ describe("LinkedIn Easy Apply discovery", () => {
     expect(fieldFingerprint(field)).toContain('"hasValue":true');
   });
 
-  it("keeps ambiguous numeric text inputs manual", () => {
+  it("treats LinkedIn numeric text inputs without a decimal signal as integers", () => {
+    const id =
+      "single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-41-numeric";
+    const [field] = discoverLinkedInFields(
+      root(`
+        <div data-test-form-element>
+          <label for="${id}">How many years of JavaScript experience do you have?</label>
+          <input id="${id}" type="text" required inputmode="text"
+            aria-describedby="${id}-error">
+          <div id="${id}-error"></div>
+        </div>`),
+    );
+    expect(field).toMatchObject({
+      kind: "supported",
+      request: { control_kind: "integer" },
+    });
+  });
+
+  it("keeps an explicit decimal signal classified as decimal", () => {
     const [field] = discoverLinkedInFields(
       root(
         textQuestion(
-          "single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-41-numeric",
-          "Numeric answer",
+          "single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-42-numeric",
+          "Years of experience",
+          'required inputmode="decimal"',
         ),
       ),
     );
     expect(field).toMatchObject({
-      kind: "manual",
-      reason: "This numeric format could not be classified safely.",
+      kind: "supported",
+      request: { control_kind: "decimal" },
     });
   });
 
