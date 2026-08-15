@@ -89,14 +89,15 @@ describe("native Easy Apply controls", () => {
     expect(click).not.toHaveBeenCalled();
   });
 
-  it("rejects unsafe numeric actions and observes host validation errors", () => {
+  it("rejects decimals for LinkedIn numeric text inputs inferred as integers", () => {
     const [field] = supported(`
       <div data-test-form-element>
         <label for="numeric-formElement-1-numeric">Years</label>
-        <input id="numeric-formElement-1-numeric" type="text" inputmode="numeric"
+        <input id="numeric-formElement-1-numeric" type="text" inputmode="text"
           aria-describedby="numeric-formElement-1-numeric-error">
         <div id="numeric-formElement-1-numeric-error"></div>
       </div>`);
+    expect(field.request.control_kind).toBe("integer");
     expect(applyAction(field, { kind: "set_decimal", value: "1.5" })).toBe(false);
     expect((field.control as HTMLInputElement).value).toBe("");
     expect(validationEvidence(field)).toBe("clean");
