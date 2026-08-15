@@ -44,7 +44,7 @@ pnpm build
 
 ## LinkedIn Easy Apply form fill
 
-The **Settings → Easy Apply form fill** switch is enabled by default. Turning it off immediately removes form-fill markers and the panel and stops further scans or captures. The switch and the user's expanded or collapsed summary choice are the only form-fill values saved in `chrome.storage`; both are device-local Booleans, and question and answer values are never stored there.
+The **Settings → Easy Apply form fill** switch is enabled by default. Turning it off immediately removes form-fill markers and the panel and stops further scans or captures. The switch and the user's expanded or collapsed summary choice are the only form-fill values saved in `chrome.storage`; both are device-local Booleans, and question and answer values are never stored there. The extension owns that summary choice across rerenders, and it omits the panel when the current step has no field status to show.
 
 The dedicated LinkedIn entry runs in the top document and matching same-origin frames. It waits for lazy fields to settle and re-establishes its safe baseline on forward, backward, and repeated steps. Supported controls are ordinary text and textarea inputs, classified numeric inputs, selects, and ordinary single-choice radio groups whose request-local options can be bound to server-owned option IDs.
 

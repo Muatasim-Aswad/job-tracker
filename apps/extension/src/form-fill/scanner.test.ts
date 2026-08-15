@@ -184,11 +184,26 @@ describe("generation-based safe form filling", () => {
     expect(details.open).toBe(false);
     panel.querySelector<HTMLElement>("summary")!.click();
     await vi.waitFor(() => expect(saveSummaryOpen).toHaveBeenCalledWith(true));
+    details = panel.querySelector<HTMLDetailsElement>("details")!;
+    expect(details.open).toBe(true);
 
     await scanner.scan();
     panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
     details = panel.querySelector<HTMLDetailsElement>("details")!;
     expect(details.open).toBe(true);
+    scanner.setEnabled(false);
+  });
+
+  it("omits the summary when the step has no field information", async () => {
+    fixture("");
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(document.querySelector("[data-jh-ff-panel]")).toBeNull();
     scanner.setEnabled(false);
   });
 
@@ -927,6 +942,9 @@ describe("generation-based safe form filling", () => {
         (marker) => marker.dataset.state,
       ),
     ).toEqual(["already", "remembered"]);
+    expect(
+      document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!.textContent,
+    ).toContain("1 filled · 1 already match · 0 needs attention · 0 manual");
     scanner.setEnabled(false);
   });
 

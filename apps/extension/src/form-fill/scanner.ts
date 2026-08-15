@@ -211,6 +211,7 @@ export class EasyApplyScanner {
     if (open === this.summaryOpen) return;
     this.summaryOpen = open;
     this.saveSummaryOpen(open);
+    this.renderCurrent();
   }
 
   private readonly onControlEvent = (event: Event) => {

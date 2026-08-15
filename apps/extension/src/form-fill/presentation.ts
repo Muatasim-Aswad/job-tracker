@@ -20,7 +20,8 @@ const SYMBOL: Record<FieldState, string> = {
 
 function counts(fields: PresentedField[]) {
   return {
-    filled: fields.filter((field) => field.state === "filled").length,
+    filled: fields.filter((field) => field.state === "filled" || field.state === "remembered")
+      .length,
     matching: fields.filter((field) => field.state === "already").length,
     attention: fields.filter((field) =>
       ["confirmation", "differs", "attention", "unresolved", "failed", "error"].includes(
@@ -116,14 +117,22 @@ export function renderPresentation(
   }
   for (const field of fields) marker(field).dataset.fieldId = field.clientFieldId;
 
+  if (fields.length === 0) {
+    root.querySelector<HTMLElement>(`[${PANEL_ATTRIBUTE}]`)?.remove();
+    return;
+  }
+
   const shadow = ensurePanel(root);
   const summary = counts(fields);
   const details = root.ownerDocument.createElement("details");
   details.open = options.open ?? (summary.attention > 0 || summary.manual > 0);
   const heading = root.ownerDocument.createElement("summary");
   heading.append("Job Tracker");
-  heading.addEventListener("click", () => {
-    queueMicrotask(() => options.onOpenChange?.(details.open));
+  heading.addEventListener("click", (event) => {
+    event.preventDefault();
+    const open = !details.open;
+    if (options.onOpenChange) options.onOpenChange(open);
+    else details.open = open;
   });
   const tally = root.ownerDocument.createElement("span");
   tally.className = "summary";
