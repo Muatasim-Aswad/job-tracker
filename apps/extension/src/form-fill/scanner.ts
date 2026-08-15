@@ -19,6 +19,7 @@ import {
   type ControlSnapshot,
 } from "./controls.js";
 import {
+  clearLinkedInFollowCompanyDefault,
   discoverLinkedInFields,
   EASY_APPLY_ROOT,
   fieldFingerprint,
@@ -174,6 +175,7 @@ export class EasyApplyScanner {
   private lastCaptureSignatures = new Map<string, string>();
   private notes = new Map<string, FieldNote>();
   private suppressedWrites = new Set<string>();
+  private handledFollowCompanyControls = new WeakSet<HTMLInputElement>();
   private writeDepth = 0;
   private renderedRoot: HTMLElement | null = null;
   private renderedFields: PresentedField[] = [];
@@ -302,6 +304,7 @@ export class EasyApplyScanner {
       this.baselineHandles.clear();
       this.runtimeFields.clear();
       this.pendingCaptures.clear();
+      this.handledFollowCompanyControls = new WeakSet<HTMLInputElement>();
       this.renderedFields = [];
       this.renderedRoot = null;
       return;
@@ -915,6 +918,11 @@ export class EasyApplyScanner {
     const root = this.doc.querySelector<HTMLElement>(EASY_APPLY_ROOT);
     if (!root) {
       clearPresentation(this.doc);
+      return;
+    }
+    clearLinkedInFollowCompanyDefault(root, this.handledFollowCompanyControls);
+    if (this.doc.querySelector(EASY_APPLY_ROOT) !== root) {
+      this.schedule();
       return;
     }
 
