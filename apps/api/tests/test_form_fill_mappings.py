@@ -263,6 +263,90 @@ def test_choice_mapping_round_trips_server_option_ids_and_requires_complete_bind
     assert mapped.mapping and len(mapped.mapping.bindings) == 2
 
 
+def test_saving_match_consumes_an_identical_current_choice_capture(conn: Conn) -> None:
+    service = FormFillService(conn)
+    observed = service.resolve(_request(_choice_field(), "scan-match-capture")).results[0]
+    detail = service.get_question(observed.question_id)
+    option_by_label = {option.raw_label: option.id for option in detail.options}
+    answer = service.create_answer(
+        AnswerCreate(
+            answer_key="eligibility.matching_capture",
+            label="Matching capture",
+            value_kind="single_choice",
+            value={"kind": "single_choice", "choice_key": "yes"},
+            choices=[
+                {"choice_key": "yes", "display_label": "Yes"},
+                {"choice_key": "no", "display_label": "No"},
+            ],
+        )
+    )
+    choice_by_key = {choice.choice_key: choice.id for choice in answer.choices}
+    capture = service.create_capture(
+        CaptureCreate(
+            capture_key="matching-choice-capture",
+            question_id=detail.id,
+            application_context_id="application-1",
+            page={"platform": "linkedin", "platform_id": "job-42"},
+            source="confirmed_external",
+            value={"kind": "single_choice", "question_option_id": option_by_label["Yes"]},
+        )
+    ).capture
+
+    mapped = service.put_mapping(
+        detail.id,
+        MappingPut(
+            answer_id=answer.id,
+            expected_question_revision=detail.revision,
+            expected_answer_revision=answer.revision,
+            bindings=[
+                {
+                    "question_option_id": option_by_label["Yes"],
+                    "answer_choice_id": choice_by_key["yes"],
+                },
+                {
+                    "question_option_id": option_by_label["No"],
+                    "answer_choice_id": choice_by_key["no"],
+                },
+            ],
+        ),
+    )
+
+    applied = service.get_capture(capture.id)
+    assert mapped.current_captures == []
+    assert applied.status == "applied" and applied.value is None and applied.revision == 2
+    assert [event.event for event in applied.events] == ["capture_applied"]
+
+
+def test_saving_match_keeps_a_different_current_capture_for_review(conn: Conn) -> None:
+    service = FormFillService(conn)
+    observed = service.resolve(_request(_field(), "scan-different-capture")).results[0]
+    answer = _text_answer(service, "profile.different_capture")
+    capture = service.create_capture(
+        CaptureCreate(
+            capture_key="different-text-capture",
+            question_id=observed.question_id,
+            application_context_id="application-1",
+            page={"platform": "linkedin", "platform_id": "job-42"},
+            source="user_input",
+            value={"kind": "text", "value": "DIFFERENT PRIVATE VALUE"},
+        )
+    ).capture
+
+    mapped = service.put_mapping(
+        observed.question_id,
+        MappingPut(
+            answer_id=answer.id,
+            expected_question_revision=1,
+            expected_answer_revision=answer.revision,
+        ),
+    )
+
+    pending = service.get_capture(capture.id)
+    assert [item.id for item in mapped.current_captures] == [capture.id]
+    assert pending.status == "current" and pending.value is not None and pending.revision == 1
+    assert pending.events == []
+
+
 def test_choice_mapping_supports_complete_five_hundred_twelve_option_vocabulary(conn: Conn) -> None:
     service = FormFillService(conn)
     options = [

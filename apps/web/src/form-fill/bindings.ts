@@ -8,7 +8,11 @@ export function bindingsComplete(
   const activeChoices = new Set(
     choices.filter((choice) => choice.status === "active").map((choice) => choice.id),
   );
-  return options
+  const selected = options
     .filter((option) => option.status === "active")
-    .every((option) => activeChoices.has(value[option.id]));
+    .map((option) => value[option.id]);
+  return (
+    selected.every((choiceId) => activeChoices.has(choiceId)) &&
+    new Set(selected).size === selected.length
+  );
 }
