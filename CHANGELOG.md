@@ -16,6 +16,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 - Long legitimate Easy Apply dropdowns such as phone-country-code lists now retain their complete choice identity and can remember the selected value. Lists above the bounded 512-option vocabulary stay manual without preventing the remaining questions on the step from being checked normally.
 - The Easy Apply summary now remembers its expanded or collapsed state in device-local browser storage. LinkedIn follow-company and top-choice prompts are ignored entirely instead of appearing as manual application Questions.
 - LinkedIn years-of-experience text inputs marked numeric by the form now resolve as integer questions when no decimal signal is present, while decimal values remain blocked from integer-only fields.
+- Easy Apply form filling now keeps its scanner active when a job is opened through standalone job pages or alternate LinkedIn search routes, including application preload frames whose field handles do not repeat the job ID and LinkedIn's open interop Shadow DOM.
 
 ## [1.1.0] - 2026-08-12
 

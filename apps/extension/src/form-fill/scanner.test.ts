@@ -57,6 +57,62 @@ afterEach(() => {
 });
 
 describe("generation-based safe form filling", () => {
+  it("discovers a modal that opens inside LinkedIn's interop shadow root", async () => {
+    vi.useFakeTimers();
+    history.replaceState({}, "", "/jobs/search-results/");
+    const host = document.createElement("div");
+    host.dataset.testid = "interop-shadowdom";
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const bridge = vi.fn(async (request: FormFillResolutionRequest) => ({
+      ok: true as const,
+      result: response(
+        request,
+        request.fields.map((item) => unresolved(item.client_field_id)),
+      ),
+    }));
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      bridge,
+      captureBridge,
+      captureSettleMs: 20,
+      isUserEvent: () => true,
+      settleMs: 180,
+    });
+    scanner.setEnabled(true);
+
+    shadow.innerHTML = `
+      <div class="jobs-easy-apply-modal">
+        <h3>Screening questions</h3>
+        ${field(1, "Shadow question")}
+      </div>`;
+    await vi.advanceTimersByTimeAsync(180);
+
+    expect(bridge).toHaveBeenCalledOnce();
+    expect(bridge.mock.calls[0][0].page.platform_id).toBe("123456");
+    expect(document.querySelector(".jobs-easy-apply-modal")).toBeNull();
+    expect(shadow.querySelector("[data-jh-ff-panel]")).not.toBeNull();
+    expect(shadow.querySelector("[data-jh-ff-marker]")).not.toBeNull();
+    expect(shadow.querySelector("[data-jh-ff-shadow-styles]")).not.toBeNull();
+
+    const input = shadow.querySelector<HTMLInputElement>("input")!;
+    input.value = "shadow-user-value";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      source: "user_input",
+      value: { kind: "text", value: "shadow-user-value" },
+    });
+
+    scanner.setEnabled(false);
+    expect(shadow.querySelector("[data-jh-ff-ui]")).toBeNull();
+  });
+
   it("waits for lazy fields to settle and resolves one batch", async () => {
     vi.useFakeTimers();
     fixture("");

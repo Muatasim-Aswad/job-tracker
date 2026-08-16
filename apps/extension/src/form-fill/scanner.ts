@@ -49,6 +49,27 @@ const SITE_SCOPE = "linkedin:easy-apply";
 const SETTLE_MS = 180;
 const CAPTURE_SETTLE_MS = 400;
 
+type SearchTree = Document | ShadowRoot;
+
+function openShadowRoots(tree: SearchTree): ShadowRoot[] {
+  const roots: ShadowRoot[] = [];
+  for (const element of tree.querySelectorAll("*")) {
+    if (!element.shadowRoot || element.hasAttribute("data-jh-ff-ui")) continue;
+    roots.push(element.shadowRoot, ...openShadowRoots(element.shadowRoot));
+  }
+  return roots;
+}
+
+function queryAcrossOpenTrees<T extends Element>(tree: SearchTree, selector: string): T | null {
+  const direct = tree.querySelector<T>(selector);
+  if (direct) return direct;
+  for (const shadow of openShadowRoots(tree)) {
+    const match = shadow.querySelector<T>(selector);
+    if (match) return match;
+  }
+  return null;
+}
+
 function containsEasyApplyRoot(node: Node): boolean {
   return (
     node instanceof Element &&
@@ -56,8 +77,8 @@ function containsEasyApplyRoot(node: Node): boolean {
   );
 }
 
-function mutationAffectsForm(doc: Document, mutation: MutationRecord): boolean {
-  const root = doc.querySelector(EASY_APPLY_ROOT);
+function mutationAffectsForm(tree: SearchTree, mutation: MutationRecord): boolean {
+  const root = queryAcrossOpenTrees<HTMLElement>(tree, EASY_APPLY_ROOT);
   if (root?.contains(mutation.target)) return true;
   return [...mutation.addedNodes, ...mutation.removedNodes].some(containsEasyApplyRoot);
 }
@@ -162,6 +183,7 @@ export class EasyApplyScanner {
   private generation = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private observer: MutationObserver | undefined;
+  private observedTrees = new Set<SearchTree>();
   private enabled = false;
   private stepKey: string | null = null;
   private stepProgress: number | null = null;
@@ -282,6 +304,28 @@ export class EasyApplyScanner {
     this.schedule();
   };
 
+  private easyApplyRoot(): HTMLElement | null {
+    return queryAcrossOpenTrees<HTMLElement>(this.doc, EASY_APPLY_ROOT);
+  }
+
+  private refreshObservedTrees(): void {
+    if (!this.observer) return;
+    const trees: SearchTree[] = [this.doc, ...openShadowRoots(this.doc)];
+    for (const tree of trees) {
+      if (this.observedTrees.has(tree)) continue;
+      this.observedTrees.add(tree);
+      this.observer.observe(tree instanceof Document ? tree.documentElement : tree, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["aria-hidden", "aria-invalid", "aria-required", "disabled", "required"],
+      });
+      tree.addEventListener("input", this.onControlEvent, true);
+      tree.addEventListener("change", this.onControlEvent, true);
+      tree.addEventListener("focusout", this.onControlEvent, true);
+    }
+  }
+
   setEnabled(enabled: boolean): void {
     if (enabled === this.enabled) return;
     this.enabled = enabled;
@@ -295,9 +339,12 @@ export class EasyApplyScanner {
       this.conditionalIdentities.clear();
       this.observer?.disconnect();
       this.observer = undefined;
-      this.doc.removeEventListener("input", this.onControlEvent, true);
-      this.doc.removeEventListener("change", this.onControlEvent, true);
-      this.doc.removeEventListener("focusout", this.onControlEvent, true);
+      for (const tree of this.observedTrees) {
+        tree.removeEventListener("input", this.onControlEvent, true);
+        tree.removeEventListener("change", this.onControlEvent, true);
+        tree.removeEventListener("focusout", this.onControlEvent, true);
+      }
+      this.observedTrees.clear();
       clearPresentation(this.doc);
       this.stepKey = null;
       this.stepProgress = null;
@@ -310,6 +357,7 @@ export class EasyApplyScanner {
       return;
     }
     this.observer = new MutationObserver((mutations) => {
+      this.refreshObservedTrees();
       if (
         mutations.some(
           (mutation) =>
@@ -319,15 +367,7 @@ export class EasyApplyScanner {
         this.schedule();
       }
     });
-    this.observer.observe(this.doc.documentElement, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-      attributeFilter: ["aria-hidden", "aria-invalid", "aria-required", "disabled", "required"],
-    });
-    this.doc.addEventListener("input", this.onControlEvent, true);
-    this.doc.addEventListener("change", this.onControlEvent, true);
-    this.doc.addEventListener("focusout", this.onControlEvent, true);
+    this.refreshObservedTrees();
     this.schedule();
   }
 
@@ -350,7 +390,7 @@ export class EasyApplyScanner {
     if (
       runtime.generation !== this.generation ||
       !this.enabled ||
-      this.doc.querySelector(EASY_APPLY_ROOT) !== runtime.root ||
+      this.easyApplyRoot() !== runtime.root ||
       stepIdentity(runtime.root) !== runtime.stepKey
     ) {
       return null;
@@ -915,13 +955,13 @@ export class EasyApplyScanner {
     if (!this.enabled) return;
     const generation = expectedGeneration ?? ++this.generation;
     if (generation !== this.generation) return;
-    const root = this.doc.querySelector<HTMLElement>(EASY_APPLY_ROOT);
+    const root = this.easyApplyRoot();
     if (!root) {
       clearPresentation(this.doc);
       return;
     }
     clearLinkedInFollowCompanyDefault(root, this.handledFollowCompanyControls);
-    if (this.doc.querySelector(EASY_APPLY_ROOT) !== root) {
+    if (this.easyApplyRoot() !== root) {
       this.schedule();
       return;
     }
@@ -1036,7 +1076,7 @@ export class EasyApplyScanner {
     const response = await this.bridge(request);
     if (generation !== this.generation || !this.enabled) return;
 
-    const liveRoot = this.doc.querySelector<HTMLElement>(EASY_APPLY_ROOT);
+    const liveRoot = this.easyApplyRoot();
     if (!liveRoot || liveRoot !== root || stepIdentity(root) !== currentStep) return;
     const live = discoverLinkedInFields(root);
     const liveSupported = new Map(

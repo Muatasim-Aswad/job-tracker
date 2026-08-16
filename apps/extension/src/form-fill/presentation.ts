@@ -3,6 +3,7 @@ import type { FieldState, PresentedField } from "./types.js";
 const UI_ATTRIBUTE = "data-jh-ff-ui";
 const PANEL_ATTRIBUTE = "data-jh-ff-panel";
 const MARKER_ATTRIBUTE = "data-jh-ff-marker";
+const SHADOW_STYLE_ATTRIBUTE = "data-jh-ff-shadow-styles";
 
 const SYMBOL: Record<FieldState, string> = {
   filled: "✓",
@@ -59,6 +60,33 @@ function panelStyles(): string {
   `;
 }
 
+function markerStyles(): string {
+  return `
+    .jh-ff-marker { display: inline-flex; align-items: center; gap: 5px; margin: 6px 0 0;
+      border: 1px solid #8c9bab; border-radius: 999px; padding: 2px 8px;
+      background: #f3f6f8; color: #38434f; font: 600 12px/1.5 system-ui, sans-serif; }
+    .jh-ff-marker[data-state="filled"], .jh-ff-marker[data-state="already"],
+    .jh-ff-marker[data-state="remembered"] { border-color: #4f8f70; background: #edf7f1;
+      color: #24583e; }
+    .jh-ff-marker[data-state="attention"], .jh-ff-marker[data-state="confirmation"],
+    .jh-ff-marker[data-state="differs"], .jh-ff-marker[data-state="failed"],
+    .jh-ff-marker[data-state="error"] { border-color: #9b7229; background: #fff8e6;
+      color: #694b18; }
+    .jh-ff-marker:focus-visible { outline: 2px solid #0a66c2; outline-offset: 2px; }
+    .jh-ff-marker__symbol { font-weight: 800; }
+  `;
+}
+
+function ensureShadowMarkerStyles(root: HTMLElement): void {
+  const tree = root.getRootNode();
+  if (!(tree instanceof ShadowRoot) || tree.querySelector(`[${SHADOW_STYLE_ATTRIBUTE}]`)) return;
+  const style = root.ownerDocument.createElement("style");
+  style.setAttribute(UI_ATTRIBUTE, "");
+  style.setAttribute(SHADOW_STYLE_ATTRIBUTE, "");
+  style.textContent = markerStyles();
+  tree.prepend(style);
+}
+
 function panelAnchor(root: HTMLElement): Element {
   return root.querySelector("h3, h4") ?? root.firstElementChild ?? root;
 }
@@ -111,6 +139,7 @@ export function renderPresentation(
   fields: PresentedField[],
   options: PresentationOptions = {},
 ): void {
+  ensureShadowMarkerStyles(root);
   const liveIds = new Set(fields.map((field) => field.clientFieldId));
   for (const old of root.querySelectorAll<HTMLElement>(`[${MARKER_ATTRIBUTE}]`)) {
     if (!old.dataset.fieldId || !liveIds.has(old.dataset.fieldId)) old.remove();
@@ -218,13 +247,19 @@ export function renderPresentation(
   }
   details.append(list);
   shadow.replaceChildren(
-    Object.assign(root.ownerDocument.createElement("style"), { textContent: panelStyles() }),
+    Object.assign(root.ownerDocument.createElement("style"), {
+      textContent: panelStyles(),
+    }),
     details,
   );
 }
 
-export function clearPresentation(doc: Document): void {
-  doc.querySelectorAll(`[${UI_ATTRIBUTE}]`).forEach((element) => element.remove());
+export function clearPresentation(tree: Document | ShadowRoot): void {
+  const shadows = [...tree.querySelectorAll("*")]
+    .map((element) => element.shadowRoot)
+    .filter((root): root is ShadowRoot => root !== null);
+  tree.querySelectorAll(`[${UI_ATTRIBUTE}]`).forEach((element) => element.remove());
+  for (const shadow of shadows) clearPresentation(shadow);
 }
 
 export function isPresentationMutation(mutation: MutationRecord): boolean {
