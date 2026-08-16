@@ -110,6 +110,25 @@ describe("LinkedIn Easy Apply discovery", () => {
     expect(linkedInPlatformId(document, fields)).toBe("987654");
   });
 
+  it.each([
+    ["/jobs/view/separate-role-765432/", "765432"],
+    ["/jobs/search/?keywords=engineer&currentJobId=876543", "876543"],
+    ["/jobs/search-results/?currentJobId=987654", "987654"],
+  ])("derives generic preload-frame context from %s", (route, expected) => {
+    history.replaceState({}, "", route);
+    const iframe = document.createElement("iframe");
+    document.body.append(iframe);
+    const frameDocument = iframe.contentDocument!;
+    frameDocument.body.innerHTML = `
+      <div class="jobs-easy-apply-modal"><h3>Application questions</h3>
+        ${textQuestion("generic-question-handle", "Portfolio note")}
+      </div>`;
+    const frameRoot = frameDocument.querySelector<HTMLElement>(".jobs-easy-apply-modal")!;
+    const fields = discoverLinkedInFields(frameRoot);
+
+    expect(linkedInPlatformId(frameDocument, fields)).toBe(expected);
+  });
+
   it("supports localized radios and excludes LinkedIn's presentational required marker", () => {
     const [field] = discoverLinkedInFields(
       root(`

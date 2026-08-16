@@ -5,6 +5,7 @@ import type {
   SupportedField,
   SupportedOptionTarget,
 } from "./types.js";
+import { linkedinJobId } from "../adapters/builtin/linkedin/identity.js";
 
 export const EASY_APPLY_ROOT = ".jobs-easy-apply-modal, [data-test-easy-apply-modal]";
 const QUESTION = "[data-test-form-element]";
@@ -367,14 +368,36 @@ export function discoverLinkedInFields(root: HTMLElement): DiscoveredField[] {
 }
 
 export function linkedInPlatformId(doc: Document, fields: DiscoveredField[]): string | null {
-  const url = new URL(doc.URL);
-  const fromPath = url.pathname.match(/\/jobs\/view\/(?:[^/?#]*-)?(\d+)/)?.[1];
-  if (fromPath) return fromPath;
-  const fromQuery = url.searchParams.get("currentJobId");
-  if (fromQuery && /^\d+$/.test(fromQuery)) return fromQuery;
+  const fromUrl = (source: string): string | null => {
+    const url = new URL(source);
+    const fromPath = linkedinJobId(url.pathname);
+    if (fromPath) return fromPath;
+    const fromQuery = url.searchParams.get("currentJobId");
+    return fromQuery && /^\d+$/.test(fromQuery) ? fromQuery : null;
+  };
+
+  const ownContext = fromUrl(doc.URL);
+  if (ownContext) return ownContext;
   for (const field of fields) {
     const match = field.handle.match(FORM_ELEMENT_JOB) ?? field.handle.match(RADIO_JOB);
     if (match) return match[1];
+  }
+
+  // Some LinkedIn routes host Easy Apply in a same-origin preload frame whose
+  // generic field handles carry no job id. The owning job remains in an ancestor
+  // route, so use that route only after the form's own evidence is exhausted.
+  let frame: Window | null = doc.defaultView;
+  while (frame) {
+    const parent: Window = frame.parent;
+    if (parent === frame) break;
+    try {
+      const ancestorContext = fromUrl(parent.location.href);
+      if (ancestorContext) return ancestorContext;
+    } catch {
+      // A cross-origin ancestor is not usable context and also blocks traversal.
+      break;
+    }
+    frame = parent;
   }
   return null;
 }

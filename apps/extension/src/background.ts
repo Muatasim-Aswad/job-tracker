@@ -32,7 +32,7 @@ function broadcastReachability(reachable: boolean) {
 
 // Ignore tabs without a live content-script receiver.
 function sendToContentTabs(msg: object, excludeTabId?: number) {
-  chrome.tabs.query({ url: contentScript?.matches ?? [] }, (tabs) => {
+  chrome.tabs.query({ url: contentScripts.flatMap((script) => script.matches ?? []) }, (tabs) => {
     if (chrome.runtime.lastError) return; // no matching tabs / query raced a teardown
     for (const tab of tabs) {
       if (tab.id !== undefined && tab.id !== excludeTabId) {
@@ -192,29 +192,23 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 reportingFetch("/health").catch(() => {});
 
 // ── Post-navigation re-injection ─────────────────────────────────────────────
-// Some SPA navigations replace the document without declarative reinjection. The
-// worker reruns the bundle; content.ts prevents duplicate engines.
-const contentScript = chrome.runtime.getManifest().content_scripts?.[0];
-const CONTENT_JS = contentScript?.js ?? [];
-// A webNavigation URL filter scoped to exactly the content-script hosts, so the
-// worker never touches an unrelated tab.
-const navFilter: chrome.webNavigation.WebNavigationEventFilter = {
-  url: (contentScript?.matches ?? []).flatMap((m) => {
-    try {
-      return [{ hostEquals: new URL(m).hostname }];
-    } catch {
-      return [];
-    }
-  }),
-};
+// Some SPA navigations replace a document without declarative reinjection. Register
+// every manifest entry separately so the top-frame engine and the all-frame Easy
+// Apply scanner retain their own match and frame boundaries.
+const contentScripts = chrome.runtime.getManifest().content_scripts ?? [];
+type ManifestContentScript = (typeof contentScripts)[number];
 
-async function reinjectContentScript(tabId: number, frameId: number) {
-  // Top frame only, since the swap replaces the whole page, not a subframe.
-  if (frameId !== 0 || !CONTENT_JS.length) return;
+async function reinjectContentScript(
+  script: ManifestContentScript,
+  tabId: number,
+  frameId: number,
+) {
+  const files = script.js ?? [];
+  if ((!script.all_frames && frameId !== 0) || !files.length) return;
   try {
     await chrome.scripting.executeScript({
       target: { tabId, frameIds: [frameId] },
-      files: CONTENT_JS,
+      files,
     });
   } catch {
     // Frame gone, a restricted URL, or a racing navigation. The content.ts sentinel
@@ -222,15 +216,24 @@ async function reinjectContentScript(tabId: number, frameId: number) {
   }
 }
 
-// onCommitted catches the swapped-in / activated document; onHistoryStateUpdated
-// catches same-document route changes. Both are deduped per document by content.ts.
-if (navFilter.url?.length) {
+// onCommitted catches swapped-in / activated documents; onHistoryStateUpdated
+// catches same-document route changes. Each entry's boot sentinel deduplicates it.
+for (const script of contentScripts) {
+  const navFilter: chrome.webNavigation.WebNavigationEventFilter = { url: [] };
+  for (const match of script.matches ?? []) {
+    try {
+      navFilter.url!.push({ hostEquals: new URL(match).hostname });
+    } catch {
+      // Ignore malformed optional adapter patterns rather than widening injection.
+    }
+  }
+  if (!navFilter.url?.length) continue;
   chrome.webNavigation.onCommitted.addListener(
-    (d) => reinjectContentScript(d.tabId, d.frameId),
+    (details) => reinjectContentScript(script, details.tabId, details.frameId),
     navFilter,
   );
   chrome.webNavigation.onHistoryStateUpdated.addListener(
-    (d) => reinjectContentScript(d.tabId, d.frameId),
+    (details) => reinjectContentScript(script, details.tabId, details.frameId),
     navFilter,
   );
 }
