@@ -1,7 +1,5 @@
-import { useState } from "react";
 import type { AnswerChoiceSummary, QuestionOption } from "./model";
-
-const LARGE_OPTION_SET = 12;
+import { ChoiceSetDisclosure } from "./ChoiceSetDisclosure";
 
 interface Props {
   choices: AnswerChoiceSummary[];
@@ -26,8 +24,6 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
     choiceOwners.set(choiceId, owners);
   }
   const hasDuplicate = [...choiceOwners.values()].some((owners) => owners.size > 1);
-  const large = activeOptions.length > LARGE_OPTION_SET;
-  const [expanded, setExpanded] = useState(false);
   function rows() {
     return activeOptions.map((option) => {
       const selectedId = value[option.id] ?? "";
@@ -82,20 +78,12 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
           Every form option needs a different Answer choice.
         </p>
       )}
-      {large ? (
-        <details
-          open={expanded}
-          onToggle={(event) => setExpanded(event.currentTarget.open)}
-          className="rounded border border-line bg-surface px-3 py-2"
-        >
-          <summary className="cursor-pointer text-sm font-medium text-ink">
-            {activeOptions.length} Option matches · {selectedCount} selected
-          </summary>
-          {expanded && <div className="mt-3 space-y-3">{rows()}</div>}
-        </details>
-      ) : (
-        rows()
-      )}
+      <ChoiceSetDisclosure
+        count={activeOptions.length}
+        summary={`${activeOptions.length} Option matches · ${selectedCount} selected`}
+      >
+        {rows()}
+      </ChoiceSetDisclosure>
     </fieldset>
   );
 }

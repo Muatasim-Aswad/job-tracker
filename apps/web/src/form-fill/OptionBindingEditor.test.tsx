@@ -65,14 +65,14 @@ describe("OptionBindingEditor", () => {
   });
 
   it("collapses large option sets until their mappings are opened", async () => {
-    const manyOptions = Array.from({ length: 13 }, (_, index) => ({
+    const manyOptions = Array.from({ length: 6 }, (_, index) => ({
       id: `qo-${index}`,
       raw_label: `Option ${index}`,
       normalized_label: `option ${index}`,
       stable_option_key: null,
       status: "active" as const,
     }));
-    const manyChoices = Array.from({ length: 13 }, (_, index) => ({
+    const manyChoices = Array.from({ length: 6 }, (_, index) => ({
       id: `ac-${index}`,
       choice_key: `choice-${index}`,
       display_label: `Meaning ${index}`,
@@ -93,7 +93,7 @@ describe("OptionBindingEditor", () => {
     fireEvent.click(container.querySelector("summary")!);
     await waitFor(() => {
       expect(details.open).toBe(true);
-      expect(screen.getAllByRole("combobox")).toHaveLength(13);
+      expect(screen.getAllByRole("combobox")).toHaveLength(6);
     });
   });
 });
