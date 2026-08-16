@@ -93,6 +93,20 @@ def update_answer(
     return service.update_answer(answer_id, body)
 
 
+@router.delete("/answers/{answer_id}", status_code=204)
+def delete_answer(
+    answer_id: str,
+    response: Response,
+    expected_revision: Annotated[int, Query(ge=1)],
+    service: FormFillService = Depends(get_service),
+) -> Response:
+    """Permanently delete one unmapped Answer and its retained value."""
+    _private(response)
+    service.delete_answer(answer_id, expected_revision)
+    response.status_code = 204
+    return response
+
+
 @router.post("/captures", response_model=CaptureCreateResponse)
 def create_capture(
     body: CaptureCreate, response: Response, service: FormFillService = Depends(get_service)

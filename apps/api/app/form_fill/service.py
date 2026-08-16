@@ -682,6 +682,14 @@ class FormFillService:
         row = self._require_answer(answer_id)
         if row["revision"] != update.expected_revision:
             raise ConflictError("stale_revision", self._answer_summary(row).model_dump())
+        answer_key = update.answer_key or row["answer_key"]
+        if update.answer_key is not None:
+            self._validate_answer_key(update.answer_key)
+            existing = self.repo.get_answer_by_key(update.answer_key)
+            if existing is not None and existing["id"] != answer_id:
+                raise ConflictError(
+                    "answer_key_exists", self._answer_summary(existing).model_dump()
+                )
         current_value = _ANSWER_VALUE.validate_json(row["value_json"])
         value = update.value or current_value
         choices = update.choices
@@ -690,6 +698,7 @@ class FormFillService:
         self._validate_answer_value(row["value_kind"], value, choice_models)
         changed = any(
             (
+                update.answer_key is not None and update.answer_key != row["answer_key"],
                 update.label is not None and update.label != row["label"],
                 "description" in update.model_fields_set
                 and update.description != row["description"],
@@ -709,6 +718,7 @@ class FormFillService:
             self.repo.update_answer(
                 answer_id,
                 expected_revision=update.expected_revision,
+                answer_key=answer_key,
                 label=update.label if update.label is not None else row["label"],
                 description=(
                     update.description
@@ -737,6 +747,15 @@ class FormFillService:
                 now=now,
             )
         return self.get_answer(answer_id)
+
+    def delete_answer(self, answer_id: str, expected_revision: int) -> None:
+        row = self._require_answer(answer_id)
+        if row["revision"] != expected_revision:
+            raise ConflictError("stale_revision", self._answer_summary(row).model_dump())
+        if self.repo.answer_has_mappings(answer_id):
+            raise ValidationError("only unmapped answers can be deleted")
+        with _atomic(self.conn):
+            self.repo.delete_answer(answer_id)
 
     def put_mapping(self, question_id: str, put: MappingPut) -> QuestionDetail:
         question = self._require_question(question_id)
@@ -1207,6 +1226,7 @@ class FormFillService:
                 self.repo.update_answer(
                     answer["id"],
                     expected_revision=answer["revision"],
+                    answer_key=answer["answer_key"],
                     label=apply.label or answer["label"],
                     description=(
                         apply.description
