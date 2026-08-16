@@ -143,7 +143,11 @@ export interface paths {
         get: operations["get_answer_api_form_fill_answers__answer_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Answer
+         * @description Permanently delete one unmapped Answer and its retained value.
+         */
+        delete: operations["delete_answer_api_form_fill_answers__answer_id__delete"];
         options?: never;
         head?: never;
         /** Update Answer */
@@ -872,6 +876,8 @@ export interface components {
         };
         /** AnswerUpdate */
         AnswerUpdate: {
+            /** Answer Key */
+            answer_key?: string | null;
             /** Choices */
             choices?: components["schemas"]["AnswerChoiceInput"][] | null;
             /** Description */
@@ -2817,6 +2823,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AnswerDetail"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_answer_api_form_fill_answers__answer_id__delete: {
+        parameters: {
+            query: {
+                expected_revision: number;
+            };
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                answer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -46,7 +46,7 @@ Attention is read-only derived state, so no read or background process ever writ
 `/api/form-fill` owns the typed, revision-checked knowledge used by supported application forms:
 
 - `POST /resolutions` observes exact Questions and returns one typed result per request field in request order.
-- `/answers` manages reusable verified values and fill policies.
+- `/answers` manages reusable verified values, fill policies, and revision-checked stable-key corrections. An Answer can be permanently deleted only while no Match points to it.
 - `/questions` manages review state and each Question's singleton Match, including complete one-to-one choice-option bindings. Saving a Match also applies the one non-conflicting current Capture when the resulting mapped action exactly equals the Answer's current action; a differing Capture remains provisional.
 - `/captures` stores provisional user-entered or explicitly remembered values for review and applies them through one of the explicit promotion/update workflows.
 - `/questions/{id}/capture-conflicts/resolve` selects a winner only when the Question revision and complete current Capture revision set still agree.

@@ -474,6 +474,7 @@ class FormFillRepository:
         answer_id: str,
         *,
         expected_revision: int,
+        answer_key: str,
         label: str,
         description: str | None,
         value_json: str,
@@ -483,10 +484,11 @@ class FormFillRepository:
     ) -> None:
         execute(
             self.conn,
-            "UPDATE form_answers SET label = ?, description = ?, value_json = ?, status = ?, "
-            "fill_policy = ?, revision = revision + 1, verified_at = ?, updated_at = ? "
+            "UPDATE form_answers SET answer_key = ?, label = ?, description = ?, value_json = ?, "
+            "status = ?, fill_policy = ?, revision = revision + 1, verified_at = ?, updated_at = ? "
             "WHERE id = ? AND revision = ?",
             (
+                answer_key,
                 label,
                 description,
                 value_json,
@@ -498,6 +500,38 @@ class FormFillRepository:
                 expected_revision,
             ),
         )
+
+    def answer_has_mappings(self, answer_id: str) -> bool:
+        return (
+            query_one(
+                self.conn,
+                "SELECT 1 AS present FROM form_question_mappings WHERE answer_id = ? LIMIT 1",
+                (answer_id,),
+            )
+            is not None
+        )
+
+    def delete_answer(self, answer_id: str) -> None:
+        # Shared history can mention a formerly mapped Answer in addition to its
+        # surviving Question, Match, or Capture. Clear only the deleted identity;
+        # rows that described the Answer alone become unaddressable and are removed.
+        execute(
+            self.conn,
+            "UPDATE form_knowledge_events SET "
+            "answer_id = CASE WHEN answer_id = ? THEN NULL ELSE answer_id END, "
+            "before_answer_id = CASE WHEN before_answer_id = ? THEN NULL ELSE before_answer_id END, "
+            "after_answer_id = CASE WHEN after_answer_id = ? THEN NULL ELSE after_answer_id END "
+            "WHERE answer_id = ? OR before_answer_id = ? OR after_answer_id = ?",
+            (answer_id, answer_id, answer_id, answer_id, answer_id, answer_id),
+        )
+        execute(
+            self.conn,
+            "DELETE FROM form_knowledge_events WHERE answer_id IS NULL "
+            "AND before_answer_id IS NULL AND after_answer_id IS NULL "
+            "AND mapping_id IS NULL AND question_id IS NULL AND capture_id IS NULL",
+        )
+        execute(self.conn, "DELETE FROM form_answer_choices WHERE answer_id = ?", (answer_id,))
+        execute(self.conn, "DELETE FROM form_answers WHERE id = ?", (answer_id,))
 
     def insert_mapping(self, mapping_id: str, question_id: str, answer_id: str, now: str) -> None:
         execute(

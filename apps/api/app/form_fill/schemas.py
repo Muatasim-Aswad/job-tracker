@@ -442,6 +442,7 @@ class AnswerCreate(BaseModel):
 
 class AnswerUpdate(BaseModel):
     expected_revision: int = Field(ge=1)
+    answer_key: str | None = Field(default=None, min_length=1, max_length=256)
     label: str | None = Field(default=None, min_length=1, max_length=1000)
     description: str | None = Field(default=None, max_length=4000)
     value: AnswerValue | None = None

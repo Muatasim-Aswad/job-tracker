@@ -111,7 +111,7 @@ Question-context Answer creation derives the Answer value kind from the Question
 
 Question `review_state` records explicit open/muted intent; actionable review is derived separately as an open Question without an active Match, or one with a Capture conflict. Resolution stores its actual non-fill reason after observation instead of guessing before the Match and Capture state has been evaluated.
 
-Current Answer and Capture values are deliberately retained private data. Superseding, clearing, ignoring, or applying a Capture removes its reusable value; lifecycle history records IDs, event kinds, timestamps, and optional reasons but never copies Answer or Capture values. Callers that supply an optional reason are responsible for keeping private values out of that metadata.
+Current Answer and Capture values are deliberately retained private data. Superseding, clearing, ignoring, or applying a Capture removes its reusable value; lifecycle history records IDs, event kinds, timestamps, and optional reasons but never copies Answer or Capture values. Callers that supply an optional reason are responsible for keeping private values out of that metadata. Hard deletion is limited to an Answer with no Match: it removes the value, vocabulary, and Answer-only history, while shared lifecycle rows retain their remaining Question, Match, or Capture context with the deleted Answer references cleared.
 
 ## API boundaries
 
