@@ -33,6 +33,8 @@ The **Form Fill** view manages reusable Answers and the **Needs review** queues 
 
 All mutations use the revision currently shown in the drawer. A `409` keeps the user's draft intact and presents the server's current value-free summary with explicit review, copy, and discard choices; the client does not retry or overwrite optimistically. Applying a Capture is always an explicit create/update/retarget/rebind workflow, while a Match-only save consumes one identical non-conflicting Capture and leaves a differing Capture for review. Competing Captures require an explicit revision-checked winner. Complete option bindings are one-to-one. Answer vocabularies and option-binding sets with more than five entries start collapsed; Answer vocabularies are searchable when expanded, selected choices appear first, and each option-binding selector places its current choice first.
 
+Creating an Answer from Question detail locks its compatible value type and active choice vocabulary, then creates the Answer and Match atomically. Answer-owned labels, descriptions, values, and fill policies stay editable.
+
 Form-fill URLs contain only enum view state and opaque Answer, Capture, or Question IDs. Filters and opaque cursors are the only list query data; prompts and values never enter the URL or browser history. Success toasts and the global error path are value-free, and detail cache entries are removed when their drawers close.
 
 Workspace-wide architecture and conventions are documented in [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md).

@@ -16,6 +16,7 @@ import type {
   CaptureUpdate,
   MappingPut,
   MappingUpdate,
+  QuestionAnswerCreate,
   QuestionFilters,
   QuestionReviewUpdate,
 } from "./api/client";
@@ -477,6 +478,13 @@ function useFormFillMutation<TVariables, TData>(
 
 export function useCreateFormFillAnswer() {
   return useFormFillMutation((body: AnswerCreate) => api.createFormFillAnswer(body));
+}
+
+export function useCreateFormFillAnswerForQuestion() {
+  return useFormFillMutation(
+    ({ questionId, body }: { questionId: string; body: QuestionAnswerCreate }) =>
+      api.createFormFillAnswerForQuestion(questionId, body),
+  );
 }
 
 export function useUpdateFormFillAnswer() {

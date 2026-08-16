@@ -58,6 +58,7 @@ export type CaptureListResponse = FormFillSchemas["CaptureListResponse"];
 export type CaptureUpdate = FormFillSchemas["CaptureUpdate"];
 export type MappingPut = FormFillSchemas["MappingPut"];
 export type MappingUpdate = FormFillSchemas["MappingUpdate"];
+export type QuestionAnswerCreate = FormFillSchemas["QuestionAnswerCreate"];
 export type QuestionDetail = FormFillSchemas["QuestionDetail"];
 export type QuestionListResponse = FormFillSchemas["QuestionListResponse"];
 export type QuestionReviewUpdate = FormFillSchemas["QuestionReviewUpdate"];
@@ -294,6 +295,14 @@ export const api = {
   ): Promise<QuestionDetail> =>
     formFillRequest(`/form-fill/questions/${encodeURIComponent(questionId)}`, {
       method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  createFormFillAnswerForQuestion: (
+    questionId: string,
+    body: QuestionAnswerCreate,
+  ): Promise<QuestionDetail> =>
+    formFillRequest(`/form-fill/questions/${encodeURIComponent(questionId)}/answer`, {
+      method: "POST",
       body: JSON.stringify(body),
     }),
   putFormFillMapping: (questionId: string, body: MappingPut): Promise<QuestionDetail> =>

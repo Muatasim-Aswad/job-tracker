@@ -21,6 +21,7 @@ from app.form_fill.schemas import (
     CaptureUpdate,
     MappingPut,
     MappingUpdate,
+    QuestionAnswerCreate,
     QuestionDetail,
     QuestionListResponse,
     QuestionReviewUpdate,
@@ -200,6 +201,17 @@ def update_question(
 ) -> QuestionDetail:
     _private(response)
     return service.update_question(question_id, body)
+
+
+@router.post("/questions/{question_id}/answer", response_model=QuestionDetail)
+def create_answer_for_question(
+    question_id: str,
+    body: QuestionAnswerCreate,
+    response: Response,
+    service: FormFillService = Depends(get_service),
+) -> QuestionDetail:
+    _private(response)
+    return service.create_answer_for_question(question_id, body)
 
 
 @router.put("/questions/{question_id}/mapping", response_model=QuestionDetail)

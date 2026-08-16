@@ -61,6 +61,7 @@ from app.form_fill.schemas import (
     OptionBindingInput,
     OptionBindingSummary,
     OptionIdentityPair,
+    QuestionAnswerCreate,
     QuestionDetail,
     QuestionListResponse,
     QuestionOptionSummary,
@@ -784,6 +785,110 @@ class FormFillService:
             assert current_mapping is not None
             self._consume_matching_current_capture(
                 question, answer, current_mapping, now=now, reason=put.reason
+            )
+        return self.get_question(question_id)
+
+    def create_answer_for_question(
+        self, question_id: str, create: QuestionAnswerCreate
+    ) -> QuestionDetail:
+        question = self._require_question(question_id)
+        mapping = self.repo.get_mapping(question_id)
+        stale = question.revision != create.expected_question_revision
+        stale = stale or (mapping is None and create.expected_mapping_revision is not None)
+        stale = stale or (
+            mapping is not None and mapping["revision"] != create.expected_mapping_revision
+        )
+        if stale:
+            raise ConflictError(
+                "stale_revision", self._conflict_current(question=question, mapping=mapping)
+            )
+        if question.review_state == "ignored":
+            raise ValidationError("ignored questions must be reopened before mapping")
+
+        value_kind = create.value.kind
+        self._validate_answer_key(create.answer_key)
+        self._validate_answer_value(value_kind, create.value, create.choices)
+        if (existing := self.repo.get_answer_by_key(create.answer_key)) is not None:
+            raise ConflictError("answer_key_exists", self._answer_summary(existing).model_dump())
+
+        now, answer_id = utc_now(), _new_id()
+        with _atomic(self.conn):
+            self.repo.insert_answer(
+                answer_id=answer_id,
+                answer_key=create.answer_key,
+                label=create.label,
+                description=create.description,
+                value_kind=value_kind,
+                value_json=_json(create.value),
+                fill_policy=create.fill_policy,
+                now=now,
+            )
+            self.repo.replace_answer_choices(
+                answer_id,
+                [
+                    (_new_id(), item.choice_key, item.display_label, item.status)
+                    for item in create.choices
+                ],
+                now,
+            )
+            answer = self._require_answer(answer_id)
+            choices_by_key = {
+                item["choice_key"]: item for item in self.repo.list_answer_choices(answer_id)
+            }
+            binding_inputs = [
+                OptionBindingInput(
+                    question_option_id=item.question_option_id,
+                    answer_choice_id=choices_by_key[item.answer_choice_key]["id"],
+                )
+                for item in create.bindings
+                if item.answer_choice_key in choices_by_key
+            ]
+            if len(binding_inputs) != len(create.bindings):
+                raise ValidationError("option bindings must reference new answer choices")
+            bindings = self._validate_bindings(question, answer, binding_inputs)
+
+            if mapping is None:
+                mapping_id = _new_id()
+                self.repo.insert_mapping(mapping_id, question_id, answer_id, now)
+                event, before_revision, after_revision = "mapping_approved", None, 1
+            else:
+                mapping_id = mapping["id"]
+                before_revision, after_revision = mapping["revision"], mapping["revision"] + 1
+                event = (
+                    "mapping_reactivated" if mapping["status"] == "retired" else "mapping_corrected"
+                )
+                self.repo.update_mapping(
+                    mapping_id,
+                    answer_id=answer_id,
+                    status="active",
+                    expected_revision=mapping["revision"],
+                    now=now,
+                )
+            self.repo.replace_bindings(mapping_id, bindings, now)
+            self.repo.insert_event(
+                event_id=_new_id(),
+                event="answer_created",
+                answer_id=answer_id,
+                after_revision=1,
+                now=now,
+            )
+            self.repo.insert_event(
+                event_id=_new_id(),
+                event=event,
+                answer_id=answer_id,
+                mapping_id=mapping_id,
+                question_id=question_id,
+                before_answer_id=mapping["answer_id"] if mapping else None,
+                after_answer_id=answer_id,
+                before_revision=before_revision,
+                after_revision=after_revision,
+                reason=create.reason,
+                now=now,
+            )
+            current_mapping = self.repo.get_mapping(question_id)
+            assert current_mapping is not None
+            self._consume_matching_current_capture(
+                question, answer, current_mapping, now=now, reason=create.reason
             )
         return self.get_question(question_id)
 

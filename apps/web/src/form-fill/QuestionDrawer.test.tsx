@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -69,5 +69,18 @@ describe("QuestionDrawer", () => {
 
     expect(screen.getByText("This Question is handled by its active Match.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Mute Question" })).toBeNull();
+  });
+
+  it("passes the observed Question into contextual Answer creation", () => {
+    const onCreateAnswer = vi.fn();
+    render(
+      <QuestionDrawer questionId="question-1" onClose={vi.fn()} onCreateAnswer={onCreateAnswer} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create a new Answer for this Question" }));
+
+    expect(onCreateAnswer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "question-1", control_kind: "text" }),
+    );
   });
 });

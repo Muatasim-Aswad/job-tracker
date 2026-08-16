@@ -2,33 +2,56 @@ import { useEffect, useState } from "react";
 import { RevisionConflictPanel } from "../components/RevisionConflictPanel";
 import {
   useCreateFormFillAnswer,
+  useCreateFormFillAnswerForQuestion,
   useFormFillAnswer,
+  useFormFillQuestion,
   useRemoveFormFillDetail,
   useUpdateFormFillAnswer,
 } from "../hooks";
 import { toast } from "../lib/toast";
 import { AnswerEditor } from "./AnswerEditor";
-import { draftFromAnswer, emptyAnswerDraft, valueFromDraft, type AnswerDraft } from "./answerDraft";
+import {
+  choicePairsForQuestion,
+  draftForQuestion,
+  draftFromAnswer,
+  emptyAnswerDraft,
+  valueFromDraft,
+  type AnswerDraft,
+} from "./answerDraft";
 import { Drawer } from "./Drawer";
-import { formatDate } from "./model";
+import { formatDate, isChoiceKind, type QuestionDetail } from "./model";
 
 interface Props {
   answerId: string | null;
+  questionContext?: QuestionDetail | null;
   onClose: () => void;
   onCreated: (answerId: string) => void;
   onOpenQuestion: (questionId: string) => void;
 }
 
-export function AnswerDrawer({ answerId, onClose, onCreated, onOpenQuestion }: Props) {
+export function AnswerDrawer({
+  answerId,
+  questionContext = null,
+  onClose,
+  onCreated,
+  onOpenQuestion,
+}: Props) {
   const query = useFormFillAnswer(answerId);
+  const questionQuery = useFormFillQuestion(questionContext?.id ?? null);
   const create = useCreateFormFillAnswer();
+  const createForQuestion = useCreateFormFillAnswerForQuestion();
   const update = useUpdateFormFillAnswer();
   const removeDetail = useRemoveFormFillDetail();
-  const [draft, setDraft] = useState<AnswerDraft>(emptyAnswerDraft);
-  const [initializedFor, setInitializedFor] = useState<string | null>(answerId ? null : "new");
+  const [context, setContext] = useState(questionContext);
+  const [draft, setDraft] = useState<AnswerDraft>(() =>
+    questionContext ? draftForQuestion(questionContext) : emptyAnswerDraft(),
+  );
+  const [initializedFor, setInitializedFor] = useState<string | null>(
+    answerId ? null : (questionContext?.id ?? "new"),
+  );
   const [announcement, setAnnouncement] = useState("");
   const answer = query.data;
-  const mutation = answerId ? update : create;
+  const mutation = answerId ? update : context ? createForQuestion : create;
 
   useEffect(() => {
     if (answer && initializedFor !== answer.id) {
@@ -70,6 +93,30 @@ export function AnswerDrawer({ answerId, onClose, onCreated, onOpenQuestion }: P
         });
         setAnnouncement("Answer saved.");
         toast.info("Answer saved.");
+      } else if (context) {
+        const created = await createForQuestion.mutateAsync({
+          questionId: context.id,
+          body: {
+            expected_question_revision: context.revision,
+            expected_mapping_revision: context.mapping?.revision ?? null,
+            answer_key: draft.answerKey,
+            choices: draft.choices,
+            description: draft.description || null,
+            fill_policy: draft.fillPolicy,
+            label: draft.label,
+            value: valueFromDraft(draft),
+            bindings: isChoiceKind(draft.valueKind)
+              ? choicePairsForQuestion(context).map(({ option, choiceKey }) => ({
+                  question_option_id: option.id,
+                  answer_choice_key: choiceKey,
+                }))
+              : [],
+          },
+        });
+        if (!created.answer) throw new Error("Question Answer creation returned no Answer");
+        setAnnouncement("Answer and Match created.");
+        toast.info("Answer and Match created.");
+        onCreated(created.answer.id);
       } else {
         const created = await create.mutateAsync({
           answer_key: draft.answerKey,
@@ -91,6 +138,7 @@ export function AnswerDrawer({ answerId, onClose, onCreated, onOpenQuestion }: P
 
   const discard = () => {
     if (answer) setDraft(draftFromAnswer(answer));
+    else if (context) setDraft(draftForQuestion(context));
     else setDraft(emptyAnswerDraft());
     mutation.reset();
   };
@@ -123,7 +171,18 @@ export function AnswerDrawer({ answerId, onClose, onCreated, onOpenQuestion }: P
           }}
           className="space-y-5"
         >
-          <AnswerEditor draft={draft} existing={!!answerId} onChange={setDraft} />
+          {context && (
+            <p className="rounded border border-line bg-sunken p-3 text-sm text-ink-muted">
+              Creating for “{context.raw_question}”. Value type and choice vocabulary come from its{" "}
+              {context.control_kind} control, and the Match is created with the Answer.
+            </p>
+          )}
+          <AnswerEditor
+            draft={draft}
+            existing={!!answerId}
+            questionLocked={!!context}
+            onChange={setDraft}
+          />
           {answer && draft.status === "disabled" && answer.mappings.length > 0 && (
             <p className="rounded border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
               This stops {answer.mappings.length} matched{" "}
@@ -150,7 +209,12 @@ export function AnswerDrawer({ answerId, onClose, onCreated, onOpenQuestion }: P
             error={mutation.error}
             draft={JSON.stringify(draft, null, 2)}
             onReviewCurrent={async () => {
-              await query.refetch();
+              if (context) {
+                const current = await questionQuery.refetch();
+                if (current.data) setContext(current.data);
+              } else {
+                await query.refetch();
+              }
               mutation.reset();
             }}
             onDiscard={discard}

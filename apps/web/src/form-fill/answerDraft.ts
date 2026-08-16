@@ -1,4 +1,11 @@
-import type { AnswerChoiceInput, AnswerDetail, AnswerValue, AnswerValueKind } from "./model";
+import { answerKey } from "./model";
+import type {
+  AnswerChoiceInput,
+  AnswerDetail,
+  AnswerValue,
+  AnswerValueKind,
+  QuestionDetail,
+} from "./model";
 
 export interface AnswerDraft {
   answerKey: string;
@@ -23,6 +30,48 @@ export function emptyAnswerDraft(): AnswerDraft {
     scalar: "",
     status: "active",
     valueKind: "text",
+  };
+}
+
+export function valueKindForQuestion(control: QuestionDetail["control_kind"]): AnswerValueKind {
+  if (control === "textarea") return "long_text";
+  if (control === "integer" || control === "decimal") return "decimal";
+  if (control === "date") return "date";
+  if (control === "checkbox_boolean") return "boolean";
+  if (control === "radio" || control === "select") return "single_choice";
+  if (control === "checkbox_group" || control === "multi_select") return "multi_choice";
+  return "text";
+}
+
+export function choicePairsForQuestion(question: QuestionDetail) {
+  const used = new Set<string>();
+  return question.options
+    .filter((option) => option.status === "active")
+    .map((option) => {
+      const base = answerKey(option.raw_label) || "option";
+      let choiceKey = base;
+      let suffix = 2;
+      while (used.has(choiceKey)) {
+        choiceKey = `${base}_${suffix}`;
+        suffix += 1;
+      }
+      used.add(choiceKey);
+      return { option, choiceKey };
+    });
+}
+
+export function draftForQuestion(question: QuestionDetail): AnswerDraft {
+  const label = question.raw_question.slice(0, 120);
+  return {
+    ...emptyAnswerDraft(),
+    answerKey: answerKey(label),
+    choices: choicePairsForQuestion(question).map(({ option, choiceKey }) => ({
+      choice_key: choiceKey,
+      display_label: option.raw_label,
+      status: "active",
+    })),
+    label,
+    valueKind: valueKindForQuestion(question.control_kind),
   };
 }
 

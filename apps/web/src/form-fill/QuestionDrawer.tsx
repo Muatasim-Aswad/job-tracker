@@ -15,16 +15,15 @@ import { toast } from "../lib/toast";
 import { Drawer } from "./Drawer";
 import { bindingsComplete } from "./bindings";
 import { OptionBindingEditor } from "./OptionBindingEditor";
-import { controlAcceptsAnswer, formatDate, valueText } from "./model";
+import { controlAcceptsAnswer, formatDate, valueText, type QuestionDetail } from "./model";
 
 interface Props {
   questionId: string;
-  suggestedAnswerId?: string | null;
   onClose: () => void;
-  onCreateAnswer: () => void;
+  onCreateAnswer: (question: QuestionDetail) => void;
 }
 
-export function QuestionDrawer({ questionId, suggestedAnswerId, onClose, onCreateAnswer }: Props) {
+export function QuestionDrawer({ questionId, onClose, onCreateAnswer }: Props) {
   const query = useFormFillQuestion(questionId);
   const answerList = useFormFillAnswers({ status: "active", limit: 100 });
   const putMapping = usePutFormFillMapping();
@@ -32,7 +31,7 @@ export function QuestionDrawer({ questionId, suggestedAnswerId, onClose, onCreat
   const updateQuestion = useUpdateFormFillQuestion();
   const resolveConflict = useResolveFormFillCaptureConflict();
   const removeDetail = useRemoveFormFillDetail();
-  const [answerId, setAnswerId] = useState(suggestedAnswerId ?? "");
+  const [answerId, setAnswerId] = useState("");
   const [bindings, setBindings] = useState<Record<string, string>>({});
   const [winnerId, setWinnerId] = useState("");
   const [reviewed, setReviewed] = useState(false);
@@ -47,7 +46,7 @@ export function QuestionDrawer({ questionId, suggestedAnswerId, onClose, onCreat
 
   useEffect(() => {
     if (!question || initialized) return;
-    const nextAnswerId = suggestedAnswerId ?? question.answer?.id ?? "";
+    const nextAnswerId = question.answer?.id ?? "";
     setAnswerId(nextAnswerId);
     setBindings(
       Object.fromEntries(
@@ -59,7 +58,7 @@ export function QuestionDrawer({ questionId, suggestedAnswerId, onClose, onCreat
     );
     setWinnerId(question.current_captures?.[0]?.id ?? "");
     setInitialized(true);
-  }, [question, initialized, suggestedAnswerId]);
+  }, [question, initialized]);
 
   useEffect(() => {
     if (answerId) openedAnswerIds.current.add(answerId);
@@ -315,7 +314,7 @@ export function QuestionDrawer({ questionId, suggestedAnswerId, onClose, onCreat
             </label>
             <button
               type="button"
-              onClick={onCreateAnswer}
+              onClick={() => onCreateAnswer(question)}
               className="text-sm font-medium text-accent"
             >
               Create a new Answer for this Question
