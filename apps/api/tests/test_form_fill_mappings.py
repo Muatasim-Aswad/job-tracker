@@ -14,6 +14,7 @@ from app.form_fill.schemas import (
     CaptureCreate,
     MappingPut,
     MappingUpdate,
+    QuestionAnswerCreate,
     ResolutionRequest,
 )
 from app.form_fill.service import FormFillService
@@ -82,6 +83,83 @@ def _text_answer(service: FormFillService, key: str = "profile.name") -> Any:
             value={"kind": "text", "value": "PRIVATE NAME"},
         )
     )
+
+
+def test_question_answer_creation_is_compatible_bound_and_atomic(conn: Conn) -> None:
+    service = FormFillService(conn)
+    observed = service.resolve(_request(_choice_field(), "scan-create-for-question")).results[0]
+    question = service.get_question(observed.question_id)
+    option_by_label = {option.raw_label: option.id for option in question.options}
+    create = QuestionAnswerCreate(
+        expected_question_revision=question.revision,
+        answer_key="eligibility.authorization",
+        label="Work authorization",
+        value={"kind": "single_choice", "choice_key": "yes"},
+        choices=[
+            {"choice_key": "yes", "display_label": "Yes"},
+            {"choice_key": "no", "display_label": "No"},
+        ],
+        bindings=[
+            {"question_option_id": option_by_label["Yes"], "answer_choice_key": "yes"},
+            {"question_option_id": option_by_label["No"], "answer_choice_key": "no"},
+        ],
+    )
+
+    stale = create.model_copy(update={"expected_question_revision": 99})
+    with pytest.raises(ConflictError, match="stale_revision"):
+        service.create_answer_for_question(question.id, stale)
+    assert conn.execute("SELECT COUNT(*) FROM form_answers").fetchone() == (0,)
+
+    created = service.create_answer_for_question(question.id, create)
+    assert created.answer and created.mapping
+    assert created.answer.value_kind == "single_choice"
+    assert created.mapping.answer_id == created.answer.id
+    assert len(created.mapping.bindings) == 2
+    resolved = service.resolve(_request(_choice_field(), "scan-created-answer")).results[0]
+    assert resolved.status == "approved"
+    assert resolved.action.model_dump() == {
+        "kind": "set_single_choice",
+        "client_option_id": "local-yes",
+    }
+
+
+def test_question_answer_creation_rolls_back_an_incompatible_answer(conn: Conn) -> None:
+    service = FormFillService(conn)
+    observed = service.resolve(
+        _request(_field(control_kind="integer"), "scan-incompatible-create")
+    ).results[0]
+
+    with pytest.raises(ValidationError, match="answer and question types are incompatible"):
+        service.create_answer_for_question(
+            observed.question_id,
+            QuestionAnswerCreate(
+                expected_question_revision=1,
+                answer_key="profile.years",
+                label="Years of experience",
+                value={"kind": "text", "value": "PRIVATE"},
+            ),
+        )
+    assert conn.execute("SELECT COUNT(*) FROM form_answers").fetchone() == (0,)
+    assert service.get_question(observed.question_id).mapping is None
+
+
+def test_question_answer_creation_route_is_private(client: Any, conn: Conn) -> None:
+    service = FormFillService(conn)
+    observed = service.resolve(_request(_field(), "scan-route-create")).results[0]
+
+    response = client.post(
+        f"/api/form-fill/questions/{observed.question_id}/answer",
+        json={
+            "expected_question_revision": 1,
+            "answer_key": "profile.preferred_name",
+            "label": "Preferred name",
+            "value": {"kind": "text", "value": "PRIVATE NAME"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json()["mapping"]["answer_id"] == response.json()["answer"]["id"]
 
 
 def test_text_mapping_fill_policies_answer_status_and_match_states_have_distinct_fallbacks(

@@ -238,6 +238,23 @@ export interface paths {
         patch: operations["update_question_api_form_fill_questions__question_id__patch"];
         trace?: never;
     };
+    "/api/form-fill/questions/{question_id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Answer For Question */
+        post: operations["create_answer_for_question_api_form_fill_questions__question_id__answer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/form-fill/questions/{question_id}/capture-conflicts/resolve": {
         parameters: {
             query?: never;
@@ -1922,6 +1939,33 @@ export interface components {
             /** Url */
             url?: string | null;
         };
+        /** QuestionAnswerCreate */
+        QuestionAnswerCreate: {
+            /** Answer Key */
+            answer_key: string;
+            /** Bindings */
+            bindings?: components["schemas"]["NewOptionBindingInput"][];
+            /** Choices */
+            choices?: components["schemas"]["AnswerChoiceInput"][];
+            /** Description */
+            description?: string | null;
+            /** Expected Mapping Revision */
+            expected_mapping_revision?: number | null;
+            /** Expected Question Revision */
+            expected_question_revision: number;
+            /**
+             * Fill Policy
+             * @default auto
+             * @enum {string}
+             */
+            fill_policy: "auto" | "confirm_each_time" | "never";
+            /** Label */
+            label: string;
+            /** Reason */
+            reason?: string | null;
+            /** Value */
+            value: components["schemas"]["TextValue"] | components["schemas"]["LongTextValue"] | components["schemas"]["DecimalValue"] | components["schemas"]["BooleanValue"] | components["schemas"]["DateValue"] | components["schemas"]["AnswerSingleChoiceValue"] | components["schemas"]["AnswerMultiChoiceValue"];
+        };
         /** QuestionDetail */
         QuestionDetail: {
             /** Adapter Id */
@@ -3091,6 +3135,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["QuestionReviewUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_answer_for_question_api_form_fill_questions__question_id__answer_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionAnswerCreate"];
             };
         };
         responses: {

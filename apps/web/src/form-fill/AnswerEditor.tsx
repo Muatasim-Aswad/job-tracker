@@ -7,13 +7,14 @@ import { ChoiceSetDisclosure, INLINE_CHOICE_LIMIT } from "./ChoiceSetDisclosure"
 interface Props {
   draft: AnswerDraft;
   existing: boolean;
+  questionLocked?: boolean;
   onChange: (draft: AnswerDraft) => void;
 }
 
 const inputClass =
   "w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none";
 
-export function AnswerEditor({ draft, existing, onChange }: Props) {
+export function AnswerEditor({ draft, existing, questionLocked = false, onChange }: Props) {
   const [choiceQuery, setChoiceQuery] = useState("");
   const set = <K extends keyof AnswerDraft>(key: K, value: AnswerDraft[K]) =>
     onChange({ ...draft, [key]: value });
@@ -93,7 +94,7 @@ export function AnswerEditor({ draft, existing, onChange }: Props) {
         <label className="block text-sm font-medium text-ink">
           Value type
           <select
-            disabled={existing}
+            disabled={existing || questionLocked}
             value={draft.valueKind}
             onChange={(event) =>
               onChange({
@@ -172,6 +173,7 @@ export function AnswerEditor({ draft, existing, onChange }: Props) {
                     />
                     <input
                       aria-label={`Choice ${index + 1} label`}
+                      readOnly={questionLocked}
                       value={choice.display_label}
                       onChange={(event) => {
                         const display_label = event.target.value;
@@ -186,7 +188,7 @@ export function AnswerEditor({ draft, existing, onChange }: Props) {
                       }}
                       className={inputClass}
                     />
-                    {existing ? (
+                    {questionLocked ? null : existing ? (
                       <select
                         aria-label={`Choice ${index + 1} status`}
                         value={choice.status}
@@ -226,9 +228,11 @@ export function AnswerEditor({ draft, existing, onChange }: Props) {
                 <p className="text-sm text-ink-muted">No choices match this search.</p>
               )}
             </div>
-            <button type="button" onClick={addChoice} className="text-sm font-medium text-accent">
-              Add choice
-            </button>
+            {!questionLocked && (
+              <button type="button" onClick={addChoice} className="text-sm font-medium text-accent">
+                Add choice
+              </button>
+            )}
           </ChoiceSetDisclosure>
         </fieldset>
       ) : draft.valueKind === "long_text" ? (

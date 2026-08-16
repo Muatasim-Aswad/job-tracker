@@ -494,6 +494,38 @@ class MappingPut(BaseModel):
     reason: str | None = Field(default=None, max_length=1000)
 
 
+class QuestionAnswerCreate(BaseModel):
+    expected_question_revision: int = Field(ge=1)
+    expected_mapping_revision: int | None = Field(default=None, ge=1)
+    answer_key: str = Field(min_length=1, max_length=256)
+    label: str = Field(min_length=1, max_length=1000)
+    description: str | None = Field(default=None, max_length=4000)
+    value: AnswerValue
+    choices: list[AnswerChoiceInput] = Field(default_factory=list, max_length=MAX_CHOICE_ITEMS)
+    fill_policy: FillPolicy = "auto"
+    bindings: list[NewOptionBindingInput] = Field(default_factory=list, max_length=MAX_CHOICE_ITEMS)
+    reason: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_value_and_choices(self) -> QuestionAnswerCreate:
+        keys = [choice.choice_key for choice in self.choices]
+        if len(keys) != len(set(keys)):
+            raise ValueError("choice_key must be unique within an answer")
+        if self.value.kind in {"single_choice", "multi_choice"} and not self.choices:
+            raise ValueError("choice answers require a complete choice vocabulary")
+        if self.value.kind not in {"single_choice", "multi_choice"} and self.choices:
+            raise ValueError("non-choice answers cannot include choices")
+        active_keys = {choice.choice_key for choice in self.choices if choice.status == "active"}
+        selected_keys: set[str] = set()
+        if isinstance(self.value, AnswerSingleChoiceValue):
+            selected_keys = {self.value.choice_key}
+        elif isinstance(self.value, AnswerMultiChoiceValue):
+            selected_keys = set(self.value.choice_keys)
+        if not selected_keys <= active_keys:
+            raise ValueError("answer value must reference active answer choices")
+        return self
+
+
 class MappingUpdate(BaseModel):
     expected_question_revision: int = Field(ge=1)
     expected_revision: int = Field(ge=1)

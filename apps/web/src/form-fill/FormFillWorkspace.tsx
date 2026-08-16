@@ -6,6 +6,7 @@ import { CaptureDrawer } from "./CaptureDrawer";
 import { CaptureList } from "./CaptureList";
 import { QuestionDrawer } from "./QuestionDrawer";
 import { QuestionList } from "./QuestionList";
+import type { QuestionDetail } from "./model";
 
 const URL_KEYS = new Set(["view", "section", "type", "answer", "capture", "question"]);
 
@@ -35,8 +36,7 @@ export function FormFillWorkspace() {
   const [state, setState] = useState(readState);
   const reviewPresence = useFormFillReviewPresence();
   const [creatingAnswer, setCreatingAnswer] = useState(false);
-  const [returnToQuestion, setReturnToQuestion] = useState<string | null>(null);
-  const [suggestedAnswerId, setSuggestedAnswerId] = useState<string | null>(null);
+  const [answerQuestion, setAnswerQuestion] = useState<QuestionDetail | null>(null);
 
   useEffect(() => {
     const onPopState = () => setState(readState());
@@ -97,6 +97,7 @@ export function FormFillWorkspace() {
 
   function openAnswer(answerId: string) {
     setCreatingAnswer(false);
+    setAnswerQuestion(null);
     navigate({ section: "answers", answerId, captureId: null, questionId: null });
   }
   function openCapture(captureId: string) {
@@ -109,7 +110,6 @@ export function FormFillWorkspace() {
     });
   }
   function openQuestion(questionId: string) {
-    setSuggestedAnswerId(null);
     navigate({
       section: "review",
       reviewType: "questions",
@@ -146,6 +146,7 @@ export function FormFillWorkspace() {
         <AnswerList
           onOpen={openAnswer}
           onCreate={() => {
+            setAnswerQuestion(null);
             setCreatingAnswer(true);
             navigate({ answerId: null, captureId: null, questionId: null });
           }}
@@ -183,16 +184,30 @@ export function FormFillWorkspace() {
       {(state.answerId || creatingAnswer) && (
         <AnswerDrawer
           answerId={state.answerId}
+          questionContext={answerQuestion}
           onClose={() => {
             setCreatingAnswer(false);
-            navigate({ answerId: null }, true);
+            if (answerQuestion) {
+              const questionId = answerQuestion.id;
+              setAnswerQuestion(null);
+              navigate(
+                {
+                  section: "review",
+                  reviewType: "questions",
+                  answerId: null,
+                  questionId,
+                },
+                true,
+              );
+            } else {
+              navigate({ answerId: null }, true);
+            }
           }}
           onCreated={(answerId) => {
-            if (returnToQuestion) {
-              const questionId = returnToQuestion;
-              setReturnToQuestion(null);
+            if (answerQuestion) {
+              const questionId = answerQuestion.id;
+              setAnswerQuestion(null);
               setCreatingAnswer(false);
-              setSuggestedAnswerId(answerId);
               navigate(
                 { section: "review", reviewType: "questions", answerId: null, questionId },
                 true,
@@ -214,10 +229,9 @@ export function FormFillWorkspace() {
       {state.questionId && !creatingAnswer && (
         <QuestionDrawer
           questionId={state.questionId}
-          suggestedAnswerId={suggestedAnswerId}
           onClose={() => navigate({ questionId: null }, true)}
-          onCreateAnswer={() => {
-            setReturnToQuestion(state.questionId);
+          onCreateAnswer={(question) => {
+            setAnswerQuestion(question);
             setCreatingAnswer(true);
             navigate({ answerId: null, questionId: null }, true);
           }}

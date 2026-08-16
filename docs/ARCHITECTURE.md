@@ -107,6 +107,8 @@ Form filling uses durable semantic identities rather than page-local selectors:
 
 Mutations compare expected revisions inside the same transaction. Stale Answer, Question, Match, Capture, and conflict-resolution writes have no effect and return current value-free summaries for review. Resolution gives an eligible active Match priority, then an unambiguous current Capture, and otherwise returns a typed non-fill result. Muted Questions, disabled or retired Matches, disabled Answers, `never` policies, incomplete option bindings, and competing Captures cannot produce an automatic action.
 
+Question-context Answer creation derives the Answer value kind from the Question control and uses the active Question options as the complete choice vocabulary and binding set. Creating the Answer and installing or retargeting the singleton Match is one revision-checked transaction, so neither resource can persist without a compatible relationship.
+
 Question `review_state` records explicit open/muted intent; actionable review is derived separately as an open Question without an active Match, or one with a Capture conflict. Resolution stores its actual non-fill reason after observation instead of guessing before the Match and Capture state has been evaluated.
 
 Current Answer and Capture values are deliberately retained private data. Superseding, clearing, ignoring, or applying a Capture removes its reusable value; lifecycle history records IDs, event kinds, timestamps, and optional reasons but never copies Answer or Capture values. Callers that supply an optional reason are responsible for keeping private values out of that metadata.
