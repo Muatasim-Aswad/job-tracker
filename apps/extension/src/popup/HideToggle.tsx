@@ -2,26 +2,26 @@ import { useEffect, useState } from "react";
 import { ICON } from "../icons.js";
 import { ACTION_BUTTON, ICON as ICON_CLASS } from "./ui";
 
-// Hide-mode control — the value side of the "Hidden jobs" row in the settings panel.
-// Shows the current choice as an icon + word (contrast / Dimmed, eye-off / Removed)
-// and flips it on click, with the dim-vs-remove trade-off spelled out in the tooltip.
-// Backed by the `hideMode` storage key and the `modeChanged` content-script message.
+// List-display control. Shows the current choice as an icon + word (contrast /
+// Dimmed, eye-off / Removed) and flips it on click, with the affected card states
+// spelled out in the tooltip. Backed by the `hideMode` storage key and the
+// `modeChanged` content-script message.
 type Mode = "dim" | "remove";
 
 const FACE: Record<Mode, { icon: string; text: string; label: string; title: string }> = {
   dim: {
     icon: ICON.contrast,
     text: "Dimmed",
-    label: "Hidden & blocked listings: dimmed",
+    label: "Triaged, hidden, and blocked listings: dimmed",
     title:
-      "Hidden and blocked listings are greyed out but stay in the list. Click to remove them from the list instead.",
+      "To-apply, post-application, closed-out, hidden, and blocked listings are greyed out but stay in discovery lists. Click to remove them instead.",
   },
   remove: {
     icon: ICON.eyeOff,
     text: "Removed",
-    label: "Hidden & blocked listings: removed",
+    label: "Triaged, hidden, and blocked listings: removed",
     title:
-      "Hidden and blocked listings are removed from the list. Click to just grey them out instead.",
+      "To-apply, post-application, closed-out, hidden, and blocked listings are removed from discovery lists. Click to just grey them out instead.",
   },
 };
 
