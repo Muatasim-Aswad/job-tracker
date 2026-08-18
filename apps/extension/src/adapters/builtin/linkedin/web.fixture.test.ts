@@ -211,6 +211,33 @@ describe("linkedin adapter — detail capture", () => {
     });
   });
 
+  it.each([
+    [
+      "LinkedIn's safety redirect",
+      "https://www.linkedin.com/safety/go/?url=https%3A%2F%2Fjobs.example.com%2Fbackend%3Fsource%3Dlinkedin",
+    ],
+    ["a direct link", "https://jobs.example.com/backend?source=linkedin"],
+  ])("captures the destination from %s", (_kind, href) => {
+    document.body.innerHTML = loadFixture("linkedin-detail.html");
+    document.getElementById("jobs-apply-button-id")!.outerHTML =
+      `<a aria-label="Apply on company website" href="${href}">Apply</a>`;
+    window.history.pushState({}, "", "/jobs/view/100001/");
+    const { sendMessage } = installFakeChrome();
+
+    linkedinAdapter.capture!();
+
+    const [message] = sendMessage.mock.calls[0]!;
+    expect(message).toMatchObject({
+      type: "listing",
+      payload: {
+        apply_type: "external",
+        meta: {
+          apply_url: "https://jobs.example.com/backend?source=linkedin",
+        },
+      },
+    });
+  });
+
   // A slug URL must yield the identical record, canonical url included: the trailing
   // id alone identifies the posting.
   it("captures the same posting when opened by its slug url", () => {

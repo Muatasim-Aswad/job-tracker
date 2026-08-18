@@ -501,9 +501,12 @@ function detectClosed(jobId: string) {
 // ── Listing capture ──────────────────────────────────────────────────────────
 // Both layouts expose the current job's apply type through the apply control.
 // Inconclusive results stay unknown rather than polluting analytics.
+function applyControl(): Element | null {
+  return document.getElementById(SEL.applyButtonId) || document.querySelector(SEL.applyControl);
+}
+
 function detectApplyType(): string {
-  const btn =
-    document.getElementById(SEL.applyButtonId) || document.querySelector(SEL.applyControl);
+  const btn = applyControl();
   if (!btn) return "unknown";
   const label = (btn.getAttribute("aria-label") || "") + " " + (btn.textContent || "");
   if (/easy apply/i.test(label)) return "easy_apply";
@@ -511,6 +514,31 @@ function detectApplyType(): string {
     return "external";
   }
   return "unknown";
+}
+
+function isLinkedInHost(hostname: string): boolean {
+  return hostname === "linkedin.com" || hostname.endsWith(".linkedin.com");
+}
+
+// External apply links may be direct or wrapped in LinkedIn's safety redirect. Keep
+// the destination, not the short-lived wrapper, and reject non-web protocols.
+function detectApplyUrl(): string | null {
+  const control = applyControl();
+  if (!control || detectApplyType() !== "external") return null;
+  const anchor = control.matches("a[href]")
+    ? (control as HTMLAnchorElement)
+    : control.querySelector<HTMLAnchorElement>("a[href]");
+  if (!anchor) return null;
+
+  try {
+    const href = new URL(anchor.href, location.href);
+    const redirectTarget = isLinkedInHost(href.hostname) ? href.searchParams.get("url") : null;
+    const destination = redirectTarget ? new URL(redirectTarget) : href;
+    if (!["http:", "https:"].includes(destination.protocol)) return null;
+    return isLinkedInHost(destination.hostname) ? null : destination.href;
+  } catch {
+    return null;
+  }
 }
 
 // Scrape one LinkedIn job detail into a `listings` record. The stable core (platform
@@ -529,6 +557,7 @@ function captureDetail(jobId: string): ListingRecord | null {
   const capturedAt = new Date().toISOString();
   const cardDay = listCardPostedDay(key.platform_id);
   const posted = cardDay ? postedFromExact(cardDay) : postedFromRelative(postedAge, capturedAt);
+  const applyUrl = detectApplyUrl();
 
   return {
     ...key,
@@ -538,6 +567,7 @@ function captureDetail(jobId: string): ListingRecord | null {
     apply_type: detectApplyType(),
     meta: {
       company_url: companyUrl,
+      ...(applyUrl ? { apply_url: applyUrl } : {}),
       posted_at: posted.at,
       posted_precision: posted.precision,
       posted_age: postedAge,

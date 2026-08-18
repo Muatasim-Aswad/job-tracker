@@ -19,6 +19,7 @@ import { RelinkPicker } from "./RelinkPicker";
 // Friendly labels for the raw snake_case detail keys the capture produces.
 // Anything not listed falls back to a title-cased version of the key.
 const LISTING_FIELD_LABELS: Record<string, string> = {
+  apply_url: "Apply",
   company_url: "Company",
   location: "Location",
   salary: "Salary",

@@ -22,7 +22,7 @@ You decide whether the suggestion is correct. Confirming a match consolidates th
 
 The browser extension reduces repeated entry on supported sources:
 
-- Opening a supported LinkedIn job detail can capture its listing information and record that it was seen.
+- Opening a supported LinkedIn job detail can capture its listing information, including an external application destination when LinkedIn exposes one, and record that it was seen.
 - Applying on LinkedIn can advance the tracked job when the extension detects reliable evidence of the application.
 - LinkedIn's Applied page can import historical applications.
 - Supported LinkedIn job emails in Gmail can record a rejection using the email timestamp.
