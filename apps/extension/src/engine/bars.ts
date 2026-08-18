@@ -14,6 +14,13 @@ import { ICON } from "../icons.js";
 // dashboard" deep-links, which are plain navigations, never fetches.
 const DASHBOARD_URL = SERVER_URL;
 
+// List surfaces are for discovery. Once a posting has been selected for application
+// or moved beyond that decision, the display preference may dim/remove its card.
+// This is presentation-only and never changes the independent hidden flag.
+export function isListDeemphasized(status: string): boolean {
+  return status === "to_apply" || JobFunnel.isResolved(status);
+}
+
 export function createBars(engine: Engine) {
   // Idempotent, and re-run for every card on each scan: the highlight must also come
   // off a card whose rule the user has just turned off.
@@ -134,21 +141,21 @@ export function createBars(engine: Engine) {
     }
   }
 
-  // Hidden/blocked cards receive stronger treatment than resolved cards. Remove mode
-  // hides both tiers; jhForceMode can keep a surface visible.
+  // Hidden/blocked cards receive stronger treatment than selected/resolved cards.
+  // Remove mode hides both tiers; jhForceMode can keep a surface visible.
   function renderCard(card: HTMLElement) {
     const id = card.dataset.jhId!;
     const st = engine.stateOf(id);
     card.classList.remove("jh-hidden", "jh-removed", "jh-resolved", "jh-interested");
 
     const mode = card.dataset.jhForceMode || hideMode;
-    const resolved = JobFunnel.isResolved(st.status);
+    const deemphasized = isListDeemphasized(st.status);
     const blocked = engine.isCardBlocked(card);
-    if (mode === "remove" && (blocked || st.hidden || resolved)) {
+    if (mode === "remove" && (blocked || st.hidden || deemphasized)) {
       card.classList.add("jh-removed");
     } else if (blocked || st.hidden) {
       card.classList.add("jh-hidden");
-    } else if (resolved) {
+    } else if (deemphasized) {
       card.classList.add("jh-resolved");
     } else if (st.starred) {
       card.classList.add("jh-interested");
