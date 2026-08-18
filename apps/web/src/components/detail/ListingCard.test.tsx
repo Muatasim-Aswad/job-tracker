@@ -161,6 +161,16 @@ describe("ListingCard — labels", () => {
     expect(screen.queryByText(/unknown/i)).toBeNull();
   });
 
+  it("renders a captured external application destination as a link", () => {
+    const applyUrl = "https://jobs.example.com/backend?source=linkedin";
+    show({ meta: { apply_url: applyUrl } });
+
+    expect(screen.getByText("Apply")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /jobs\.example\.com/ }).getAttribute("href")).toBe(
+      applyUrl,
+    );
+  });
+
   it("dates a closed listing instead of only naming the state", () => {
     show({ closed_at: "2026-07-02T08:00:00Z" });
     expect(screen.getByText("Closed 2 Jul 2026")).toBeTruthy();
