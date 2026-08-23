@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { linkedinAdapter } from "./web";
-import { stateOf } from "../../../engine";
+import { refreshStates, stateOf } from "../../../engine";
 import { setAdapters } from "../../../registry";
 import { installFakeChrome } from "../../../test-support/fakeChrome";
 import { installCssEscape } from "../../../test-support/cssEscape";
@@ -556,20 +556,37 @@ describe("linkedin adapter — side-panel detail bar", () => {
 });
 
 describe("linkedin adapter — detail shortcut", () => {
-  function setup(jobId: string) {
+  function setup(jobId: string, initialStatus = "seen") {
     document.body.innerHTML = `<div class="jh-detail-actions" data-jh-job-id="LI-${jobId}"></div>`;
     window.history.pushState({}, "", `/jobs/view/${jobId}/`);
     const chrome = installFakeChrome();
+    let status = initialStatus;
+    let hidden = false;
     chrome.onMessage.addListener((message: unknown) => {
       const request = message as {
         type?: string;
+        platform_ids?: string[];
         payload?: { events?: Array<{ event: string }> };
       };
+      if (request.type === "state-batch") {
+        return {
+          ok: true,
+          result: request.platform_ids?.map((platform_id) => ({
+            platform_id,
+            status,
+            hidden,
+            starred: false,
+          })),
+        };
+      }
       if (request.type !== "event") return undefined;
       const event = request.payload?.events?.[0]?.event;
+      if (event === "to_apply") status = "to_apply";
+      if (event === "hidden") hidden = true;
+      if (event === "unhidden") hidden = false;
       return {
         ok: true,
-        result: { status: "seen", hidden: event === "hidden", starred: false },
+        result: { status, hidden, starred: false },
       };
     });
     return chrome;
@@ -582,6 +599,10 @@ describe("linkedin adapter — detail shortcut", () => {
       cancelable: true,
       ...overrides,
     });
+  }
+
+  function altT(overrides: KeyboardEventInit = {}) {
+    return altH({ key: "t", ...overrides });
   }
 
   it("hides and unhides the current detail job with Alt+H", async () => {
@@ -621,6 +642,35 @@ describe("linkedin adapter — detail shortcut", () => {
     linkedinAdapter.onKeyDown!(event);
 
     expect(event.defaultPrevented).toBe(false);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("moves the current detail job to To apply with Alt+T", async () => {
+    const { sendMessage } = setup("990004");
+    const move = altT();
+
+    linkedinAdapter.onKeyDown!(move);
+
+    expect(move.defaultPrevented).toBe(true);
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "event",
+        payload: expect.objectContaining({ events: [{ event: "to_apply", meta: undefined }] }),
+      }),
+      expect.any(Function),
+    );
+    await vi.waitFor(() => expect(stateOf("LI-990004").status).toBe("to_apply"));
+  });
+
+  it("does not claim Alt+T when To apply is not a forward move", async () => {
+    const { sendMessage } = setup("990005", "applied");
+    await refreshStates(["LI-990005"]);
+    sendMessage.mockClear();
+    const move = altT();
+
+    linkedinAdapter.onKeyDown!(move);
+
+    expect(move.defaultPrevented).toBe(false);
     expect(sendMessage).not.toHaveBeenCalled();
   });
 

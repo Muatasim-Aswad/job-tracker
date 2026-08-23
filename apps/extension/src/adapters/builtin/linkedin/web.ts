@@ -9,6 +9,7 @@ import {
   closeMatchPopover,
   detailText,
   elementToText,
+  emit,
   injectDetailButtons,
   isCompanyBlocked,
   keywordFindings,
@@ -16,9 +17,11 @@ import {
   placeBanner,
   refreshStates,
   renderJob,
+  stateOf,
   toggleHidden,
   toNaturalKey,
 } from "../../../engine.js";
+import { JobFunnel } from "@job-tracker/shared/funnel";
 import { postedFromExact, postedFromRelative } from "../../posted.js";
 import { platformMeta } from "@job-tracker/shared/platforms";
 import { fmtSpan } from "@job-tracker/shared/time";
@@ -118,9 +121,9 @@ function currentDetailId(): string | null {
   return q ? PREFIX + q : null;
 }
 
-// Alt+H is a deliberate detail-view action, not a site-wide hotkey. A current
+// Detail shortcuts are deliberate view actions, not site-wide hotkeys. A current
 // LinkedIn id and its matching injected detail bar must both exist before the
-// adapter consumes the chord. Editable controls keep Alt+H for the host/browser.
+// adapter consumes a chord. Editable controls keep Alt+letter for the host/browser.
 function isEditableShortcutTarget(event: KeyboardEvent): boolean {
   return event
     .composedPath()
@@ -644,6 +647,7 @@ export const linkedinAdapter: Adapter = {
   // `activeOn` then limits actual work to the job surfaces.
   activeOn: (path) => path.startsWith("/jobs") || path.startsWith("/comm/jobs"),
   onKeyDown(event) {
+    const key = event.key.toLowerCase();
     if (
       event.defaultPrevented ||
       event.repeat ||
@@ -651,15 +655,17 @@ export const linkedinAdapter: Adapter = {
       event.ctrlKey ||
       event.metaKey ||
       event.shiftKey ||
-      event.key.toLowerCase() !== "h" ||
+      (key !== "h" && key !== "t") ||
       isEditableShortcutTarget(event)
     )
       return;
     const jobId = currentShortcutJobId();
     if (!jobId) return;
+    if (key === "t" && !JobFunnel.canSet(stateOf(jobId).status, "to_apply")) return;
     event.preventDefault();
     event.stopPropagation();
-    void toggleHidden(jobId);
+    if (key === "h") void toggleHidden(jobId);
+    else void emit(jobId, "to_apply");
   },
   cardBodySelector: SEL.cardBody,
   scanDetail() {
