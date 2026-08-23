@@ -118,7 +118,7 @@ export function createBars(engine: Engine) {
     return btn;
   }
 
-  function updateControls(container: HTMLElement, st: JobState) {
+  function updateControls(container: HTMLElement, st: JobState, hideShortcut?: string) {
     const btnHide = container.querySelector(".jh-btn-hide") as HTMLElement | null;
     if (btnHide) {
       // Rewrite icon markup only when state changes.
@@ -126,7 +126,7 @@ export function createBars(engine: Engine) {
       if (btnHide.dataset.jhHidden !== want) {
         btnHide.dataset.jhHidden = want;
         setBtnContent(btnHide, st.hidden ? ICON.eye : ICON.eyeOff);
-        btnHide.title = st.hidden ? "Unhide" : "Hide";
+        btnHide.title = `${st.hidden ? "Unhide" : "Hide"}${hideShortcut ? ` (${hideShortcut})` : ""}`;
       }
     }
     const btnStar = container.querySelector(".jh-btn-star") as HTMLElement | null;
@@ -170,7 +170,7 @@ export function createBars(engine: Engine) {
 
   function renderDetailBar(bar: HTMLElement) {
     const jobId = bar.dataset.jhJobId!;
-    updateControls(bar, engine.stateOf(jobId));
+    updateControls(bar, engine.stateOf(jobId), "Alt+H");
     // Identity may resolve after the bar is first injected.
     const company = engine.matchCompany(jobId);
     updateAppliedBadge(bar, company);
@@ -213,6 +213,12 @@ export function createBars(engine: Engine) {
     if (bar) renderDetailBar(bar as HTMLElement);
   }
 
+  // One hidden-flag action shared by pointer controls and platform shortcuts, so
+  // every surface reads the latest cached state before choosing hide or unhide.
+  function toggleHidden(jobId: string) {
+    return engine.emit(jobId, engine.stateOf(jobId).hidden ? "unhidden" : "hidden");
+  }
+
   function flashError(jobId: string) {
     const sel = CSS.escape(jobId);
     const bars = [
@@ -245,7 +251,7 @@ export function createBars(engine: Engine) {
     btnHide.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      void engine.emit(jobId, engine.stateOf(jobId).hidden ? "unhidden" : "hidden");
+      void toggleHidden(jobId);
     });
     const btnStar = mkBtn("jh-btn-star", ICON.star, "Star");
     btnStar.addEventListener("click", (e) => {
@@ -300,7 +306,7 @@ export function createBars(engine: Engine) {
       e.preventDefault();
       e.stopPropagation();
       engine.captureCardFromAction(card);
-      void engine.emit(id, engine.stateOf(id).hidden ? "unhidden" : "hidden");
+      void toggleHidden(id);
     });
 
     // Clusters, left→right: [insight 🔁 ⟲N] | status | [action star hide open dismiss]
@@ -360,6 +366,7 @@ export function createBars(engine: Engine) {
     renderJob,
     renderAll,
     flashError,
+    toggleHidden,
     injectDetailButtons,
     injectButtons,
   };

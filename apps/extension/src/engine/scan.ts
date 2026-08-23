@@ -112,6 +112,12 @@ export function createScan(engine: Engine) {
       ladderTimers = RESCAN_LADDER_MS.map((ms) => setTimeout(() => scheduleScan(0), ms));
     }
 
+    // Platform shortcuts share the adapter's DOM identity rules. Capture lets a
+    // claimed chord stop before the host page also interprets it.
+    if (adapter.onKeyDown) {
+      window.addEventListener("keydown", (event) => adapter.onKeyDown?.(event), true);
+    }
+
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg.type === "modeChanged") engine.loadHideMode(engine.renderAll);
       // The popup asks the active surface for a date to suggest when recording a

@@ -41,6 +41,7 @@ export interface Engine {
   renderJob: (jobId: string) => void;
   renderAll: () => void;
   flashError: (jobId: string) => void;
+  toggleHidden: (jobId: string) => Promise<JobState | null>;
   flagCard: (card: HTMLElement) => void;
   loadHideMode: (cb?: () => void) => void;
   injectButtons: (card: HTMLElement, adapter: Adapter) => void;

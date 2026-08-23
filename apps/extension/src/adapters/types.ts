@@ -42,6 +42,10 @@ export interface Adapter {
    *  (applied/closed), fire `seen`, draw the keyword banner. */
   scanDetail?(): void;
 
+  /** Handle a page-level key while this adapter owns the current host. The handler
+   *  must scope itself to the relevant surface before consuming the event. */
+  onKeyDown?(event: KeyboardEvent): void;
+
   /** Scrape the open detail into a listing record and upsert it via
    *  captureListingOnce(id, builder). Omit if this site isn't captured. */
   capture?(): void;

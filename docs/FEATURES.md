@@ -72,7 +72,7 @@ Optional persistent actions, including title outlining and automatic hiding, are
 
 ## Act where you encounter the job
 
-Supported pages can expose tracker controls beside the job, reducing the need to switch to the dashboard for routine triage. Because those actions update the shared job record, their meaning is not tied to one webpage.
+Supported pages can expose tracker controls beside the job, reducing the need to switch to the dashboard for routine triage. On a LinkedIn job-detail view, `Alt+H` toggles the current job's hidden flag without invoking LinkedIn's native dismiss action. Because those actions update the shared job record, their meaning is not tied to one webpage.
 
 On discovery lists such as LinkedIn search results and job-alert emails, jobs selected as **To apply**, later-stage jobs, hidden jobs, and blocked-company jobs follow the extension's **Dimmed / Removed** display preference. This changes only their list-card presentation; selecting **To apply** does not set the independent hidden flag, and the current detail view and dashboard remain available.
 

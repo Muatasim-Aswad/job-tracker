@@ -58,6 +58,8 @@ Supported controls that appear after a step's initial render enter resolution on
 
 Open the popup from any tab with **Alt+J** (rebind or clear it at `chrome://extensions/shortcuts`). Inside the popup the flow is keyboard-first — type to search, then:
 
+On an open LinkedIn job-detail view, press **Alt+H** to hide or unhide the current job. The shortcut is inactive while an input, textarea, select, or editable region has focus, and it changes only Job Tracker's hidden flag rather than invoking LinkedIn's dismiss action.
+
 | Key | Action |
 | --- | --- |
 | `↑` / `↓` | move the highlight through results |
