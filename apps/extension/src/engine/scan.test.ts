@@ -15,12 +15,13 @@ interface ScanOptions {
   // the first pass the boot ladder would otherwise run.
   hideModeResolves?: boolean;
   activeOn?: (path: string) => boolean;
+  onKeyDown?: (event: KeyboardEvent) => void;
 }
 
 // A scan calls the adapter's hooks, so scanDetail counts passes. findCards returns
 // nothing: card processing is exercised separately, and an empty list keeps the
 // engine stubs trivial.
-function makeScan({ hideModeResolves = true, activeOn }: ScanOptions = {}) {
+function makeScan({ hideModeResolves = true, activeOn, onKeyDown }: ScanOptions = {}) {
   const scans = vi.fn();
   const adapter: Adapter = {
     matches: () => true,
@@ -28,6 +29,7 @@ function makeScan({ hideModeResolves = true, activeOn }: ScanOptions = {}) {
     findCards: () => [],
     scanDetail: scans,
     ...(activeOn ? { activeOn } : {}),
+    ...(onKeyDown ? { onKeyDown } : {}),
   };
   setAdapters([adapter]);
   const engine = {
@@ -118,6 +120,17 @@ describe("scan scheduling", () => {
     vi.advanceTimersByTime(10_000);
 
     expect(scans).not.toHaveBeenCalled();
+  });
+
+  it("forwards page keydowns to the active host adapter", () => {
+    const onKeyDown = vi.fn();
+    const { scan } = makeScan({ onKeyDown });
+    scan.start();
+    const event = new KeyboardEvent("keydown", { key: "h", altKey: true });
+
+    window.dispatchEvent(event);
+
+    expect(onKeyDown).toHaveBeenCalledWith(event);
   });
 });
 

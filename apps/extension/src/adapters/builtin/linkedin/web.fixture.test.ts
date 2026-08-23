@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { linkedinAdapter } from "./web";
+import { stateOf } from "../../../engine";
 import { setAdapters } from "../../../registry";
 import { installFakeChrome } from "../../../test-support/fakeChrome";
 import { installCssEscape } from "../../../test-support/cssEscape";
@@ -535,6 +536,7 @@ describe("linkedin adapter — side-panel detail bar", () => {
     const bar = document.querySelector(".jh-detail-actions");
     expect(bar).not.toBeNull();
     expect(bar!.closest(".job-details-jobs-unified-top-card__container--two-pane")).not.toBeNull();
+    expect((bar!.querySelector(".jh-btn-hide") as HTMLButtonElement).title).toBe("Hide (Alt+H)");
   });
 
   // The side panel renders cards and detail in one document, so a page-wide query
@@ -550,6 +552,87 @@ describe("linkedin adapter — side-panel detail bar", () => {
     const bar = document.querySelector(".jh-detail-actions");
     expect(bar).not.toBeNull();
     expect(bar!.closest("li[data-occludable-job-id]")).toBeNull();
+  });
+});
+
+describe("linkedin adapter — detail shortcut", () => {
+  function setup(jobId: string) {
+    document.body.innerHTML = `<div class="jh-detail-actions" data-jh-job-id="LI-${jobId}"></div>`;
+    window.history.pushState({}, "", `/jobs/view/${jobId}/`);
+    const chrome = installFakeChrome();
+    chrome.onMessage.addListener((message: unknown) => {
+      const request = message as {
+        type?: string;
+        payload?: { events?: Array<{ event: string }> };
+      };
+      if (request.type !== "event") return undefined;
+      const event = request.payload?.events?.[0]?.event;
+      return {
+        ok: true,
+        result: { status: "seen", hidden: event === "hidden", starred: false },
+      };
+    });
+    return chrome;
+  }
+
+  function altH(overrides: KeyboardEventInit = {}) {
+    return new KeyboardEvent("keydown", {
+      key: "h",
+      altKey: true,
+      cancelable: true,
+      ...overrides,
+    });
+  }
+
+  it("hides and unhides the current detail job with Alt+H", async () => {
+    const { sendMessage } = setup("990001");
+    const hide = altH();
+
+    linkedinAdapter.onKeyDown!(hide);
+
+    expect(hide.defaultPrevented).toBe(true);
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "event",
+        payload: expect.objectContaining({ events: [{ event: "hidden" }] }),
+      }),
+      expect.any(Function),
+    );
+    await vi.waitFor(() => expect(stateOf("LI-990001").hidden).toBe(true));
+
+    sendMessage.mockClear();
+    linkedinAdapter.onKeyDown!(altH());
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "event",
+        payload: expect.objectContaining({ events: [{ event: "unhidden" }] }),
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it("does not claim Alt+H while the user is editing", () => {
+    const { sendMessage } = setup("990002");
+    const input = document.body.appendChild(document.createElement("input"));
+    const event = altH();
+    Object.defineProperty(event, "composedPath", { value: () => [input, document.body] });
+
+    linkedinAdapter.onKeyDown!(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("does nothing without the matching current detail bar", () => {
+    const { sendMessage } = setup("990003");
+    document.querySelector(".jh-detail-actions")?.remove();
+    const event = altH();
+
+    linkedinAdapter.onKeyDown!(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });
 

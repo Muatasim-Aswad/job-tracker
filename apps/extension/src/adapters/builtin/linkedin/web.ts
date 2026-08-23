@@ -16,6 +16,7 @@ import {
   placeBanner,
   refreshStates,
   renderJob,
+  toggleHidden,
   toNaturalKey,
 } from "../../../engine.js";
 import { postedFromExact, postedFromRelative } from "../../posted.js";
@@ -115,6 +116,25 @@ function currentDetailId(): string | null {
   if (key) return key;
   const q = new URLSearchParams(location.search).get("currentJobId");
   return q ? PREFIX + q : null;
+}
+
+// Alt+H is a deliberate detail-view action, not a site-wide hotkey. A current
+// LinkedIn id and its matching injected detail bar must both exist before the
+// adapter consumes the chord. Editable controls keep Alt+H for the host/browser.
+function isEditableShortcutTarget(event: KeyboardEvent): boolean {
+  return event
+    .composedPath()
+    .some(
+      (target) =>
+        target instanceof HTMLElement &&
+        (target.matches("input, textarea, select") || target.isContentEditable),
+    );
+}
+
+function currentShortcutJobId(): string | null {
+  const jobId = currentDetailId();
+  const bar = document.querySelector<HTMLElement>(".jh-detail-actions[data-jh-job-id]");
+  return jobId && bar?.dataset.jhJobId === jobId ? jobId : null;
 }
 
 // ── Detail DOM resolution (three layouts) ────────────────────────────────────
@@ -623,6 +643,24 @@ export const linkedinAdapter: Adapter = {
   // transition (feed → jobs) carries the user in without reloading the document.
   // `activeOn` then limits actual work to the job surfaces.
   activeOn: (path) => path.startsWith("/jobs") || path.startsWith("/comm/jobs"),
+  onKeyDown(event) {
+    if (
+      event.defaultPrevented ||
+      event.repeat ||
+      !event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.key.toLowerCase() !== "h" ||
+      isEditableShortcutTarget(event)
+    )
+      return;
+    const jobId = currentShortcutJobId();
+    if (!jobId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void toggleHidden(jobId);
+  },
   cardBodySelector: SEL.cardBody,
   scanDetail() {
     const jobId = currentDetailId();

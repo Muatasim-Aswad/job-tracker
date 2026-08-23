@@ -23,6 +23,7 @@ export const autoEmit = engine.autoEmit;
 export const refreshStates = engine.refreshStates;
 export const isCompanyBlocked = engine.isCompanyBlocked;
 export const renderJob = engine.renderJob;
+export const toggleHidden = engine.toggleHidden;
 export const injectDetailButtons = engine.injectDetailButtons;
 export const checkMatches = engine.checkMatches;
 export const closeMatchPopover = engine.closeMatchPopover;
