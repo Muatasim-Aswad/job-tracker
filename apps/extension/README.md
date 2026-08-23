@@ -58,7 +58,7 @@ Supported controls that appear after a step's initial render enter resolution on
 
 Open the popup from any tab with **Alt+J** (rebind or clear it at `chrome://extensions/shortcuts`). Inside the popup the flow is keyboard-first — type to search, then:
 
-On an open LinkedIn job-detail view, press **Alt+H** to hide or unhide the current job. The shortcut is inactive while an input, textarea, select, or editable region has focus, and it changes only Job Tracker's hidden flag rather than invoking LinkedIn's dismiss action.
+On an open LinkedIn job-detail view, press **Alt+H** to hide or unhide the current job, or **Alt+T** to move it forward to **To apply**. The shortcuts are inactive while an input, textarea, select, or editable region has focus. **Alt+H** changes only Job Tracker's hidden flag rather than invoking LinkedIn's dismiss action, while **Alt+T** does nothing when **To apply** is not a valid forward move.
 
 | Key | Action |
 | --- | --- |
@@ -72,6 +72,8 @@ On an open LinkedIn job-detail view, press **Alt+H** to hide or unhide the curre
 | `Ctrl`/`⌘ + Enter` | submit the open form (status / note / add) |
 
 Single-letter and digit keys are ignored while a text field is focused, so they never swallow what you're typing.
+
+LinkedIn job-alert, Viewed Jobs reminder, and profile-match recommendation emails opened in Gmail provide an **Open new jobs (N)** action after tracker state loads. The count and opened background tabs include only unaffected jobs; hidden, blocked, **To apply**, applied/later, and terminal jobs are excluded under either display mode. A listing already open in any LinkedIn job tab is not opened again. A tab opened by this action closes itself after LinkedIn reports that the posting no longer accepts applications and Job Tracker successfully saves that closure; manually opened tabs never auto-close.
 
 ## Search seeding & diagnostics
 

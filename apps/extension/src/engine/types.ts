@@ -25,7 +25,7 @@ export interface Engine {
     opts?: { silent?: boolean; ts?: string },
   ) => Promise<JobState | null>;
   autoEmit: (jobId: string, event: string, ts?: string) => Promise<void>;
-  refreshStates: (jobIds: string[], opts?: { force?: boolean }) => Promise<void>;
+  refreshStates: (jobIds: string[], opts?: { force?: boolean }) => Promise<boolean>;
   // Drop the cached states so the next refreshStates re-reads the server — the
   // response to a write in another tab (see scan.ts, "statesChanged").
   invalidateStates: () => void;

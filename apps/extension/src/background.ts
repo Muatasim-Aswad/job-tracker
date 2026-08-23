@@ -2,6 +2,7 @@
 // page CSP restrictions on localhost access.
 import { API_BASE_URL } from "./config.js";
 import type { BridgeRequest, ReachabilityPush, StatesChangedPush } from "./messages.js";
+import { linkedinJobId } from "./adapters/builtin/linkedin/identity.js";
 
 // ── Connectivity badge ───────────────────────────────────────────────────────
 // The toolbar badge reports server reachability. HTTP 4xx responses still prove that
@@ -130,7 +131,81 @@ async function getMatches(msg: {
   return getJson(`/jobs/matches?${qs}`);
 }
 
-function handle(msg: BridgeRequest) {
+// Session storage survives MV3 worker suspension but is cleared with the browser
+// session. It records only tab ids created by the Gmail bulk action, so a closed
+// listing can never dismiss a tab the user opened themselves.
+const BULK_JOB_TAB_IDS_KEY = "bulkJobTabIds";
+
+async function bulkJobTabIds() {
+  const stored = await chrome.storage.session.get(BULK_JOB_TAB_IDS_KEY);
+  const ids = stored[BULK_JOB_TAB_IDS_KEY];
+  return new Set<number>(
+    Array.isArray(ids) ? ids.filter((id): id is number => Number.isInteger(id)) : [],
+  );
+}
+
+async function rememberBulkJobTab(tabId: number) {
+  const ids = await bulkJobTabIds();
+  ids.add(tabId);
+  await chrome.storage.session.set({ [BULK_JOB_TAB_IDS_KEY]: [...ids] });
+}
+
+async function forgetBulkJobTab(tabId: number) {
+  const ids = await bulkJobTabIds();
+  if (!ids.delete(tabId)) return;
+  await chrome.storage.session.set({ [BULK_JOB_TAB_IDS_KEY]: [...ids] });
+}
+
+// Content scripts supply canonical posting URLs, but keep the worker boundary
+// narrow: this bulk action may open only HTTPS LinkedIn job-detail pages. Compare
+// listing ids with live LinkedIn tabs so tracking parameters, slug URLs, repeated
+// recommendations, and separate emails cannot create duplicates.
+async function openJobTabs(urls: string[]) {
+  const requested = new Map<string, string>();
+  for (const raw of urls) {
+    try {
+      const url = new URL(raw);
+      const valid =
+        url.protocol === "https:" &&
+        url.hostname === "www.linkedin.com" &&
+        /^\/jobs\/view\/\d+\/?$/.test(url.pathname);
+      const jobId = valid ? linkedinJobId(url.pathname) : null;
+      if (jobId && !requested.has(jobId)) requested.set(jobId, url.href);
+    } catch {
+      // Ignore malformed and non-LinkedIn inputs without widening the boundary.
+    }
+  }
+
+  const openTabs = await chrome.tabs.query({
+    url: ["https://www.linkedin.com/jobs/view/*", "https://www.linkedin.com/comm/jobs/view/*"],
+  });
+  const openJobIds = new Set(
+    openTabs.flatMap((tab) => {
+      const jobId = tab.url ? linkedinJobId(tab.url) : null;
+      return jobId ? [jobId] : [];
+    }),
+  );
+
+  for (const [jobId, url] of requested) {
+    if (openJobIds.has(jobId)) continue;
+    const tab = await chrome.tabs.create({ url, active: false });
+    if (tab.id !== undefined) await rememberBulkJobTab(tab.id);
+    openJobIds.add(jobId);
+  }
+  return null;
+}
+
+async function closeBulkJobTab(tabId?: number) {
+  if (tabId === undefined || !(await bulkJobTabIds()).has(tabId)) return null;
+  try {
+    await chrome.tabs.remove(tabId);
+  } finally {
+    await forgetBulkJobTab(tabId);
+  }
+  return null;
+}
+
+function handle(msg: BridgeRequest, sender?: chrome.runtime.MessageSender) {
   switch (msg.type) {
     case "listing":
       return post("/listings", msg.payload);
@@ -170,6 +245,10 @@ function handle(msg: BridgeRequest) {
       // From the cached flag, no fetch. The poll below keeps it fresh, and a stale
       // "reachable: true" self-corrects on the asker's own next call.
       return Promise.resolve({ reachable: serverReachable });
+    case "open-job-tabs":
+      return openJobTabs(msg.urls);
+    case "close-bulk-job-tab":
+      return closeBulkJobTab(sender?.tab?.id);
     case "notify-change":
       // The write already happened on the caller's own origin. Membership in
       // MUTATING is the point — the broadcast below does the work.
@@ -241,7 +320,7 @@ for (const script of contentScripts) {
 chrome.runtime.onMessage.addListener((msg: BridgeRequest, sender, sendResponse) => {
   if (!msg || typeof msg.type !== "string") return false;
 
-  handle(msg)
+  handle(msg, sender)
     .then((result) => {
       // Only a write that landed invalidates anyone; a rejected call changed
       // nothing. `sender.tab` is undefined for the popup, correctly leaving every
@@ -254,4 +333,9 @@ chrome.runtime.onMessage.addListener((msg: BridgeRequest, sender, sendResponse) 
     });
 
   return true;
+});
+
+// Manual closes and navigation races also retire the temporary ownership marker.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void forgetBulkJobTab(tabId);
 });

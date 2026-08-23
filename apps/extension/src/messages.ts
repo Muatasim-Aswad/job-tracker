@@ -65,6 +65,13 @@ export type BridgeRequest =
   // paint an offline state up front rather than waiting for the first failed
   // write. Answered from the worker's `serverReachable` flag, so no fetch.
   | { type: "reachability" }
+  // Open canonical LinkedIn postings from one explicit Gmail-alert bulk action.
+  // The worker creates background tabs so Chromium's page popup limit cannot drop
+  // every URL after the first.
+  | { type: "open-job-tabs"; urls: string[] }
+  // A successfully closed LinkedIn listing asks the worker to close its tab. The
+  // worker acts only when that sender tab came from `open-job-tabs`.
+  | { type: "close-bulk-job-tab" }
   // "I wrote to the API without going through you" — the popup fetches directly
   // (extension origin, no CSP to dodge), so this puts its write back on the same
   // cross-tab broadcast path relayed writes take. No fetch, no result.

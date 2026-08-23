@@ -21,6 +21,9 @@ export function createCapture(engine: Engine) {
         console.warn(`[job-tracker] close failed for ${jobId}:`, resp.error);
         throw new Error(resp.error);
       }
+      // The worker ignores this request for ordinary tabs. A tab created by the
+      // Gmail bulk action closes only after the listing closure landed above.
+      void engine.bridge({ type: "close-bulk-job-tab" });
     } catch (e) {
       engine.unmarkEmitted(dedup); // let a later scan retry
       throw e;

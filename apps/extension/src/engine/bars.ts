@@ -6,7 +6,7 @@ import type { JobState } from "../messages.js";
 import { JobFunnel } from "@job-tracker/shared/funnel";
 import { normalizeCompany } from "@job-tracker/shared/text";
 import { SERVER_URL } from "../config.js";
-import { toNaturalKey } from "../registry.js";
+import { getAdapters, toNaturalKey } from "../registry.js";
 import { titleHighlights } from "./keywords.js";
 import { ICON } from "../icons.js";
 
@@ -22,6 +22,11 @@ export function isListDeemphasized(status: string): boolean {
 }
 
 export function createBars(engine: Engine) {
+  function renderPageActions() {
+    getAdapters()
+      .find((adapter) => adapter.matches(location.hostname))
+      ?.renderPageActions?.();
+  }
   // Idempotent, and re-run for every card on each scan: the highlight must also come
   // off a card whose rule the user has just turned off.
   function flagCard(card: HTMLElement) {
@@ -205,12 +210,14 @@ export function createBars(engine: Engine) {
       .forEach((el) => renderCard(el as HTMLElement));
     const bar = document.querySelector(`.jh-detail-actions[data-jh-job-id="${sel}"]`);
     if (bar) renderDetailBar(bar as HTMLElement);
+    renderPageActions();
   }
 
   function renderAll() {
     document.querySelectorAll("[data-jh-id]").forEach((el) => renderCard(el as HTMLElement));
     const bar = document.querySelector(".jh-detail-actions");
     if (bar) renderDetailBar(bar as HTMLElement);
+    renderPageActions();
   }
 
   // One hidden-flag action shared by pointer controls and platform shortcuts, so

@@ -16,12 +16,18 @@ interface ScanOptions {
   hideModeResolves?: boolean;
   activeOn?: (path: string) => boolean;
   onKeyDown?: (event: KeyboardEvent) => void;
+  renderPageActions?: (statesAvailable?: boolean) => void;
 }
 
 // A scan calls the adapter's hooks, so scanDetail counts passes. findCards returns
 // nothing: card processing is exercised separately, and an empty list keeps the
 // engine stubs trivial.
-function makeScan({ hideModeResolves = true, activeOn, onKeyDown }: ScanOptions = {}) {
+function makeScan({
+  hideModeResolves = true,
+  activeOn,
+  onKeyDown,
+  renderPageActions,
+}: ScanOptions = {}) {
   const scans = vi.fn();
   const adapter: Adapter = {
     matches: () => true,
@@ -30,6 +36,7 @@ function makeScan({ hideModeResolves = true, activeOn, onKeyDown }: ScanOptions 
     scanDetail: scans,
     ...(activeOn ? { activeOn } : {}),
     ...(onKeyDown ? { onKeyDown } : {}),
+    ...(renderPageActions ? { renderPageActions } : {}),
   };
   setAdapters([adapter]);
   const engine = {
@@ -39,7 +46,7 @@ function makeScan({ hideModeResolves = true, activeOn, onKeyDown }: ScanOptions 
       if (hideModeResolves) cb?.();
     },
     renderAll: vi.fn(),
-    refreshStates: vi.fn(async () => {}),
+    refreshStates: vi.fn(async () => true),
     stateOf: () => ({ status: "untracked", hidden: false, starred: false }),
     invalidateStates: vi.fn(),
     setOffline: vi.fn(),
@@ -131,6 +138,17 @@ describe("scan scheduling", () => {
     window.dispatchEvent(event);
 
     expect(onKeyDown).toHaveBeenCalledWith(event);
+  });
+
+  it("reports when all card states are available", async () => {
+    const renderPageActions = vi.fn();
+    const { scan } = makeScan({ renderPageActions });
+    scan.start();
+
+    vi.advanceTimersByTime(10_000);
+    await Promise.resolve();
+
+    expect(renderPageActions).toHaveBeenCalledWith(true);
   });
 });
 
