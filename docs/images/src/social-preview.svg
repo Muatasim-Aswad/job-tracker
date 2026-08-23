@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <!--
+    v8 - v7's thumbnail-first copy with a subtle clockwise popup tilt to
+    balance the counter-clockwise dashboard. {{ASSETS}} is replaced by
+    render-job-tracker-social-previews.sh.
+  -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1280" y2="640" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fbfbfe"/>
+      <stop offset="0.55" stop-color="#f4f5fb"/>
+      <stop offset="1" stop-color="#eceaf8"/>
+    </linearGradient>
+    <radialGradient id="wash" cx="0" cy="0" r="1" gradientTransform="translate(1180 60) scale(620 520)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7c3aed" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="wash2" cx="0" cy="0" r="1" gradientTransform="translate(40 600) scale(480 400)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0ea5e9" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#0ea5e9" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#0f172a" stroke-opacity="0.035"/>
+    </pattern>
+    <filter id="cardShadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#1e1b4b" flood-opacity="0.20"/>
+    </filter>
+    <filter id="popShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="-4" dy="16" stdDeviation="18" flood-color="#1e1b4b" flood-opacity="0.26"/>
+    </filter>
+    <filter id="markShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#7c3aed" flood-opacity="0.35"/>
+    </filter>
+    <linearGradient id="fadeA" x1="0" y1="352" x2="0" y2="416" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+    <linearGradient id="fadeB" x1="0" y1="558" x2="0" y2="606" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+    <clipPath id="shotA">
+      <rect x="620" y="120" width="588" height="296"/>
+    </clipPath>
+    <clipPath id="shotB">
+      <rect x="930" y="358" width="276" height="246" rx="6"/>
+    </clipPath>
+    <clipPath id="shotC">
+      <rect x="584" y="352" width="470" height="230" rx="7"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1280" height="640" fill="url(#paper)"/>
+  <rect width="1280" height="640" fill="url(#wash)"/>
+  <rect width="1280" height="640" fill="url(#wash2)"/>
+  <rect width="1280" height="640" fill="url(#grid)"/>
+
+  <!-- Listing page: the largest surface and visual entry point. -->
+  <g filter="url(#cardShadow)">
+    <rect x="620" y="86" width="588" height="330" rx="16" fill="#ffffff"/>
+    <rect x="620" y="86" width="588" height="34" rx="16" fill="#eef1f6"/>
+    <rect x="620" y="104" width="588" height="16" fill="#eef1f6"/>
+    <circle cx="642" cy="103" r="4.5" fill="#fb7185"/>
+    <circle cx="658" cy="103" r="4.5" fill="#fbbf24"/>
+    <circle cx="674" cy="103" r="4.5" fill="#34d399"/>
+    <rect x="694" y="94" width="240" height="18" rx="9" fill="#e0e5ee"/>
+    <text x="706" y="107" fill="#64748b" font-family="Adwaita Sans, Noto Sans, sans-serif" font-size="11">linkedin.com/jobs</text>
+    <g clip-path="url(#shotA)">
+      <image href="{{ASSETS}}/v8-listing.png" x="620" y="120" width="588" height="296"/>
+    </g>
+    <rect x="620" y="352" width="588" height="64" fill="url(#fadeA)"/>
+    <rect x="620" y="86" width="588" height="330" rx="16" fill="none" stroke="#0f172a" stroke-opacity="0.08"/>
+  </g>
+
+  <!-- Local dashboard: a broad workspace layer beneath the popup. -->
+  <g filter="url(#cardShadow)" transform="rotate(-1.2 819 467)">
+    <rect x="576" y="344" width="486" height="246" rx="16" fill="#ffffff" stroke="#0f172a" stroke-opacity="0.09"/>
+    <g clip-path="url(#shotC)">
+      <image href="{{ASSETS}}/v8-dashboard.png" x="584" y="352" width="470" height="230"/>
+    </g>
+  </g>
+
+  <!-- The foreground popup tilts slightly against the dashboard for depth. -->
+  <g filter="url(#popShadow)" transform="rotate(1 1068 481)">
+    <rect x="922" y="350" width="292" height="262" rx="14" fill="#ffffff" stroke="#0f172a" stroke-opacity="0.08"/>
+    <g clip-path="url(#shotB)">
+      <image href="{{ASSETS}}/v8-popup.png" x="930" y="358" width="276" height="246"/>
+      <rect x="930" y="558" width="276" height="46" fill="url(#fadeB)"/>
+    </g>
+  </g>
+
+  <g font-family="Adwaita Sans, Noto Sans, sans-serif">
+    <g transform="translate(72 66)" filter="url(#markShadow)">
+      <rect width="48" height="48" rx="14" fill="#7c3aed"/>
+      <path d="M14 16h20M14 24h13M14 32h10" fill="none" stroke="#ffffff" stroke-width="3.1" stroke-linecap="round"/>
+      <path d="m28 30 4 4 8-10" fill="none" stroke="#d8ccff" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <text x="134" y="99" fill="#0f172a" font-size="26" font-weight="800" letter-spacing="-0.8">Job Tracker</text>
+
+    <text x="72" y="174" fill="#7c3aed" font-size="12.5" font-weight="700" letter-spacing="2.2">SELF-HOSTED JOB-SEARCH WORKSPACE</text>
+
+    <text x="72" y="238" fill="#0f172a" font-size="52" font-weight="800" letter-spacing="-1.7">
+      <tspan x="72" dy="0">One opportunity.</tspan>
+      <tspan x="72" dy="61">One lasting history.</tspan>
+    </text>
+
+    <text x="72" y="370" fill="#475569" font-size="19">
+      <tspan x="72" dy="0">Listings, status changes, notes, and</tspan>
+      <tspan x="72" dy="29">materials stay together.</tspan>
+    </text>
+
+    <rect x="72" y="460" width="110" height="3" rx="1.5" fill="#7c3aed"/>
+    <text x="72" y="502" fill="#475569" font-family="JetBrainsMono NF, Adwaita Mono, monospace" font-size="15.5">github.com/Muatasim-Aswad/job-tracker</text>
+    <text x="72" y="532" fill="#94a3b8" font-size="13">FastAPI · React · Chromium extension · SQLite/Turso</text>
+  </g>
+</svg>

@@ -193,8 +193,9 @@ describe("refreshStates", () => {
       result: [{ platform_id: "1", status: "applied", hidden: false, starred: true }],
     }));
 
-    await readModel.refreshStates(["LI-1"]);
+    const available = await readModel.refreshStates(["LI-1"]);
 
+    expect(available).toBe(true);
     expect(readModel.stateOf("LI-1")).toEqual({ status: "applied", hidden: false, starred: true });
   });
 
@@ -216,7 +217,8 @@ describe("refreshStates", () => {
 
   it("keeps the last-known state when the batch call fails", async () => {
     const { readModel } = makeEngine(async () => ({ ok: false, error: "boom" }));
-    await readModel.refreshStates(["LI-1"]);
+    const available = await readModel.refreshStates(["LI-1"]);
+    expect(available).toBe(false);
     expect(readModel.stateOf("LI-1")).toEqual({
       status: "untracked",
       hidden: false,

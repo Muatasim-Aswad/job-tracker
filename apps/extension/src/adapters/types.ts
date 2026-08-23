@@ -46,6 +46,10 @@ export interface Adapter {
    *  must scope itself to the relevant surface before consuming the event. */
   onKeyDown?(event: KeyboardEvent): void;
 
+  /** Repaint adapter-owned page actions after card state renders. `statesAvailable`
+   *  is supplied only when a full card-state refresh settles. */
+  renderPageActions?(statesAvailable?: boolean): void;
+
   /** Scrape the open detail into a listing record and upsert it via
    *  captureListingOnce(id, builder). Omit if this site isn't captured. */
   capture?(): void;

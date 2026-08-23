@@ -100,6 +100,10 @@ export function createReadModel(engine: Engine) {
         entries.forEach((e) => inFlight.delete(e.jobId));
       }
     }
+    // A successful batch returns one self-describing result per requested id.
+    // Distinguish a real `untracked` result in viewState from the identical-looking
+    // fallback stateOf() returns before any server response has landed.
+    return jobIds.every((jobId) => viewState.has(jobId));
   }
 
   // Keep automatic-event deduplication across cross-tab cache invalidation.

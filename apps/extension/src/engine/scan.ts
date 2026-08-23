@@ -35,9 +35,10 @@ export function createScan(engine: Engine) {
       }
     });
 
-    void engine.refreshStates(cards.map((c) => c.dataset.jhId!)).then(() => {
+    void engine.refreshStates(cards.map((c) => c.dataset.jhId!)).then((statesAvailable) => {
       engine.renderAll();
       autoWallCards(adapter); // needs resolved states to know which aren't there yet
+      adapter.renderPageActions?.(statesAvailable);
     });
   }
 

@@ -305,6 +305,16 @@
   margin-left: 6px;
 }
 
+/* One bulk action per LinkedIn discovery email, separated from the provider's content
+   but using the same controls as each job card. */
+.jh-email-alert-actions {
+  justify-content: center;
+  margin: 0 0 12px;
+}
+.jh-btn-open-alert.jh-error {
+  border-color: #e53e3e;
+}
+
 .jh-btn-dismiss:hover {
   background: #ffeaea;
   border-color: #f99;

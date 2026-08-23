@@ -72,9 +72,9 @@ Optional persistent actions, including title outlining and automatic hiding, are
 
 ## Act where you encounter the job
 
-Supported pages can expose tracker controls beside the job, reducing the need to switch to the dashboard for routine triage. On a LinkedIn job-detail view, `Alt+H` toggles the current job's hidden flag without invoking LinkedIn's native dismiss action. Because those actions update the shared job record, their meaning is not tied to one webpage.
+Supported pages can expose tracker controls beside the job, reducing the need to switch to the dashboard for routine triage. On a LinkedIn job-detail view, `Alt+H` toggles the current job's hidden flag without invoking LinkedIn's native dismiss action, and `Alt+T` moves it forward to **To apply** when that transition is valid. Because those actions update the shared job record, their meaning is not tied to one webpage.
 
-On discovery lists such as LinkedIn search results and job-alert emails, jobs selected as **To apply**, later-stage jobs, hidden jobs, and blocked-company jobs follow the extension's **Dimmed / Removed** display preference. This changes only their list-card presentation; selecting **To apply** does not set the independent hidden flag, and the current detail view and dashboard remain available.
+On discovery lists such as LinkedIn search results, job-alert emails, Viewed Jobs reminders, and profile-match recommendations, jobs selected as **To apply**, later-stage jobs, hidden jobs, and blocked-company jobs follow the extension's **Dimmed / Removed** display preference. In those LinkedIn emails opened in Gmail, **Open new jobs (N)** opens every unaffected posting in background tabs while skipping listings already open in another LinkedIn job tab. A bulk-opened tab closes itself after LinkedIn reports that applications are closed and Job Tracker saves that closure; manually opened tabs stay open. This changes only their list-card presentation; selecting **To apply** does not set the independent hidden flag, and the current detail view and dashboard remain available.
 
 The extension popup provides a compact workflow from other browsing contexts. Its search can be seeded from supported pages and domains, ATS URLs, and Gmail subjects to reduce typing. From the popup you can:
 

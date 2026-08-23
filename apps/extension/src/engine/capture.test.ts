@@ -35,6 +35,9 @@ function makeCapture(bridgeImpl?: (msg: unknown) => Promise<BridgeResponse>) {
     refreshMatches,
     isCompanyBlocked: () => false,
     stateOf: () => ({ status: "untracked", hidden: false, starred: false }),
+    hasEmitted: () => false,
+    markEmitted: vi.fn(),
+    unmarkEmitted: vi.fn(),
   } as unknown as Engine;
   return { bridge, refreshMatches, capture: createCapture(engine) };
 }
@@ -67,5 +70,35 @@ describe("captureListingOnce", () => {
     capture.captureListingOnce("LI-1", () => record());
     await vi.waitFor(() => expect(bridge).toHaveBeenCalled());
     expect(refreshMatches).not.toHaveBeenCalled();
+  });
+});
+
+describe("markListingClosed", () => {
+  it("asks the worker to close a bulk-opened tab only after the closure lands", async () => {
+    const { bridge, capture } = makeCapture();
+
+    await capture.markListingClosed("LI-1");
+
+    expect(bridge.mock.calls.map(([message]) => message)).toEqual([
+      {
+        type: "listing",
+        payload: {
+          platform: "linkedin",
+          platform_id: "1",
+          closed_at: expect.any(String),
+        },
+      },
+      { type: "close-bulk-job-tab" },
+    ]);
+  });
+
+  it("keeps the tab open when saving the closure fails", async () => {
+    const { bridge, capture } = makeCapture(async () => ({ ok: false, error: "offline" }));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(capture.markListingClosed("LI-1")).rejects.toThrow("offline");
+
+    expect(bridge).toHaveBeenCalledOnce();
+    expect(bridge).not.toHaveBeenCalledWith({ type: "close-bulk-job-tab" });
   });
 });
