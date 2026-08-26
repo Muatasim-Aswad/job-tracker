@@ -18,7 +18,7 @@
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.7.1",
     "@tailwindcss/vite": "^4.3.2",
-    "@types/chrome": "^0.2.2",
+    "@types/chrome": "^0.2.6",
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -29,7 +29,7 @@
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
     "vite": "catalog:",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   },
   "packageManager": "pnpm@11.15.0"
 }
