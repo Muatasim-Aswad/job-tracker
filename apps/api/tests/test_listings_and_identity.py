@@ -101,6 +101,46 @@ def test_listing_upsert_is_idempotent(client: TestClient) -> None:
     assert len(jobs) == 1
 
 
+def test_card_metadata_patch_preserves_full_detail_capture(client: TestClient) -> None:
+    first = _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="card-1",
+        title="Platform Engineer",
+        meta_patch={"location": "Amsterdam", "salary": "card salary"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {"location": "Amsterdam", "salary": "card salary"}
+
+    # A full detail capture remains authoritative and may deliberately remove
+    # card-only or stale keys.
+    _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="card-1",
+        meta={"description": "The complete job description", "salary": "detail salary"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {
+        "description": "The complete job description",
+        "salary": "detail salary",
+    }
+
+    # A later list revisit updates visible facts but cannot erase the description.
+    _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="card-1",
+        meta_patch={"salary": "new card salary", "hours_per_week": "36"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {
+        "description": "The complete job description",
+        "salary": "new card salary",
+        "hours_per_week": "36",
+    }
+
+
 def test_adversarial_natural_keys_get_distinct_listing_ids(client: TestClient) -> None:
     # Delimiters make these natural keys collide under simple string concatenation.
     a = _post_listing(client, platform="sample company", platform_id="12-34", title="A")

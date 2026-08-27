@@ -160,7 +160,7 @@ The local-first scheduler never discards a failed push. Local data remains on di
 
 Each supported surface implements the adapter contract in `apps/extension/src/adapters/`. Adapters own selectors, listing identity, and platform-specific extraction. The shared engine owns state caching, action bars, capture, duplicate matching, blocking, and the scan lifecycle.
 
-A debounced scan runs after DOM mutations and single-page navigation. It tags cards, refreshes their state in one batch, processes the active detail view, and retries incomplete captures on a later scan. List actions first capture the available card fields so their events do not create titleless stubs.
+A debounced scan runs after DOM mutations and single-page navigation. It tags cards, refreshes their state in one batch, processes the active detail view, and retries incomplete captures on a later scan. Adapters may upsert identity and visible card metadata during discovery without emitting `seen`; card metadata is applied as a patch so a later list revisit cannot erase a richer full-detail capture. A full detail capture remains authoritative and may replace stale metadata as a whole. List actions always upsert their card first so their events do not create titleless stubs. The detail adapter owns `seen` once the full posting is open.
 
 Content scripts relay API calls through the background service worker. This keeps cross-origin access in the extension context covered by manifest host permissions. Listing state is cached in `chrome.storage` for synchronous card rendering and refreshed from the server in batches; the server remains the source of truth.
 

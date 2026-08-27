@@ -29,4 +29,5 @@ export const checkMatches = engine.checkMatches;
 export const closeMatchPopover = engine.closeMatchPopover;
 export const markListingClosed = engine.markListingClosed;
 export const captureListingOnce = engine.captureListingOnce;
+export const captureCards = engine.captureCards;
 export const start = engine.start;

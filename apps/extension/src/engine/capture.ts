@@ -68,7 +68,22 @@ export function createCapture(engine: Engine) {
   // ── Listing capture (list card, partial) ────────────────────────────────────
   // Capture card identity before a list action so its event never creates a bare
   // stub. A later detail capture enriches the same natural key.
-  const capturedFromCard = new Set<string>();
+  // Remember the last payload rather than only the id: some boards render card
+  // facts lazily, so a later scan may have real salary/location to add.
+  const capturedFromCard = new Map<string, string>();
+
+  function cardMetaPatch(card: HTMLElement): Record<string, unknown> | null {
+    const raw = card.dataset.jobMeta;
+    if (!raw) return null;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") return null;
+      return Object.keys(parsed).length ? (parsed as Record<string, unknown>) : null;
+    } catch {
+      console.warn(`[job-tracker] ignored invalid card metadata for ${card.dataset.jhId}`);
+      return null;
+    }
+  }
 
   function cardListingRecord(card: HTMLElement): ListingRecord | null {
     const key = toNaturalKey(card.dataset.jhId!);
@@ -82,21 +97,50 @@ export function createCapture(engine: Engine) {
         : (card.dataset.jobUrl || "").split("?")[0] || null;
     const company = (card.dataset.jobCompany || "").trim() || null;
     if (!title && !url) return null; // nothing worth persisting
-    return { ...key, url, title, company, meta: {} };
+    const metaPatch = cardMetaPatch(card);
+    return {
+      ...key,
+      url,
+      title,
+      company,
+      ...(metaPatch ? { meta_patch: metaPatch } : {}),
+    };
+  }
+
+  async function captureCard(card: HTMLElement): Promise<string | null> {
+    const id = card?.dataset.jhId;
+    if (!id) return null;
+    // Blocking prevents new captures but does not freeze tracked jobs.
+    if (engine.isCardBlocked(card) && engine.stateOf(id).status === "untracked") return null;
+    const rec = cardListingRecord(card);
+    if (!rec) return null;
+    const fingerprint = JSON.stringify(rec);
+    if (capturedFromCard.get(id) === fingerprint) return null;
+    capturedFromCard.set(id, fingerprint);
+    const resp = await engine.bridge({ type: "listing", payload: rec });
+    if (!resp.ok) {
+      if (capturedFromCard.get(id) === fingerprint) capturedFromCard.delete(id);
+      return null;
+    }
+    return id;
   }
 
   function captureCardFromAction(card: HTMLElement) {
-    const id = card?.dataset.jhId;
-    if (!id || capturedFromCard.has(id)) return;
-    // Blocking prevents new captures but does not freeze tracked jobs.
-    if (engine.isCardBlocked(card) && engine.stateOf(id).status === "untracked") return;
-    const rec = cardListingRecord(card);
-    if (!rec) return;
-    capturedFromCard.add(id);
-    void engine.bridge({ type: "listing", payload: rec }).then((resp) => {
-      if (!resp.ok) capturedFromCard.delete(id); // let a later action retry
+    void captureCard(card);
+  }
+
+  // Discovery adapters can persist every visible card without turning it into a
+  // `seen` event. Refresh after all upserts settle so the list repaints `new` in one
+  // state batch rather than racing each listing write against the scan's first read.
+  function captureCards(cards: HTMLElement[]) {
+    void Promise.all(cards.map(captureCard)).then((ids) => {
+      const landed = ids.filter((id): id is string => id !== null);
+      if (!landed.length) return;
+      void engine.refreshStates(landed, { force: true }).then(() => {
+        landed.forEach((id) => engine.renderJob(id));
+      });
     });
   }
 
-  return { markListingClosed, captureListingOnce, captureCardFromAction };
+  return { markListingClosed, captureListingOnce, captureCards, captureCardFromAction };
 }

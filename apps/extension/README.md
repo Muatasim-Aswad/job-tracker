@@ -99,6 +99,7 @@ import type { Adapter } from "../../types";
 // Capture-capable adapters import shared engine helpers from ../../../engine.js.
 // DOM-only adapters (just findCards) need no imports.
 import {
+  captureCards,
   injectDetailButtons,
   autoEmit,
   refreshStates,
@@ -131,8 +132,17 @@ export const myBoardAdapter: Adapter = {
       card.dataset.jobTitle =
         card.querySelector("h3")?.textContent?.trim() || "";
       card.dataset.jobCompany = "My Board";
+      // Optional visible card facts. The list capture patches these into existing
+      // metadata, so revisiting the list cannot erase a detail-page description.
+      card.dataset.jobMeta = JSON.stringify({
+        location: card.querySelector(".location")?.textContent?.trim() || null,
+        salary: card.querySelector(".salary")?.textContent?.trim() || null,
+      });
       cards.push(card);
     });
+    // Optional: persist discovery cards without marking them seen. Successful
+    // upserts are deduplicated; reserve `autoEmit(id, "seen")` for detail views.
+    captureCards(cards);
     return cards;
   },
 };

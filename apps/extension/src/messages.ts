@@ -19,6 +19,8 @@ export interface ListingRecord extends NaturalKey {
   closed_at?: string;
   via?: string;
   meta?: Record<string, unknown>;
+  /** Merge these list-card facts into existing metadata without replacing a full capture. */
+  meta_patch?: Record<string, unknown>;
 }
 
 /** One funnel/activity event: a verb plus an optional meta side-bag. */

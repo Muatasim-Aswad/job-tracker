@@ -1751,6 +1751,10 @@ export interface components {
             meta?: {
                 [key: string]: unknown;
             };
+            /** Meta Patch */
+            meta_patch?: {
+                [key: string]: unknown;
+            };
             /** Platform */
             platform: string;
             /** Platform Id */
