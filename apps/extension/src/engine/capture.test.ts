@@ -30,16 +30,21 @@ const record = (over: Partial<ListingRecord> = {}): ListingRecord => ({
 function makeCapture(bridgeImpl?: (msg: unknown) => Promise<BridgeResponse>) {
   const bridge = vi.fn(bridgeImpl ?? (async () => ({ ok: true, result: null }) as BridgeResponse));
   const refreshMatches = vi.fn(async () => {});
+  const refreshStates = vi.fn(async () => true);
+  const renderJob = vi.fn();
   const engine = {
     bridge,
     refreshMatches,
+    refreshStates,
+    renderJob,
     isCompanyBlocked: () => false,
+    isCardBlocked: () => false,
     stateOf: () => ({ status: "untracked", hidden: false, starred: false }),
     hasEmitted: () => false,
     markEmitted: vi.fn(),
     unmarkEmitted: vi.fn(),
   } as unknown as Engine;
-  return { bridge, refreshMatches, capture: createCapture(engine) };
+  return { bridge, refreshMatches, refreshStates, renderJob, capture: createCapture(engine) };
 }
 
 beforeEach(() => {
@@ -70,6 +75,42 @@ describe("captureListingOnce", () => {
     capture.captureListingOnce("LI-1", () => record());
     await vi.waitFor(() => expect(bridge).toHaveBeenCalled());
     expect(refreshMatches).not.toHaveBeenCalled();
+  });
+});
+
+describe("captureCards", () => {
+  it("upserts card identity without emitting seen and refreshes the landed state", async () => {
+    const { bridge, refreshStates, renderJob, capture } = makeCapture();
+    const card = document.createElement("div");
+    card.dataset.jhId = "LI-1";
+    card.dataset.jobUrl = "https://www.linkedin.com/jobs/view/1/";
+    card.dataset.jobTitle = "Backend Engineer";
+    card.dataset.jobCompany = "Example Labs";
+    card.dataset.jobMeta = JSON.stringify({
+      location: "Amsterdam",
+      salary: "Scale 11: € 6.066 - € 8.666 pm",
+    });
+
+    capture.captureCards([card]);
+
+    await vi.waitFor(() => expect(refreshStates).toHaveBeenCalled());
+    expect(bridge).toHaveBeenCalledOnce();
+    expect(bridge).toHaveBeenCalledWith({
+      type: "listing",
+      payload: {
+        platform: "linkedin",
+        platform_id: "1",
+        url: "https://www.linkedin.com/jobs/view/1/",
+        title: "Backend Engineer",
+        company: "Example Labs",
+        meta_patch: {
+          location: "Amsterdam",
+          salary: "Scale 11: € 6.066 - € 8.666 pm",
+        },
+      },
+    });
+    expect(refreshStates).toHaveBeenCalledWith(["LI-1"], { force: true });
+    expect(renderJob).toHaveBeenCalledWith("LI-1");
   });
 });
 

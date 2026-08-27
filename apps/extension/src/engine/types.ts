@@ -69,6 +69,7 @@ export interface Engine {
     jobId: string | null,
     buildRecord: (id: string) => ListingRecord | null,
   ) => void;
+  captureCards: (cards: HTMLElement[]) => void;
   captureCardFromAction: (card: HTMLElement) => void;
   markListingClosed: (jobId: string) => Promise<void>;
 

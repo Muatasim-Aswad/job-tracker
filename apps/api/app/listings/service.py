@@ -274,7 +274,9 @@ class ListingService:
         if existing:
             self.listings.update_fields(
                 existing.id,
-                self._scraped_fields(data, captured_at=existing.captured_at or now),
+                self._scraped_fields(
+                    data, captured_at=existing.captured_at or now, existing_meta=existing.meta
+                ),
                 now,
             )
             self._fill_stub_job(existing.job_id, data.title, data.company)
@@ -293,7 +295,7 @@ class ListingService:
                 title=data.title,
                 company=data.company,
                 apply_type=data.apply_type.value if data.apply_type else None,
-                meta=data.meta or None,
+                meta={**data.meta, **data.meta_patch} or None,
                 captured_at=now,
                 updated_at=now,
             )
@@ -378,7 +380,9 @@ class ListingService:
     # --- field helpers ----------------------------------------------------
 
     @staticmethod
-    def _scraped_fields(data: ListingCreate, captured_at: str) -> dict[str, object]:
+    def _scraped_fields(
+        data: ListingCreate, captured_at: str, existing_meta: dict[str, object]
+    ) -> dict[str, object]:
         # Only overwrite columns the caller actually provided, so a partial
         # recapture never wipes existing scraped values.
         fields: dict[str, object] = {"captured_at": captured_at}
@@ -390,6 +394,9 @@ class ListingService:
             fields["apply_type"] = data.apply_type.value
         if data.meta:
             fields["meta"] = data.meta
+        if data.meta_patch:
+            base_meta = data.meta if data.meta else existing_meta
+            fields["meta"] = {**base_meta, **data.meta_patch}
         return fields
 
     @staticmethod

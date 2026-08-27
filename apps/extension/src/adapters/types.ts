@@ -34,8 +34,10 @@ export interface Adapter {
   cardBodySelector?: string;
 
   /** Tag each NEW list card — set dataset.jhId (the prefixed render key) plus
-   *  jobUrl/jobTitle/jobCompany — and return those cards. Idempotent per session
-   *  (skip cards already carrying dataset.jhId). */
+   *  jobUrl/jobTitle/jobCompany and optional JSON-object jobMeta — and return
+   *  those cards. Idempotent per session (skip cards already carrying
+   *  dataset.jhId). `jobMeta` is patched into, rather than replacing, metadata
+   *  previously captured from the detail page. */
   findCards(doc: Document): HTMLElement[];
 
   /** On a job detail view: inject the detail action bar, run auto-detects

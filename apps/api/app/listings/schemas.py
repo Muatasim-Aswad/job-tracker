@@ -13,6 +13,8 @@ class ListingCreate(BaseModel):
     company: str | None = None
     apply_type: ApplyType | None = None
     meta: dict[str, Any] = Field(default_factory=dict)
+    # Discovery-card facts enrich an existing full capture instead of replacing it.
+    meta_patch: dict[str, Any] = Field(default_factory=dict)
     closed_at: str | None = None  # "no longer accepting" — a natural-keyed listing fact
     job_id: str | None = None  # explicit link; otherwise a new listing auto-creates a job
     # Recorded on `created` only when this listing creates its job.
