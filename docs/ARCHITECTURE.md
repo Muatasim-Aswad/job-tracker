@@ -47,6 +47,7 @@ A tracked opportunity and a scraped posting are separate entities:
 - A **listing** records one platform's representation of that job. A job can have several listings.
 - An **event** records how job state changed. Listing-originated events may retain listing provenance.
 - A **document** belongs to the job rather than to a particular listing.
+- An **application workflow** is the singular, prospective analytics artifact for how one confirmed application was prepared and submitted. It records typed workflow facts and references, not funnel outcomes or copied agent-run details.
 
 This separation prevents a repost on another platform from creating a second application history while preserving platform-specific URLs and scraped fields.
 
@@ -70,6 +71,8 @@ Creating or updating a listing and deciding which job it belongs to are separate
 
 The duplicate-suggestion flow can merge two complete jobs. The job further along the funnel survives; ties preserve the older job. Listings, events, documents, form-capture job context, and false-match exclusions are consolidated under the survivor before the losing ID becomes an alias. State is reprojected from the merged event history without allowing an ordinary backdated event to undo the survivor's stronger status.
 
+An application workflow is anchored to the exact applied or corrected-applied event that confirmed submission. Its composite event/job foreign key makes it follow that evidence when a listing is relinked or a job is merged, including through repeated merges and old aliases. A merge or relink that would collapse two workflow records is refused with a conflict rather than choosing one and losing data.
+
 Deleting the last listing also deletes the now-unaddressable job and its remaining history. Deleting a job directly is therefore reserved for unwanted data; a real opportunity that ended should receive a terminal status instead.
 
 ## State and events
@@ -85,6 +88,8 @@ flags: hidden, starred
 `in_process` intentionally covers all post-application evaluation stages. Specific interviews, assessments, or take-home assignments belong in event metadata rather than in a fixed sequential status list.
 
 Ordinary status events move forward. They may skip stages, but they cannot move backward, revive a terminal job, or replace one terminal outcome with another. `ghosted` is valid only from `applied` or `in_process`. A deliberate correction can set any status and is logged as `corrected:<status>`; reverting removes the latest status-setting event and reprojects the previous state.
+
+Application-workflow analytics require both a current applied-or-later status and a specific effective event that set `applied`; an implied post-application status alone is insufficient. Reverting or deleting that submitted event removes its workflow record through the foreign key. A correction or relink whose settled projection no longer carries applied evidence also removes the record. This is deliberate lifecycle cleanup, not a public workflow-delete operation.
 
 Flags do not change funnel status. Flag events without metadata update the projected flag without adding repetitive audit rows. A metadata-bearing flag event is logged only when its metadata differs from the latest event of that kind. Notes are dated activity records that change neither status nor flags.
 
@@ -127,6 +132,7 @@ The main boundaries are:
 - State changes go through `POST /events`, addressed by either a listing natural key or a job ID.
 - Dashboard identity edits do not write funnel state.
 - Job-addressed state writes return the resolved canonical job ID. Merged IDs remain valid aliases for reads and ordinary writes, while deletion through an alias returns a conflict naming the canonical ID.
+- `GET` and `PUT /jobs/{job_id}/application-workflow` read or upsert one complete application-workflow artifact. `PUT` uses an absence-or-revision precondition, accepts an identical retry as a no-op, and returns the canonical job address. There is no public delete route.
 - Batch listing-state reads return one self-describing result per requested platform ID, including `untracked` results.
 - Attention, duplicate matches, and statistics are read projections.
 - `/form-fill` routes own resolution, Answer, Question, Match, Capture, and conflict-review workflows. Every success and error response under that boundary carries `Cache-Control: no-store`.
@@ -158,6 +164,8 @@ All modes initialize the same schema. Foreign-key enforcement is enabled and ver
 Form Answers and current remembered values are ordinary database rows. Embedded-replica and local-first modes therefore synchronize them to the configured Turso database, and every full database snapshot or automatic recovery backup retains them until that copy is deleted or replaced. Value-free history does not make the current value tables value-free.
 
 Form captures use enforced foreign keys for their optional job and listing context. Relinking and merging rewrite that context before a parent row is dissolved; deliberate deletion clears the affected context while retaining the capture lifecycle. Search diagnostics are different: their clicked `job_id` is deliberately foreign-key-free historical input, so it never blocks a real write or deletion. A retained merged ID can still be interpreted through the alias table.
+
+Application workflows use the opposite retention rule: they are meaningful only with a live job and their named submitted event, so both references are enforced and deletion of either removes the record. The stored reference list contains opaque locators to canonical agent runs, artifacts, or external evidence. It does not copy model, token, cost, or tracker-outcome facts; reporting resolves those locators and derives funnel outcomes from events.
 
 The local-first scheduler never discards a failed push. Local data remains on disk, the dirty state remains set, and a later cycle retries. Shutdown performs a final push for pending writes.
 

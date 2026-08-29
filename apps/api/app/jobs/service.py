@@ -8,6 +8,7 @@ module is read-only except for `update`, which edits descriptive job identity
 from datetime import UTC, datetime
 from typing import Literal
 
+from app.application_workflows.repository import ApplicationWorkflowRepository
 from app.core.config import Settings
 from app.core.db import Conn
 from app.core.errors import ConflictError, NotFoundError
@@ -39,6 +40,7 @@ class JobService:
         self.events = EventRepository(conn)
         self.listings = ListingRepository(conn)
         self.documents = DocumentRepository(conn)
+        self.application_workflows = ApplicationWorkflowRepository(conn)
         self.form_fill = FormFillRepository(conn)
         self.settings = settings or Settings()
 
@@ -209,6 +211,7 @@ class JobService:
         for listing in self.listings.list_for_job(job_id):
             self.form_fill.clear_listing_context(listing.id)
         self.form_fill.clear_job_context(job_id)
+        self.application_workflows.delete_for_job(job_id)
         self.events.delete_for_job(job_id)
         self.documents.delete_for_job(job_id)
         self.listings.delete_for_job(job_id)

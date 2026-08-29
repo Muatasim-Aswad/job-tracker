@@ -97,6 +97,14 @@ Attention rules identify applications that have waited too long at applied or in
 
 Custom fields support reusable vocabulary suggestions. Structured material records track which CV, cover letter, or other material accompanied an application, including requested and provided states. Job Tracker records the material's role and status; it does not upload or store the file itself.
 
+### Record how a confirmed application happened
+
+After an application is explicitly confirmed as submitted, an agent can use the API to create or replace one typed workflow record for that job. It can record whether preparation was human-only, agent-assisted, agent-led, or unknown; who submitted through which channel; which narrative kinds were used and their provenance; measured human time when it was actually measured; and references to canonical agent artifacts or external evidence.
+
+This feature is prospective and API-only: existing applications are not backfilled and there is no dashboard editor yet. Unknown workflow facts stay `unknown` or unmeasured instead of being guessed. Funnel outcomes continue to come from the event timeline, while agent-run details and costs stay in their canonical artifacts and are reached through references rather than copied into the workflow record.
+
+The record follows its submitted event through relinks, merges, repeated aliases, and canonical-ID changes. Reverting that event or correcting the job back before application removes the now-invalid record. A merge or relink that would combine two records is refused instead of silently discarding either one.
+
 ## Local by default
 
 Job Tracker is a single-user, self-hosted application:

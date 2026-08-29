@@ -370,6 +370,24 @@ export interface paths {
         patch: operations["update_job_api_jobs__job_id__patch"];
         trace?: never;
     };
+    "/api/jobs/{job_id}/application-workflow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Application Workflow */
+        get: operations["get_application_workflow_api_jobs__job_id__application_workflow_get"];
+        /** Put Application Workflow */
+        put: operations["put_application_workflow_api_jobs__job_id__application_workflow_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/{job_id}/corrections": {
         parameters: {
             query?: never;
@@ -894,6 +912,71 @@ export interface components {
             status?: ("active" | "disabled") | null;
             /** Value */
             value?: (components["schemas"]["TextValue"] | components["schemas"]["LongTextValue"] | components["schemas"]["DecimalValue"] | components["schemas"]["BooleanValue"] | components["schemas"]["DateValue"] | components["schemas"]["AnswerSingleChoiceValue"] | components["schemas"]["AnswerMultiChoiceValue"]) | null;
+        };
+        /** ApplicationWorkflow */
+        ApplicationWorkflow: {
+            /** Created At */
+            created_at: string;
+            /** Job Id */
+            job_id: string;
+            /** Measured Human Time Seconds */
+            measured_human_time_seconds: number | null;
+            /** Narratives */
+            narratives: components["schemas"]["NarrativeUsage"][];
+            /**
+             * Preparation Lane
+             * @enum {string}
+             */
+            preparation_lane: "human_only" | "agent_assisted" | "agent_led" | "unknown";
+            /** References */
+            references: components["schemas"]["WorkflowReference"][];
+            /** Revision */
+            revision: number;
+            /**
+             * Submission Actor
+             * @enum {string}
+             */
+            submission_actor: "human" | "agent" | "unknown";
+            /**
+             * Submission Channel
+             * @enum {string}
+             */
+            submission_channel: "easy_apply" | "external_form" | "email" | "other" | "unknown";
+            /** Submitted Event Id */
+            submitted_event_id: number;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * ApplicationWorkflowPut
+         * @description Complete replacement with an absence-or-revision precondition.
+         */
+        ApplicationWorkflowPut: {
+            /** Expected Revision */
+            expected_revision?: number | null;
+            /** Measured Human Time Seconds */
+            measured_human_time_seconds: number | null;
+            /** Narratives */
+            narratives: components["schemas"]["NarrativeUsage"][];
+            /**
+             * Preparation Lane
+             * @enum {string}
+             */
+            preparation_lane: "human_only" | "agent_assisted" | "agent_led" | "unknown";
+            /** References */
+            references: components["schemas"]["WorkflowReference"][];
+            /**
+             * Submission Actor
+             * @enum {string}
+             */
+            submission_actor: "human" | "agent" | "unknown";
+            /**
+             * Submission Channel
+             * @enum {string}
+             */
+            submission_channel: "easy_apply" | "external_form" | "email" | "other" | "unknown";
+            /** Submitted Event Id */
+            submitted_event_id: number;
         };
         /**
          * ApplyType
@@ -1913,6 +1996,19 @@ export interface components {
             /** Keys */
             keys: components["schemas"]["MetaKey"][];
         };
+        /** NarrativeUsage */
+        NarrativeUsage: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "cover_letter" | "motivation_letter" | "screening_answers" | "email" | "other" | "unknown";
+            /**
+             * Provenance
+             * @enum {string}
+             */
+            provenance: "human_authored" | "agent_generated" | "agent_drafted_human_edited" | "reused_existing" | "unknown";
+        };
         /** NewOptionBindingInput */
         NewOptionBindingInput: {
             /** Answer Choice Key */
@@ -2458,6 +2554,24 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * WorkflowReference
+         * @description Opaque locator for a canonical artifact; the artifact owns its own details.
+         */
+        WorkflowReference: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "agent_run" | "agent_artifact" | "submission_evidence" | "external";
+            /** Ref */
+            ref: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "preparation" | "narrative" | "submission" | "evidence" | "other";
         };
     };
     responses: never;
@@ -3551,6 +3665,85 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_application_workflow_api_jobs__job_id__application_workflow_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationWorkflow"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_application_workflow_api_jobs__job_id__application_workflow_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationWorkflowPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationWorkflow"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationWorkflow"];
                 };
             };
             /** @description Validation Error */

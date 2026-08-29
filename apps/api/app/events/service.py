@@ -11,9 +11,10 @@ cannot move backward. Correction and revert are the explicit override paths.
 Listing-addressed submissions also create a stub on first contact.
 """
 
+from app.application_workflows.repository import ApplicationWorkflowRepository
 from app.core.db import Conn
-from app.core.enums import Event as EventType
 from app.core.enums import (
+    APPLIED_EVIDENCE,
     Status,
     correction_event,
     flag_for_event,
@@ -21,6 +22,7 @@ from app.core.enums import (
     status_set_by,
     target_status,
 )
+from app.core.enums import Event as EventType
 from app.core.errors import NotFoundError, ValidationError
 from app.core.hashing import stable_hash
 from app.core.timeutil import utc_now
@@ -39,6 +41,7 @@ class EventService:
     def __init__(self, conn: Conn) -> None:
         self.events = EventRepository(conn)
         self.jobs = JobRepository(conn)
+        self.application_workflows = ApplicationWorkflowRepository(conn)
         self.listings = ListingService(conn)
 
     def record(self, data: EventCreate) -> JobMutationState:
@@ -162,6 +165,13 @@ class EventService:
     def _reproject_status(self, job_id: str) -> None:
         """Project status from the latest `(ts, id)` status-setting event."""
         reproject_status(job_id, self.events, self.jobs)
+        job = self.jobs.get(job_id)
+        assert job is not None
+        # Corrections and reverts can make the record inapplicable even while its
+        # submitted event remains. Event deletion separately cascades through the
+        # record's composite foreign key.
+        if job.status not in APPLIED_EVIDENCE:
+            self.application_workflows.delete_for_job(job_id)
 
     def _state(self, job_id: str) -> JobMutationState:
         job = self.jobs.get(job_id)
