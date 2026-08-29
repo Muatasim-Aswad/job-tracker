@@ -13,7 +13,7 @@ import type {
   JobDocument,
   JobEvent,
   JobMatch,
-  JobState,
+  JobMutationState,
   JobSummary,
   ListingCreate,
   ListingUpdate,
@@ -182,21 +182,21 @@ export const api = {
     request(`/listings/${listingId}`, { method: "PATCH", body: JSON.stringify(body) }),
 
   // The single state-write verb, addressed by job_id from the dashboard. The batch is
-  // applied in order in one transaction, returning {status, hidden, starred}.
-  postEvents: (jobId: string, events: EventItem[]): Promise<JobState> =>
+  // applied in order in one transaction, returning the canonical job_id and state.
+  postEvents: (jobId: string, events: EventItem[]): Promise<JobMutationState> =>
     request("/events", {
       method: "POST",
       body: JSON.stringify({ job_id: jobId, events: markManualClosures(events) }),
     }),
 
   // Corrections bypass funnel guards; revert removes the latest status event.
-  correctStatus: (jobId: string, status: Status, reason?: string): Promise<JobState> =>
+  correctStatus: (jobId: string, status: Status, reason?: string): Promise<JobMutationState> =>
     request(`/jobs/${jobId}/corrections`, {
       method: "POST",
       body: JSON.stringify({ status, reason }),
     }),
 
-  revertStatus: (jobId: string): Promise<JobState> =>
+  revertStatus: (jobId: string): Promise<JobMutationState> =>
     request(`/jobs/${jobId}/status/revert`, { method: "POST" }),
 
   // Only supplied fields are replaced; the event verb remains immutable.
@@ -209,7 +209,7 @@ export const api = {
   // Record a `note` event: dated activity that doesn't move the funnel. Carries the
   // body plus an optional `title`, shown in place of the "note" label. The returned
   // state is unchanged by the note.
-  addNote: (jobId: string, meta: { title?: string; note?: string }): Promise<JobState> =>
+  addNote: (jobId: string, meta: { title?: string; note?: string }): Promise<JobMutationState> =>
     request("/events", {
       method: "POST",
       body: JSON.stringify({ job_id: jobId, events: [{ event: "note", meta }] }),

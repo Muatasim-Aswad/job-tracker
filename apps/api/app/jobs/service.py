@@ -10,12 +10,13 @@ from typing import Literal
 
 from app.core.config import Settings
 from app.core.db import Conn
-from app.core.errors import NotFoundError
+from app.core.errors import ConflictError, NotFoundError
 from app.core.similarity import jaccard, tokenize
 from app.core.text import normalize_company, normalize_title
 from app.core.timeutil import utc_now
 from app.documents.repository import DocumentRepository
 from app.events.repository import EventRepository
+from app.form_fill.repository import FormFillRepository
 from app.jobs.models import Job, JobFilters
 from app.jobs.repository import JobRepository
 from app.jobs.schemas import (
@@ -38,6 +39,7 @@ class JobService:
         self.events = EventRepository(conn)
         self.listings = ListingRepository(conn)
         self.documents = DocumentRepository(conn)
+        self.form_fill = FormFillRepository(conn)
         self.settings = settings or Settings()
 
     # --- reads ------------------------------------------------------------
@@ -101,9 +103,11 @@ class JobService:
         return Attention(stage=stage, since=since, days=days)
 
     def get_detail(self, job_id: str) -> JobDetail:
-        job = self.jobs.get(job_id)
+        requested_job_id = job_id
+        job_id = self.jobs.resolve_id(job_id) or ""
+        job = self.jobs.get(job_id) if job_id else None
         if job is None:
-            raise NotFoundError(f"job {job_id} not found")
+            raise NotFoundError(f"job {requested_job_id} not found")
         return JobDetail(
             **job.model_dump(),
             listings=self.listings.list_for_job(job_id),
@@ -146,7 +150,11 @@ class JobService:
             current_jd = (listing.meta or {}).get("description")
             current = self.jobs.get(listing.job_id)
             if current is not None:
-                exclude.update(current.meta.get("false_matches", []))
+                exclude.update(
+                    canonical
+                    for excluded_id in current.meta.get("false_matches", [])
+                    if (canonical := self.jobs.resolve_id(excluded_id)) is not None
+                )
         rows = [
             row
             for row in self.jobs.match_candidates(company_key, title_key)
@@ -190,17 +198,28 @@ class JobService:
         and deliberate: intentional history loss for a noise or dead job, where a real
         opportunity that ended should be `closed` instead. Children go first so no FK
         dangles, and the whole cascade commits atomically in one request."""
-        if self.jobs.get(job_id) is None:
-            raise NotFoundError(f"job {job_id} not found")
+        requested_job_id = job_id
+        job_id = self.jobs.resolve_id(job_id) or ""
+        if not job_id:
+            raise NotFoundError(f"job {requested_job_id} not found")
+        if job_id != requested_job_id:
+            raise ConflictError(
+                "job_merged", {"requested_job_id": requested_job_id, "canonical_job_id": job_id}
+            )
+        for listing in self.listings.list_for_job(job_id):
+            self.form_fill.clear_listing_context(listing.id)
+        self.form_fill.clear_job_context(job_id)
         self.events.delete_for_job(job_id)
         self.documents.delete_for_job(job_id)
         self.listings.delete_for_job(job_id)
         self.jobs.delete(job_id)
 
     def update(self, job_id: str, data: JobUpdate) -> Job:
-        job = self.jobs.get(job_id)
+        requested_job_id = job_id
+        job_id = self.jobs.resolve_id(job_id) or ""
+        job = self.jobs.get(job_id) if job_id else None
         if job is None:
-            raise NotFoundError(f"job {job_id} not found")
+            raise NotFoundError(f"job {requested_job_id} not found")
         if data.title is not None or data.company is not None:
             title = data.title if data.title is not None else job.title
             company = data.company if data.company is not None else job.company

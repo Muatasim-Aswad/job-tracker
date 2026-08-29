@@ -172,6 +172,26 @@ def test_init_schema_is_idempotent_when_run_twice(conn: sqlite3.Connection) -> N
     assert row[0] == 0
 
 
+def test_job_alias_migration_upgrades_old_shape_once(conn: sqlite3.Connection) -> None:
+    conn.execute("DROP TABLE job_id_aliases")
+    conn.execute("DELETE FROM schema_migrations WHERE key = 'create_job_id_aliases_v1'")
+    conn.commit()
+
+    init_schema(conn)
+    init_schema(conn)
+
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(job_id_aliases)")]
+    assert columns == ["old_job_id", "canonical_job_id", "merged_at"]
+    assert (
+        conn.execute(
+            "SELECT COUNT(*) FROM schema_migrations WHERE key = 'create_job_id_aliases_v1'"
+        ).fetchone()[0]
+        == 1
+    )
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("INSERT INTO job_id_aliases VALUES ('old', 'missing', '2026-01-01T00:00:00Z')")
+
+
 def test_init_schema_pushes_a_local_first_connection() -> None:
     sqlite = sqlite3.connect(":memory:")
     conn = MagicMock(wraps=sqlite)
@@ -302,13 +322,17 @@ def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
     # are appended, never edited: the form-fill foundation is the first such data
     # migration, while the column-migration baseline remains empty.
     assert _COLUMN_MIGRATIONS == ()
-    assert tuple(key for key, _migration in _DATA_MIGRATIONS) == ("create_form_fill_foundation_v1",)
+    assert tuple(key for key, _migration in _DATA_MIGRATIONS) == (
+        "create_form_fill_foundation_v1",
+        "create_job_id_aliases_v1",
+    )
 
 
-def test_fresh_database_records_only_form_fill_migration_key(conn: sqlite3.Connection) -> None:
+def test_fresh_database_records_append_only_migration_keys(conn: sqlite3.Connection) -> None:
     # conftest's conn is a fresh database that already went through init_schema().
     assert conn.execute("SELECT key FROM schema_migrations").fetchall() == [
-        ("create_form_fill_foundation_v1",)
+        ("create_form_fill_foundation_v1",),
+        ("create_job_id_aliases_v1",),
     ]
 
 
@@ -352,6 +376,7 @@ def test_legacy_database_opens_under_the_baseline_without_data_loss(
     assert [row[0] for row in conn.execute("SELECT key FROM schema_migrations ORDER BY key")] == [
         "classify_legacy_automatic_closures",
         "create_form_fill_foundation_v1",
+        "create_job_id_aliases_v1",
         "drop_notes_documents",
     ]
     assert conn.execute("SELECT COUNT(*) FROM listings").fetchone()[0] == 1

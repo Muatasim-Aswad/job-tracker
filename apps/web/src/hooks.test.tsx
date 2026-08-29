@@ -185,7 +185,12 @@ describe("useJobEvents rollback", () => {
     const { result } = setup([makeJob({ status: "new" })]);
     await waitFor(() => expect(result.current.jobs.data?.[0].status).toBe("new"));
 
-    mockedApi.postEvents.mockResolvedValue({ status: "applied", hidden: false, starred: true });
+    mockedApi.postEvents.mockResolvedValue({
+      job_id: "job-1",
+      status: "applied",
+      hidden: false,
+      starred: true,
+    });
     // The successful mutation invalidates the summaries so server-derived fields
     // such as attention reconcile too; model that follow-up GET as authoritative.
     mockedApi.listJobs.mockResolvedValue([

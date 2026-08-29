@@ -372,8 +372,25 @@ def _create_form_fill_foundation(conn: Conn) -> None:
         conn.execute(statement)
 
 
+def _create_job_id_aliases(conn: Conn) -> None:
+    """Keep dissolved merge identities resolvable to one live canonical job."""
+    conn.execute("BEGIN")
+    conn.execute(
+        """
+        CREATE TABLE job_id_aliases (
+            old_job_id TEXT PRIMARY KEY,
+            canonical_job_id TEXT NOT NULL REFERENCES jobs (id) ON DELETE CASCADE,
+            merged_at TEXT NOT NULL,
+            CHECK (old_job_id <> canonical_job_id)
+        )
+        """
+    )
+    conn.execute("CREATE INDEX idx_job_id_aliases_canonical ON job_id_aliases (canonical_job_id)")
+
+
 _DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = (
     ("create_form_fill_foundation_v1", _create_form_fill_foundation),
+    ("create_job_id_aliases_v1", _create_job_id_aliases),
 )
 
 

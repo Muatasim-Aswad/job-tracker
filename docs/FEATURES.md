@@ -16,7 +16,7 @@ Actions and context stay at the appropriate scope. Notes, events, status, and hi
 
 When Job Tracker finds a possible repost, it suggests a match using the normalized company and title. When descriptions are available, their similarity provides additional evidence.
 
-You decide whether the suggestion is correct. Confirming a match consolidates the linked listings, application status and history, events, and material records. Dismissing it records a false match so the same incorrect suggestion does not keep returning. Jobs are never merged automatically.
+You decide whether the suggestion is correct. Confirming a match consolidates the linked listings, application status and history, events, and material records. The former job ID remains an alias of the survivor, so an older link or integration reference still opens and updates the canonical record; deleting through that older ID is refused until the caller uses the canonical ID deliberately. Dismissing a suggestion records a false match so the same incorrect suggestion does not keep returning. Jobs are never merged automatically.
 
 ## Capture what can be captured
 

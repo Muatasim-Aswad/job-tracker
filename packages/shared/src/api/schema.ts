@@ -1610,12 +1610,14 @@ export interface components {
             title?: string | null;
         };
         /**
-         * JobState
-         * @description Compact listing state; `untracked` is a read-only synthetic status.
+         * JobMutationState
+         * @description Result of a job-state write, carrying the resolved canonical identity.
          */
-        JobState: {
+        JobMutationState: {
             /** Hidden */
             hidden: boolean;
+            /** Job Id */
+            job_id: string;
             /** Starred */
             starred: boolean;
             /** Status */
@@ -1807,6 +1809,8 @@ export interface components {
             job_id: string;
             /** Listing Id */
             listing_id: string;
+            /** Merged From */
+            merged_from?: string[];
         };
         /** LongTextValue */
         LongTextValue: {
@@ -2652,7 +2656,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobState"];
+                    "application/json": components["schemas"]["JobMutationState"];
                 };
             };
             /** @description Validation Error */
@@ -3583,7 +3587,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobState"];
+                    "application/json": components["schemas"]["JobMutationState"];
                 };
             };
             /** @description Validation Error */
@@ -3653,7 +3657,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobState"];
+                    "application/json": components["schemas"]["JobMutationState"];
                 };
             };
             /** @description Validation Error */

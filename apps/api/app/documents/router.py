@@ -12,9 +12,14 @@ get_service = service_factory(DocumentService)
 
 @router.post("/jobs/{job_id}/documents", response_model=Document, status_code=201)
 def create_document(
-    job_id: str, body: DocumentCreate, service: DocumentService = Depends(get_service)
+    job_id: str,
+    body: DocumentCreate,
+    response: Response,
+    service: DocumentService = Depends(get_service),
 ) -> Document:
-    return service.add(job_id, body)
+    document = service.add(job_id, body)
+    response.headers["Content-Location"] = f"/api/jobs/{document.job_id}"
+    return document
 
 
 @router.patch("/documents/{document_id}", response_model=Document)

@@ -16,6 +16,12 @@ class JobState(BaseModel):
     starred: bool
 
 
+class JobMutationState(JobState):
+    """Result of a job-state write, carrying the resolved canonical identity."""
+
+    job_id: str
+
+
 class ListingState(JobState):
     """Listing state tagged with its platform-native id."""
 

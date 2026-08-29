@@ -4,18 +4,22 @@ from app.core.deps import service_factory
 from app.events.models import Event
 from app.events.schemas import CorrectionCreate, EventCreate, EventUpdate
 from app.events.service import EventService
-from app.jobs.schemas import JobState
+from app.jobs.schemas import JobMutationState
 
 router = APIRouter(tags=["events"])
 
 get_service = service_factory(EventService)
 
 
-@router.post("/events", response_model=JobState)
-def create_event(body: EventCreate, service: EventService = Depends(get_service)) -> JobState:
+@router.post("/events", response_model=JobMutationState)
+def create_event(
+    body: EventCreate, response: Response, service: EventService = Depends(get_service)
+) -> JobMutationState:
     """Submit a state change (status transition or hide/star flag) addressed by
     `(platform, platform_id)` or `job_id`; returns the resulting job state."""
-    return service.record(body)
+    state = service.record(body)
+    response.headers["Content-Location"] = f"/api/jobs/{state.job_id}"
+    return state
 
 
 @router.patch("/events/{event_id}", response_model=Event)
@@ -33,15 +37,24 @@ def delete_note_event(event_id: int, service: EventService = Depends(get_service
     return Response(status_code=204)
 
 
-@router.post("/jobs/{job_id}/corrections", response_model=JobState)
+@router.post("/jobs/{job_id}/corrections", response_model=JobMutationState)
 def correct_status(
-    job_id: str, body: CorrectionCreate, service: EventService = Depends(get_service)
-) -> JobState:
+    job_id: str,
+    body: CorrectionCreate,
+    response: Response,
+    service: EventService = Depends(get_service),
+) -> JobMutationState:
     """Set any status and record the deliberate correction."""
-    return service.correct(job_id, body.status, body.reason)
+    state = service.correct(job_id, body.status, body.reason)
+    response.headers["Content-Location"] = f"/api/jobs/{state.job_id}"
+    return state
 
 
-@router.post("/jobs/{job_id}/status/revert", response_model=JobState)
-def revert_status(job_id: str, service: EventService = Depends(get_service)) -> JobState:
+@router.post("/jobs/{job_id}/status/revert", response_model=JobMutationState)
+def revert_status(
+    job_id: str, response: Response, service: EventService = Depends(get_service)
+) -> JobMutationState:
     """Remove the latest status-setting event and reproject the prior state."""
-    return service.revert_last_status(job_id)
+    state = service.revert_last_status(job_id)
+    response.headers["Content-Location"] = f"/api/jobs/{state.job_id}"
+    return state

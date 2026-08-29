@@ -25,6 +25,7 @@ from app.documents.repository import DocumentRepository
 from app.events.automation import is_effective_status_event
 from app.events.projection import reproject_status
 from app.events.repository import EventRepository
+from app.form_fill.repository import FormFillRepository
 from app.jobs.models import Job
 from app.jobs.repository import JobRepository
 from app.listings.automatic_closure import AutomaticClosure
@@ -49,6 +50,7 @@ class ListingService:
         self.jobs = JobRepository(conn)
         self.events = EventRepository(conn)
         self.documents = DocumentRepository(conn)
+        self.form_fill = FormFillRepository(conn)
         self.automatic_closure = AutomaticClosure(self.listings, self.jobs, self.events)
 
     # --- job identity -----------------------------------------------------
@@ -104,8 +106,10 @@ class ListingService:
         listing = self.listings.get(listing_id_)
         if listing is None:
             raise NotFoundError(f"listing {listing_id_} not found")
-        if self.jobs.get(job_id) is None:
-            raise NotFoundError(f"job {job_id} not found")
+        requested_job_id = job_id
+        job_id = self.jobs.resolve_id(job_id) or ""
+        if not job_id:
+            raise NotFoundError(f"job {requested_job_id} not found")
         source_job_id = listing.job_id
         if source_job_id == job_id:
             return
@@ -117,11 +121,14 @@ class ListingService:
         # Move events known to have come from this listing, even if the source job
         # keeps other listings.
         self.events.move_by_listing(listing_id_, source_job_id, job_id)
+        self.form_fill.move_listing_job_context(listing_id_, job_id)
         if not self.listings.job_has_listings(source_job_id):
             # The source job is empty, so dissolve it while preserving its remaining
             # unattributed events and documents rather than losing them.
             self.events.move_all(source_job_id, job_id)
             self.documents.move_all(source_job_id, job_id)
+            self.form_fill.move_job_context(source_job_id, job_id)
+            self.jobs.alias_merged_id(source_job_id, job_id, utc_now())
             self.jobs.delete(source_job_id)
         else:
             # Removing a listing's events may expose an older status setter on a
@@ -143,8 +150,10 @@ class ListingService:
         Materializes an untracked current listing. Stale exclusions are harmless
         because match reads filter them to live jobs.
         """
-        if self.jobs.get(other_job_id) is None:
-            raise NotFoundError(f"job {other_job_id} not found")
+        requested_job_id = other_job_id
+        other_job_id = self.jobs.resolve_id(other_job_id) or ""
+        if not other_job_id:
+            raise NotFoundError(f"job {requested_job_id} not found")
         job_id, _ = self.ensure_listing(platform, platform_id, via="false_match")
         if job_id == other_job_id:
             return  # a listing can't be "not the same job" as its own job
@@ -168,16 +177,21 @@ class ListingService:
         self, platform: str, platform_id: str, other_job_id: str
     ) -> ListingUpsertResult:
         """Merge both complete jobs and return the current listing's new address."""
-        other = self.jobs.get(other_job_id)
+        requested_job_id = other_job_id
+        other_job_id = self.jobs.resolve_id(other_job_id) or ""
+        other = self.jobs.get(other_job_id) if other_job_id else None
         if other is None:
-            raise NotFoundError(f"job {other_job_id} not found")
+            raise NotFoundError(f"job {requested_job_id} not found")
         current_job_id, _ = self.ensure_listing(platform, platform_id, via="link")
+        merged_from: list[str] = []
         if current_job_id != other_job_id:
             current = self.jobs.get(current_job_id)
             assert current is not None
             survivor, loser = _pick_survivor(current, other)
             self._merge_jobs(loser.id, survivor.id)
-        return self.lookup(platform, platform_id)
+            merged_from.append(loser.id)
+        result = self.lookup(platform, platform_id)
+        return result.model_copy(update={"merged_from": merged_from})
 
     def _merge_jobs(self, loser_id: str, survivor_id: str) -> None:
         """Move all dependent records to the survivor, then delete the empty job."""
@@ -190,7 +204,9 @@ class ListingService:
             self.listings.set_job(listing.id, survivor_id, now)
         self.events.move_all(loser_id, survivor_id)
         self.documents.move_all(loser_id, survivor_id)
+        self.form_fill.move_job_context(loser_id, survivor_id)
         self._merge_false_matches(loser_id, survivor_id)
+        self.jobs.alias_merged_id(loser_id, survivor_id, now)
         self.jobs.delete(loser_id)
         reproject_status(survivor_id, self.events, self.jobs)
         self.automatic_closure.reconcile(survivor_id, allow_close=True)
@@ -284,7 +300,12 @@ class ListingService:
                 self.link_listing_to_job(existing.id, data.job_id)
             lid = existing.id
         else:
-            job_id = data.job_id or self._create_job(data.title, data.company, via=data.via)
+            if data.job_id is not None:
+                job_id = self.jobs.resolve_id(data.job_id)
+                if job_id is None:
+                    raise NotFoundError(f"job {data.job_id} not found")
+            else:
+                job_id = self._create_job(data.title, data.company, via=data.via)
             lid = new_listing_id()
             self.listings.insert(
                 lid,
@@ -323,10 +344,12 @@ class ListingService:
             raise NotFoundError(f"listing {listing_id_} not found")
         job_id = listing.job_id
         self.events.clear_listing(listing_id_)
+        self.form_fill.clear_listing_context(listing_id_)
         self.listings.delete(listing_id_)
         if not self.listings.job_has_listings(job_id):
             self.events.delete_for_job(job_id)
             self.documents.delete_for_job(job_id)
+            self.form_fill.clear_job_context(job_id)
             self.jobs.delete(job_id)
         else:
             self.automatic_closure.reconcile(job_id, allow_close=True)
