@@ -25,6 +25,7 @@ import type {
   DocumentUpdate,
   EventItem,
   JobDetail,
+  JobMutationState,
   JobState,
   JobSummary,
   ListingCreate,
@@ -100,6 +101,10 @@ function project(base: JobState, events: EventItem[]): JobState {
   return { status, hidden, starred };
 }
 
+function settledState(state: JobMutationState): JobState {
+  return { status: state.status, hidden: state.hidden, starred: state.starred };
+}
+
 interface EventVars {
   jobId: string;
   events: EventItem[];
@@ -129,11 +134,15 @@ export function useJobEvents() {
     },
     onSuccess: (state, { jobId }) => {
       // Reconcile with the server's authoritative projection.
+      const settled = settledState(state);
       qc.setQueryData<JobSummary[]>(JOBS_KEY, (jobs) =>
-        jobs?.map((j) => (j.id === jobId ? { ...j, ...state } : j)),
+        jobs?.map((j) => (j.id === state.job_id ? { ...j, ...settled } : j)),
       );
-      qc.setQueryData<JobDetail>(jobKey(jobId), (job) => (job ? { ...job, ...state } : job));
+      qc.setQueryData<JobDetail>(jobKey(state.job_id), (job) =>
+        job ? { ...job, ...settled } : job,
+      );
       void qc.invalidateQueries({ queryKey: jobKey(jobId) });
+      if (state.job_id !== jobId) void qc.invalidateQueries({ queryKey: jobKey(state.job_id) });
       void qc.invalidateQueries({ queryKey: JOBS_KEY });
     },
   });
@@ -147,11 +156,15 @@ export function useCorrectStatus() {
     mutationFn: ({ jobId, status, reason }: { jobId: string; status: Status; reason?: string }) =>
       api.correctStatus(jobId, status, reason),
     onSuccess: (state, { jobId }) => {
+      const settled = settledState(state);
       qc.setQueryData<JobSummary[]>(JOBS_KEY, (jobs) =>
-        jobs?.map((j) => (j.id === jobId ? { ...j, ...state, attention: null } : j)),
+        jobs?.map((j) => (j.id === state.job_id ? { ...j, ...settled, attention: null } : j)),
       );
-      qc.setQueryData<JobDetail>(jobKey(jobId), (job) => (job ? { ...job, ...state } : job));
+      qc.setQueryData<JobDetail>(jobKey(state.job_id), (job) =>
+        job ? { ...job, ...settled } : job,
+      );
       void qc.invalidateQueries({ queryKey: jobKey(jobId) });
+      if (state.job_id !== jobId) void qc.invalidateQueries({ queryKey: jobKey(state.job_id) });
       void qc.invalidateQueries({ queryKey: JOBS_KEY });
     },
   });
@@ -162,11 +175,15 @@ export function useRevertStatus() {
   return useMutation({
     mutationFn: (jobId: string) => api.revertStatus(jobId),
     onSuccess: (state, jobId) => {
+      const settled = settledState(state);
       qc.setQueryData<JobSummary[]>(JOBS_KEY, (jobs) =>
-        jobs?.map((j) => (j.id === jobId ? { ...j, ...state, attention: null } : j)),
+        jobs?.map((j) => (j.id === state.job_id ? { ...j, ...settled, attention: null } : j)),
       );
-      qc.setQueryData<JobDetail>(jobKey(jobId), (job) => (job ? { ...job, ...state } : job));
+      qc.setQueryData<JobDetail>(jobKey(state.job_id), (job) =>
+        job ? { ...job, ...settled } : job,
+      );
       void qc.invalidateQueries({ queryKey: jobKey(jobId) });
+      if (state.job_id !== jobId) void qc.invalidateQueries({ queryKey: jobKey(state.job_id) });
       void qc.invalidateQueries({ queryKey: JOBS_KEY });
     },
   });

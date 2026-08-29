@@ -38,8 +38,11 @@ export type JobDetail = Omit<
   documents: JobDocument[];
 };
 export type JobMatch = Omit<Read<Schemas["JobMatch"]>, "status"> & { status: Status };
-// The POST /events + corrections response the dashboard projects from.
-export type JobState = Omit<Read<Schemas["JobState"]>, "status"> & { status: Status };
+// POST /events + corrections return the canonical id alongside the settled state.
+export type JobMutationState = Omit<Read<Schemas["JobMutationState"]>, "status"> & {
+  status: Status;
+};
+export type JobState = Omit<JobMutationState, "job_id">;
 
 export type PrimaryListing = Read<Schemas["PrimaryListing"]>;
 export type Attention = Read<Schemas["Attention"]>;

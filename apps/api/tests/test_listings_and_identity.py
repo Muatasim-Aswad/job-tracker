@@ -208,7 +208,9 @@ def test_patch_listing_relink_dissolves_empty_donor(client: TestClient) -> None:
 
     detail = client.get(f"/api/jobs/{job_a}").json()
     assert any(e["event"] == "seen" for e in detail["events"])  # history carried over
-    assert client.get(f"/api/jobs/{job_b}").status_code == 404  # donor dissolved
+    dissolved = client.get(f"/api/jobs/{job_b}")
+    assert dissolved.status_code == 200
+    assert dissolved.json()["id"] == job_a  # donor id is now a canonical alias
 
 
 def test_patch_listing_relink_reprojects_after_moving_all_donor_events(client: TestClient) -> None:
@@ -237,7 +239,9 @@ def test_patch_listing_relink_reprojects_after_moving_all_donor_events(client: T
     detail = client.get(f"/api/jobs/{receiver['job_id']}").json()
     assert detail["status"] == "closed"
     assert any(e["event"] == "closed" for e in detail["events"])
-    assert client.get(f"/api/jobs/{donor['job_id']}").status_code == 404
+    dissolved = client.get(f"/api/jobs/{donor['job_id']}")
+    assert dissolved.status_code == 200
+    assert dissolved.json()["id"] == receiver["job_id"]
 
 
 def test_relink_keeps_donor_with_other_listings(client: TestClient) -> None:

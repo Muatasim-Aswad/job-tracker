@@ -22,6 +22,28 @@ class JobRepository:
         row = query_one(self.conn, f"SELECT {_COLUMNS} FROM jobs WHERE id = ?", (job_id,))
         return _to_job(row) if row else None
 
+    def resolve_id(self, job_id: str) -> str | None:
+        """Resolve a live or merged identity to its live canonical job id."""
+        if self.get(job_id) is not None:
+            return job_id
+        row = query_one(
+            self.conn, "SELECT canonical_job_id FROM job_id_aliases WHERE old_job_id = ?", (job_id,)
+        )
+        return str(row["canonical_job_id"]) if row else None
+
+    def alias_merged_id(self, old_job_id: str, canonical_job_id: str, merged_at: str) -> None:
+        """Flatten prior aliases and retain the newly dissolved identity."""
+        execute(
+            self.conn,
+            "UPDATE job_id_aliases SET canonical_job_id = ? WHERE canonical_job_id = ?",
+            (canonical_job_id, old_job_id),
+        )
+        execute(
+            self.conn,
+            "INSERT INTO job_id_aliases (old_job_id, canonical_job_id, merged_at) VALUES (?, ?, ?)",
+            (old_job_id, canonical_job_id, merged_at),
+        )
+
     def insert(self, job: Job) -> None:
         execute(
             self.conn,

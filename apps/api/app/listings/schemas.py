@@ -34,6 +34,7 @@ class ListingUpdate(BaseModel):
 class ListingUpsertResult(BaseModel):
     job_id: str
     listing_id: str
+    merged_from: list[str] = Field(default_factory=list)
 
 
 class FalseMatchCreate(BaseModel):

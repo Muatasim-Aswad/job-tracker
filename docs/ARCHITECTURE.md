@@ -60,13 +60,15 @@ The API uses three identifiers:
 
 Clients never construct `listing_id` or `job_id`. Listing-oriented extension operations use the natural key; dashboard operations use stored job or listing IDs. Legacy rows may retain older readable listing IDs, but no current code parses or recreates them.
 
+A merged job ID remains a durable alias of the surviving job. Reads and ordinary writes addressed with an alias resolve to the canonical ID; responses carry the canonical ID and job-addressed responses identify its URL with `Content-Location`. Destructive deletion through an alias is refused with a conflict so a stale caller cannot silently delete the survivor. Alias rows always point directly to a live job: when that survivor is merged again, every prior alias is flattened to the new survivor. A deliberate hard deletion removes its aliases.
+
 The first complete capture seeds the job's title and company. Later captures update their own listings without replacing that canonical identity. An explicit dashboard edit can change it. Normalized `company_key` and `title_key` values support duplicate suggestions only; capture never merges jobs from those values. Equal company and title strings are insufficient evidence that two openings are the same.
 
 ### Linking and merging
 
 Creating or updating a listing and deciding which job it belongs to are separate operations. Explicit linking moves the listing and its attributed events. If the source job then has no listings, its remaining events and documents move to the target before the empty job is deleted.
 
-The duplicate-suggestion flow can merge two complete jobs. The job further along the funnel survives; ties preserve the older job. Listings, events, documents, and false-match exclusions are consolidated under the survivor. State is reprojected from the merged event history without allowing an ordinary backdated event to undo the survivor's stronger status.
+The duplicate-suggestion flow can merge two complete jobs. The job further along the funnel survives; ties preserve the older job. Listings, events, documents, form-capture job context, and false-match exclusions are consolidated under the survivor before the losing ID becomes an alias. State is reprojected from the merged event history without allowing an ordinary backdated event to undo the survivor's stronger status.
 
 Deleting the last listing also deletes the now-unaddressable job and its remaining history. Deleting a job directly is therefore reserved for unwanted data; a real opportunity that ended should receive a terminal status instead.
 
@@ -124,6 +126,7 @@ The main boundaries are:
 - Listing capture is an idempotent upsert by `(platform, platform_id)`.
 - State changes go through `POST /events`, addressed by either a listing natural key or a job ID.
 - Dashboard identity edits do not write funnel state.
+- Job-addressed state writes return the resolved canonical job ID. Merged IDs remain valid aliases for reads and ordinary writes, while deletion through an alias returns a conflict naming the canonical ID.
 - Batch listing-state reads return one self-describing result per requested platform ID, including `untracked` results.
 - Attention, duplicate matches, and statistics are read projections.
 - `/form-fill` routes own resolution, Answer, Question, Match, Capture, and conflict-review workflows. Every success and error response under that boundary carries `Cache-Control: no-store`.
@@ -153,6 +156,8 @@ The API supports three connection modes:
 All modes initialize the same schema. Foreign-key enforcement is enabled and verified for every connection. `schema.sql` is the 1.0.0 baseline; additive column and one-time data migrations are append-only compatibility layers, including the form-fill foundation migration. Startup applies any registered migration that has no row in the `schema_migrations` ledger; each logical migration and its ledger write commit together, so a failed one rolls back whole and the next start retries it. The rules for adding a migration are in the [development guide](DEVELOPMENT.md#database-migration-compatibility).
 
 Form Answers and current remembered values are ordinary database rows. Embedded-replica and local-first modes therefore synchronize them to the configured Turso database, and every full database snapshot or automatic recovery backup retains them until that copy is deleted or replaced. Value-free history does not make the current value tables value-free.
+
+Form captures use enforced foreign keys for their optional job and listing context. Relinking and merging rewrite that context before a parent row is dissolved; deliberate deletion clears the affected context while retaining the capture lifecycle. Search diagnostics are different: their clicked `job_id` is deliberately foreign-key-free historical input, so it never blocks a real write or deletion. A retained merged ID can still be interpreted through the alias table.
 
 The local-first scheduler never discards a failed push. Local data remains on disk, the dirty state remains set, and a later cycle retries. Shutdown performs a final push for pending writes.
 

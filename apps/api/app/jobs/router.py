@@ -65,13 +65,21 @@ def applied_count(
 
 
 @router.get("/jobs/{job_id}", response_model=JobDetail)
-def get_job(job_id: str, service: JobService = Depends(get_service)) -> JobDetail:
-    return service.get_detail(job_id)
+def get_job(
+    job_id: str, response: Response, service: JobService = Depends(get_service)
+) -> JobDetail:
+    detail = service.get_detail(job_id)
+    response.headers["Content-Location"] = f"/api/jobs/{detail.id}"
+    return detail
 
 
 @router.patch("/jobs/{job_id}", response_model=Job)
-def update_job(job_id: str, body: JobUpdate, service: JobService = Depends(get_service)) -> Job:
-    return service.update(job_id, body)
+def update_job(
+    job_id: str, body: JobUpdate, response: Response, service: JobService = Depends(get_service)
+) -> Job:
+    job = service.update(job_id, body)
+    response.headers["Content-Location"] = f"/api/jobs/{job.id}"
+    return job
 
 
 @router.delete("/jobs/{job_id}", status_code=204)

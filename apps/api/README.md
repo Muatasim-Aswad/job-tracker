@@ -35,6 +35,8 @@ A React + TS + Vite Kanban dashboard lives in [`../web/`](../web). It talks to t
 
 The board is the active funnel (`new → … → offered`); drag a card to transition it (`POST /events`), or use the card menu / detail drawer for terminal outcomes, flags, identity edits, and documents. Each column can be ordered by activity, creation date, or title; ordering is a browser-local dashboard preference.
 
+When two jobs merge, the losing `job_id` becomes a permanent alias of the survivor. Job reads and ordinary writes accept either ID and return the canonical ID; job-addressed responses set `Content-Location` to its canonical `/api/jobs/{id}` URL. Deleting through an alias returns `409 job_merged` with both IDs so destructive intent must be repeated against the survivor explicitly. A later merge flattens every earlier alias directly to the latest survivor.
+
 ### Needs attention and ghosting
 
 `GET /api/jobs` derives an `attention` suggestion for a job sitting in `applied` or `in_process` without a newer status-setting event or note — 21 whole days by default for `applied`, 14 for `in_process`. A note counts as activity and resets the clock; starring, hiding, and descriptive edits don't. Hidden jobs are omitted from the dashboard's attention badge and attention-only view.
