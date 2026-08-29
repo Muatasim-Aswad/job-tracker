@@ -6,8 +6,10 @@ and PATCH /listings/{id} route through it. Listing upsert, keyed by
 listing refreshes its scraped fields and never touches job identity.
 """
 
+from app.application_workflows.repository import ApplicationWorkflowRepository
 from app.core.db import Conn
 from app.core.enums import (
+    APPLIED_EVIDENCE,
     MERGE_IMPORTANCE,
     Status,
     correction_event,
@@ -16,7 +18,7 @@ from app.core.enums import (
     target_status,
 )
 from app.core.enums import Event as EventType
-from app.core.errors import NotFoundError
+from app.core.errors import ConflictError, NotFoundError
 from app.core.hashing import stable_hash
 from app.core.ids import new_job_id, new_listing_id
 from app.core.text import normalize_company, normalize_title
@@ -50,6 +52,7 @@ class ListingService:
         self.jobs = JobRepository(conn)
         self.events = EventRepository(conn)
         self.documents = DocumentRepository(conn)
+        self.application_workflows = ApplicationWorkflowRepository(conn)
         self.form_fill = FormFillRepository(conn)
         self.automatic_closure = AutomaticClosure(self.listings, self.jobs, self.events)
 
@@ -113,6 +116,10 @@ class ListingService:
         source_job_id = listing.job_id
         if source_job_id == job_id:
             return
+        source_will_dissolve = len(self.listings.list_for_job(source_job_id)) == 1
+        self._guard_workflow_relink(
+            source_job_id, job_id, listing_id_, source_will_dissolve=source_will_dissolve
+        )
         receiver = self.jobs.get(job_id)
         assert receiver is not None
         receiver_before = receiver.status
@@ -141,6 +148,9 @@ class ListingService:
         self.automatic_closure.reconcile(job_id, allow_close=True)
         if not receiver_was_automatic:
             self._restore_if_combination_regressed(job_id, receiver_before, source="relink")
+        self._discard_ineligible_workflow(job_id)
+        if self.jobs.get(source_job_id) is not None:
+            self._discard_ineligible_workflow(source_job_id)
 
     # --- false-match (mutual "not the same job") --------------------------
 
@@ -195,6 +205,7 @@ class ListingService:
 
     def _merge_jobs(self, loser_id: str, survivor_id: str) -> None:
         """Move all dependent records to the survivor, then delete the empty job."""
+        self._guard_workflow_merge(loser_id, survivor_id)
         now = utc_now()
         survivor = self.jobs.get(survivor_id)
         assert survivor is not None
@@ -212,6 +223,41 @@ class ListingService:
         self.automatic_closure.reconcile(survivor_id, allow_close=True)
         if not before_was_automatic:
             self._restore_if_combination_regressed(survivor_id, before, source="merge")
+        self._discard_ineligible_workflow(survivor_id)
+
+    def _guard_workflow_relink(
+        self, source_job_id: str, target_job_id: str, listing_id: str, *, source_will_dissolve: bool
+    ) -> None:
+        """Refuse a relink that would collapse two singular workflow records."""
+        source = self.application_workflows.get_for_job(source_job_id)
+        target = self.application_workflows.get_for_job(target_job_id)
+        if source is None or target is None:
+            return
+        submitted = self.events.get(source.submitted_event_id)
+        moves = source_will_dissolve or (
+            submitted is not None and submitted.listing_id == listing_id
+        )
+        if moves:
+            raise ConflictError(
+                "application_workflow_conflict",
+                {"source": source.model_dump(), "target": target.model_dump()},
+            )
+
+    def _guard_workflow_merge(self, loser_id: str, survivor_id: str) -> None:
+        """A merge cannot silently choose between two recorded workflows."""
+        loser = self.application_workflows.get_for_job(loser_id)
+        survivor = self.application_workflows.get_for_job(survivor_id)
+        if loser is not None and survivor is not None:
+            raise ConflictError(
+                "application_workflow_conflict",
+                {"source": loser.model_dump(), "target": survivor.model_dump()},
+            )
+
+    def _discard_ineligible_workflow(self, job_id: str) -> None:
+        """Apply workflow lifecycle rules after merge/relink status settles."""
+        job = self.jobs.get(job_id)
+        if job is not None and job.status not in APPLIED_EVIDENCE:
+            self.application_workflows.delete_for_job(job_id)
 
     def _restore_if_combination_regressed(
         self, survivor_id: str, before: str, *, source: str
@@ -347,6 +393,7 @@ class ListingService:
         self.form_fill.clear_listing_context(listing_id_)
         self.listings.delete(listing_id_)
         if not self.listings.job_has_listings(job_id):
+            self.application_workflows.delete_for_job(job_id)
             self.events.delete_for_job(job_id)
             self.documents.delete_for_job(job_id)
             self.form_fill.clear_job_context(job_id)

@@ -325,12 +325,14 @@ def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
     assert tuple(key for key, _migration in _DATA_MIGRATIONS) == (
         "create_form_fill_foundation_v1",
         "create_job_id_aliases_v1",
+        "create_application_workflows_v1",
     )
 
 
 def test_fresh_database_records_append_only_migration_keys(conn: sqlite3.Connection) -> None:
     # conftest's conn is a fresh database that already went through init_schema().
-    assert conn.execute("SELECT key FROM schema_migrations").fetchall() == [
+    assert conn.execute("SELECT key FROM schema_migrations ORDER BY key").fetchall() == [
+        ("create_application_workflows_v1",),
         ("create_form_fill_foundation_v1",),
         ("create_job_id_aliases_v1",),
     ]
@@ -375,6 +377,7 @@ def test_legacy_database_opens_under_the_baseline_without_data_loss(
     # The already-recorded pre-release keys stay alongside the form-fill key.
     assert [row[0] for row in conn.execute("SELECT key FROM schema_migrations ORDER BY key")] == [
         "classify_legacy_automatic_closures",
+        "create_application_workflows_v1",
         "create_form_fill_foundation_v1",
         "create_job_id_aliases_v1",
         "drop_notes_documents",

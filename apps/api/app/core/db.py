@@ -388,9 +388,57 @@ def _create_job_id_aliases(conn: Conn) -> None:
     conn.execute("CREATE INDEX idx_job_id_aliases_canonical ON job_id_aliases (canonical_job_id)")
 
 
+def _create_application_workflows(conn: Conn) -> None:
+    """Create the singular, event-anchored application-workflow artifact."""
+    conn.execute("BEGIN")
+    # SQLite requires the complete parent key of a composite foreign key to be
+    # unique. Keeping job_id in that key makes an event move carry its workflow
+    # record atomically during relinking and merging. Maintenance tests can supply
+    # a deliberately minimal alternate schema; like SQLite's deferred parent-table
+    # checks for the existing form/alias migrations, leave its absent parent alone.
+    # The product schema always creates events before migrations run.
+    has_events = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'events'"
+    ).fetchone()
+    if has_events:
+        conn.execute("CREATE UNIQUE INDEX idx_events_id_job_id ON events (id, job_id)")
+    conn.execute(
+        """
+        CREATE TABLE application_workflows (
+            job_id TEXT PRIMARY KEY REFERENCES jobs (id) ON DELETE CASCADE,
+            submitted_event_id INTEGER NOT NULL,
+            preparation_lane TEXT NOT NULL CHECK (
+                preparation_lane IN ('human_only', 'agent_assisted', 'agent_led', 'unknown')
+            ),
+            submission_actor TEXT NOT NULL CHECK (
+                submission_actor IN ('human', 'agent', 'unknown')
+            ),
+            submission_channel TEXT NOT NULL CHECK (
+                submission_channel IN ('easy_apply', 'external_form', 'email', 'other', 'unknown')
+            ),
+            narratives_json TEXT NOT NULL,
+            measured_human_time_seconds INTEGER CHECK (
+                measured_human_time_seconds IS NULL OR measured_human_time_seconds >= 0
+            ),
+            references_json TEXT NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (submitted_event_id, job_id)
+                REFERENCES events (id, job_id) ON DELETE CASCADE ON UPDATE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX idx_application_workflows_event ON application_workflows "
+        "(submitted_event_id, job_id)"
+    )
+
+
 _DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = (
     ("create_form_fill_foundation_v1", _create_form_fill_foundation),
     ("create_job_id_aliases_v1", _create_job_id_aliases),
+    ("create_application_workflows_v1", _create_application_workflows),
 )
 
 

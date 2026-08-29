@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
 
+from app.application_workflows.router import router as application_workflows_router
 from app.blocked.router import router as blocked_router
 from app.core.config import get_settings
 from app.core.db import Database, connect, init_schema
@@ -122,8 +123,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Job Tracker API", version=PRODUCT_VERSION, lifespan=lifespan)
 
 
-def _form_fill_headers(request: Request) -> dict[str, str]:
-    return {"Cache-Control": "no-store"} if request.url.path.startswith("/api/form-fill/") else {}
+def _private_headers(request: Request) -> dict[str, str]:
+    path = request.url.path
+    private = path.startswith("/api/form-fill/") or path.endswith("/application-workflow")
+    return {"Cache-Control": "no-store"} if private else {}
 
 
 settings = get_settings()
@@ -156,7 +159,7 @@ async def health() -> dict[str, str]:
 @app.exception_handler(NotFoundError)
 async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
     return JSONResponse(
-        status_code=404, content={"detail": exc.message}, headers=_form_fill_headers(request)
+        status_code=404, content={"detail": exc.message}, headers=_private_headers(request)
     )
 
 
@@ -166,7 +169,7 @@ async def validation_handler(request: Request, exc: ValidationError) -> JSONResp
     # WARNING carries the reason and the request, but no stack trace — it isn't a bug.
     logger.warning("400 %s %s — %s", request.method, request.url.path, exc.message)
     return JSONResponse(
-        status_code=400, content={"detail": exc.message}, headers=_form_fill_headers(request)
+        status_code=400, content={"detail": exc.message}, headers=_private_headers(request)
     )
 
 
@@ -175,14 +178,14 @@ async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse
     return JSONResponse(
         status_code=409,
         content={"detail": exc.message, "current": exc.current},
-        headers=_form_fill_headers(request),
+        headers=_private_headers(request),
     )
 
 
 @app.exception_handler(InvalidCursorError)
 async def invalid_cursor_handler(request: Request, exc: InvalidCursorError) -> JSONResponse:
     return JSONResponse(
-        status_code=422, content={"detail": exc.message}, headers=_form_fill_headers(request)
+        status_code=422, content={"detail": exc.message}, headers=_private_headers(request)
     )
 
 
@@ -191,7 +194,7 @@ async def request_validation_handler(request: Request, exc: RequestValidationErr
     return JSONResponse(
         status_code=422,
         content={"detail": jsonable_encoder(exc.errors())},
-        headers=_form_fill_headers(request),
+        headers=_private_headers(request),
     )
 
 
@@ -204,7 +207,7 @@ async def unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal Server Error"},
-        headers=_form_fill_headers(request),
+        headers=_private_headers(request),
     )
 
 
@@ -215,6 +218,7 @@ async def unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
 api_router = APIRouter(dependencies=[Depends(require_api_key)])
 for _router in (
     jobs_router,
+    application_workflows_router,
     listings_router,
     events_router,
     documents_router,

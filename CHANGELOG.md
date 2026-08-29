@@ -8,6 +8,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Added
 
+- A prospective, API-only application-workflow analytics record for explicitly submitted applications, with typed workflow facts, measured human time, canonical artifact references, revision-checked idempotent upserts, and merge/relink/revert lifecycle integrity.
 - LinkedIn job-alert, Viewed Jobs reminder, and profile-match recommendation emails in Gmail now provide an **Open new jobs (N)** action for opening every unaffected posting in background tabs while skipping already-open listings; bulk-opened tabs close automatically after a detected listing closure is saved.
 - `Alt+H` and `Alt+T` shortcuts on LinkedIn job-detail views to hide or unhide the current job or move it forward to **To apply**.
 - User-controlled LinkedIn Easy Apply form filling for supported text, numeric, select, and Yes/No questions, backed by revision-checked Answers, exact Question Matches, remembered-value review, and a Form Fill dashboard. Existing values are preserved by default; unsupported controls, application navigation, review, consent, profile changes, résumés, and submission remain manual.

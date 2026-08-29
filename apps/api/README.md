@@ -37,6 +37,14 @@ The board is the active funnel (`new → … → offered`); drag a card to trans
 
 When two jobs merge, the losing `job_id` becomes a permanent alias of the survivor. Job reads and ordinary writes accept either ID and return the canonical ID; job-addressed responses set `Content-Location` to its canonical `/api/jobs/{id}` URL. Deleting through an alias returns `409 job_merged` with both IDs so destructive intent must be repeated against the survivor explicitly. A later merge flattens every earlier alias directly to the latest survivor.
 
+### Application-workflow analytics
+
+Agents can use `GET` and `PUT /api/jobs/{job_id}/application-workflow` after submission has been explicitly confirmed by an effective `applied` or `corrected:applied` event. The singular record captures a typed preparation lane, submission actor and channel, narrative kinds and provenance, an optional measured human-time duration in integer seconds, and bounded opaque references to canonical agent artifacts or submission evidence. Use `unknown` when a required workflow fact is unknown, `null` only when human time was not measured, and an empty narrative list only when no narrative was used; do not infer or estimate missing facts.
+
+`PUT` replaces the complete workflow representation. On creation, `expected_revision` is null or omitted; a differing update must supply the current positive revision. Retrying an identical create or update is a no-op even if its precondition is now stale, while a differing stale write returns `409` with the current record. The response and `Content-Location` always use the canonical job ID, including when the request used a merged alias. There is no public delete endpoint.
+
+The record names the exact submitted event. Reverting that event, correcting the job back to a pre-application state, or hard-deleting the job removes the record. Relinks and merges move it with its event; an operation that would collapse two records returns `409 application_workflow_conflict`. Outcomes remain derived from the event history, and agent model, token, and cost details remain in the referenced canonical artifacts rather than being duplicated here. The API does not backfill earlier applications and no dashboard UI exists for this resource yet. All success and error responses for this path carry `Cache-Control: no-store`.
+
 ### Needs attention and ghosting
 
 `GET /api/jobs` derives an `attention` suggestion for a job sitting in `applied` or `in_process` without a newer status-setting event or note — 21 whole days by default for `applied`, 14 for `in_process`. A note counts as activity and resets the clock; starring, hiding, and descriptive edits don't. Hidden jobs are omitted from the dashboard's attention badge and attention-only view.
@@ -77,6 +85,7 @@ app/
 ├── listings/   /listings, /listings/{id}  (link_listing_to_job cascade lives here)
 ├── events/     /events, /jobs/{id}/corrections, /jobs/{id}/status/revert
 ├── documents/  /jobs/{id}/documents, /documents/{id}
+├── application_workflows/  /jobs/{id}/application-workflow
 ├── form_fill/  /form-fill resolutions, answers, questions/matches, captures
 ├── meta/       /meta/vocabulary, /meta/note-titles
 ├── stats/      /stats
