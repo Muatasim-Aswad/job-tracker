@@ -128,6 +128,8 @@ One env-var picks the mode; no new variables are needed. The schema is created a
 | **Embedded replica** | `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` | Reads from the local file; each write is written through to the remote primary. Pulls on boot and every `TURSO_PULL_INTERVAL_SECONDS`. |
 | **Local-first** (recommended) | the two above **+** `TURSO_LOCAL_FIRST=true` | Reads _and_ writes stay local/instant; writes are pushed to the primary in the background and the primary is pulled on boot + on interval. Uses a sibling `<DB_PATH>.sync` replica. |
 
+Local-first pyturso HTTP operations use `TURSO_HTTP_TIMEOUT_SECONDS` (default `10`) as their socket-progress timeout. Scheduled pulls use a one-second server long poll because the scheduler owns their cadence. A timed-out push remains pending in the local replica and retries later; shutdown also stays bounded if the remote is unreachable.
+
 ### Local file — setup
 
 Nothing to do: `uv run uvicorn app.main:app --port 3456` creates `jobtracker.db` and starts serving. Point elsewhere with `DB_PATH=/path/to/jobtracker.db`.

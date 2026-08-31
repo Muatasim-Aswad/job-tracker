@@ -3,6 +3,7 @@ periodic pull cadence, and the final flush on a clean stop()."""
 
 from __future__ import annotations
 
+import threading
 import time
 from unittest.mock import Mock
 
@@ -29,8 +30,7 @@ def test_debounce_coalesces_a_burst_of_writes_into_one_push() -> None:
         time.sleep(0.3)  # let the quiet window elapse and the push fire
         assert db.push.call_count == 1
     finally:
-        # stop() always performs one more push of its own (see below) — tear down
-        # inside `finally` so a failed assertion above doesn't leak the thread.
+        # Tear down inside `finally` so a failed assertion above doesn't leak the thread.
         sched.stop()
 
 
@@ -42,21 +42,40 @@ def test_stop_flushes_a_pending_write_that_never_reached_the_debounce_window() -
     sched.notify_write()
     time.sleep(0.05)
     assert db.push.call_count == 0  # still inside the debounce window
-    sched.stop()
+    assert sched.stop()
     assert db.push.call_count == 1  # stop()'s final flush pushed the pending write
 
 
-def test_stop_always_performs_one_safety_flush_even_with_nothing_pending() -> None:
-    # stop() can't tell "genuinely dirty" apart from the `_dirty.set()` it uses to
-    # wake an idle-waiting loop, so a clean stop() always ends in one push — cheap
-    # and harmless when there was nothing new, and it's what guarantees the
-    # burst-write case above never leaves a write stranded by a shutdown that
-    # races the debounce window.
+def test_stop_skips_final_push_when_nothing_is_pending() -> None:
     db = FakeDb()
     sched = PushScheduler(db, debounce_seconds=10.0, pull_interval_seconds=0)
     sched.start()
-    sched.stop()
-    assert db.push.call_count == 1
+    assert sched.stop()
+    db.push.assert_not_called()
+
+
+def test_stop_returns_after_deadline_when_pull_is_blocked() -> None:
+    entered = threading.Event()
+    release = threading.Event()
+    db = FakeDb()
+
+    def blocked_pull() -> None:
+        entered.set()
+        release.wait(timeout=2)
+
+    db.pull.side_effect = blocked_pull
+    sched = PushScheduler(db, debounce_seconds=10.0, pull_interval_seconds=1.0)
+    sched._last_pull = 0.0
+    sched.start()
+    assert entered.wait(timeout=1)
+
+    started = time.monotonic()
+    assert not sched.stop(timeout=0.05)
+    assert time.monotonic() - started < 0.5
+
+    release.set()
+    sched._thread.join(timeout=1)
+    assert not sched._thread.is_alive()
 
 
 def test_maybe_pull_skips_before_the_interval_elapses(monkeypatch: object) -> None:
@@ -115,6 +134,7 @@ def test_push_failure_leaves_the_scheduler_dirty_for_a_retry() -> None:
     sched._push()
 
     assert sched._dirty.is_set()
+    assert sched._wake.is_set()
 
 
 def test_push_success_does_not_request_a_retry() -> None:

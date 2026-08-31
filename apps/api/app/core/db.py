@@ -31,6 +31,40 @@ _SCHEMA_PATH = resolve_paths().schema_file
 logger = logging.getLogger("uvicorn.error")
 
 
+class _TimedRequestModule:
+    """Delegate urllib.request while supplying pyturso's omitted socket timeout."""
+
+    def __init__(self, upstream: Any, timeout: float) -> None:
+        self._upstream = upstream
+        self._timeout = timeout
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._upstream, name)
+
+    def urlopen(self, request: Any, *args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("timeout", self._timeout)
+        return self._upstream.urlopen(request, *args, **kwargs)
+
+
+class _TimedUrllibModule:
+    """Process-local proxy; replacing pyturso's binding leaves stdlib urllib intact."""
+
+    def __init__(self, upstream: Any, timeout: float) -> None:
+        self._job_tracker_upstream = getattr(upstream, "_job_tracker_upstream", upstream)
+        self.request = _TimedRequestModule(self._job_tracker_upstream.request, timeout)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._job_tracker_upstream, name)
+
+
+def _install_pyturso_http_timeout(timeout: float) -> None:
+    """Bound pyturso 0.7's urllib calls without changing global socket behavior."""
+    import turso.lib_sync
+
+    module_vars = vars(turso.lib_sync)
+    module_vars["urllib"] = _TimedUrllibModule(module_vars["urllib"], timeout)
+
+
 class Cursor(Protocol):
     description: Any
     lastrowid: int | None
@@ -107,6 +141,8 @@ def connect(settings: Settings) -> Conn:
     if settings.turso_local_first and settings.turso_database_url:
         import turso.sync
 
+        _install_pyturso_http_timeout(settings.turso_http_timeout_seconds)
+
         # pyturso keeps its own replica and metadata, whose on-disk format is
         # incompatible with the libSQL embedded-replica files at db_path — reusing
         # them fails with "unexpected metadata file format". A sibling file lets it
@@ -117,6 +153,9 @@ def connect(settings: Settings) -> Conn:
             remote_url=settings.turso_database_url,
             auth_token=settings.turso_auth_token or None,
             bootstrap_if_empty=True,
+            # The scheduler owns the 60s cadence; each pull is a snapshot check,
+            # not a long-lived listener that may hold the shared database lock.
+            long_poll_timeout_ms=1_000,
         )
         sync_conn.pull()  # pull the latest remote state on startup before serving
         out = cast(Conn, sync_conn)

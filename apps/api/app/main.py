@@ -86,6 +86,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             else paths.database
         )
         existed_before_open = live_path.exists()
+        cleanup_complete = True
         try:
             conn = connect(settings)  # pyturso mode already pulled the latest remote state
             protect_new_database(live_path, existed_before_open=existed_before_open)
@@ -111,13 +112,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         finally:
             try:
                 if scheduler is not None:
-                    scheduler.stop()  # flushes pending writes before database close
+                    cleanup_complete = scheduler.stop()
             finally:
                 try:
-                    if conn is not None:
+                    if conn is not None and cleanup_complete:
                         conn.close()
                 finally:
-                    lock.release()  # only after database cleanup has been attempted
+                    if cleanup_complete:
+                        lock.release()
+                    else:
+                        logger.warning(
+                            "leaving the database connection and server lock for process exit "
+                            "because Turso cleanup exceeded its deadline"
+                        )
 
 
 app = FastAPI(title="Job Tracker API", version=PRODUCT_VERSION, lifespan=lifespan)

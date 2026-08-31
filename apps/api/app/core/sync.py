@@ -26,6 +26,7 @@ class PushScheduler:
         # <= 0 disables periodic pulls (the startup pull in core.db still runs).
         self._pull_interval = pull_interval_seconds
         self._dirty = threading.Event()  # a write happened since the last push
+        self._wake = threading.Event()
         self._stop = threading.Event()
         self._last_write = 0.0
         self._clock = threading.Lock()  # guards _last_write
@@ -43,38 +44,54 @@ class PushScheduler:
         with self._clock:
             self._last_write = time.monotonic()
         self._dirty.set()
+        self._wake.set()
 
-    def stop(self) -> None:
-        """Stop the loop and flush any pending writes with a final push, so a clean
-        shutdown never leaves un-pushed local changes."""
+    def stop(self, timeout: float = 10.0) -> bool:
+        """Request a final flush and wait at most ``timeout`` seconds.
+
+        False leaves the daemon thread and connection for process exit rather than
+        blocking shutdown behind an unresponsive remote.
+        """
         self._stop.set()
-        self._dirty.set()  # wake the loop if it's idle-waiting
-        self._thread.join(timeout=10)
-        if self._dirty.is_set():
-            self._push()
+        self._wake.set()
+        self._thread.join(timeout=timeout)
+        if self._thread.is_alive():
+            logger.warning(
+                "turso sync did not stop within %.1fs; local data remains durable and "
+                "will retry on the next start",
+                timeout,
+            )
+            return False
+        return True
 
     # --- internals --------------------------------------------------------
 
     def _run(self) -> None:
-        while not self._stop.is_set():
-            # Pull first: pick up remote writes even when nothing local is pending.
-            self._maybe_pull()
-            # Wait for a write, then for the write-quiet window to elapse. A new
-            # write during the wait pushes _last_write forward, extending it —
-            # that's the debounce, so a burst becomes a single push. The 1s idle
-            # timeout also paces the pull check above.
-            if not self._dirty.wait(timeout=1.0):
-                continue
+        try:
             while not self._stop.is_set():
-                with self._clock:
-                    quiet = time.monotonic() - self._last_write
-                if quiet >= self._debounce:
-                    break
-                self._stop.wait(timeout=self._debounce - quiet)
-            if self._stop.is_set():
-                return  # stop() performs the final flush
-            self._dirty.clear()
-            self._push()
+                # Pull first: pick up remote writes even when nothing local is pending.
+                self._maybe_pull()
+                # Wake for a write or stop. The 1s idle timeout paces pull checks.
+                self._wake.wait(timeout=1.0)
+                self._wake.clear()
+                if self._stop.is_set() or not self._dirty.is_set():
+                    continue
+                # Wait for the write-quiet window. A later write advances
+                # _last_write, so the next iteration extends the debounce.
+                while not self._stop.is_set():
+                    with self._clock:
+                        quiet = time.monotonic() - self._last_write
+                    if quiet >= self._debounce:
+                        break
+                    self._stop.wait(timeout=self._debounce - quiet)
+                if self._stop.is_set():
+                    continue
+                self._dirty.clear()
+                self._push()
+        finally:
+            if self._dirty.is_set():
+                self._dirty.clear()
+                self._push()
 
     def _maybe_pull(self) -> None:
         if self._pull_interval <= 0:
@@ -97,3 +114,4 @@ class PushScheduler:
             # data is safe on disk regardless.
             logger.warning("turso push failed; will retry", exc_info=True)
             self._dirty.set()
+            self._wake.set()

@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     turso_local_first: bool = False
     # Seconds of write-quiet before a debounced background push fires.
     turso_push_debounce_seconds: float = 4.0
+    # Maximum seconds pyturso may wait without network progress while connecting,
+    # pulling, or pushing. Its synchronous HTTP adapter otherwise inherits Python's
+    # unlimited socket timeout and can hold the process-wide database lock forever.
+    turso_http_timeout_seconds: float = Field(default=10.0, gt=0)
     # Remote-pull cadence, in seconds. Embedded-replica mode passes it to libSQL's
     # sync_interval; local-first mode drives core.sync's background pull loop with it,
     # so another laptop's writes show up without a restart.

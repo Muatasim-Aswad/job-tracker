@@ -35,7 +35,7 @@ Path selection is a runtime boundary rather than a cwd heuristic. `core.paths` r
 
 The Linux runtime bundle and wheel are replaceable packaged application layouts over persistent platform roots. The optional Linux/amd64 container uses the same packaged profile with explicit `/app`, `/data`, `/config`, `/state`, and `/backups` boundaries. These surfaces share one lifecycle and maintenance implementation; packaging does not create a second database or locking model.
 
-The FastAPI lifespan owns the profile's advisory process lock. It acquires that lock before opening, pulling, or initializing the database and releases it only after background sync stops and the connection closes. Consequently direct Uvicorn startup and the CLI have the same single-owner database boundary; wrappers are not a separate source of locking truth. The detailed profile, permission, and stale-lock contract is in [`docs/DISTRIBUTION.md`](DISTRIBUTION.md).
+The FastAPI lifespan owns the profile's advisory process lock. It acquires that lock before opening, pulling, or initializing the database and releases it only after background sync stops and the connection closes. If bounded Turso cleanup expires, the process instead retains both resources for operating-system cleanup at exit, preventing another owner from overlapping the blocked connection. Consequently direct Uvicorn startup and the CLI have the same single-owner database boundary; wrappers are not a separate source of locking truth. The detailed profile, permission, and stale-lock contract is in [`docs/DISTRIBUTION.md`](DISTRIBUTION.md).
 
 Offline database maintenance lives under `app.maintenance`. Its snapshot primitive uses the SQLite API, validates integrity and foreign keys, and installs temporary siblings atomically; restore applies schema migrations only to a candidate. The CLI owns user-facing backup, restore, and checkout-adoption dispatch, while `core.db` invokes only the recovery-snapshot hook before constructing a Turso driver that can perform a startup pull. Maintenance never contains a remote-primary mutation path.
 
@@ -167,7 +167,7 @@ Form captures use enforced foreign keys for their optional job and listing conte
 
 Application workflows use the opposite retention rule: they are meaningful only with a live job and their named submitted event, so both references are enforced and deletion of either removes the record. The stored reference list contains opaque locators to canonical agent runs, artifacts, or external evidence. It does not copy model, token, cost, or tracker-outcome facts; reporting resolves those locators and derives funnel outcomes from events.
 
-The local-first scheduler never discards a failed push. Local data remains on disk, the dirty state remains set, and a later cycle retries. Shutdown performs a final push for pending writes.
+The local-first scheduler never discards a failed push. Local data remains on disk, the dirty state remains set, and a later cycle retries. Turso HTTP operations have a bounded socket-progress timeout. Shutdown attempts a final push for pending writes within a bounded scheduler join; if sync remains blocked, it leaves the connection and profile lock open for process exit so a restart cannot overlap the old database owner.
 
 ## Extension architecture
 

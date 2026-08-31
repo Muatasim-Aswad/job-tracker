@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock, patch
 
 import libsql
 import pytest
+import turso.lib_sync
 import turso.sync
 
 from app.core.config import Settings
@@ -24,6 +26,7 @@ from app.core.db import (
     Conn,
     _apply_data_migrations,
     _ensure_column,
+    _install_pyturso_http_timeout,
     check_foreign_keys,
     configure_connection,
     connect,
@@ -97,17 +100,43 @@ def test_connect_pyturso_local_first_mode_bootstraps_and_pulls(tmp_path: Path) -
         turso_local_first=True,
     )
     fake_conn = MagicMock()
-    with patch.object(turso.sync, "connect", return_value=fake_conn) as sync_connect:
+    with (
+        patch.object(turso.sync, "connect", return_value=fake_conn) as sync_connect,
+        patch("app.core.db._install_pyturso_http_timeout") as install_timeout,
+    ):
         result = connect(settings)
 
+    install_timeout.assert_called_once_with(10.0)
     sync_connect.assert_called_once_with(
         f"{settings.db_path}.sync",
         remote_url="libsql://primary.example",
         auth_token="tok",
         bootstrap_if_empty=True,
+        long_poll_timeout_ms=1_000,
     )
     fake_conn.pull.assert_called_once()  # startup pull
     assert result is fake_conn
+
+
+def test_pyturso_http_timeout_is_scoped_to_its_urllib_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upstream_urlopen = MagicMock(return_value="response")
+    upstream_request = SimpleNamespace(urlopen=upstream_urlopen, Request="request-class")
+    upstream_urllib = SimpleNamespace(request=upstream_request, error="error-module")
+    monkeypatch.setattr(turso.lib_sync, "urllib", upstream_urllib)
+
+    _install_pyturso_http_timeout(2.5)
+
+    assert turso.lib_sync.urllib.request.Request == "request-class"
+    assert turso.lib_sync.urllib.error == "error-module"
+    assert turso.lib_sync.urllib.request.urlopen("request") == "response"
+    upstream_urlopen.assert_called_once_with("request", timeout=2.5)
+
+
+def test_pyturso_http_timeout_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="greater than 0"):
+        Settings(turso_http_timeout_seconds=0)
 
 
 def test_connect_pyturso_local_first_mode_omits_blank_auth_token(tmp_path: Path) -> None:
