@@ -517,6 +517,32 @@ function listingClosed() {
   );
 }
 
+// A removed posting has no detail anchor or description, so LinkedIn's paired error
+// copy is the only durable signal. Keep the two exact siblings coupled: the generic
+// heading alone also appears for transient page failures that must remain retryable.
+function listingUnavailable() {
+  const main = document.querySelector("main");
+  if (!main) return false;
+  return [...main.querySelectorAll("h1, h2")].some(
+    (heading) =>
+      heading.textContent?.trim() === "Unable to load the page" &&
+      [...(heading.parentElement?.children ?? [])].some(
+        (sibling) =>
+          sibling.tagName === "P" &&
+          sibling.textContent?.trim() ===
+            "Job id provided may not be valid or the job posting has been removed.",
+      ),
+  );
+}
+
+async function closeTrackedUnavailableListing(jobId: string) {
+  // The closure write is an upsert, while anyone can type a nonexistent LinkedIn id.
+  // Resolve it first so an error page cannot create a titleless tracker record.
+  const statesAvailable = await refreshStates([jobId]);
+  if (!statesAvailable || stateOf(jobId).status === "untracked") return;
+  await markListingClosed(jobId);
+}
+
 function detectClosed(jobId: string) {
   if (listingClosed()) markListingClosed(jobId).catch(() => {});
 }
@@ -678,6 +704,14 @@ export const linkedinAdapter: Adapter = {
       closeMatchPopover();
     }
 
+    // This is positive evidence that an existing listing disappeared, but it is not
+    // a viewed job detail. Close only a known listing and skip `seen`, actions, and
+    // match lookup for this scan.
+    if (jobId && listingUnavailable()) {
+      void closeTrackedUnavailableListing(jobId).catch(() => {});
+      return;
+    }
+
     // Buttons, auto-detects, and `seen` don't wait on the job description loading.
     if (jobId) {
       injectDetailButtons(jobId, detailAnchor());
@@ -698,6 +732,7 @@ export const linkedinAdapter: Adapter = {
     renderDetailHead(detail);
   },
   capture() {
+    if (listingUnavailable()) return;
     captureListingOnce(currentDetailId(), captureDetail);
   },
   isAppliedCard(card) {

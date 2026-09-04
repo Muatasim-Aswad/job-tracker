@@ -20,6 +20,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Fixed
 
+- LinkedIn's “Unable to load the page” response now closes an already-recorded listing without deleting its job, changing an applied-or-later status, recording a false view, or creating a stub for an arbitrary invalid ID.
 - Local-first Turso network stalls no longer hold the database or systemd shutdown indefinitely: pyturso HTTP operations have a bounded socket-progress timeout, and scheduler cleanup abandons a blocked daemon sync safely for process exit while retaining local data for retry.
 - Merged job IDs now remain valid aliases of the surviving job for reads and ordinary writes, including chained merges. Merge and deletion flows also preserve or clear form-capture context explicitly instead of failing a foreign-key check; destructive deletion through an alias is refused until the canonical ID is used.
 - Easy Apply review queues now refresh while the dashboard remains open, omit Questions already handled by an active Match, and open the queue that actually contains work. Later-rendered supported Questions stabilize into normal observation, pending answers flush before a step change, and transient capture failures can be retried. Résumé selectors and CV upload inputs no longer create manual-status rows. The dashboard entry document also revalidates after a rebuild instead of silently retaining an obsolete bundle.

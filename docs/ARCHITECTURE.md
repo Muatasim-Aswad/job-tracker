@@ -97,7 +97,7 @@ An uncaptured listing can read as `untracked`. This is a client-facing projectio
 
 ### Closed listings
 
-When the extension detects that a posting no longer accepts applications, it records `listings.closed_at`. The server automatically closes a pre-application job only when all its listings are closed. The event carries automatic provenance and is superseded if an open listing appears through reopening, relinking, or merging. Manual closures are never reversed. Applied and later jobs keep their status because the application may remain active after the posting closes.
+When the extension detects that a posting no longer accepts applications, or LinkedIn reports that a recorded posting ID is invalid or removed, it records `listings.closed_at`. The unavailable-page path first confirms that the listing is already tracked, so an arbitrary invalid URL cannot create a stub. The server automatically closes a pre-application job only when all its listings are closed. The event carries automatic provenance and is superseded if an open listing appears through reopening, relinking, or merging. Manual closures are never reversed. Applied and later jobs keep their status because the application may remain active after the posting closes.
 
 ### Attention
 

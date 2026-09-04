@@ -73,7 +73,7 @@ On an open LinkedIn job-detail view, press **Alt+H** to hide or unhide the curre
 
 Single-letter and digit keys are ignored while a text field is focused, so they never swallow what you're typing.
 
-LinkedIn job-alert, Viewed Jobs reminder, and profile-match recommendation emails opened in Gmail provide an **Open new jobs (N)** action after tracker state loads. The count and opened background tabs include only unaffected jobs; hidden, blocked, **To apply**, applied/later, and terminal jobs are excluded under either display mode. A listing already open in any LinkedIn job tab is not opened again. A tab opened by this action closes itself after LinkedIn reports that the posting no longer accepts applications and Job Tracker successfully saves that closure; manually opened tabs never auto-close.
+LinkedIn job-alert, Viewed Jobs reminder, and profile-match recommendation emails opened in Gmail provide an **Open new jobs (N)** action after tracker state loads. The count and opened background tabs include only unaffected jobs; hidden, blocked, **To apply**, applied/later, and terminal jobs are excluded under either display mode. A listing already open in any LinkedIn job tab is not opened again. A tab opened by this action closes itself after LinkedIn reports that the recorded posting no longer accepts applications or was removed and Job Tracker successfully saves that closure; manually opened tabs never auto-close.
 
 ## Search seeding & diagnostics
 

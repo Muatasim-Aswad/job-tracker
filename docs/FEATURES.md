@@ -26,7 +26,7 @@ The browser extension reduces repeated entry on supported sources:
 - Applying on LinkedIn can advance the tracked job when the extension detects reliable evidence of the application.
 - LinkedIn's Applied page can import historical applications.
 - Supported LinkedIn job emails in Gmail can record a rejection using the email timestamp.
-- Listing closure can be detected without treating one expired URL as proof that the entire opportunity disappeared.
+- Listing closure can be detected when LinkedIn stops accepting applications or reports that a recorded posting is invalid or removed, without treating one unavailable URL as proof that the entire opportunity disappeared.
 
 A pre-application job closes automatically only when all of its linked listings are closed. Jobs at applied or later stages keep their application status because a hiring process may continue after its listing closes.
 

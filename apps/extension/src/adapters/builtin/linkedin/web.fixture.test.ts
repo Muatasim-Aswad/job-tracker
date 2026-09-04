@@ -162,6 +162,76 @@ describe("linkedin adapter — detail head", () => {
   });
 });
 
+describe("linkedin adapter — unavailable detail", () => {
+  function setup(jobId: string, status: string) {
+    document.body.innerHTML = loadFixture("linkedin-unavailable.html");
+    window.history.pushState({}, "", `/jobs/view/${jobId}/`);
+    const chrome = installFakeChrome();
+    chrome.onMessage.addListener((message: unknown) => {
+      const request = message as {
+        type?: string;
+        platform_ids?: string[];
+      };
+      if (request.type === "state-batch") {
+        return {
+          ok: true,
+          result: request.platform_ids?.map((platform_id) => ({
+            platform_id,
+            status,
+            hidden: false,
+            starred: false,
+          })),
+        };
+      }
+      if (request.type === "listing") {
+        return { ok: true, result: { job_id: "job-1", listing_id: "listing-1" } };
+      }
+      if (request.type === "event") {
+        return { ok: true, result: { status, hidden: false, starred: false } };
+      }
+      return undefined;
+    });
+    return chrome;
+  }
+
+  it("closes a tracked listing without recording the error page as seen", async () => {
+    const jobId = "4454569387";
+    const { sendMessage } = setup(jobId, "new");
+    const requestTypes = () =>
+      sendMessage.mock.calls.map(([message]) => (message as { type: string }).type);
+
+    linkedinAdapter.scanDetail!();
+    linkedinAdapter.capture!();
+
+    await vi.waitFor(() =>
+      expect(sendMessage).toHaveBeenCalledWith(
+        {
+          type: "listing",
+          payload: {
+            platform: "linkedin",
+            platform_id: jobId,
+            closed_at: expect.any(String),
+          },
+        },
+        expect.any(Function),
+      ),
+    );
+    await vi.waitFor(() => expect(requestTypes()).toContain("close-bulk-job-tab"));
+    expect(requestTypes()).toEqual(["state-batch", "listing", "close-bulk-job-tab"]);
+  });
+
+  it("does not create a stub for an untracked invalid id", async () => {
+    const { sendMessage } = setup("4454569388", "untracked");
+
+    linkedinAdapter.scanDetail!();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(sendMessage.mock.calls.map(([message]) => (message as { type: string }).type)).toEqual([
+      "state-batch",
+    ]);
+  });
+});
+
 // The posted_at derivation is anchored to the capture instant, so the clock is
 // frozen: "17 days ago" captured at 2026-07-20T12:00:00Z is a fixed instant.
 const CAPTURED_AT = "2026-07-20T12:00:00.000Z";
