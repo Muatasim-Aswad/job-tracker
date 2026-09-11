@@ -13,6 +13,18 @@ const field = (number: number, prompt: string, value = "") => `
     <input id="single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-${number}-text" type="text" value="${value}">
   </div>`;
 
+const locationField = () => {
+  const id =
+    "single-typeahead-entity-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-9-location-GEO-LOCATION";
+  return `
+    <div data-test-form-element>
+      <div data-test-single-typeahead-entity-form-component>
+        <label for="${id}">Location (city)</label>
+        <input id="${id}" type="text" role="combobox" aria-autocomplete="list" required>
+      </div>
+    </div>`;
+};
+
 function fixture(contents: string, actions = "") {
   history.replaceState({}, "", "/jobs/view/example-123456/");
   document.body.innerHTML = `
@@ -612,6 +624,65 @@ describe("generation-based safe form filling", () => {
     revert.click();
     expect(input.value).toBe("");
     expect(hostAction).not.toHaveBeenCalled();
+    scanner.setEnabled(false);
+  });
+
+  it("fills and remembers LinkedIn's location GEO typeahead as text", async () => {
+    vi.useFakeTimers();
+    fixture(locationField());
+    const input = document.querySelector<HTMLInputElement>('input[id$="-location-GEO-LOCATION"]')!;
+    const inputEvents: string[] = [];
+    input.addEventListener("input", () => inputEvents.push("input"));
+    input.addEventListener("change", () => inputEvents.push("change"));
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureSettleMs: 20,
+      captureBridge,
+      bridge: async (request) => {
+        expect(request.fields[0]).toMatchObject({
+          prompt: "Location (city)",
+          control_kind: "text",
+        });
+        return {
+          ok: true,
+          result: response(request, [
+            {
+              status: "approved",
+              client_field_id: "field-1",
+              question_id: "question-location",
+              answer_id: "answer-location",
+              answer_revision: 1,
+              mapping_id: "mapping-location",
+              mapping_revision: 1,
+              action: { kind: "set_text", value: "Synthetic City, Example Region" },
+              option_mappings: [],
+            },
+          ]),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(input.value).toBe("Synthetic City, Example Region");
+    expect(inputEvents).toEqual(["input", "change"]);
+    expect(captureBridge).not.toHaveBeenCalled();
+
+    input.value = "Other City, Example Region";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      question_id: "question-location",
+      source: "user_input",
+      value: { kind: "text", value: "Other City, Example Region" },
+    });
     scanner.setEnabled(false);
   });
 

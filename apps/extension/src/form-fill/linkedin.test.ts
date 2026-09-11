@@ -180,11 +180,34 @@ describe("LinkedIn Easy Apply discovery", () => {
     ]);
   });
 
+  it("supports LinkedIn's location GEO typeahead as text", () => {
+    const id =
+      "single-typeahead-entity-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-29-location-GEO-LOCATION";
+    const [field] = discoverLinkedInFields(
+      root(`
+        <div data-test-form-element>
+          <div data-test-single-typeahead-entity-form-component>
+            <label for="${id}">Location (city)</label>
+            <input id="${id}" type="text" role="combobox" aria-autocomplete="list" required>
+          </div>
+        </div>`),
+    );
+
+    expect(field).toMatchObject({
+      kind: "supported",
+      request: {
+        prompt: "Location (city)",
+        control_kind: "text",
+        required: true,
+      },
+    });
+  });
+
   it("classifies unsafe and unproven shapes locally", () => {
     const form = root(`
       ${textQuestion(
         "single-typeahead-entity-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-30-text",
-        "Location",
+        "Employer",
         'role="combobox" aria-autocomplete="list"',
       )}
       <div data-test-form-element><fieldset><legend>Choose a schedule</legend>

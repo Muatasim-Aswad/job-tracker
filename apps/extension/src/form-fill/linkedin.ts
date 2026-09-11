@@ -19,6 +19,8 @@ const SENSITIVE =
   /\b(?:captcha|signature|payment|credit card|bank|password|authentication|consent|terms|privacy policy)\b/i;
 const SENSITIVE_AUTOCOMPLETE = /^(?:cc-|current-password|new-password|one-time-code)/i;
 const NUMERIC_HANDLE = /-numeric(?:-error)?$/i;
+const LOCATION_TYPEAHEAD =
+  'input[type="text"][id$="-location-GEO-LOCATION"][role="combobox"][aria-autocomplete="list"]';
 const FORM_ELEMENT_JOB = /easyApplyFormElement-(\d+)-/i;
 const RADIO_JOB = /easyApply:\((\d+),/i;
 // The API rejects a field carrying more options than this (`ResolutionField.options`
@@ -242,8 +244,9 @@ function classifyQuestion(
     return manual(container, handle, prompt, "Profile entries must be reviewed manually.");
   }
   if (
-    first.getAttribute("role") === "combobox" ||
-    first.getAttribute("aria-autocomplete") === "list"
+    (first.getAttribute("role") === "combobox" ||
+      first.getAttribute("aria-autocomplete") === "list") &&
+    !first.matches(LOCATION_TYPEAHEAD)
   ) {
     return manual(container, handle, prompt, "Choose a typeahead suggestion manually.");
   }
