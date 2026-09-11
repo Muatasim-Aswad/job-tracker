@@ -56,7 +56,9 @@ def test_start_binds_loopback_and_honors_explicit_port(tmp_path: Path, monkeypat
     try:
         with patch("uvicorn.run") as run:
             assert cli.main(["--app-dir", str(app_dir), "start", "--port", "4567"]) == 0
-        run.assert_called_once_with("app.main:app", host="127.0.0.1", port=4567)
+        run.assert_called_once_with(
+            "app.main:app", host="127.0.0.1", port=4567, timeout_graceful_shutdown=15
+        )
     finally:
         _reset_settings()
 
@@ -73,7 +75,9 @@ def test_start_honors_the_selected_configuration_file(tmp_path: Path, monkeypatc
                 cli.main(["--app-dir", str(app_dir), "--config-file", str(config_file), "start"])
                 == 0
             )
-        run.assert_called_once_with("app.main:app", host="127.0.0.1", port=4568)
+        run.assert_called_once_with(
+            "app.main:app", host="127.0.0.1", port=4568, timeout_graceful_shutdown=15
+        )
     finally:
         _reset_settings()
 

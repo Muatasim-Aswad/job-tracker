@@ -65,7 +65,7 @@ run_launcher() {
     fail "$launcher.sh did not pass the checkout dashboard path"
 }
 
-run_launcher start 'run uvicorn app.main:app --host 127.0.0.1 --port 3456'
-run_launcher dev 'run uvicorn app.main:app --host 127.0.0.1 --port 3456 --reload'
+run_launcher start 'run uvicorn app.main:app --host 127.0.0.1 --port 3456 --timeout-graceful-shutdown 15'
+run_launcher dev 'run uvicorn app.main:app --host 127.0.0.1 --port 3456 --timeout-graceful-shutdown 15 --reload'
 
 printf 'launcher tests: ok\n'

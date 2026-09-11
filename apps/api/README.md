@@ -5,7 +5,7 @@ Local FastAPI backend for the personal job tracker (see [`../../docs/ARCHITECTUR
 ## Run the API directly
 
 ```bash
-uv run uvicorn app.main:app --host 127.0.0.1 --port 3456 --reload
+uv run uvicorn app.main:app --host 127.0.0.1 --port 3456 --timeout-graceful-shutdown 15 --reload
 ```
 
 Every feature route is mounted under `/api` (e.g. `POST /api/events`); OpenAPI docs stay unprefixed at <http://localhost:3456/docs>. The schema is created on startup (`jobtracker.db` in this directory by default).
@@ -25,6 +25,14 @@ uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite
 ```
 
 `start` binds only to `127.0.0.1` and runs in the foreground. `status` never opens or mutates the database. `doctor` reports redacted path, version, mode, lock/health, permission, and safe integrity diagnostics. Backup, restore, and checkout adoption are offline-only and refuse while the selected server lock is held. Source launchers and packaged operation select their profile explicitly; see the authoritative [distribution and lifecycle contract](../../docs/DISTRIBUTION.md).
+
+## Busy requests and shutdown
+
+Database requests wait in an asynchronous admission queue, preserving worker slots for the request holding the connection. Admission and connection-lock waits each expire after 30 seconds with `503`, `Retry-After: 1`, and `Cache-Control: no-store`. Retrying a rejected request is safe: it has not entered its transaction. A DB-free health response proves reachability, not database readiness.
+
+A timed-out database wait logs its stage and dumps Python thread stacks to stderr at most once per minute. Dumps omit frame locals, SQL, credentials, and request bodies; under systemd they appear in the service journal. Capture those logs before restarting a future unresponsive server.
+
+The CLI and source launchers give Uvicorn 15 seconds to drain active requests before cancellation and application cleanup. Direct Uvicorn commands and custom service units must also set `--timeout-graceful-shutdown 15`; the scheduler's separate 10-second cleanup bound only applies once Uvicorn reaches application shutdown. A service manager still needs a final process-stop deadline for native driver stalls; a shutdown timeout does not terminate a running Python worker thread. Application cleanup leaves an owned connection and its profile lock for process exit instead of closing them under that worker.
 
 ## Dashboard (web UI)
 

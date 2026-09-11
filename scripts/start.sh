@@ -22,4 +22,4 @@ printf 'Extension directory: %s/apps/extension/dist\n' "$ROOT"
 printf 'Press Ctrl-C to stop.\n\n'
 
 cd "$ROOT/apps/api"
-exec uv run uvicorn app.main:app --host 127.0.0.1 --port 3456
+exec uv run uvicorn app.main:app --host 127.0.0.1 --port 3456 --timeout-graceful-shutdown 15

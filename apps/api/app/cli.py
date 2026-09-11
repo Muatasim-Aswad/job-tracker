@@ -224,7 +224,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # after every packaged path/config override above is in place.
     import uvicorn
 
-    uvicorn.run("app.main:app", host="127.0.0.1", port=settings.port)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=settings.port, timeout_graceful_shutdown=15)
     return 0
 
 

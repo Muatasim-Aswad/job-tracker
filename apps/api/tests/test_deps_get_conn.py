@@ -105,3 +105,14 @@ def test_does_not_log_a_commit_line_for_a_get(caplog: pytest.LogCaptureFixture) 
             next(gen)
 
     assert not any("db commit" in r.message for r in caplog.records)
+
+
+def test_closing_an_unfinished_transaction_rolls_back_and_releases_lock() -> None:
+    db = Database(conn=MagicMock())
+    gen = get_conn(_request("POST", "/api/jobs", db))
+    next(gen)
+    assert db.lock.locked()
+    gen.close()
+    db.conn.rollback.assert_called_once()
+    db.conn.commit.assert_not_called()
+    assert not db.lock.locked()

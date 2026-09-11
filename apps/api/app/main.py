@@ -79,6 +79,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     with private_creation_mask():
         lock.acquire()  # before open/pull/init; direct Uvicorn cannot bypass it
         conn = None
+        db = None
         scheduler = None
         live_path = (
             paths.database.with_name(f"{paths.database.name}.sync")
@@ -116,14 +117,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             finally:
                 try:
                     if conn is not None and cleanup_complete:
-                        conn.close()
+                        # Uvicorn can cancel an ASGI request while its synchronous
+                        # worker still owns the connection. Never close under it.
+                        if db is None:
+                            conn.close()
+                        elif db.lock.acquire(blocking=False):
+                            try:
+                                conn.close()
+                            finally:
+                                db.lock.release()
+                        else:
+                            cleanup_complete = False
                 finally:
                     if cleanup_complete:
                         lock.release()
                     else:
                         logger.warning(
                             "leaving the database connection and server lock for process exit "
-                            "because Turso cleanup exceeded its deadline"
+                            "because database work is still active"
                         )
 
 

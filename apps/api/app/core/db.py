@@ -7,6 +7,7 @@ survives across drivers, so `query_all`/`query_one` build plain dicts from
 protocol, never on a concrete driver.
 """
 
+import asyncio
 import json
 import logging
 import threading
@@ -552,6 +553,8 @@ class Database:
     def __init__(self, conn: Conn) -> None:
         self.conn = conn
         self.lock = threading.Lock()
+        # Wait outside FastAPI's worker pool before entering the shared connection.
+        self.request_slot = asyncio.Lock()
 
     @property
     def syncable(self) -> bool:
