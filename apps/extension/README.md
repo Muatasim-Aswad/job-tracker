@@ -60,6 +60,8 @@ Open the popup from any tab with **Alt+J** (rebind or clear it at `chrome://exte
 
 On an open LinkedIn job-detail view, press **Alt+H** to hide or unhide the current job, or **Alt+T** to move it forward to **To apply**. The shortcuts are inactive while an input, textarea, select, or editable region has focus. **Alt+H** changes only Job Tracker's hidden flag rather than invoking LinkedIn's dismiss action, while **Alt+T** does nothing when **To apply** is not a valid forward move.
 
+Discovery cards expose one **Skip job** action instead of separate hide and site-dismiss actions. Before application, it records **Skipped** and invokes the site's native dismissal when available. Expanded job views expose both **Hide** and **Skip job**; Skip disappears once the job has reached **Applied** or any later or terminal state.
+
 | Key | Action |
 | --- | --- |
 | `↑` / `↓` | move the highlight through results |

@@ -21,6 +21,12 @@ export function isListDeemphasized(status: string): boolean {
   return status === "to_apply" || JobFunnel.isResolved(status);
 }
 
+// Skipping is a pre-application decision. `untracked` is the extension's temporary
+// state before a discovery card has landed on the server, so it is eligible too.
+export function canSkip(status: string): boolean {
+  return !JobFunnel.APPLIED.has(status) && JobFunnel.isForwardMove(status, "skipped");
+}
+
 export function createBars(engine: Engine) {
   function renderPageActions() {
     getAdapters()
@@ -134,6 +140,8 @@ export function createBars(engine: Engine) {
         btnHide.title = `${st.hidden ? "Unhide" : "Hide"}${hideShortcut ? ` (${hideShortcut})` : ""}`;
       }
     }
+    const btnSkip = container.querySelector(".jh-btn-skip") as HTMLButtonElement | null;
+    if (btnSkip) btnSkip.hidden = !canSkip(st.status);
     const btnStar = container.querySelector(".jh-btn-star") as HTMLElement | null;
     if (btnStar) {
       btnStar.classList.toggle("jh-on", st.starred); // .jh-on fills the star
@@ -226,6 +234,16 @@ export function createBars(engine: Engine) {
     return engine.emit(jobId, engine.stateOf(jobId).hidden ? "unhidden" : "hidden");
   }
 
+  // One Skip action owns both tracker state and the host site's optional dismissal.
+  // Re-read cached state at click time so a stale visible control cannot skip a job
+  // that has since entered the application funnel.
+  function skipJob(jobId: string, nativeDismiss?: () => void) {
+    if (!canSkip(engine.stateOf(jobId).status)) return null;
+    const result = engine.emit(jobId, "skipped");
+    nativeDismiss?.();
+    return result;
+  }
+
   function flashError(jobId: string) {
     const sel = CSS.escape(jobId);
     const bars = [
@@ -239,7 +257,7 @@ export function createBars(engine: Engine) {
   }
 
   // ── Detail page: action bar ──────────────────────────────────────────────────
-  // Inject the detail-page action bar (status / star / hide) next to `anchor`. Site-
+  // Inject the detail-page action bar (status / star / hide / skip) next to `anchor`. Site-
   // agnostic: each adapter's scanDetail supplies its own anchor and placement.
   function injectDetailButtons(
     jobId: string,
@@ -260,6 +278,12 @@ export function createBars(engine: Engine) {
       e.stopPropagation();
       void toggleHidden(jobId);
     });
+    const btnSkip = mkBtn("jh-btn-skip", ICON.x, "Skip job");
+    btnSkip.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void skipJob(jobId);
+    });
     const btnStar = mkBtn("jh-btn-star", ICON.star, "Star");
     btnStar.addEventListener("click", (e) => {
       e.preventDefault();
@@ -278,14 +302,14 @@ export function createBars(engine: Engine) {
       void engine.toggleDetailBlock(jobId, btnBlock);
     });
 
-    // Clusters, left→right: [insight 🔁 ⟲N] | status | [action star hide open block].
+    // Clusters, left→right: [insight 🔁 ⟲N] | status | [action star hide skip open block].
     // The detail bar is roomy — no ⋯ — so Open stays inline. The insight group starts
     // empty; renderMatchControl/updateAppliedBadge fill it on later scans.
     const insight = document.createElement("div");
     insight.className = "jh-group jh-group-insight";
     const action = document.createElement("div");
     action.className = "jh-group jh-group-action";
-    action.append(btnStar, btnHide, mkOpenButton(jobId), btnBlock);
+    action.append(btnStar, btnHide, btnSkip, mkOpenButton(jobId), btnBlock);
 
     bar.append(insight, engine.makeStatusSelect(jobId), action);
     anchor.insertAdjacentElement(placement, bar);
@@ -308,15 +332,16 @@ export function createBars(engine: Engine) {
       void engine.emit(id, engine.stateOf(id).starred ? "unstarred" : "starred");
     });
 
-    const btnHide = mkBtn("jh-btn-hide", ICON.eyeOff, "Hide");
-    btnHide.addEventListener("click", (e) => {
+    const nativeDismiss = adapter.nativeDismiss?.(card) || undefined;
+    const btnSkip = mkBtn("jh-btn-skip", ICON.x, "Skip job");
+    btnSkip.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       engine.captureCardFromAction(card);
-      void toggleHidden(id);
+      void skipJob(id, nativeDismiss);
     });
 
-    // Clusters, left→right: [insight 🔁 ⟲N] | status | [action star hide open dismiss]
+    // Clusters, left→right: [insight 🔁 ⟲N] | status | [action star skip open]
     // | ⋯. In the narrow list view (jhCompact) the less-used Open folds into the ⋯
     // menu rather than taking an inline slot.
     const compact = card.dataset.jhCompact === "1";
@@ -324,24 +349,10 @@ export function createBars(engine: Engine) {
     insight.className = "jh-group jh-group-insight";
     const action = document.createElement("div");
     action.className = "jh-group jh-group-action";
-    action.append(btnStar, btnHide);
+    action.append(btnStar, btnSkip);
     if (!compact) action.append(mkOpenButton(id));
 
     bar.append(insight, engine.makeStatusSelect(id, card), action);
-
-    // 🗑️ Dismiss — the site's own native dismiss only (hides + tells the site + marks skipped)
-    const nativeDismiss = adapter.nativeDismiss?.(card);
-    if (nativeDismiss) {
-      const btnDismiss = mkBtn("jh-btn-dismiss", ICON.x, "Dismiss from site");
-      btnDismiss.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        engine.captureCardFromAction(card);
-        dismissJob(id);
-        nativeDismiss();
-      });
-      action.appendChild(btnDismiss);
-    }
 
     // ⋯ overflow: rare actions (block company; Open when compact) kept off the hot
     // path — trailing, quiet.
@@ -353,18 +364,6 @@ export function createBars(engine: Engine) {
     renderCard(card);
   }
 
-  // Dismiss = mark skipped ("decided not to apply"), which then dims the card via
-  // `jh-resolved` — no separate hide flag. Only when skip is still a legit forward
-  // move AND the job isn't already in the application funnel (skipping an applied job
-  // is nonsensical; skipping a terminal one is a correction). If neither holds the
-  // job's already resolved/dimmed, so our side no-ops and only the native dismiss fires.
-  function dismissJob(jobId: string) {
-    const status = engine.stateOf(jobId).status;
-    if (!JobFunnel.APPLIED.has(status) && JobFunnel.isForwardMove(status, "skipped")) {
-      void engine.emit(jobId, "skipped");
-    }
-  }
-
   return {
     flagCard,
     loadHideMode,
@@ -374,6 +373,7 @@ export function createBars(engine: Engine) {
     renderAll,
     flashError,
     toggleHidden,
+    skipJob,
     injectDetailButtons,
     injectButtons,
   };

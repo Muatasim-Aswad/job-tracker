@@ -18,6 +18,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 ### Changed
 
 - Jobs selected as **To apply** now follow the extension's existing **Dimmed / Removed** treatment on discovery lists without changing their independent hidden flag.
+- Discovery cards now use one **Skip job** action in place of separate hide and site-dismiss controls. Expanded job views retain **Hide** and add **Skip job** until the job is applied or otherwise resolved.
 
 ### Fixed
 
