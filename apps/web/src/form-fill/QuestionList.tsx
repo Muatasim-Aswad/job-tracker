@@ -1,16 +1,29 @@
 import { useMemo, useState } from "react";
 import { useFormFillQuestions } from "../hooks";
-import { formatDate, type QuestionSummary } from "./model";
+import { formatDate } from "./model";
+import { ReviewFilterSelect, ReviewList } from "./ReviewList";
 
 interface Props {
   onOpen: (questionId: string) => void;
 }
 
+const MAPPING_STATUS_OPTIONS = [
+  ["", "All"],
+  ["none", "No Match"],
+  ["active", "Active"],
+  ["disabled", "Disabled"],
+  ["retired", "Retired"],
+] as const;
+
+const SORT_OPTIONS = [
+  ["last_seen", "Most recent"],
+  ["seen_count", "Most seen"],
+] as const;
+
 export function QuestionList({ onOpen }: Props) {
-  const [mappingStatus, setMappingStatus] = useState<
-    "" | "active" | "disabled" | "retired" | "none"
-  >("");
-  const [sort, setSort] = useState<"last_seen" | "seen_count">("last_seen");
+  const [mappingStatus, setMappingStatus] =
+    useState<(typeof MAPPING_STATUS_OPTIONS)[number][0]>("");
+  const [sort, setSort] = useState<(typeof SORT_OPTIONS)[number][0]>("last_seen");
   const filters = useMemo(
     () => ({
       needs_review: true,
@@ -24,102 +37,43 @@ export function QuestionList({ onOpen }: Props) {
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
-    <section aria-labelledby="questions-title" className="space-y-4">
-      <div>
-        <h3 id="questions-title" className="text-lg font-semibold text-ink">
-          Unresolved Questions
-        </h3>
-        <p className="text-sm text-ink-muted">
-          Exact field variants that still need a safe decision.
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <label className="text-sm text-ink">
-          Match state{" "}
-          <select
+    <ReviewList
+      titleId="questions-title"
+      title="Unresolved Questions"
+      description="Exact field variants that still need a safe decision."
+      filters={
+        <>
+          <ReviewFilterSelect
+            label="Match state"
             value={mappingStatus}
-            onChange={(event) => setMappingStatus(event.target.value as typeof mappingStatus)}
-            className="ml-2 rounded border border-line bg-surface px-2 py-1.5"
-          >
-            <option value="">All</option>
-            <option value="none">No Match</option>
-            <option value="active">Active</option>
-            <option value="disabled">Disabled</option>
-            <option value="retired">Retired</option>
-          </select>
-        </label>
-        <label className="text-sm text-ink">
-          Order{" "}
-          <select
+            onChange={setMappingStatus}
+            options={MAPPING_STATUS_OPTIONS}
+          />
+          <ReviewFilterSelect
+            label="Order"
             value={sort}
-            onChange={(event) => setSort(event.target.value as typeof sort)}
-            className="ml-2 rounded border border-line bg-surface px-2 py-1.5"
-          >
-            <option value="last_seen">Most recent</option>
-            <option value="seen_count">Most seen</option>
-          </select>
-        </label>
-      </div>
-      {query.isLoading ? (
-        <p role="status" className="text-sm text-ink-muted">
-          Loading Questions…
-        </p>
-      ) : query.isError ? (
-        <div role="alert" className="space-y-2 text-sm text-red-700 dark:text-red-300">
-          <p>Couldn’t load unresolved Questions.</p>
-          <button
-            type="button"
-            onClick={() => void query.refetch()}
-            className="font-medium underline"
-          >
-            Retry
-          </button>
-        </div>
-      ) : items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line p-8 text-center">
-          <p className="font-medium text-ink">
-            {mappingStatus ? "No Questions match this filter." : "No Questions need review."}
-          </p>
-          <p className="mt-1 text-sm text-ink-muted">
-            Questions seen by the extension will appear here when they need a decision.
-          </p>
-        </div>
-      ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface">
-          {items.map((question: QuestionSummary) => (
-            <li key={question.id}>
-              <button
-                type="button"
-                onClick={() => onOpen(question.id)}
-                className="grid w-full gap-1 p-4 text-left hover:bg-surface-hover sm:grid-cols-[minmax(0,1fr)_auto]"
-              >
-                <span>
-                  <span className="block font-medium text-ink">{question.raw_question}</span>
-                  <span className="text-xs text-ink-muted">
-                    {question.site_scope} · {question.control_kind} · seen {question.seen_count}{" "}
-                    times
-                  </span>
-                </span>
-                <span className="text-xs text-ink-muted">
-                  {question.capture_conflict ? "Remembered-value conflict · " : ""}
-                  {question.mapping ? `Match ${question.mapping.status} · ` : "No Match · "}
-                  {formatDate(question.last_seen_at)}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {query.hasNextPage && (
-        <button
-          type="button"
-          disabled={query.isFetchingNextPage}
-          onClick={() => void query.fetchNextPage()}
-          className="rounded border border-line bg-surface px-3 py-2 text-sm font-medium text-ink disabled:opacity-50"
-        >
-          {query.isFetchingNextPage ? "Loading…" : "Load more"}
-        </button>
-      )}
-    </section>
+            onChange={setSort}
+            options={SORT_OPTIONS}
+          />
+        </>
+      }
+      isLoading={query.isLoading}
+      isError={query.isError}
+      onRetry={() => void query.refetch()}
+      loadingLabel="Loading Questions…"
+      errorLabel="Couldn’t load unresolved Questions."
+      emptyTitle={mappingStatus ? "No Questions match this filter." : "No Questions need review."}
+      emptyBody="Questions seen by the extension will appear here when they need a decision."
+      rows={items.map((question) => ({
+        id: question.id,
+        title: question.raw_question,
+        meta: `${question.site_scope} · ${question.control_kind} · seen ${question.seen_count} times`,
+        aside: `${question.capture_conflict ? "Remembered-value conflict · " : ""}${question.mapping ? `Match ${question.mapping.status} · ` : "No Match · "}${formatDate(question.last_seen_at)}`,
+      }))}
+      onOpen={onOpen}
+      hasNextPage={query.hasNextPage}
+      isFetchingNextPage={query.isFetchingNextPage}
+      onLoadMore={() => void query.fetchNextPage()}
+    />
   );
 }
