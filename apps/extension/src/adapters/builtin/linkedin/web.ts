@@ -696,7 +696,6 @@ export const linkedinAdapter: Adapter = {
   cardBodySelector: SEL.cardBody,
   scanDetail() {
     const jobId = currentDetailId();
-    if (new URLSearchParams(location.search).get("jt_capture_only") === "1") return;
 
     // Clean up bar (and any open match popover) from the previous job on SPA nav
     const existingBar = document.querySelector(".jh-detail-actions") as HTMLElement | null;
