@@ -73,7 +73,16 @@ export function createScan(engine: Engine) {
       // Some sites are injected wholesale (see the linkedin adapter), so act only
       // once the URL is on a surface this adapter targets.
       if (adapter.activeOn && !adapter.activeOn(location.pathname)) return;
-      processCards(adapter);
+      // Mechanical listing intake visits request capture without any automatic
+      // funnel events from cards, keyword rules, or wall detection.
+      if (
+        !(
+          location.hostname === "www.linkedin.com" &&
+          new URLSearchParams(location.search).get("jt_capture_only") === "1"
+        )
+      ) {
+        processCards(adapter);
+      }
       adapter.scanDetail?.();
       adapter.capture?.();
     };

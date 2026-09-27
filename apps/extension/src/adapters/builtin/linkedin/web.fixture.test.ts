@@ -42,6 +42,16 @@ describe("linkedin adapter — search list findCards", () => {
 });
 
 describe("linkedin adapter — detail head", () => {
+  it("skips automatic detail actions during mechanical capture", () => {
+    document.body.innerHTML = loadFixture("linkedin-detail.html");
+    window.history.pushState({}, "", "/jobs/view/100001/?jt_capture_only=1");
+    installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+
+    expect(document.querySelector(".jh-detail-head")).toBeNull();
+  });
+
   const chipTexts = () =>
     [...document.querySelectorAll(".jh-detail-head .jh-banner-chip")].map((c) => c.textContent);
 
