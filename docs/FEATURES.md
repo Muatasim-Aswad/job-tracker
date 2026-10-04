@@ -95,6 +95,8 @@ History remains correctable rather than disposable. You can undo a transition, r
 
 Attention rules identify applications that have waited too long at applied or in-process stages. Adding a note can reset attention, and the dashboard can filter the queue or mark a job ghosted.
 
+The dashboard's view filters can also hide jobs from blocked companies or show only jobs with an Easy Apply listing.
+
 Custom fields support reusable vocabulary suggestions. Structured material records track which CV, cover letter, or other material accompanied an application, including requested and provided states. Job Tracker records the material's role and status; it does not upload or store the file itself.
 
 ### Record how a confirmed application happened

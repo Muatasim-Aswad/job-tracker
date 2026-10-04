@@ -1,4 +1,4 @@
-import { Clock, Eye, Star, X } from "lucide-react";
+import { Ban, Clock, Eye, Star, X, Zap } from "lucide-react";
 import type { RefObject } from "react";
 
 interface Props {
@@ -11,6 +11,10 @@ interface Props {
   onToggleStarred: () => void;
   showAttention: boolean;
   onToggleAttention: () => void;
+  hideBlocked: boolean;
+  onToggleBlocked: () => void;
+  easyApplyOnly: boolean;
+  onToggleEasyApply: () => void;
   attentionCount: number;
   shownCount: number;
   totalCount: number;
@@ -25,7 +29,8 @@ const TOGGLE_ON = "bg-sunken text-ink";
 // The centerpiece of the header: search, the shown-count, and the attention/flag
 // toggles fused into one bordered container, because together they're one thing — the
 // current view. At rest it shows a bare total; anything that *narrows* the view
-// (search text, attention-only, hidden exclusion, starred-only) expands the count to
+// (search text, attention-only, hidden or blocked exclusion, starred-only, Easy
+// Apply-only) expands the count to
 // "x of y" with a clear-all ✕ and rings the whole bar in --accent.
 export function ViewBar({
   search,
@@ -37,12 +42,22 @@ export function ViewBar({
   onToggleStarred,
   showAttention,
   onToggleAttention,
+  hideBlocked,
+  onToggleBlocked,
+  easyApplyOnly,
+  onToggleEasyApply,
   attentionCount,
   shownCount,
   totalCount,
   onClearAll,
 }: Props) {
-  const narrowed = search.trim().length > 0 || hideHidden || showStarred || showAttention;
+  const narrowed =
+    search.trim().length > 0 ||
+    hideHidden ||
+    showStarred ||
+    showAttention ||
+    hideBlocked ||
+    easyApplyOnly;
 
   return (
     <div
@@ -125,11 +140,31 @@ export function ViewBar({
         aria-pressed={showStarred}
         title={showStarred ? "Show all jobs (S)" : "Show starred only (S)"}
         onClick={onToggleStarred}
-        className={`${TOGGLE_BASE} rounded-r-lg border-l border-line ${
-          showStarred ? TOGGLE_ON : TOGGLE_OFF
-        }`}
+        className={`${TOGGLE_BASE} border-l border-line ${showStarred ? TOGGLE_ON : TOGGLE_OFF}`}
       >
         <Star size={16} />
+      </button>
+      <button
+        type="button"
+        aria-label={hideBlocked ? "Include blocked companies" : "Hide blocked companies"}
+        aria-pressed={hideBlocked}
+        title={hideBlocked ? "Include blocked companies (B)" : "Hide blocked companies (B)"}
+        onClick={onToggleBlocked}
+        className={`${TOGGLE_BASE} border-l border-line ${hideBlocked ? TOGGLE_ON : TOGGLE_OFF}`}
+      >
+        <Ban size={16} />
+      </button>
+      <button
+        type="button"
+        aria-label={easyApplyOnly ? "Show all apply types" : "Show Easy Apply only"}
+        aria-pressed={easyApplyOnly}
+        title={easyApplyOnly ? "Show all apply types (E)" : "Show Easy Apply only (E)"}
+        onClick={onToggleEasyApply}
+        className={`${TOGGLE_BASE} rounded-r-lg border-l border-line ${
+          easyApplyOnly ? TOGGLE_ON : TOGGLE_OFF
+        }`}
+      >
+        <Zap size={16} />
       </button>
     </div>
   );

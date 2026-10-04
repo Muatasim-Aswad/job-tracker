@@ -22,6 +22,8 @@ export const SHORTCUTS: ShortcutGroup[] = [
       { keys: ["S"], label: "Toggle starred-only view" },
       { keys: ["A"], label: "Toggle needs-attention view" },
       { keys: ["H"], label: "Toggle hide-hidden filter" },
+      { keys: ["B"], label: "Toggle hide-blocked-companies filter" },
+      { keys: ["E"], label: "Toggle Easy Apply-only view" },
       { keys: ["t"], label: "Cycle theme (system / light / dark)" },
       { keys: ["?"], label: "Show this help" },
       { keys: ["Esc"], label: "Close a menu / dialog, or clear search" },

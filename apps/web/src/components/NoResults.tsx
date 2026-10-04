@@ -3,12 +3,22 @@ interface Props {
   showStarred: boolean;
   showAttention: boolean;
   hideHidden: boolean;
+  hideBlocked: boolean;
+  easyApplyOnly: boolean;
   onClear: () => void;
 }
 
 // Replaces the board when the current filters narrow the view to nothing —
 // distinct from an empty account (no jobs at all), which App never routes here.
-export function NoResults({ query, showStarred, showAttention, hideHidden, onClear }: Props) {
+export function NoResults({
+  query,
+  showStarred,
+  showAttention,
+  hideHidden,
+  hideBlocked,
+  easyApplyOnly,
+  onClear,
+}: Props) {
   const q = query.trim();
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-ink-muted">
@@ -27,9 +37,13 @@ export function NoResults({ query, showStarred, showAttention, hideHidden, onCle
                     ? "No jobs need attention."
                     : showStarred
                       ? "No starred jobs match."
-                      : hideHidden
-                        ? "No non-hidden jobs match."
-                        : "No jobs match."}
+                      : easyApplyOnly
+                        ? "No Easy Apply jobs match."
+                        : hideBlocked
+                          ? "No jobs from unblocked companies match."
+                          : hideHidden
+                            ? "No non-hidden jobs match."
+                            : "No jobs match."}
       </p>
       <button
         type="button"

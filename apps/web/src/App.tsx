@@ -12,7 +12,7 @@ import { ShortcutsDialog } from "./components/ShortcutsDialog";
 import { SortMenu } from "./components/SortMenu";
 import { ViewBar } from "./components/ViewBar";
 import { api } from "./api/client";
-import { useFormFillReviewPresence, useJobEvents, useJobs } from "./hooks";
+import { useBlockedCompanies, useFormFillReviewPresence, useJobEvents, useJobs } from "./hooks";
 import { FormFillWorkspace } from "./form-fill/FormFillWorkspace";
 import { countAttention, filterJobs } from "./lib/jobFilters";
 import { usePersistentBoolean } from "./lib/persist";
@@ -40,6 +40,7 @@ export default function App() {
   const events = useJobEvents();
   const { pref: themePref, cycle: cycleTheme } = useTheme();
   const reviewPresence = useFormFillReviewPresence();
+  const { data: blockedCompanies } = useBlockedCompanies();
 
   const [view, setView] = useState<"jobs" | "form-fill">(() =>
     new URLSearchParams(window.location.search).get("view") === "form-fill" ? "form-fill" : "jobs",
@@ -51,6 +52,8 @@ export default function App() {
   const [hideHidden, setHideHidden] = usePersistentBoolean("jt.hideHidden", false);
   const [showStarred, setShowStarred] = usePersistentBoolean("jt.showStarred", false);
   const [showAttention, setShowAttention] = usePersistentBoolean("jt.showAttention", false);
+  const [hideBlocked, setHideBlocked] = usePersistentBoolean("jt.hideBlocked", false);
+  const [easyApplyOnly, setEasyApplyOnly] = usePersistentBoolean("jt.easyApplyOnly", false);
   const [sortOrder, setSortOrder] = usePersistentChoice(
     "jt.sortOrder",
     SORT_ORDER_VALUES,
@@ -90,6 +93,8 @@ export default function App() {
         "visible",
         "starred",
         "attention",
+        "unblocked",
+        "easy_apply",
         "sort",
       ])
         url.searchParams.delete(key);
@@ -140,10 +145,14 @@ export default function App() {
     const visible = params.get("visible");
     const starred = params.get("starred");
     const attention = params.get("attention");
+    const unblocked = params.get("unblocked");
+    const easyApply = params.get("easy_apply");
     const sort = params.get("sort");
     if (visible != null) setHideHidden(visible === "true");
     if (starred != null) setShowStarred(starred === "true");
     if (attention != null) setShowAttention(attention === "true");
+    if (unblocked != null) setHideBlocked(unblocked === "true");
+    if (easyApply != null) setEasyApplyOnly(easyApply === "true");
     if (sort && (SORT_ORDER_VALUES as string[]).includes(sort)) {
       setSortOrder(sort as SortOrder);
     }
@@ -167,10 +176,24 @@ export default function App() {
     else url.searchParams.delete("starred");
     if (showAttention) url.searchParams.set("attention", "true");
     else url.searchParams.delete("attention");
+    if (hideBlocked) url.searchParams.set("unblocked", "true");
+    else url.searchParams.delete("unblocked");
+    if (easyApplyOnly) url.searchParams.set("easy_apply", "true");
+    else url.searchParams.delete("easy_apply");
     if (sortOrder !== DEFAULT_SORT_ORDER) url.searchParams.set("sort", sortOrder);
     else url.searchParams.delete("sort");
     window.history.replaceState(null, "", url);
-  }, [view, selectedJobId, search, hideHidden, showStarred, showAttention, sortOrder]);
+  }, [
+    view,
+    selectedJobId,
+    search,
+    hideHidden,
+    showStarred,
+    showAttention,
+    hideBlocked,
+    easyApplyOnly,
+    sortOrder,
+  ]);
 
   // Global shortcuts: `/` jumps to search, `?` opens the help sheet. Suppressed while
   // typing, so they don't eat input, and while a modal owns the screen — the drawer
@@ -203,6 +226,12 @@ export default function App() {
       } else if (e.key === "H") {
         e.preventDefault();
         setHideHidden(!hideHidden);
+      } else if (e.key === "B") {
+        e.preventDefault();
+        setHideBlocked(!hideBlocked);
+      } else if (e.key === "E") {
+        e.preventDefault();
+        setEasyApplyOnly(!easyApplyOnly);
       } else if (e.key.startsWith("Arrow")) {
         // Enter the board: with nothing else focused, an arrow drops onto the last
         // card you were on, or the first on a cold start, from where each card's own
@@ -233,6 +262,8 @@ export default function App() {
     showStarred,
     showAttention,
     hideHidden,
+    hideBlocked,
+    easyApplyOnly,
     view,
   ]);
 
@@ -251,8 +282,22 @@ export default function App() {
   const attentionCount = useMemo(() => countAttention(jobs ?? []), [jobs]);
 
   const filtered = useMemo(
-    () => filterJobs(jobs ?? [], { search, hideHidden, showStarred, showAttention }),
-    [jobs, search, hideHidden, showStarred, showAttention],
+    () =>
+      filterJobs(
+        jobs ?? [],
+        { search, hideHidden, showStarred, showAttention, hideBlocked, easyApplyOnly },
+        blockedCompanies,
+      ),
+    [
+      jobs,
+      search,
+      hideHidden,
+      showStarred,
+      showAttention,
+      hideBlocked,
+      easyApplyOnly,
+      blockedCompanies,
+    ],
   );
 
   // Ordering is a view preference over the already-filtered complete job set.
@@ -265,6 +310,8 @@ export default function App() {
     setShowStarred(false);
     setShowAttention(false);
     setHideHidden(false);
+    setHideBlocked(false);
+    setEasyApplyOnly(false);
   }, []);
 
   const noResults = jobs !== undefined && jobs.length > 0 && filtered.length === 0;
@@ -293,6 +340,10 @@ export default function App() {
               onToggleStarred={() => setShowStarred(!showStarred)}
               showAttention={showAttention}
               onToggleAttention={() => setShowAttention(!showAttention)}
+              hideBlocked={hideBlocked}
+              onToggleBlocked={() => setHideBlocked(!hideBlocked)}
+              easyApplyOnly={easyApplyOnly}
+              onToggleEasyApply={() => setEasyApplyOnly(!easyApplyOnly)}
               attentionCount={attentionCount}
               shownCount={filtered.length}
               totalCount={jobs?.length ?? 0}
@@ -329,6 +380,8 @@ export default function App() {
                 showStarred={showStarred}
                 showAttention={showAttention}
                 hideHidden={hideHidden}
+                hideBlocked={hideBlocked}
+                easyApplyOnly={easyApplyOnly}
                 onClear={clearFilters}
               />
             )}
