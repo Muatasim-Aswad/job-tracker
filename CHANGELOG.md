@@ -22,6 +22,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Fixed
 
+- Easy Apply form filling works again in the redesigned application modal LinkedIn opens from full job pages.
 - Bursts of database requests no longer deadlock the API worker pool. Busy requests time out with retry guidance and thread diagnostics; standard launchers bound Uvicorn request draining before sync cleanup.
 
 - LinkedIn's “Unable to load the page” response now closes an already-recorded listing without deleting its job, changing an applied-or-later status, recording a false view, or creating a stub for an arbitrary invalid ID.

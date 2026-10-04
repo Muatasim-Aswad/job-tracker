@@ -28,7 +28,7 @@ const locationField = () => {
 function fixture(contents: string, actions = "") {
   history.replaceState({}, "", "/jobs/view/example-123456/");
   document.body.innerHTML = `
-    <div class="jobs-easy-apply-modal">
+    <div class="jobs-easy-apply-modal" role="dialog">
       <h3>Screening questions</h3>
       ${contents}
       <footer>${actions}</footer>
@@ -98,7 +98,7 @@ describe("generation-based safe form filling", () => {
     scanner.setEnabled(true);
 
     shadow.innerHTML = `
-      <div class="jobs-easy-apply-modal">
+      <div class="jobs-easy-apply-modal" role="dialog">
         <h3>Screening questions</h3>
         ${field(1, "Shadow question")}
       </div>`;
@@ -485,10 +485,96 @@ describe("generation-based safe form filling", () => {
     scanner.setEnabled(false);
   });
 
+  it("scans LinkedIn's SDUI modal and tracks its page position across steps", async () => {
+    history.replaceState({}, "", "/jobs/view/123456/");
+    const step = (position: string, title: string, id: string, prompt: string) => `
+      <div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+        <div><p>${position} pages</p></div>
+        <div data-testid="lazy-column">
+          <div><p>${title}</p><div>
+            <div componentkey="easyApplyFieldFocus_ea_validation_${id}">
+              <label for="${id}"><div>${prompt}*</div></label>
+              <div><input id="${id}" type="text" required></div>
+            </div>
+          </div></div>
+        </div>
+      </div>`;
+    document.body.innerHTML = `<dialog data-testid="dialog" open>${step("1/4", "Contact info", "_r_a_", "Preferred name")}</dialog>`;
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return {
+          ok: true,
+          result: response(
+            request,
+            request.fields.map((item) => unresolved(item.client_field_id)),
+          ),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(requests[0].page.platform_id).toBe("123456");
+    expect(requests[0].fields).toMatchObject([
+      { prompt: "Preferred name", section: "Contact info", required: true },
+    ]);
+    const title = document.querySelector("[data-testid=lazy-column] p")!;
+    expect(title.nextElementSibling?.hasAttribute("data-jh-ff-panel")).toBe(true);
+
+    document.querySelector("dialog")!.innerHTML = step("2/4", "Contact info", "_r_b_", "City");
+    await Promise.resolve();
+    await scanner.scan();
+    expect(requests[1].fields.map((item) => item.prompt)).toEqual(["City"]);
+    expect(document.body.textContent).not.toContain("Complete this manually");
+    scanner.setEnabled(false);
+  });
+
+  it("scans an unmarked dialog only when it opens after an Easy Apply launch", async () => {
+    history.replaceState({}, "", "/jobs/view/123456/");
+    document.body.innerHTML = `
+      <div role="dialog" aria-label="Messaging"><textarea aria-label="Message"></textarea></div>
+      <button type="button">Easy Apply</button>`;
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return {
+          ok: true,
+          result: response(
+            request,
+            request.fields.map((item) => unresolved(item.client_field_id)),
+          ),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    expect(requests).toEqual([]);
+
+    document.querySelector("button")!.click();
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<div role="dialog"><label for="q">Preferred name</label><input id="q" type="text"></div>`,
+    );
+    await Promise.resolve();
+    await scanner.scan();
+
+    expect(requests.map((request) => request.fields.map((item) => item.prompt))).toEqual([
+      ["Preferred name"],
+    ]);
+    scanner.setEnabled(false);
+  });
+
   it("uses the same safe scanner contract in a same-origin frame document", async () => {
     const frameDocument = document.implementation.createHTMLDocument("Easy Apply frame");
     frameDocument.body.innerHTML = `
-      <div class="jobs-easy-apply-modal">
+      <div class="jobs-easy-apply-modal" role="dialog">
         <h3>Screening questions</h3>
         ${field(7, "Frame question")}
         <footer></footer>
@@ -790,7 +876,7 @@ describe("generation-based safe form filling", () => {
   it("flushes a pending text capture before the host advances the step", async () => {
     history.replaceState({}, "", "/jobs/view/example-123456/");
     document.body.innerHTML = `
-      <div class="jobs-easy-apply-modal">
+      <div class="jobs-easy-apply-modal" role="dialog">
         <h3>First step</h3><progress value="1" max="3"></progress>
         ${field(1, "Fast answer")}
       </div>`;
@@ -1198,7 +1284,7 @@ describe("generation-based safe form filling", () => {
     vi.useFakeTimers();
     history.replaceState({}, "", "/jobs/view/example-123456/");
     document.body.innerHTML = `
-      <div class="jobs-easy-apply-modal">
+      <div class="jobs-easy-apply-modal" role="dialog">
         <h3>First step</h3><progress value="1" max="3"></progress>
         <div data-test-form-element>
           <label for="numeric-123456-numeric">Years</label>

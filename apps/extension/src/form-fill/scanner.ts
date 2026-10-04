@@ -21,13 +21,14 @@ import {
 import {
   clearLinkedInFollowCompanyDefault,
   discoverLinkedInFields,
-  EASY_APPLY_ROOT,
   fieldFingerprint,
   fieldIdentityFingerprint,
   linkedInPlatformId,
   stepIdentity,
+  stepProgress,
 } from "./linkedin.js";
 import { clearPresentation, isPresentationMutation, renderPresentation } from "./presentation.js";
+import { EasyApplyRootFinder, isDialogMutation, openShadowRoots, type SearchTree } from "./root.js";
 import {
   EASY_APPLY_ENABLED_KEY,
   EASY_APPLY_SUMMARY_OPEN_KEY,
@@ -49,47 +50,13 @@ const SITE_SCOPE = "linkedin:easy-apply";
 const SETTLE_MS = 180;
 const CAPTURE_SETTLE_MS = 400;
 
-type SearchTree = Document | ShadowRoot;
-
-function openShadowRoots(tree: SearchTree): ShadowRoot[] {
-  const roots: ShadowRoot[] = [];
-  for (const element of tree.querySelectorAll("*")) {
-    if (!element.shadowRoot || element.hasAttribute("data-jh-ff-ui")) continue;
-    roots.push(element.shadowRoot, ...openShadowRoots(element.shadowRoot));
-  }
-  return roots;
-}
-
-function queryAcrossOpenTrees<T extends Element>(tree: SearchTree, selector: string): T | null {
-  const direct = tree.querySelector<T>(selector);
-  if (direct) return direct;
-  for (const shadow of openShadowRoots(tree)) {
-    const match = shadow.querySelector<T>(selector);
-    if (match) return match;
-  }
-  return null;
-}
-
-function containsEasyApplyRoot(node: Node): boolean {
-  return (
-    node instanceof Element &&
-    (node.matches(EASY_APPLY_ROOT) || !!node.querySelector(EASY_APPLY_ROOT))
-  );
-}
-
-function mutationAffectsForm(tree: SearchTree, mutation: MutationRecord): boolean {
-  const root = queryAcrossOpenTrees<HTMLElement>(tree, EASY_APPLY_ROOT);
-  if (root?.contains(mutation.target)) return true;
-  return [...mutation.addedNodes, ...mutation.removedNodes].some(containsEasyApplyRoot);
-}
-
 function defaultId(): string {
   return crypto.randomUUID();
 }
 
 function progressValue(root: HTMLElement): number | null {
-  const progress = root.querySelector<HTMLProgressElement>("progress");
-  return progress && Number.isFinite(progress.value) ? progress.value : null;
+  const value = stepProgress(root)?.value;
+  return value !== undefined && Number.isFinite(value) ? value : null;
 }
 
 function dashboardQuestionUrl(questionId: string): string {
@@ -169,6 +136,7 @@ export interface ScannerOptions {
   settleMs?: number;
   captureSettleMs?: number;
   saveSummaryOpen?: (open: boolean) => void;
+  now?: () => number;
 }
 
 export class EasyApplyScanner {
@@ -180,6 +148,7 @@ export class EasyApplyScanner {
   private readonly captureSettleMs: number;
   private readonly saveSummaryOpen: (open: boolean) => void;
   private readonly applicationContextId: string;
+  private readonly rootFinder: EasyApplyRootFinder;
   private generation = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private observer: MutationObserver | undefined;
@@ -216,6 +185,7 @@ export class EasyApplyScanner {
     this.captureSettleMs = options.captureSettleMs ?? CAPTURE_SETTLE_MS;
     this.saveSummaryOpen = options.saveSummaryOpen ?? saveEasyApplySummaryOpen;
     this.applicationContextId = this.id();
+    this.rootFinder = new EasyApplyRootFinder(doc, options.now);
   }
 
   setSummaryOpenPreference(open: boolean | undefined): void {
@@ -238,13 +208,15 @@ export class EasyApplyScanner {
     this.renderCurrent();
   }
 
+  private readonly onActivation = (event: Event) => {
+    if (event.target instanceof Element) this.rootFinder.noteActivation(event.target);
+  };
+
   private readonly onControlEvent = (event: Event) => {
     const target = event.target;
-    if (!(target instanceof Element) || !target.closest(EASY_APPLY_ROOT)) return;
-    if (this.writeDepth > 0) return;
-
-    const root = target.closest<HTMLElement>(EASY_APPLY_ROOT);
-    if (!root) return;
+    if (!(target instanceof Element) || this.writeDepth > 0) return;
+    const root = this.easyApplyRoot();
+    if (!root?.contains(target)) return;
     const field = discoverLinkedInFields(root).find(
       (item): item is SupportedField =>
         item.kind === "supported" && item.container.contains(target),
@@ -300,12 +272,12 @@ export class EasyApplyScanner {
       if (key.startsWith(`${field.handle}\u0000`)) this.suppressedWrites.delete(key);
     }
 
-    this.queueCapture(field, "user_input", false);
+    this.queueCapture(root, field, "user_input", false);
     this.schedule();
   };
 
   private easyApplyRoot(): HTMLElement | null {
-    return queryAcrossOpenTrees<HTMLElement>(this.doc, EASY_APPLY_ROOT);
+    return this.rootFinder.find();
   }
 
   private refreshObservedTrees(): void {
@@ -318,8 +290,16 @@ export class EasyApplyScanner {
         subtree: true,
         childList: true,
         attributes: true,
-        attributeFilter: ["aria-hidden", "aria-invalid", "aria-required", "disabled", "required"],
+        attributeFilter: [
+          "aria-hidden",
+          "aria-invalid",
+          "aria-required",
+          "disabled",
+          "open",
+          "required",
+        ],
       });
+      tree.addEventListener("click", this.onActivation, true);
       tree.addEventListener("input", this.onControlEvent, true);
       tree.addEventListener("change", this.onControlEvent, true);
       tree.addEventListener("focusout", this.onControlEvent, true);
@@ -340,11 +320,13 @@ export class EasyApplyScanner {
       this.observer?.disconnect();
       this.observer = undefined;
       for (const tree of this.observedTrees) {
+        tree.removeEventListener("click", this.onActivation, true);
         tree.removeEventListener("input", this.onControlEvent, true);
         tree.removeEventListener("change", this.onControlEvent, true);
         tree.removeEventListener("focusout", this.onControlEvent, true);
       }
       this.observedTrees.clear();
+      this.rootFinder.reset();
       clearPresentation(this.doc);
       this.stepKey = null;
       this.stepProgress = null;
@@ -360,8 +342,7 @@ export class EasyApplyScanner {
       this.refreshObservedTrees();
       if (
         mutations.some(
-          (mutation) =>
-            !isPresentationMutation(mutation) && mutationAffectsForm(this.doc, mutation),
+          (mutation) => !isPresentationMutation(mutation) && isDialogMutation(mutation),
         )
       ) {
         this.schedule();
@@ -764,12 +745,13 @@ export class EasyApplyScanner {
   private rememberExisting(runtime: RuntimeField): void {
     const live = this.liveField(runtime);
     if (!live || isControlEmpty(live)) return;
-    this.queueCapture(live, "confirmed_external", true);
+    this.queueCapture(runtime.root, live, "confirmed_external", true);
     void this.flushCapture(live.handle);
     this.schedule();
   }
 
   private queueCapture(
+    root: HTMLElement,
     field: SupportedField,
     source: PendingCapture["source"],
     validationCheckpoint: boolean,
@@ -791,7 +773,7 @@ export class EasyApplyScanner {
             source,
             captureKey: this.id(),
             signature,
-            stepKey: stepIdentity(field.container.closest(EASY_APPLY_ROOT)!),
+            stepKey: stepIdentity(root),
             numeric,
             numericProven: false,
             attempted: false,

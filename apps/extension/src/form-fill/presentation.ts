@@ -1,3 +1,4 @@
+import { stepHeading } from "./linkedin.js";
 import type { FieldState, PresentedField } from "./types.js";
 
 const UI_ATTRIBUTE = "data-jh-ff-ui";
@@ -88,7 +89,7 @@ function ensureShadowMarkerStyles(root: HTMLElement): void {
 }
 
 function panelAnchor(root: HTMLElement): Element {
-  return root.querySelector("h3, h4") ?? root.firstElementChild ?? root;
+  return stepHeading(root) ?? root.firstElementChild ?? root;
 }
 
 function ensurePanel(root: HTMLElement): ShadowRoot {

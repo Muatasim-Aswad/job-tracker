@@ -4,6 +4,8 @@ import {
   discoverLinkedInFields,
   fieldFingerprint,
   linkedInPlatformId,
+  stepIdentity,
+  stepProgress,
 } from "./linkedin";
 import type { SupportedField } from "./types";
 
@@ -25,8 +27,41 @@ const selectQuestion = (id: string, prompt: string, optionCount: number) => `
     </select>
   </div>`;
 
+const sduiRadio = (key: string, group: string, prompt: string, options: string[]) => `
+  <div componentkey="easyApplyFieldFocus_ea_validation_p2_0_${key}">
+    <p>${prompt}</p>
+    <fieldset aria-describedby="error-message-${group}" role="radiogroup">
+      ${options
+        .map(
+          (option, index) => `
+        <div><div><div>
+          <input id="${group}-${index}" aria-label="${prompt.replace("*", "")}" type="radio" name="radio-group-${group}">
+          <label for="${group}-${index}"></label>
+        </div><div><p>${option}</p></div></div></div>`,
+        )
+        .join("")}
+    </fieldset>
+  </div>`;
+
+function sduiStep(position: string, title: string, questions: string): string {
+  return `
+    <div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+      <div data-display-contents="true"><div><div>
+        <div><div id="progress-label">50 percent complete</div><div aria-labelledby="progress-label"></div><p>${position} pages</p></div>
+        <div data-testid="lazy-column" data-component-type="LazyColumn">
+          <div><p>${title}</p><div>${questions}</div></div>
+        </div>
+      </div></div></div>
+    </div>`;
+}
+
+function sduiRoot(html: string): HTMLElement {
+  document.body.innerHTML = `<dialog data-testid="dialog" open><header><h2>Apply to Example Co</h2></header><div data-testid="dialog-content">${html}</div></dialog>`;
+  return document.querySelector("dialog")!;
+}
+
 function root(html: string): HTMLElement {
-  document.body.innerHTML = `<div class="jobs-easy-apply-modal"><h3>Application questions</h3>${html}</div>`;
+  document.body.innerHTML = `<div class="jobs-easy-apply-modal" role="dialog"><h3>Application questions</h3>${html}</div>`;
   return document.querySelector(".jobs-easy-apply-modal")!;
 }
 
@@ -120,7 +155,7 @@ describe("LinkedIn Easy Apply discovery", () => {
     document.body.append(iframe);
     const frameDocument = iframe.contentDocument!;
     frameDocument.body.innerHTML = `
-      <div class="jobs-easy-apply-modal"><h3>Application questions</h3>
+      <div class="jobs-easy-apply-modal" role="dialog"><h3>Application questions</h3>
         ${textQuestion("generic-question-handle", "Portfolio note")}
       </div>`;
     const frameRoot = frameDocument.querySelector<HTMLElement>(".jobs-easy-apply-modal")!;
@@ -388,5 +423,172 @@ describe("LinkedIn Easy Apply discovery", () => {
     });
     expect(fields[1].kind).toBe("supported");
     expect((fields[1] as SupportedField).request.prompt).toBe("Preferred name");
+  });
+});
+
+describe("LinkedIn SDUI Easy Apply discovery", () => {
+  it("finds label-bound questions without LinkedIn's legacy question wrappers", () => {
+    history.replaceState({}, "", "/jobs/view/123456/");
+    const form = sduiRoot(
+      sduiStep(
+        "1/4",
+        "Contact info",
+        `
+        <div><div><p><span>Synthetic Person</span></p></div></div>
+        <div>
+          <label for="_r_e_"><div>Email address*</div></label>
+          <div><select id="_r_e_" required>
+            <option value="" disabled></option>
+            <option value="person@example.test">person@example.test</option>
+          </select></div>
+        </div>
+        <div>
+          <div>
+            <label for="_r_g_"><div>Phone country code*</div></label>
+            <div><select id="_r_g_" required>
+              <option value="" disabled></option>
+              <option value="nl">Netherlands (+31)</option>
+              <option value="be">Belgium (+32)</option>
+            </select></div>
+          </div>
+          <div componentkey="easyApplyFieldFocus_ea.q::111::PHONE_MOBILE::phoneNumber.validation">
+            <label for="_r_i_"><div>Mobile phone number*</div></label>
+            <div><input required id="_r_i_" aria-describedby="_r_i_-info" type="tel"></div>
+          </div>
+        </div>`,
+      ),
+    );
+
+    const fields = discoverLinkedInFields(form);
+    const requests = fields.map((field) => (field as SupportedField).request);
+    expect(fields.map((field) => field.kind)).toEqual(["supported", "supported", "supported"]);
+    expect(requests.map((request) => [request.prompt, request.control_kind])).toEqual([
+      ["Email address", "select"],
+      ["Phone country code", "select"],
+      ["Mobile phone number", "text"],
+    ]);
+    expect(
+      requests.every((request) => request.required && request.section === "Contact info"),
+    ).toBe(true);
+    expect(requests[1].options?.map((option) => option.label)).toEqual([
+      "Netherlands (+31)",
+      "Belgium (+32)",
+    ]);
+    expect(fields[2].handle).toBe(
+      "easyApplyFieldFocus_ea.q::111::PHONE_MOBILE::phoneNumber.validation",
+    );
+    expect(linkedInPlatformId(document, fields)).toBe("123456");
+  });
+
+  it("reads radio prompts and option text that sit outside their empty labels", () => {
+    const form = sduiRoot(
+      sduiStep(
+        "3/4",
+        "Additional questions",
+        `
+        ${sduiRadio("222", "_r_l_", "Do you like hybrid work?*", ["Ja", "Nee"])}
+        <div componentkey="easyApplyFieldFocus_ea_validation_p2_0_333">
+          <label for="_r_r_"><div>How fluent is your Dutch?*</div></label>
+          <div><select id="_r_r_" required>
+            <option value="" disabled>Select an option</option>
+            <option value="None">None</option>
+            <option value="Professional">Professional</option>
+          </select></div>
+        </div>`,
+      ),
+    );
+
+    const fields = discoverLinkedInFields(form) as SupportedField[];
+    expect(fields.map((field) => field.request.control_kind)).toEqual(["radio", "select"]);
+    expect(fields[0].request).toMatchObject({
+      prompt: "Do you like hybrid work?",
+      required: true,
+      section: "Additional questions",
+    });
+    expect(fields[0].request.options?.map((option) => option.label)).toEqual(["Ja", "Nee"]);
+    expect(fields[1].request.options?.map((option) => option.label)).toEqual([
+      "None",
+      "Professional",
+    ]);
+  });
+
+  it("ignores the résumé choice", () => {
+    const form = sduiRoot(
+      sduiStep(
+        "2/4",
+        "",
+        `
+        <div><div><p>CV*</p></div><div>
+          <fieldset aria-describedby="error-message-_r_j_" role="radiogroup"><div>
+            <div id="easyApplyUploadedResumeRef" componentkey="easyApplyUploadedResumeRef"></div>
+            <div><input id="_r_k_" aria-label="synthetic-resume.pdf" type="radio" name="radio-group-_r_j_" checked></div>
+          </div></fieldset>
+        </div></div>
+        <input type="file" hidden>`,
+      ),
+    );
+
+    expect(discoverLinkedInFields(form)).toEqual([]);
+  });
+
+  it("identifies steps by their page position rather than question text", () => {
+    const form = sduiRoot(
+      sduiStep(
+        "2/4",
+        "Additional questions",
+        `${sduiRadio("444", "_r_x_", "24/7 on call?", ["Yes", "No"])}`,
+      ),
+    );
+
+    expect(stepProgress(form)).toEqual({ value: 2, max: 4 });
+    expect(stepIdentity(form)).toBe("2/4:Additional questions");
+  });
+
+  it("reads questions from accessible names when LinkedIn adds no question markup", () => {
+    const form = sduiRoot(`
+      <div><div>
+        <span id="years-label">Years of TypeScript experience</span>
+        <input id="_r_y_" type="number" aria-labelledby="years-label">
+      </div></div>
+      <div><textarea aria-label="Cover note"></textarea></div>
+      <fieldset><legend>Willing to relocate?</legend>
+        <label><input type="radio" name="relocate">Yes</label>
+        <label><input type="radio" name="relocate">No</label>
+      </fieldset>`);
+
+    const fields = discoverLinkedInFields(form) as SupportedField[];
+    expect(fields.map((field) => [field.request.prompt, field.request.control_kind])).toEqual([
+      ["Years of TypeScript experience", "integer"],
+      ["Cover note", "textarea"],
+      ["Willing to relocate?", "radio"],
+    ]);
+  });
+
+  it("never takes a radio prompt from neighbouring text that names another question", () => {
+    const form = sduiRoot(`
+      <div>
+        <p>Unrelated introduction</p>
+        <fieldset role="radiogroup">
+          <div><input id="a" aria-label="Do you hold a driving licence?" type="radio" name="g"><label for="a">Yes</label></div>
+          <div><input id="b" aria-label="Do you hold a driving licence?" type="radio" name="g"><label for="b">No</label></div>
+        </fieldset>
+      </div>
+      <div>
+        <p>Unnamed choice</p>
+        <fieldset role="radiogroup">
+          <div><input id="c" type="radio" name="h"><label for="c">Yes</label></div>
+          <div><input id="d" type="radio" name="h"><label for="d">No</label></div>
+        </fieldset>
+      </div>`);
+
+    const fields = discoverLinkedInFields(form);
+    expect(fields[0]).toMatchObject({
+      kind: "supported",
+      request: { prompt: "Do you hold a driving licence?", required: false },
+    });
+    expect(fields[1]).toMatchObject({
+      kind: "manual",
+      reason: "Question text could not be identified safely.",
+    });
   });
 });

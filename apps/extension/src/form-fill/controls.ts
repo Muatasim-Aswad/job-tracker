@@ -102,10 +102,9 @@ function actionTarget(
   if (action.kind === "set_boolean") {
     const wanted = action.value ? "yes" : "no";
     return field.optionTargets.find((target) => {
-      const label =
-        target.element instanceof HTMLInputElement
-          ? target.element.labels?.[0]?.textContent
-          : target.element.textContent;
+      const label = field.request.options?.find(
+        (option) => option.client_option_id === target.clientOptionId,
+      )?.label;
       return label?.trim().toLocaleLowerCase() === wanted;
     });
   }

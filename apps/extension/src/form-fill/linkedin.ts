@@ -6,9 +6,27 @@ import type {
   SupportedOptionTarget,
 } from "./types.js";
 import { linkedinJobId } from "../adapters/builtin/linkedin/identity.js";
+import {
+  choiceGroup,
+  choiceGroupName,
+  choiceOptionName,
+  controlName,
+  FORM_CONTROL,
+  markedRequired,
+  semanticContainer,
+  visibleText as text,
+  withoutMarker,
+} from "./accessibility.js";
 
-export const EASY_APPLY_ROOT = ".jobs-easy-apply-modal, [data-test-easy-apply-modal]";
-const QUESTION = "[data-test-form-element]";
+// Questions are found from their controls and accessible names. LinkedIn's
+// question wrappers, when present, only refine how controls are grouped.
+const LEGACY_QUESTION = "[data-test-form-element]";
+const SDUI_FIELD_KEY = '[componentkey^="easyApplyFieldFocus"]';
+const QUESTION_HINT = `${LEGACY_QUESTION}, ${SDUI_FIELD_KEY}`;
+const SDUI_RESUME = '[componentkey^="easyApplyUploadedResume"]';
+const SDUI_STEP_CONTENT = '[data-testid="lazy-column"]';
+const SDUI_STEP_TITLE = `${SDUI_STEP_CONTENT} > div > p:first-child`;
+const STEP_POSITION = /^(\d+)\s*\/\s*(\d+)\b/;
 const REPEATABLE = ".jobs-easy-apply-repeatable-groupings__groupings";
 const TOP_CHOICE_CHECKBOX = 'input[type="checkbox"][name="jobDetailsEasyApplyTopChoiceCheckbox"]';
 const FOLLOW_COMPANY_CHECKBOX = 'input[type="checkbox"]#follow-company-checkbox';
@@ -29,8 +47,8 @@ const RADIO_JOB = /easyApply:\((\d+),/i;
 // value equal to that bound.
 const MAX_OPTIONS = 512;
 
-function text(element: Element | null | undefined): string {
-  return element?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+function treeOf(element: Element): Document | ShadowRoot {
+  return element.getRootNode() as Document | ShadowRoot;
 }
 
 function questionText(element: Element | null | undefined): string {
@@ -42,18 +60,30 @@ function questionText(element: Element | null | undefined): string {
   return text(copy);
 }
 
+function groupRadios(group: HTMLElement): HTMLInputElement[] {
+  return [...group.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+}
+
+function radioGroupLabel(control: HTMLInputElement): string {
+  const group = choiceGroup(control);
+  if (!group) return "";
+  return (
+    questionText(group.querySelector(":scope > legend")) ||
+    choiceGroupName(group, groupRadios(group))
+  );
+}
+
 function associatedLabel(container: HTMLElement, control: HTMLElement): string {
   if (control instanceof HTMLInputElement && control.type === "radio") {
-    return questionText(control.closest("fieldset")?.querySelector(":scope > legend"));
+    return radioGroupLabel(control);
   }
-  const labels = "labels" in control ? (control as HTMLInputElement).labels : null;
-  return questionText(labels?.[0] ?? container.querySelector("label"));
+  return controlName(control) || questionText(container.querySelector("label"));
 }
 
 function isFollowCompanyCheckbox(input: HTMLInputElement): boolean {
   if (input.matches(FOLLOW_COMPANY_CHECKBOX)) return true;
-  const label = input.labels?.[0] ?? input.closest(QUESTION);
-  return FOLLOW_COMPANY_PROMPT.test(questionText(label));
+  const label = input.labels?.[0] ?? input.closest(LEGACY_QUESTION);
+  return FOLLOW_COMPANY_PROMPT.test(questionText(label) || controlName(input));
 }
 
 function setNativeChecked(input: HTMLInputElement, checked: boolean): boolean {
@@ -90,19 +120,23 @@ export function clearLinkedInFollowCompanyDefault(
   return cleared;
 }
 
+export function stepHeading(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>(`h3, h4, ${SDUI_STEP_TITLE}`);
+}
+
 function sectionFor(container: HTMLElement, root: HTMLElement): string | null {
   let cursor: Element | null = container.previousElementSibling;
   while (cursor && root.contains(cursor)) {
     if (cursor.matches("h2, h3, h4, [data-test-form-section-title]")) return text(cursor) || null;
     cursor = cursor.previousElementSibling;
   }
-  return text(root.querySelector("h3, h4")) || null;
+  return text(stepHeading(root)) || null;
 }
 
 function helpFor(container: HTMLElement, control: HTMLElement, prompt: string): string | null {
   const ids = control.getAttribute("aria-describedby")?.split(/\s+/).filter(Boolean) ?? [];
   const parts = ids
-    .map((id) => control.ownerDocument.getElementById(id))
+    .map((id) => treeOf(control).getElementById(id))
     .filter((node): node is HTMLElement => !!node)
     .filter((node) => !node.matches('[id$="-error"], .artdeco-inline-feedback--error'))
     .map(text)
@@ -117,6 +151,7 @@ function helpFor(container: HTMLElement, control: HTMLElement, prompt: string): 
 }
 
 function fieldHandle(container: HTMLElement, control: HTMLElement, index: number): string {
+  if (container.matches(SDUI_FIELD_KEY)) return container.getAttribute("componentkey")!;
   if (control.id) return control.id.replace(/-\d+$/, "");
   return container.getAttribute("data-test-form-element") || `question-${index}`;
 }
@@ -132,8 +167,7 @@ export function isSelectPlaceholder(select: HTMLSelectElement, index: number): b
 
 function hasValue(control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): boolean {
   if (control instanceof HTMLInputElement && control.type === "radio") {
-    const fieldset = control.closest("fieldset");
-    return !!fieldset?.querySelector('input[type="radio"]:checked');
+    return !!choiceGroup(control)?.querySelector('input[type="radio"]:checked');
   }
   if (control instanceof HTMLSelectElement) {
     return control.selectedIndex >= 0 && !isSelectPlaceholder(control, control.selectedIndex);
@@ -145,10 +179,10 @@ function currentSemanticValue(
   control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
 ): string {
   if (control instanceof HTMLInputElement && control.type === "radio") {
-    const checked = control
-      .closest("fieldset")
-      ?.querySelector<HTMLInputElement>('input[type="radio"]:checked');
-    return checked ? text(checked.labels?.[0]) : "";
+    const checked = choiceGroup(control)?.querySelector<HTMLInputElement>(
+      'input[type="radio"]:checked',
+    );
+    return checked ? choiceOptionName(checked) : "";
   }
   if (control instanceof HTMLSelectElement) {
     return control.selectedIndex >= 0 ? text(control.options[control.selectedIndex]) : "";
@@ -189,18 +223,16 @@ function selectTargets(select: HTMLSelectElement, clientFieldId: string): Suppor
     .filter((target) => text(target.element));
 }
 
-function radioOptions(fieldset: HTMLFieldSetElement, clientFieldId: string) {
-  return [...fieldset.querySelectorAll<HTMLInputElement>('input[type="radio"]')].map(
-    (input, index) => ({
-      input,
-      option: {
-        client_option_id: `${clientFieldId}-option-${index + 1}`,
-        label: text(input.labels?.[0]),
-        stable_option_key: null,
-        disabled: input.disabled,
-      },
-    }),
-  );
+function radioOptions(group: HTMLElement, clientFieldId: string) {
+  return groupRadios(group).map((input, index) => ({
+    input,
+    option: {
+      client_option_id: `${clientFieldId}-option-${index + 1}`,
+      label: choiceOptionName(input),
+      stable_option_key: null,
+      disabled: input.disabled,
+    },
+  }));
 }
 
 function manual(
@@ -213,6 +245,7 @@ function manual(
 }
 
 function classifyQuestion(
+  root: HTMLElement,
   container: HTMLElement,
   index: number,
   clientFieldId: string,
@@ -224,8 +257,9 @@ function classifyQuestion(
   ].filter((control) => !control.disabled);
   const controls = enabledControls.filter((control) => !control.matches(RESUME));
   const first = controls[0];
-  const prompt =
+  const markedPrompt =
     associatedLabel(container, first ?? container) || text(container.querySelector("legend"));
+  const prompt = withoutMarker(markedPrompt);
   const handle = fieldHandle(container, first ?? container, index);
 
   if (!first && enabledControls.some((control) => control.matches(RESUME))) return null;
@@ -272,9 +306,9 @@ function classifyQuestion(
   } else if (first instanceof HTMLTextAreaElement) {
     controlKind = "textarea";
   } else if (first.type === "radio") {
-    const fieldset = first.closest("fieldset");
-    if (!fieldset) return manual(container, handle, prompt, "This radio group is unclassified.");
-    const radio = radioOptions(fieldset, clientFieldId);
+    const group = choiceGroup(first);
+    if (!group) return manual(container, handle, prompt, "This radio group is unclassified.");
+    const radio = radioOptions(group, clientFieldId);
     const groupName = first.name.trim();
     const labels = radio.map(({ option }) => option.label);
     const normalizedLabels = labels.map((label) => label.normalize("NFKC").toLocaleLowerCase());
@@ -303,7 +337,7 @@ function classifyQuestion(
   ) {
     if (first.type === "number" || NUMERIC_HANDLE.test(first.id)) {
       const validationText = text(
-        first.ownerDocument.getElementById(`${first.id}-error`) ??
+        treeOf(first).getElementById(`${first.id}-error`) ??
           container.querySelector(".artdeco-inline-feedback--error"),
       );
       if (
@@ -325,11 +359,14 @@ function classifyQuestion(
   const request: ResolutionField = {
     client_field_id: clientFieldId,
     prompt,
-    section: sectionFor(container, container.closest(EASY_APPLY_ROOT) as HTMLElement),
+    section: sectionFor(container, root),
     help: helpFor(container, control, prompt),
     control_kind: controlKind,
     autocomplete_token: control.autocomplete || null,
-    required: control.required || control.getAttribute("aria-required") === "true",
+    required:
+      control.required ||
+      control.getAttribute("aria-required") === "true" ||
+      markedRequired(markedPrompt),
     has_value: hasValue(control),
     max_length: "maxLength" in control && control.maxLength >= 0 ? control.maxLength : null,
     stable_field_key: null,
@@ -346,14 +383,30 @@ function compareDom(a: DiscoveredField, b: DiscoveredField): number {
     : 1;
 }
 
+function questionContainer(root: HTMLElement, control: HTMLElement): HTMLElement | null {
+  const hinted = control.closest<HTMLElement>(QUESTION_HINT);
+  if (hinted && root.contains(hinted)) return hinted;
+  const container = semanticContainer(control);
+  return container && root.contains(container) ? container : null;
+}
+
+function questionContainers(root: HTMLElement): HTMLElement[] {
+  const containers = new Set<HTMLElement>();
+  for (const control of root.querySelectorAll<HTMLElement>(FORM_CONTROL)) {
+    const container = questionContainer(root, control);
+    if (container && !container.querySelector(SDUI_RESUME)) containers.add(container);
+  }
+  return [...containers];
+}
+
 export function discoverLinkedInFields(root: HTMLElement): DiscoveredField[] {
-  const found = [...root.querySelectorAll<HTMLElement>(QUESTION)]
-    .map((container, index) => classifyQuestion(container, index, `field-${index + 1}`))
+  const found = questionContainers(root)
+    .map((container, index) => classifyQuestion(root, container, index, `field-${index + 1}`))
     .filter((field): field is DiscoveredField => field !== null);
   const owned = new Set(found.map((field) => field.container));
   const supplementary = root.querySelectorAll<HTMLElement>(REPEATABLE);
   for (const element of supplementary) {
-    const container = element.closest<HTMLElement>(QUESTION) ?? element;
+    const container = element.closest<HTMLElement>(LEGACY_QUESTION) ?? element;
     if (owned.has(container)) continue;
     owned.add(container);
     const index = found.length;
@@ -438,9 +491,23 @@ export function fieldIdentityFingerprint(field: SupportedField): string {
   });
 }
 
-export function stepIdentity(root: HTMLElement): string {
-  const headings = [...root.querySelectorAll("h3, h4")].map(text).filter(Boolean).join(" | ");
+export function stepProgress(root: HTMLElement): { value: number; max: number } | null {
   const progress = root.querySelector<HTMLProgressElement>("progress");
+  if (progress) return { value: progress.value, max: progress.max };
+  // SDUI shows the position as "2/4 pages" outside the step's question content.
+  for (const label of root.querySelectorAll("p")) {
+    if (label.closest(SDUI_STEP_CONTENT)) continue;
+    const match = text(label).match(STEP_POSITION);
+    if (match) return { value: Number(match[1]), max: Number(match[2]) };
+  }
+  return null;
+}
+
+export function stepIdentity(root: HTMLElement): string {
+  const headings =
+    [...root.querySelectorAll("h3, h4")].map(text).filter(Boolean).join(" | ") ||
+    text(stepHeading(root));
+  const progress = stepProgress(root);
   const position = progress ? `${progress.value}/${progress.max}` : "no-progress";
   return `${position}:${headings || "easy-apply-step"}`;
 }

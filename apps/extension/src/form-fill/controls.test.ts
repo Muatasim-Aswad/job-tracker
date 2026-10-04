@@ -10,7 +10,7 @@ import { discoverLinkedInFields } from "./linkedin";
 import type { SupportedField } from "./types";
 
 function supported(html: string): SupportedField[] {
-  document.body.innerHTML = `<div class="jobs-easy-apply-modal"><h3>Questions</h3>${html}</div>`;
+  document.body.innerHTML = `<div class="jobs-easy-apply-modal" role="dialog"><h3>Questions</h3>${html}</div>`;
   return discoverLinkedInFields(document.querySelector(".jobs-easy-apply-modal")!).filter(
     (field): field is SupportedField => field.kind === "supported",
   );
@@ -66,6 +66,23 @@ describe("native Easy Apply controls", () => {
     expect(
       field.optionTargets.every((target) => !(target.element as HTMLInputElement).checked),
     ).toBe(true);
+  });
+
+  it("sets a Yes/No answer on an SDUI radio group whose labels are empty", () => {
+    document.body.innerHTML = `
+      <dialog open><div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+        <div componentkey="easyApplyFieldFocus_ea_validation_1">
+          <p>Authorized?</p>
+          <fieldset role="radiogroup">
+            <div><div><input id="auth-0" aria-label="Authorized?" type="radio" name="auth"><label for="auth-0"></label></div><p>Yes</p></div>
+            <div><div><input id="auth-1" aria-label="Authorized?" type="radio" name="auth"><label for="auth-1"></label></div><p>No</p></div>
+          </fieldset>
+        </div>
+      </div></dialog>`;
+    const [field] = discoverLinkedInFields(document.querySelector("dialog")!) as SupportedField[];
+
+    expect(applyAction(field, { kind: "set_boolean", value: false })).toBe(true);
+    expect((field.optionTargets[1].element as HTMLInputElement).checked).toBe(true);
   });
 
   it("sets an ordinary radio choice by its request-local option ID", () => {
