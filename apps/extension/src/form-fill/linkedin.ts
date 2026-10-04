@@ -32,6 +32,10 @@ const TOP_CHOICE_CHECKBOX = 'input[type="checkbox"][name="jobDetailsEasyApplyTop
 const FOLLOW_COMPANY_CHECKBOX = 'input[type="checkbox"]#follow-company-checkbox';
 const IGNORED_LINKEDIN_CHECKBOX = `${TOP_CHOICE_CHECKBOX}, ${FOLLOW_COMPANY_CHECKBOX}`;
 const FOLLOW_COMPANY_PROMPT = /\bfollow\b.*\bstay up to date\b.*\bpage\b/i;
+const TOP_CHOICE_PROMPT = /\btop choice\b/i;
+// Live character counters ("8/100") change with the value, so they must never
+// become help text, which is part of a question's identity.
+const CHARACTER_COUNTER = /^\d+\s*\/\s*\d+\b/;
 const RESUME = 'input[type="file"], input[type="radio"][id^="jobsDocumentCardToggle-ember"]';
 const SENSITIVE =
   /\b(?:captcha|signature|payment|credit card|bank|password|authentication|consent|terms|privacy policy)\b/i;
@@ -73,11 +77,22 @@ function radioGroupLabel(control: HTMLInputElement): string {
   );
 }
 
+// LinkedIn's per-question wrapper may hold an unlabeled control whose question
+// is only the wrapper's leading text.
+function keyedPrompt(container: HTMLElement): string {
+  if (!container.matches(SDUI_FIELD_KEY)) return "";
+  if (container.querySelectorAll(FORM_CONTROL).length !== 1) return "";
+  const lead = container.firstElementChild;
+  return lead?.matches("p, label") ? text(lead) : "";
+}
+
 function associatedLabel(container: HTMLElement, control: HTMLElement): string {
   if (control instanceof HTMLInputElement && control.type === "radio") {
     return radioGroupLabel(control);
   }
-  return controlName(control) || questionText(container.querySelector("label"));
+  return (
+    controlName(control) || questionText(container.querySelector("label")) || keyedPrompt(container)
+  );
 }
 
 function isFollowCompanyCheckbox(input: HTMLInputElement): boolean {
@@ -140,7 +155,7 @@ function helpFor(container: HTMLElement, control: HTMLElement, prompt: string): 
     .filter((node): node is HTMLElement => !!node)
     .filter((node) => !node.matches('[id$="-error"], .artdeco-inline-feedback--error'))
     .map(text)
-    .filter((value) => value && value !== prompt);
+    .filter((value) => value && value !== prompt && !CHARACTER_COUNTER.test(value));
   if (parts.length) return parts.join(" ");
   const local = text(
     container.querySelector(
@@ -267,7 +282,9 @@ function classifyQuestion(
   if (
     first instanceof HTMLInputElement &&
     first.type === "checkbox" &&
-    (first.matches(IGNORED_LINKEDIN_CHECKBOX) || FOLLOW_COMPANY_PROMPT.test(prompt))
+    (first.matches(IGNORED_LINKEDIN_CHECKBOX) ||
+      FOLLOW_COMPANY_PROMPT.test(prompt) ||
+      TOP_CHOICE_PROMPT.test(prompt))
   ) {
     return null;
   }

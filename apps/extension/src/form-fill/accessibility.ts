@@ -42,13 +42,17 @@ function comparablePrompt(value: string): string {
   return withoutMarker(value).toLocaleLowerCase();
 }
 
-// Radios may carry the question as their own aria-label. The visible prompt
-// beside the group is preferred only when it states that same question, so an
-// unrelated neighbouring text can never become the prompt.
+function sharedQuestion(radio: HTMLInputElement): string {
+  return referencedText(radio, "aria-labelledby") || radio.getAttribute("aria-label")?.trim() || "";
+}
+
+// Radios may carry the question as their own accessible name. The visible
+// prompt beside the group is preferred only when it states that same question,
+// so an unrelated neighbouring text can never become the prompt.
 export function choiceGroupName(group: HTMLElement, radios: HTMLInputElement[]): string {
   const labelled = referencedText(group, "aria-labelledby") || group.getAttribute("aria-label");
   if (labelled?.trim()) return labelled.trim();
-  const shared = new Set(radios.map((radio) => radio.getAttribute("aria-label")?.trim() ?? ""));
+  const shared = new Set(radios.map(sharedQuestion));
   if (shared.size !== 1) return "";
   const [name] = shared;
   if (!name) return "";

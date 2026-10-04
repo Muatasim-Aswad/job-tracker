@@ -591,4 +591,55 @@ describe("LinkedIn SDUI Easy Apply discovery", () => {
       reason: "Question text could not be identified safely.",
     });
   });
+
+  it("ignores LinkedIn's top-choice checkbox and live character counters", () => {
+    const form = sduiRoot(`
+      <div><div><input id="_r_n_" aria-label="Mark job as a top choice" type="checkbox"></div></div>
+      <div componentkey="easyApplyFieldFocus_ea_validation_p2_0_555">
+        <label for="_r_c_"><div>What city do you live in?*</div></label>
+        <div><input id="_r_c_" type="text" required aria-describedby="_r_c_-info"></div>
+        <div id="_r_c_-info" data-testid="text-input-helper-text"><div>8/2008 of 200 characters</div></div>
+      </div>`);
+
+    const fields = discoverLinkedInFields(form) as SupportedField[];
+    expect(fields).toHaveLength(1);
+    expect(fields[0].request).toMatchObject({ prompt: "What city do you live in?", help: null });
+  });
+
+  it("reads a radio question its radios reference and keeps consent manual", () => {
+    const form = sduiRoot(`
+      <div componentkey="easyApplyFieldFocus_ea_validation_p2_0_666">
+        <p>Do you agree with the Terms and have you read the Privacy Policy? *</p>
+        <fieldset role="radiogroup"><div><div>
+          <div id="consent-q">Do you agree with the Terms and have you read the Privacy Policy?</div>
+          <div><input id="_r_r_" aria-labelledby="consent-q" type="radio" name="consent"><label for="_r_r_"></label></div>
+          <p>Yes</p>
+        </div></div></fieldset>
+      </div>`);
+
+    expect(discoverLinkedInFields(form)).toMatchObject([
+      {
+        kind: "manual",
+        prompt: "Do you agree with the Terms and have you read the Privacy Policy?",
+        reason: "This sensitive control is never filled.",
+      },
+    ]);
+  });
+
+  it("reads an unlabeled control's question from LinkedIn's per-question wrapper", () => {
+    const form = sduiRoot(`
+      <div componentkey="easyApplyFieldFocus_ea.q::777::UNKNOWN::value.validation">
+        <p>Location (city)*</p>
+        <div role="status" aria-live="polite"></div>
+        <div><div><input id="_r_l_" data-testid="typeahead-input" placeholder="Enter city" aria-autocomplete="list"></div></div>
+      </div>`);
+
+    expect(discoverLinkedInFields(form)).toMatchObject([
+      {
+        kind: "manual",
+        prompt: "Location (city)",
+        reason: "Choose a typeahead suggestion manually.",
+      },
+    ]);
+  });
 });
