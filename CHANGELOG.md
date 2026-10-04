@@ -17,12 +17,14 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Changed
 
+- Easy Apply treats a question as numeric only when its input declares it, so LinkedIn's years-of-experience questions are text questions in both modals and share one answer.
 - Jobs selected as **To apply** now follow the extension's existing **Dimmed / Removed** treatment on discovery lists without changing their independent hidden flag.
 - Discovery cards now use one **Skip job** action in place of separate hide and site-dismiss controls. Expanded job views retain **Hide** and add **Skip job** until the job is applied or otherwise resolved.
 
 ### Fixed
 
 - Easy Apply form filling works again in the redesigned application modal LinkedIn opens from full job pages.
+- Easy Apply suggestion fields, such as the redesigned modal's location, are filled by selecting the suggestion that exactly matches the remembered value; only a suggestion you pick is remembered.
 - Bursts of database requests no longer deadlock the API worker pool. Busy requests time out with retry guidance and thread diagnostics; standard launchers bound Uvicorn request draining before sync cleanup.
 
 - LinkedIn's “Unable to load the page” response now closes an already-recorded listing without deleting its job, changing an applied-or-later status, recording a false view, or creating a stub for an arbitrary invalid ID.

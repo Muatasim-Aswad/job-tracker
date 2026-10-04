@@ -6,6 +6,7 @@ import type {
   FormFillResolutionResponse,
 } from "../messages";
 import { EasyApplyScanner, startEasyApplyFormFill } from "./scanner";
+import { SUGGESTION_WAIT_MS } from "./suggestions";
 
 const field = (number: number, prompt: string, value = "") => `
   <div data-test-form-element>
@@ -770,6 +771,128 @@ describe("generation-based safe form filling", () => {
       value: { kind: "text", value: "Other City, Example Region" },
     });
     scanner.setEnabled(false);
+  });
+
+  describe("suggestion typeaheads", () => {
+    const remembered = "Synthetic City, Example Region";
+
+    // A host typeahead that lists suggestions after input and commits a value
+    // only when an option is pressed.
+    function typeahead(suggestions: string[]) {
+      history.replaceState({}, "", "/jobs/view/123456/");
+      document.body.innerHTML = `
+        <dialog open><div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+          <div componentkey="easyApplyFieldFocus_ea.q::1::UNKNOWN::value.validation">
+            <p>Location (city)*</p>
+            <div><input id="city" data-testid="typeahead-input" aria-autocomplete="list" aria-owns="city-results"></div>
+          </div>
+        </div></dialog>
+        <div role="listbox" id="city-results"></div>`;
+      const input = document.querySelector<HTMLInputElement>("#city")!;
+      const list = document.querySelector<HTMLElement>("#city-results")!;
+      const pressed: string[] = [];
+      input.addEventListener("input", () => {
+        list.innerHTML = input.value
+          ? suggestions.map((text) => `<div role="option">${text}</div>`).join("")
+          : "";
+      });
+      list.addEventListener("click", (event) => {
+        const option = (event.target as Element).closest('[role="option"]')!;
+        pressed.push(option.textContent!);
+        input.value = option.textContent!;
+        list.replaceChildren();
+      });
+      return { input, list, pressed };
+    }
+
+    function scannerWith(
+      action: string | null,
+      captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+        ok: true as const,
+        result: { capture: {} } as FormFillCaptureResponse,
+      })),
+    ) {
+      const scanner = new EasyApplyScanner(document, {
+        id: ids(),
+        isUserEvent: () => true,
+        settleMs: 60_000,
+        captureSettleMs: 20,
+        captureBridge,
+        bridge: async (request) => ({
+          ok: true,
+          result: response(request, [
+            action
+              ? {
+                  status: "captured",
+                  client_field_id: "field-1",
+                  question_id: "question-city",
+                  capture_id: "capture-city",
+                  capture_revision: 1,
+                  source: "user_input",
+                  action: { kind: "set_text", value: action },
+                  option_mappings: [],
+                }
+              : unresolved("field-1"),
+          ]),
+        }),
+      });
+      scanner.setEnabled(true);
+      return { scanner, captureBridge };
+    }
+
+    it("types a remembered value and picks only its exact suggestion", async () => {
+      vi.useFakeTimers();
+      const { input, pressed } = typeahead([
+        "Synthetic City-South, Example Region",
+        remembered,
+        remembered,
+      ]);
+      const { scanner, captureBridge } = scannerWith(remembered);
+      await scanner.scan();
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(pressed).toEqual([remembered]);
+      expect(input.value).toBe(remembered);
+      expect(document.body.textContent).toContain("Filled from a remembered value");
+      expect(captureBridge).not.toHaveBeenCalled();
+      scanner.setEnabled(false);
+    });
+
+    it("reverts the typed value when no suggestion matches exactly", async () => {
+      vi.useFakeTimers();
+      const { input, pressed } = typeahead(["Synthetic City-South, Example Region"]);
+      const { scanner } = scannerWith(remembered);
+      await scanner.scan();
+      await vi.advanceTimersByTimeAsync(SUGGESTION_WAIT_MS + 200);
+
+      expect(pressed).toEqual([]);
+      expect(input.value).toBe("");
+      await scanner.scan();
+      expect(document.body.textContent).toContain("No exact suggestion to select");
+      expect(input.value).toBe("");
+      scanner.setEnabled(false);
+    });
+
+    it("remembers a picked suggestion but never typed search text", async () => {
+      vi.useFakeTimers();
+      const { input, list } = typeahead([remembered]);
+      const { scanner, captureBridge } = scannerWith(null);
+      await scanner.scan();
+
+      input.value = "Synth";
+      input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+      await vi.advanceTimersByTimeAsync(100);
+      expect(captureBridge).not.toHaveBeenCalled();
+
+      list.querySelector<HTMLElement>('[role="option"]')!.click();
+      await vi.advanceTimersByTimeAsync(20);
+      expect(captureBridge).toHaveBeenCalledOnce();
+      expect(captureBridge.mock.calls[0][0]).toMatchObject({
+        question_id: "question-field-1",
+        value: { kind: "text", value: remembered },
+      });
+      scanner.setEnabled(false);
+    });
   });
 
   it("requires an explicit replacement and loses ownership after a later change", async () => {

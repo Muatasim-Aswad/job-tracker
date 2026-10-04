@@ -106,11 +106,11 @@ describe("native Easy Apply controls", () => {
     expect(click).not.toHaveBeenCalled();
   });
 
-  it("rejects decimals for LinkedIn numeric text inputs inferred as integers", () => {
+  it("rejects decimals for inputs declared as integers", () => {
     const [field] = supported(`
       <div data-test-form-element>
         <label for="numeric-formElement-1-numeric">Years</label>
-        <input id="numeric-formElement-1-numeric" type="text" inputmode="text"
+        <input id="numeric-formElement-1-numeric" type="text" inputmode="numeric"
           aria-describedby="numeric-formElement-1-numeric-error">
         <div id="numeric-formElement-1-numeric-error"></div>
       </div>`);

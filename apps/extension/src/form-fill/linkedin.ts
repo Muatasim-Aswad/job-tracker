@@ -6,6 +6,7 @@ import type {
   SupportedOptionTarget,
 } from "./types.js";
 import { linkedinJobId } from "../adapters/builtin/linkedin/identity.js";
+import { isTypeahead, offersSuggestions } from "./suggestions.js";
 import {
   choiceGroup,
   choiceGroupName,
@@ -40,7 +41,6 @@ const RESUME = 'input[type="file"], input[type="radio"][id^="jobsDocumentCardTog
 const SENSITIVE =
   /\b(?:captcha|signature|payment|credit card|bank|password|authentication|consent|terms|privacy policy)\b/i;
 const SENSITIVE_AUTOCOMPLETE = /^(?:cc-|current-password|new-password|one-time-code)/i;
-const NUMERIC_HANDLE = /-numeric(?:-error)?$/i;
 const LOCATION_TYPEAHEAD =
   'input[type="text"][id$="-location-GEO-LOCATION"][role="combobox"][aria-autocomplete="list"]';
 const FORM_ELEMENT_JOB = /easyApplyFormElement-(\d+)-/i;
@@ -294,11 +294,8 @@ function classifyQuestion(
   if (container.querySelector(REPEATABLE)) {
     return manual(container, handle, prompt, "Profile entries must be reviewed manually.");
   }
-  if (
-    (first.getAttribute("role") === "combobox" ||
-      first.getAttribute("aria-autocomplete") === "list") &&
-    !first.matches(LOCATION_TYPEAHEAD)
-  ) {
+  const pickSuggestion = !first.matches(LOCATION_TYPEAHEAD) && offersSuggestions(first);
+  if (isTypeahead(first) && !first.matches(LOCATION_TYPEAHEAD) && !pickSuggestion) {
     return manual(container, handle, prompt, "Choose a typeahead suggestion manually.");
   }
   if (SENSITIVE.test(prompt) || SENSITIVE_AUTOCOMPLETE.test(first.autocomplete)) {
@@ -352,7 +349,7 @@ function classifyQuestion(
     first.type === "tel" ||
     first.type === "number"
   ) {
-    if (first.type === "number" || NUMERIC_HANDLE.test(first.id)) {
+    if (first.type === "number" || /^(?:numeric|decimal)$/.test(first.inputMode)) {
       const validationText = text(
         treeOf(first).getElementById(`${first.id}-error`) ??
           container.querySelector(".artdeco-inline-feedback--error"),
@@ -390,7 +387,7 @@ function classifyQuestion(
     options,
     user_confirmed: false,
   };
-  return { kind: "supported", container, control, handle, optionTargets, request };
+  return { kind: "supported", container, control, handle, optionTargets, pickSuggestion, request };
 }
 
 function compareDom(a: DiscoveredField, b: DiscoveredField): number {

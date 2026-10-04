@@ -330,7 +330,7 @@ describe("LinkedIn Easy Apply discovery", () => {
     expect(fieldFingerprint(field)).toContain('"hasValue":true');
   });
 
-  it("treats LinkedIn numeric text inputs without a decimal signal as integers", () => {
+  it("treats text inputs as text unless the control declares a numeric input mode", () => {
     const id =
       "single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-41-numeric";
     const [field] = discoverLinkedInFields(
@@ -344,7 +344,7 @@ describe("LinkedIn Easy Apply discovery", () => {
     );
     expect(field).toMatchObject({
       kind: "supported",
-      request: { control_kind: "integer" },
+      request: { control_kind: "text" },
     });
   });
 
@@ -640,6 +640,24 @@ describe("LinkedIn SDUI Easy Apply discovery", () => {
         prompt: "Location (city)",
         reason: "Choose a typeahead suggestion manually.",
       },
+    ]);
+  });
+
+  it("supports a typeahead whose suggestion list is linked, and only that one", () => {
+    const form = sduiRoot(`
+      <div componentkey="easyApplyFieldFocus_ea.q::888::UNKNOWN::value.validation">
+        <p>Location (city)*</p>
+        <div><input id="_r_l_" aria-autocomplete="list" aria-owns="results-_r_l_"></div>
+      </div>
+      <div><label for="_r_e_">Employer</label><input id="_r_e_" role="combobox"></div>`);
+
+    expect(discoverLinkedInFields(form)).toMatchObject([
+      {
+        kind: "supported",
+        pickSuggestion: true,
+        request: { prompt: "Location (city)", control_kind: "text", required: true },
+      },
+      { kind: "manual", prompt: "Employer", reason: "Choose a typeahead suggestion manually." },
     ]);
   });
 });

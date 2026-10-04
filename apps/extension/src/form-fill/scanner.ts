@@ -29,6 +29,7 @@ import {
 } from "./linkedin.js";
 import { clearPresentation, isPresentationMutation, renderPresentation } from "./presentation.js";
 import { EasyApplyRootFinder, isDialogMutation, openShadowRoots, type SearchTree } from "./root.js";
+import { chooseSuggestion, isSuggestionTarget, waitForExactSuggestion } from "./suggestions.js";
 import {
   EASY_APPLY_ENABLED_KEY,
   EASY_APPLY_SUMMARY_OPEN_KEY,
@@ -209,8 +210,44 @@ export class EasyApplyScanner {
   }
 
   private readonly onActivation = (event: Event) => {
-    if (event.target instanceof Element) this.rootFinder.noteActivation(event.target);
+    if (!(event.target instanceof Element)) return;
+    this.rootFinder.noteActivation(event.target);
+    this.noteSuggestionPick(event);
   };
+
+  private readonly onKeydown = (event: Event) => {
+    if (event instanceof KeyboardEvent && event.key === "Enter") this.noteSuggestionPick(event);
+  };
+
+  // A suggestion value is remembered only once the user picks it; typed text
+  // is a search, not an answer.
+  private noteSuggestionPick(event: Event): void {
+    const target = event.target;
+    if (!(target instanceof Element) || this.writeDepth > 0 || !this.isUserEvent(event)) return;
+    const root = this.easyApplyRoot();
+    if (!root) return;
+    const picked = discoverLinkedInFields(root).find(
+      (item): item is SupportedField =>
+        item.kind === "supported" &&
+        item.pickSuggestion &&
+        (item.control === target || isSuggestionTarget(item.control, target)),
+    );
+    if (!picked) return;
+    setTimeout(() => {
+      const live = this.easyApplyRoot() === root ? this.livePick(root, picked.handle) : null;
+      if (live && !isControlEmpty(live)) {
+        this.ownership.delete(live.handle);
+        this.notes.delete(live.handle);
+        this.queueCapture(root, live, "user_input", true);
+        this.schedule();
+      }
+    }, this.captureSettleMs);
+  }
+
+  private livePick(root: HTMLElement, handle: string): SupportedField | null {
+    const field = discoverLinkedInFields(root).find((item) => item.handle === handle);
+    return field?.kind === "supported" ? field : null;
+  }
 
   private readonly onControlEvent = (event: Event) => {
     const target = event.target;
@@ -272,7 +309,9 @@ export class EasyApplyScanner {
       if (key.startsWith(`${field.handle}\u0000`)) this.suppressedWrites.delete(key);
     }
 
-    this.queueCapture(root, field, "user_input", false);
+    if (!field.pickSuggestion || isControlEmpty(field)) {
+      this.queueCapture(root, field, "user_input", false);
+    }
     this.schedule();
   };
 
@@ -300,6 +339,7 @@ export class EasyApplyScanner {
         ],
       });
       tree.addEventListener("click", this.onActivation, true);
+      tree.addEventListener("keydown", this.onKeydown, true);
       tree.addEventListener("input", this.onControlEvent, true);
       tree.addEventListener("change", this.onControlEvent, true);
       tree.addEventListener("focusout", this.onControlEvent, true);
@@ -321,6 +361,7 @@ export class EasyApplyScanner {
       this.observer = undefined;
       for (const tree of this.observedTrees) {
         tree.removeEventListener("click", this.onActivation, true);
+        tree.removeEventListener("keydown", this.onKeydown, true);
         tree.removeEventListener("input", this.onControlEvent, true);
         tree.removeEventListener("change", this.onControlEvent, true);
         tree.removeEventListener("focusout", this.onControlEvent, true);
@@ -566,6 +607,7 @@ export class EasyApplyScanner {
         detail: "Job Tracker will not retry this field.",
       };
     }
+    if (live.pickSuggestion) void this.pickSuggestion(runtime, live, before);
     runtime.field = live;
     runtime.expected = after;
     this.ownership.set(live.handle, {
@@ -595,6 +637,41 @@ export class EasyApplyScanner {
           : "Filled from verified answer",
       actions: [{ label: "Revert", run: () => this.revert(live.handle) }],
     };
+  }
+
+  private async pickSuggestion(
+    runtime: RuntimeField,
+    field: SupportedField,
+    before: ControlSnapshot,
+  ): Promise<void> {
+    const typed = snapshotControl(field);
+    const option = await waitForExactSuggestion(field.control, field.control.value);
+    if (!snapshotsEqual(snapshotControl(field), typed)) return;
+    if (option) {
+      this.writeDepth += 1;
+      try {
+        chooseSuggestion(option);
+      } finally {
+        this.writeDepth -= 1;
+      }
+      if (snapshotsEqual(snapshotControl(field), typed)) return;
+    }
+    this.writeDepth += 1;
+    try {
+      restoreSnapshot(field, before);
+    } finally {
+      this.writeDepth -= 1;
+    }
+    this.ownership.delete(field.handle);
+    const current = snapshotControl(field);
+    this.suppressedWrites.add(this.writeSuppressionKey(runtime, current));
+    this.notes.set(field.handle, {
+      state: "failed",
+      label: "No exact suggestion to select",
+      detail: "Complete this field manually.",
+      signature: snapshotKey(current),
+    });
+    this.schedule();
   }
 
   private resultPresentation(runtime: RuntimeField): PresentedField {

@@ -21,6 +21,8 @@ export interface SupportedField {
   control: SupportedControl;
   handle: string;
   optionTargets: SupportedOptionTarget[];
+  // The host accepts only a value picked from the control's suggestion list.
+  pickSuggestion: boolean;
   request: ResolutionField;
 }
 
