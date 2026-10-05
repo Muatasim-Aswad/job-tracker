@@ -26,6 +26,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Fixed
 
+- Automatic listing captures now merge observed metadata for every adapter, preserve missing or empty facts and known application types, and keep exact posting dates when later captures only provide estimates. Explicit edits can still clear stored fields.
 - LinkedIn detail captures read location independently of posting age, skip promotion badges, and recognize prefixed or combined age text. Recaptures preserve known location, workplace, and posting-date evidence when the page omits it.
 - Easy Apply form filling works again in the redesigned application modal LinkedIn opens from full job pages.
 - Easy Apply suggestion fields, such as the redesigned modal's location, are filled by selecting the suggestion that exactly matches the remembered value; only a suggestion you pick is remembered.

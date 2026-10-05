@@ -1823,7 +1823,10 @@ export interface components {
             /** Url */
             url?: string | null;
         };
-        /** ListingCreate */
+        /**
+         * ListingCreate
+         * @description Capture observations; missing, null, or empty facts preserve stored values.
+         */
         ListingCreate: {
             apply_type?: components["schemas"]["ApplyType"] | null;
             /** Closed At */
@@ -1868,7 +1871,10 @@ export interface components {
             /** Status */
             status: string;
         };
-        /** ListingUpdate */
+        /**
+         * ListingUpdate
+         * @description Explicit edits; metadata replaces the complete bag and can clear values.
+         */
         ListingUpdate: {
             apply_type?: components["schemas"]["ApplyType"] | null;
             /** Closed At */

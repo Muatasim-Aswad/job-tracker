@@ -11,6 +11,7 @@ from app.core.db import Conn
 from app.core.enums import (
     APPLIED_EVIDENCE,
     MERGE_IMPORTANCE,
+    ApplyType,
     Status,
     correction_event,
     parse_correction,
@@ -33,6 +34,50 @@ from app.jobs.repository import JobRepository
 from app.listings.automatic_closure import AutomaticClosure
 from app.listings.repository import ListingRepository
 from app.listings.schemas import ListingCreate, ListingUpdate, ListingUpsertResult
+
+
+def _observed(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, dict)):
+        return bool(value)
+    return value is not None
+
+
+def _date_rank(precision: object) -> int:
+    return 2 if precision == "exact" else 1 if precision == "estimated" else 0
+
+
+def _merge_capture_meta(
+    existing: dict[str, object], *captures: dict[str, object]
+) -> dict[str, object]:
+    """Merge observed facts; missing values are not evidence of removal."""
+    meta = dict(existing)
+    date_keys = ("posted_at", "posted_precision", "posted_age")
+    for capture in captures:
+        updates = {key: value for key, value in capture.items() if _observed(value)}
+        has_date = _observed(updates.get("posted_at"))
+        preserve_date = _observed(meta.get("posted_at")) and (
+            not has_date
+            or _date_rank(meta.get("posted_precision"))
+            > _date_rank(updates.get("posted_precision"))
+        )
+        if preserve_date:
+            for key in date_keys:
+                updates.pop(key, None)
+        elif has_date:
+            # A replacement date owns its precision and raw age as one group.
+            for key in date_keys:
+                meta.pop(key, None)
+        for key, value in updates.items():
+            if isinstance(value, dict):
+                old = meta.get(key)
+                merged = _merge_capture_meta(old if isinstance(old, dict) else {}, value)
+                if merged:
+                    meta[key] = merged
+            else:
+                meta[key] = value
+    return meta
 
 
 def _pick_survivor(a: Job, b: Job) -> tuple[Job, Job]:
@@ -329,6 +374,8 @@ class ListingService:
 
     def upsert(self, data: ListingCreate) -> ListingUpsertResult:
         existing = self.listings.get_by_platform(data.platform, data.platform_id)
+        title = data.title if _observed(data.title) else None
+        company = data.company if _observed(data.company) else None
         newly_closed = data.closed_at is not None and (
             existing is None or existing.closed_at is None
         )
@@ -337,11 +384,14 @@ class ListingService:
             self.listings.update_fields(
                 existing.id,
                 self._scraped_fields(
-                    data, captured_at=existing.captured_at or now, existing_meta=existing.meta
+                    data,
+                    captured_at=existing.captured_at or now,
+                    existing_meta=existing.meta,
+                    existing_apply_type=existing.apply_type,
                 ),
                 now,
             )
-            self._fill_stub_job(existing.job_id, data.title, data.company)
+            self._fill_stub_job(existing.job_id, title, company)
             if data.job_id:
                 self.link_listing_to_job(existing.id, data.job_id)
             lid = existing.id
@@ -351,18 +401,18 @@ class ListingService:
                 if job_id is None:
                     raise NotFoundError(f"job {data.job_id} not found")
             else:
-                job_id = self._create_job(data.title, data.company, via=data.via)
+                job_id = self._create_job(title, company, via=data.via)
             lid = new_listing_id()
             self.listings.insert(
                 lid,
                 job_id,
                 data.platform,
                 data.platform_id,
-                url=data.url,
-                title=data.title,
-                company=data.company,
+                url=data.url if _observed(data.url) else None,
+                title=title,
+                company=company,
                 apply_type=data.apply_type.value if data.apply_type else None,
-                meta={**data.meta, **data.meta_patch} or None,
+                meta=_merge_capture_meta({}, data.meta, data.meta_patch) or None,
                 captured_at=now,
                 updated_at=now,
             )
@@ -451,37 +501,25 @@ class ListingService:
 
     @staticmethod
     def _scraped_fields(
-        data: ListingCreate, captured_at: str, existing_meta: dict[str, object]
+        data: ListingCreate,
+        captured_at: str,
+        existing_meta: dict[str, object],
+        existing_apply_type: str | None,
     ) -> dict[str, object]:
         # Only overwrite columns the caller actually provided, so a partial
         # recapture never wipes existing scraped values.
         fields: dict[str, object] = {"captured_at": captured_at}
         for col in ("url", "title", "company"):
             value = getattr(data, col)
-            if value is not None:
+            if _observed(value):
                 fields[col] = value
-        if data.apply_type is not None:
+        if data.apply_type is not None and not (
+            data.apply_type == ApplyType.UNKNOWN
+            and existing_apply_type in (ApplyType.EASY_APPLY, ApplyType.EXTERNAL)
+        ):
             fields["apply_type"] = data.apply_type.value
-        if data.meta:
-            meta = dict(data.meta)
-            # Missing capture evidence cannot erase known places or posting dates.
-            # Other keys still replace the old bag; PATCH remains an explicit edit.
-            for key in ("location", "card_location", "workplace"):
-                if not meta.get(key) and existing_meta.get(key):
-                    meta[key] = existing_meta[key]
-            if not meta.get("posted_at") and existing_meta.get("posted_at"):
-                # Keep the date and its evidence together, never an old date with
-                # a new, unparseable age or precision.
-                for key in ("posted_at", "posted_precision", "posted_age"):
-                    if key in existing_meta:
-                        meta[key] = existing_meta[key]
-                    else:
-                        meta.pop(key, None)
-            fields["meta"] = meta
-        if data.meta_patch:
-            base_meta = fields.get("meta", existing_meta)
-            assert isinstance(base_meta, dict)
-            fields["meta"] = {**base_meta, **data.meta_patch}
+        if data.meta or data.meta_patch:
+            fields["meta"] = _merge_capture_meta(existing_meta, data.meta, data.meta_patch)
         return fields
 
     @staticmethod

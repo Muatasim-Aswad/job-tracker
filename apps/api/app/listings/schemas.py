@@ -6,6 +6,8 @@ from app.core.enums import ApplyType
 
 
 class ListingCreate(BaseModel):
+    """Capture observations; missing, null, or empty facts preserve stored values."""
+
     platform: str
     platform_id: str
     url: str | None = None
@@ -22,6 +24,8 @@ class ListingCreate(BaseModel):
 
 
 class ListingUpdate(BaseModel):
+    """Explicit edits; metadata replaces the complete bag and can clear values."""
+
     url: str | None = None
     title: str | None = None
     company: str | None = None
