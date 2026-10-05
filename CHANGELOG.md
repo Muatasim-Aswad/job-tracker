@@ -14,6 +14,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 - User-controlled LinkedIn Easy Apply form filling for supported text, numeric, select, and Yes/No questions, backed by revision-checked Answers, exact Question Matches, remembered-value review, and a Form Fill dashboard. Existing values are preserved by default; unsupported controls, application navigation, review, consent, profile changes, résumés, and submission remain manual.
 - LinkedIn's **Location (city)** Easy Apply question can be remembered and filled as text without selecting a typeahead suggestion; other typeaheads remain manual.
 - LinkedIn listings that apply on a company website now retain the external application destination as a clickable listing field.
+- **To apply** dashboard cards link to the external application destination when it differs from the posting link.
 
 ### Changed
 

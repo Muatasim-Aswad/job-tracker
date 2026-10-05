@@ -64,6 +64,7 @@ class JobService:
                     platform=rollup.primary_platform,
                     platform_id=rollup.primary_platform_id,
                     url=rollup.primary_url,
+                    apply_url=rollup.primary_apply_url,
                 )
                 if rollup and rollup.primary_platform and rollup.primary_platform_id
                 else None

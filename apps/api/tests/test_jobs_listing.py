@@ -53,6 +53,7 @@ def test_primary_listing_prefers_captured_url_over_stub(client: TestClient) -> N
         "platform": "exampleboard",
         "platform_id": "JR_1",
         "url": None,
+        "apply_url": None,
     }
     assert stub["status"] == "seen"
 
@@ -63,6 +64,21 @@ def test_primary_listing_prefers_captured_url_over_stub(client: TestClient) -> N
     )
     (merged,) = client.get("/api/jobs").json()
     assert merged["primary_listing"]["url"] == "https://x/jobs/view/222/"
+
+
+def test_primary_listing_carries_captured_apply_url(client: TestClient) -> None:
+    apply_url = "https://jobs.example.com/backend?source=linkedin"
+    _listing(
+        client,
+        "linkedin",
+        "333",
+        url="https://x/jobs/view/333/",
+        apply_type="external",
+        meta={"apply_url": apply_url},
+    )
+
+    (job,) = client.get("/api/jobs").json()
+    assert job["primary_listing"]["apply_url"] == apply_url
 
 
 def test_summary_empty_rollup_for_stub_job(client: TestClient) -> None:

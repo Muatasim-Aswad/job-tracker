@@ -34,6 +34,7 @@ class PrimaryListing(BaseModel):
     platform: str
     platform_id: str
     url: str | None = None
+    apply_url: str | None = None
 
 
 class Attention(BaseModel):

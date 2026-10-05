@@ -195,3 +195,42 @@ describe("Board drag interaction", () => {
     expect(document.activeElement).toBe(cards[1]);
   });
 });
+
+describe("Board — application link", () => {
+  const listing = {
+    platform: "linkedin",
+    platform_id: "1",
+    url: "https://www.linkedin.com/jobs/view/1/",
+  };
+  const applyUrl = "https://jobs.example.com/backend?source=linkedin";
+
+  afterEach(cleanup);
+
+  it("links a To apply card to its off-platform application", () => {
+    renderBoard([
+      makeJob({
+        status: "to_apply",
+        primary_listing: { ...listing, apply_url: applyUrl },
+      }),
+    ]);
+    expect(screen.getByRole("link", { name: "Open application" }).getAttribute("href")).toBe(
+      applyUrl,
+    );
+  });
+
+  it("omits the link when it repeats the posting or the job is past To apply", () => {
+    renderBoard([
+      makeJob({
+        id: "same",
+        status: "to_apply",
+        primary_listing: { ...listing, apply_url: listing.url },
+      }),
+      makeJob({
+        id: "applied",
+        status: "applied",
+        primary_listing: { ...listing, apply_url: applyUrl },
+      }),
+    ]);
+    expect(screen.queryByRole("link", { name: "Open application" })).toBeNull();
+  });
+});

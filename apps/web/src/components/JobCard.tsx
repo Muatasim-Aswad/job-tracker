@@ -20,6 +20,9 @@ interface Props {
 // Stop a pointer-down from initiating a drag when the user is clicking a control.
 const noDrag = (e: React.PointerEvent) => e.stopPropagation();
 
+const CARD_LINK =
+  "rounded text-violet-600 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:text-violet-400 dark:hover:text-violet-300 hover:underline";
+
 function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -81,6 +84,11 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
   const untitled = !job.title?.trim();
   const primary = job.primary_listing;
   const openUrl = primary ? postingUrl(primary.platform, primary.platform_id, primary.url) : null;
+  // Jobs waiting to be applied to link straight to an off-platform application.
+  const applyUrl =
+    job.status === "to_apply" && primary?.apply_url && primary.apply_url !== openUrl
+      ? primary.apply_url
+      : null;
 
   // Only surface an apply-method badge when it says something useful. `external`
   // and `unknown` are the default/uninformative cases — they'd just be noise on
@@ -262,9 +270,23 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
               onClick={(e) => e.stopPropagation()}
               title={`Open posting (${primary?.platform})`}
               aria-label={`Open posting (${primary?.platform})`}
-              className="rounded text-violet-600 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:text-violet-400 dark:hover:text-violet-300 hover:underline"
+              className={CARD_LINK}
             >
               open ↗
+            </a>
+          )}
+          {applyUrl && (
+            <a
+              href={applyUrl}
+              target="_blank"
+              rel="noreferrer"
+              onPointerDown={noDrag}
+              onClick={(e) => e.stopPropagation()}
+              title={`Open application (${applyUrl})`}
+              aria-label="Open application"
+              className={CARD_LINK}
+            >
+              apply ↗
             </a>
           )}
         </div>

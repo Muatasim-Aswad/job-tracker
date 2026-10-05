@@ -2042,6 +2042,8 @@ export interface components {
          * @description Preferred listing address for a dashboard card.
          */
         PrimaryListing: {
+            /** Apply Url */
+            apply_url?: string | null;
             /** Platform */
             platform: string;
             /** Platform Id */

@@ -89,7 +89,7 @@ The popup does not provide generic editing of every job field. Full record manag
 
 ## Follow the application through
 
-The dashboard keeps the search visible as a drag-and-drop Kanban workflow. Each job retains a timeline that records update provenance and time spent at each stage.
+The dashboard keeps the search visible as a drag-and-drop Kanban workflow. **To apply** cards link to an external application page when it differs from the posting. Each job retains a timeline that records update provenance and time spent at each stage.
 
 History remains correctable rather than disposable. You can undo a transition, reopen a job, and edit an event's timestamp or comment without erasing the rest of the record.
 

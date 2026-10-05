@@ -18,6 +18,8 @@ class ListingSummary:
     primary_platform: str | None = None
     primary_platform_id: str | None = None
     primary_url: str | None = None
+    # The primary listing's captured application destination (`meta.apply_url`).
+    primary_apply_url: str | None = None
 
 
 _COLUMNS = (
@@ -125,8 +127,7 @@ class ListingRepository:
         non-null `meta.description` — for the duplicate-similarity score.
         Jobs with no captured JD are simply absent. One query (no N+1); `meta` JSON
         is parsed in Python rather than via `json_extract` so it stays portable
-        across sqlite/libSQL, matching `summaries_for_jobs`. Empty input
-        short-circuits — SQLite rejects `IN ()`."""
+        across sqlite/libSQL. Empty input short-circuits — SQLite rejects `IN ()`."""
         if not job_ids:
             return {}
         placeholders = ", ".join("?" for _ in job_ids)
@@ -149,7 +150,8 @@ class ListingRepository:
     def summaries_for_jobs(self, job_ids: list[str]) -> dict[str, ListingSummary]:
         """Roll up each job's listings in one query, keyed by job_id, for the
         `GET /jobs` board cards. Returns per job: distinct `platforms`, distinct
-        non-null `apply_types`, and `listing_count`. Jobs with no listings are
+        non-null `apply_types`, `listing_count`, and the primary listing's address
+        and `meta.apply_url`. Jobs with no listings are
         simply absent (the caller defaults them to empty). Empty input
         short-circuits — SQLite rejects `IN ()`."""
         if not job_ids:
@@ -157,7 +159,8 @@ class ListingRepository:
         placeholders = ", ".join("?" for _ in job_ids)
         rows = query_all(
             self.conn,
-            "SELECT job_id, platform, platform_id, url, apply_type FROM listings "
+            "SELECT job_id, platform, platform_id, url, apply_type, "
+            "json_extract(meta, '$.apply_url') AS apply_url FROM listings "
             f"WHERE job_id IN ({placeholders}) ORDER BY captured_at",
             tuple(job_ids),
         )
@@ -175,4 +178,5 @@ class ListingRepository:
                 entry.primary_platform = row["platform"]
                 entry.primary_platform_id = row["platform_id"]
                 entry.primary_url = row["url"]
+                entry.primary_apply_url = row["apply_url"]
         return out
