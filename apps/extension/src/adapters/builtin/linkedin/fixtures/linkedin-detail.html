@@ -10,7 +10,10 @@
      The action bar anchors to the `__top-buttons` cluster, not to a button inside
      it: the overflow control there carries no aria-label — its accessible name is
      the "Show more options" text — so nothing in the cluster is addressable by
-     attribute. -->
+     attribute.
+
+     The tertiary line nests the age two spans below the element holding the
+     "Location · age · applicants" separators, as LinkedIn serves it. -->
 <div class="relative job-details-jobs-unified-top-card__container--two-pane">
   <h1 class="job-details-jobs-unified-top-card__job-title">Example Backend Engineer</h1>
   <div class="job-details-jobs-unified-top-card__company-name">
@@ -20,8 +23,17 @@
     <button aria-label="Share">Share</button>
     <button class="artdeco-button artdeco-button--tertiary">Show more options</button>
   </div>
-  <span>17 days ago</span>
-  <span>25 people clicked apply</span>
+  <div class="t-black--light mt2 job-details-jobs-unified-top-card__tertiary-description-container">
+    <span
+      ><span class="tvm__text tvm__text--low-emphasis">Example City, Exampleland</span
+      ><span class="tvm__text tvm__text--low-emphasis"
+        ><span class="white-space-pre"> </span>·<span class="white-space-pre"> </span></span
+      ><span class="tvm__text tvm__text--low-emphasis"><span>17 days ago</span></span
+      ><span class="tvm__text tvm__text--low-emphasis"
+        ><span class="white-space-pre"> </span>·<span class="white-space-pre"> </span></span
+      ><span class="tvm__text tvm__text--low-emphasis">25 people clicked apply</span></span
+    >
+  </div>
   <button id="jobs-apply-button-id" aria-label="Easy Apply to Example Labs">Easy Apply</button>
 </div>
 <div class="job-details-fit-level-preferences">

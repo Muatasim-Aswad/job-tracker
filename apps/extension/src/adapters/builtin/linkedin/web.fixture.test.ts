@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 
 describe("linkedin adapter — search list findCards", () => {
-  it("tags a card with its NaturalKey and scraped title/company", () => {
+  it("tags a card with its NaturalKey and scraped title/company/location", () => {
     document.body.innerHTML = loadFixture("linkedin-search-card.html");
 
     const cards = linkedinAdapter.findCards(document);
@@ -28,7 +28,11 @@ describe("linkedin adapter — search list findCards", () => {
     const [card] = cards;
     expect(card.dataset.jhId).toBe("LI-100001");
     expect(card.dataset.jobTitle).toBe("Example Backend Engineer at Example Labs");
-    expect(card.dataset.jobCompany).toBe("Example Labs · Example City, Exampleland (Hybrid)");
+    expect(card.dataset.jobCompany).toBe("Example Labs");
+    expect(JSON.parse(card.dataset.jobMeta!)).toEqual({
+      card_location: "Example City, Exampleland",
+      workplace: "Hybrid",
+    });
     expect(card.dataset.jhCompact).toBe("1");
     expect(card.dataset.jobUrl).toBe(
       "https://www.linkedin.com/jobs/view/100001/?refId=example&trackingId=example",
@@ -53,8 +57,8 @@ describe("linkedin adapter — detail head", () => {
     document.body.innerHTML = loadFixture("linkedin-detail.html");
     window.history.pushState({}, "", "/jobs/view/100001/");
     installFakeChrome();
-    const applicants = [...document.querySelectorAll("span")].find((el) =>
-      el.textContent!.includes("clicked apply"),
+    const applicants = [...document.querySelectorAll("span")].find(
+      (el) => el.textContent === "25 people clicked apply",
     )!;
     applicants.remove();
 
@@ -112,8 +116,8 @@ describe("linkedin adapter — detail head", () => {
     document.body.innerHTML = loadFixture("linkedin-detail.html");
     window.history.pushState({}, "", "/jobs/view/100001/");
     installFakeChrome();
-    const clicks = [...document.querySelectorAll("span")].find((el) =>
-      el.textContent!.includes("clicked apply"),
+    const clicks = [...document.querySelectorAll("span")].find(
+      (el) => el.textContent === "25 people clicked apply",
     )!;
     const lastChip = () => [...document.querySelectorAll(".jh-banner-chip")].at(-1)!;
 
@@ -269,6 +273,8 @@ describe("linkedin adapter — detail capture", () => {
           posted_precision: "estimated",
           posted_age: "17 days ago",
           applicants: 25,
+          location: "Example City, Exampleland",
+          workplace: "Remote",
           salary: null,
           match_level: null,
           chips: ["Remote", "Full-time"],
@@ -362,6 +368,26 @@ describe("linkedin adapter — detail capture", () => {
       posted_age: null,
     });
   });
+
+  it("emits a null location when the top-card line opens with the age", () => {
+    document.body.innerHTML = loadFixture("linkedin-detail.html");
+    [...document.querySelectorAll("span")]
+      .find((el) => el.textContent === "Example City, Exampleland")!
+      .nextElementSibling!.remove();
+    [...document.querySelectorAll("span")]
+      .find((el) => el.textContent === "Example City, Exampleland")!
+      .remove();
+    window.history.pushState({}, "", "/jobs/view/100001/");
+    const { sendMessage } = installFakeChrome();
+
+    linkedinAdapter.capture!();
+
+    const [message] = sendMessage.mock.calls[0]!;
+    expect((message as { payload: { meta: Record<string, unknown> } }).payload.meta).toMatchObject({
+      posted_age: "17 days ago",
+      location: null,
+    });
+  });
 });
 
 // The three job layouts must stay disjoint. Layout C carries the very componentkey
@@ -399,6 +425,8 @@ describe("linkedin adapter — layout resolution", () => {
         meta: {
           company_url: "https://www.linkedin.com/company/example-labs/",
           posted_age: "5 days ago",
+          location: "Example City, Exampleland",
+          workplace: null,
           description:
             "We build developer tools used by thousands of engineers.\n\n" +
             "Requirements: 5+ years of experience with TypeScript and distributed systems.",
@@ -439,6 +467,8 @@ describe("linkedin adapter — layout resolution", () => {
         title: "Example Senior Backend Engineer",
         company: "Example Labs",
         meta: {
+          location: "Exampleland",
+          workplace: "On-site",
           description:
             "We build developer tools used by thousands of engineers.\n\n" +
             "Requirements: 5+ years of experience with TypeScript and distributed systems.",
@@ -516,6 +546,10 @@ describe("linkedin adapter — search-results cards", () => {
       "Example Platform Engineer",
     ]);
     expect(cards.map((c) => c.dataset.jobCompany)).toEqual(["Example Labs", "Example Labs"]);
+    expect(cards.map((c) => JSON.parse(c.dataset.jobMeta!))).toEqual([
+      { card_location: "Example City", workplace: "Hybrid" },
+      { card_location: "Example City", workplace: "Remote" },
+    ]);
     // No anchor exists on this surface; the canonical url is rebuilt from the id.
     expect(cards[0]!.querySelectorAll("a")).toHaveLength(0);
     expect(cards[0]!.dataset.jobUrl).toBe("https://www.linkedin.com/jobs/view/100002/");

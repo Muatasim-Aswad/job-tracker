@@ -27,6 +27,7 @@ import { platformMeta } from "@job-tracker/shared/platforms";
 import { fmtSpan } from "@job-tracker/shared/time";
 import { ICON } from "../../../icons.js";
 import { LINKEDIN_PREFIX, linkedinJobId, linkedinRenderKey } from "./identity.js";
+import { type Workplace, parseWorkplace, subtitlePlace, tagCardLocation } from "./location.js";
 
 // The render-key prefix is owned by this integration (identity.ts, shared with the
 // Gmail surface). The canonical posting URL comes from the shared platform registry
@@ -96,6 +97,7 @@ const SEL = {
   // Search-card footers may provide an exact day in <time datetime="YYYY-MM-DD">.
   cardPostedTime: "time[datetime]",
   lockupSubtitle: ".artdeco-entity-lockup__subtitle",
+  lockupCaption: ".artdeco-entity-lockup__caption",
   cardFooterState: ".job-card-container__footer-job-state",
   dismiss: '[aria-label^="Dismiss"]',
   // Where a card's action bar mounts. Layout C's card is a flex ROW, so a bar
@@ -297,11 +299,12 @@ const detailAnchor = () => detailLayout().anchor();
 const detailElement = () => detailLayout().jd();
 const detailIdentity = () => detailLayout().identity();
 
-// Applicant count and posting age live outside the description container.
+// Applicant count, posting age and location live outside the description container.
 function scanJobSignals(detail: HTMLElement | null) {
   let applicants: number | null = null; // parsed integer count, when a number is shown
   let applyClicksShown = false; // "N people clicked apply" present (may be 100+)
   let postedAge: string | null = null; // e.g. "17 days ago"
+  let postedAgeEl: Element | null = null;
   document.querySelectorAll("span").forEach((el) => {
     if (!detail || el === detail || detail.contains(el)) return;
     // A span inside a list card belongs to that card, never to the open job. The
@@ -319,9 +322,46 @@ function scanJobSignals(detail: HTMLElement | null) {
     // scoped. Weeks/months are matched so this job's date wins over a similar job's
     // "N days ago"; minutes so a just-posted job doesn't fall through to no
     // posted_at at all.
-    if (!postedAge && /^\d+\s+(?:minute|hour|day|week|month)s?\s+ago$/i.test(t)) postedAge = t;
+    if (!postedAge && /^\d+\s+(?:minute|hour|day|week|month)s?\s+ago$/i.test(t)) {
+      postedAge = t;
+      postedAgeEl = el;
+    }
   });
-  return { applicants, applyClicksShown, postedAge };
+  return { applicants, applyClicksShown, postedAge, location: topCardLocation(postedAgeEl) };
+}
+
+// The top card's "Location · age · applicants" line leads with the location in every
+// layout, and the age is the one part of it recognizable without classes. The climb
+// is bounded so a line without separators cannot borrow text from the wider page.
+const LOCATION_LINE_DEPTH = 3;
+
+function topCardLocation(ageEl: Element | null): string | null {
+  let line = ageEl?.parentElement ?? null;
+  for (let i = 0; line && i < LOCATION_LINE_DEPTH; line = line.parentElement, i++) {
+    if (!line.textContent!.includes("·")) continue;
+    const lead = line.textContent!.split("·")[0].replace(/\s+/g, " ").trim();
+    // A line that opens with the age has no location.
+    return lead && lead !== ageEl!.textContent!.trim() ? lead : null;
+  }
+  return null;
+}
+
+// Workplace is a chip of its own on the detail page: a fit-level button in layout A,
+// a span or link inside the SDUI top card. Scoped to those, because the search page's
+// filter bar can carry the same words.
+function detailWorkplace(): Workplace | null {
+  const scopes = [
+    document.querySelector(SEL.fitChips),
+    document.querySelector(SEL.topCard),
+    standaloneTopCard(),
+  ];
+  for (const scope of scopes) {
+    for (const el of scope?.querySelectorAll("span, button, a") ?? []) {
+      const workplace = parseWorkplace(el.textContent!);
+      if (workplace) return workplace;
+    }
+  }
+  return null;
 }
 
 // A same-document search card can pin an exact day for the open detail; otherwise
@@ -599,7 +639,7 @@ function captureDetail(jobId: string): ListingRecord | null {
   const detail = detailElement();
   const { title, company, companyUrl } = detailIdentity();
 
-  const { applicants, postedAge } = scanJobSignals(detail);
+  const { applicants, postedAge, location } = scanJobSignals(detail);
 
   // Prefer the card's absolute date; otherwise anchor the relative age to capture
   // time and retain the original text as evidence.
@@ -621,6 +661,8 @@ function captureDetail(jobId: string): ListingRecord | null {
       posted_precision: posted.precision,
       posted_age: postedAge,
       applicants,
+      location,
+      workplace: detailWorkplace(),
       salary: detailText(SEL.salary),
       match_level: detailText(SEL.matchLevel),
       chips: [...document.querySelectorAll(SEL.fitChipButtons)]
@@ -784,13 +826,14 @@ export const linkedinAdapter: Adapter = {
         // The guard skips a copy already tagged this session.
         if (card.dataset.jhId) return;
         // Card lines in the anchor: P1 is the title, the "Company · Location
-        // (Workplace)" line is the company.
+        // (Workplace)" line gives company and location.
         const ps = [...a.querySelectorAll("p")].map((p) => p.textContent!.trim());
         const subtitle = ps.find((t) => t.includes("·"));
         card.dataset.jhId = renderKey;
         card.dataset.jobUrl = (a as HTMLAnchorElement).href;
         card.dataset.jobTitle = ps[0] || "";
         card.dataset.jobCompany = subtitle ? subtitle.split("·")[0].trim() : "";
+        tagCardLocation(card, subtitlePlace(subtitle));
         card.dataset.jhForceMode = "dim";
         card.dataset.jhWall = "1";
         // Date the auto-`applied` sweep from the row's "Applied N ago" age so a bulk
@@ -804,8 +847,8 @@ export const linkedinAdapter: Adapter = {
 
     // Layout C's cards carry no anchor — clicking one rewrites `currentJobId` — so
     // the id comes from the componentkey, the only place it appears, and the url is
-    // rebuilt from it. Title and company are positional, no class or aria naming
-    // them.
+    // rebuilt from it. Title, company and location are positional, no class or aria
+    // naming them.
     if (detectLayout() === "C") {
       const cards: HTMLElement[] = [];
       doc.querySelectorAll(SEL.resultsCard).forEach((el) => {
@@ -816,11 +859,14 @@ export const linkedinAdapter: Adapter = {
         if (card.getAttribute("role") !== "button" || card.dataset.jhId) return;
         const id = card.getAttribute("componentkey")!.slice(RESULTS_CARD_KEY.length);
         if (!id) return;
-        const [title, company] = [...card.querySelectorAll("p")].map((p) => p.textContent!.trim());
+        const [title, company, place] = [...card.querySelectorAll("p")].map((p) =>
+          p.textContent!.trim(),
+        );
         card.dataset.jhId = PREFIX + id;
         card.dataset.jobUrl = postingUrl(id);
         card.dataset.jobTitle = title || "";
         card.dataset.jobCompany = company || "";
+        tagCardLocation(card, place);
         // As tight as the classic search list, so the bar folds Open into the ⋯ menu.
         card.dataset.jhCompact = "1";
         cards.push(card);
@@ -839,6 +885,7 @@ export const linkedinAdapter: Adapter = {
       el.dataset.jobUrl = a.href;
       el.dataset.jobTitle = a.getAttribute("aria-label") || "";
       el.dataset.jobCompany = el.querySelector(SEL.lockupSubtitle)?.textContent?.trim() || "";
+      tagCardLocation(el, el.querySelector(SEL.lockupCaption)?.textContent);
       // The search list is the one genuinely tight surface, so mark it and let the
       // action bar fold the less-used Open into the ⋯ menu. The roomier jobs-tracker
       // wall and detail bar stay unfolded.

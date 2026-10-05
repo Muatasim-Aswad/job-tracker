@@ -22,6 +22,7 @@ const LISTING_FIELD_LABELS: Record<string, string> = {
   apply_url: "Apply",
   company_url: "Company",
   location: "Location",
+  card_location: "Location",
   salary: "Salary",
   workplace: "Workplace",
   employment_type: "Type",
@@ -119,7 +120,9 @@ export function ListingCard({
   const posted = readPosted(l.meta, { platform: l.platform, capturedAt: l.captured_at });
 
   // Fields with dedicated presentation do not repeat in the metadata grid.
+  // A card's shorter location stands in only until the detail page supplies one.
   const consumed = new Set(["description", "company_url", ...POSTED_META_KEYS]);
+  if (!isEmptyValue(l.meta.location)) consumed.add("card_location");
   const fields = Object.entries(l.meta).filter(([k, v]) => !consumed.has(k) && !isEmptyValue(v));
 
   // Copy a self-contained listing and report the settled clipboard result.

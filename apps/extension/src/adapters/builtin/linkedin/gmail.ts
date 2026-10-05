@@ -1,6 +1,7 @@
 import type { Adapter } from "../../types";
 import { platformMeta } from "@job-tracker/shared/platforms";
 import { LINKEDIN_PREFIX, linkedinRenderKey } from "./identity.js";
+import { subtitlePlace, tagCardLocation } from "./location.js";
 
 const LINKEDIN = platformMeta("linkedin")!;
 let emailGroupSequence = 0;
@@ -223,6 +224,7 @@ export const gmailAdapter: Adapter = {
         card.dataset.jobCompany = subtitle
           ? subtitle.split("·")[0].trim()
           : card.querySelector(SEL.logo)?.getAttribute("alt")?.trim() || "";
+        tagCardLocation(card, subtitlePlace(subtitle));
         // A rejection email is about ONE job — the one you applied to — but also
         // lists "jobs you may be interested in". Two signals must agree before a card
         // is swept: the email's own type is a rejection (`wallStatus`), and the `trk`

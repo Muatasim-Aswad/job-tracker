@@ -181,6 +181,21 @@ describe("ListingCard — labels", () => {
     const cell = screen.getByText("Amsterdam, North Holland, Netherlands (Hybrid)");
     expect(tooltipOf(cell)).toContain("Amsterdam, North Holland, Netherlands (Hybrid)");
   });
+
+  it("shows a card's location until the detail page supplies one", () => {
+    show({ meta: { card_location: "Amsterdam" } });
+    expect(screen.getByText("Location")).toBeTruthy();
+    expect(screen.getByText("Amsterdam")).toBeTruthy();
+  });
+
+  it("prefers the detail page's location over a card's", () => {
+    show({
+      meta: { location: "Amsterdam, North Holland, Netherlands", card_location: "Amsterdam" },
+    });
+    expect(screen.getAllByText("Location")).toHaveLength(1);
+    expect(screen.getByText("Amsterdam, North Holland, Netherlands")).toBeTruthy();
+    expect(screen.queryByText("Amsterdam")).toBeNull();
+  });
 });
 
 // The copy control's accessible name, and the self-contained block it copies: the

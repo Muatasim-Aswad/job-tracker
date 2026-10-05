@@ -16,6 +16,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 - LinkedIn listings that apply on a company website now retain the external application destination as a clickable listing field.
 - **To apply** dashboard cards link to the external application destination when it differs from the posting link.
 - The extension popup seeds its search with the company from an open LinkedIn job page's title.
+- LinkedIn listings record their location and workplace type (Remote, Hybrid, or On-site) from job pages, search and recommendation cards, the Applied tracker, and Gmail job emails. The dashboard shows the job page's fuller location and falls back to the card's.
 
 ### Changed
 

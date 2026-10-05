@@ -21,6 +21,10 @@ describe("gmail adapter — findCards", () => {
     expect(rejection).toBeDefined();
     expect(rejection.dataset.jobTitle).toBe("Example Backend Engineer");
     expect(rejection.dataset.jobCompany).toBe("Example Labs");
+    expect(JSON.parse(rejection.dataset.jobMeta!)).toEqual({
+      card_location: "Example City, EX",
+      workplace: "Hybrid",
+    });
     expect(rejection.dataset.jhWall).toBe("1");
     expect(rejection.dataset.jhWallStatus).toBe("rejected");
     expect(rejection.dataset.jhForceMode).toBe("dim");
