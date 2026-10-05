@@ -79,11 +79,13 @@ LinkedIn job-alert, Viewed Jobs reminder, and profile-match recommendation email
 
 ## Search seeding & diagnostics
 
-When the popup opens off-platform it tries to pre-fill the search box with the company, tagging each guess with the **rule** that produced it:
+When the popup opens off-platform or on a LinkedIn job page, it tries to pre-fill the search box with the company, tagging each guess with the **rule** that produced it:
 
 - `domain-label` — the domain label on a career site / company page
 - `ats-path` — the company segment in a known ATS URL (Greenhouse, Lever, …)
 - `gmail-subject` — parsed from the open email's subject (the tab title) on Gmail
+- `gmail-subject-fallback` — the subject's first meaningful word when no company shape matches
+- `linkedin-title` — the company segment of a LinkedIn `/jobs/view/` tab title (`Role | Company | LinkedIn`)
 - `typed` — you edited/typed the query yourself
 - `none` — nothing worth seeding (box left empty)
 

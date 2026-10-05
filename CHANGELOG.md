@@ -15,6 +15,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 - LinkedIn's **Location (city)** Easy Apply question can be remembered and filled as text without selecting a typeahead suggestion; other typeaheads remain manual.
 - LinkedIn listings that apply on a company website now retain the external application destination as a clickable listing field.
 - **To apply** dashboard cards link to the external application destination when it differs from the posting link.
+- The extension popup seeds its search with the company from an open LinkedIn job page's title.
 
 ### Changed
 

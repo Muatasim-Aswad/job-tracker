@@ -76,7 +76,7 @@ Supported pages can expose tracker controls beside the job, reducing the need to
 
 On discovery lists such as LinkedIn search results, job-alert emails, Viewed Jobs reminders, and profile-match recommendations, jobs selected as **To apply**, later-stage jobs, hidden jobs, and blocked-company jobs follow the extension's **Dimmed / Removed** display preference. In those LinkedIn emails opened in Gmail, **Open new jobs (N)** opens every unaffected posting in background tabs while skipping listings already open in another LinkedIn job tab. A bulk-opened tab closes itself after LinkedIn reports that applications are closed and Job Tracker saves that closure; manually opened tabs stay open. This changes only their list-card presentation; selecting **To apply** does not set the independent hidden flag, and the current detail view and dashboard remain available.
 
-The extension popup provides a compact workflow from other browsing contexts. Its search can be seeded from supported pages and domains, ATS URLs, and Gmail subjects to reduce typing. From the popup you can:
+The extension popup provides a compact workflow from other browsing contexts. Its search can be seeded from supported pages and domains, ATS URLs, Gmail subjects, and LinkedIn job page titles to reduce typing. From the popup you can:
 
 - search tracked jobs;
 - advance a job through the funnel;
