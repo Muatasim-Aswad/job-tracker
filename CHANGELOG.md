@@ -26,6 +26,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Fixed
 
+- LinkedIn detail captures read location independently of posting age, skip promotion badges, and recognize prefixed or combined age text. Recaptures preserve known location, workplace, and posting-date evidence when the page omits it.
 - Easy Apply form filling works again in the redesigned application modal LinkedIn opens from full job pages.
 - Easy Apply suggestion fields, such as the redesigned modal's location, are filled by selecting the suggestion that exactly matches the remembered value; only a suggestion you pick is remembered.
 - Bursts of database requests no longer deadlock the API worker pool. Busy requests time out with retry guidance and thread diagnostics; standard launchers bound Uvicorn request draining before sync cleanup.

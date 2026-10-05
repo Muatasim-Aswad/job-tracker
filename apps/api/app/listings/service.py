@@ -463,9 +463,24 @@ class ListingService:
         if data.apply_type is not None:
             fields["apply_type"] = data.apply_type.value
         if data.meta:
-            fields["meta"] = data.meta
+            meta = dict(data.meta)
+            # Missing capture evidence cannot erase known places or posting dates.
+            # Other keys still replace the old bag; PATCH remains an explicit edit.
+            for key in ("location", "card_location", "workplace"):
+                if not meta.get(key) and existing_meta.get(key):
+                    meta[key] = existing_meta[key]
+            if not meta.get("posted_at") and existing_meta.get("posted_at"):
+                # Keep the date and its evidence together, never an old date with
+                # a new, unparseable age or precision.
+                for key in ("posted_at", "posted_precision", "posted_age"):
+                    if key in existing_meta:
+                        meta[key] = existing_meta[key]
+                    else:
+                        meta.pop(key, None)
+            fields["meta"] = meta
         if data.meta_patch:
-            base_meta = data.meta if data.meta else existing_meta
+            base_meta = fields.get("meta", existing_meta)
+            assert isinstance(base_meta, dict)
             fields["meta"] = {**base_meta, **data.meta_patch}
         return fields
 

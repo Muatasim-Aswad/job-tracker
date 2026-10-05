@@ -9,6 +9,7 @@ import { refreshStates, stateOf } from "../../../engine";
 import { setAdapters } from "../../../registry";
 import { installFakeChrome } from "../../../test-support/fakeChrome";
 import { installCssEscape } from "../../../test-support/cssEscape";
+import type { BridgeRequest } from "../../../messages";
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 const loadFixture = (name: string) => readFileSync(path.join(FIXTURES, name), "utf8");
@@ -366,6 +367,35 @@ describe("linkedin adapter — detail capture", () => {
       posted_at: null,
       posted_precision: null,
       posted_age: null,
+      location: "Example City, Exampleland",
+    });
+  });
+
+  it.each([
+    ["Reposted 1 week ago", "2026-07-13T12:00:00.000Z"],
+    ["Posted 30+ days ago", "2026-06-20T12:00:00.000Z"],
+    ["an hour ago", "2026-07-20T11:00:00.000Z"],
+    ["1 year ago", "2025-07-20T12:00:00.000Z"],
+    ["just now", CAPTURED_AT],
+  ])("captures decorated age evidence %s", (age, at) => {
+    document.body.innerHTML = loadFixture("linkedin-detail.html");
+    [...document.querySelectorAll("span")].find(
+      (el) => el.textContent === "17 days ago",
+    )!.textContent = age;
+    window.history.pushState({}, "", "/jobs/view/100001/");
+    const { sendMessage } = installFakeChrome();
+
+    linkedinAdapter.capture!();
+
+    expect(sendMessage.mock.calls[0]![0]).toMatchObject({
+      payload: {
+        meta: {
+          posted_age: age,
+          posted_at: at,
+          posted_precision: "estimated",
+          location: "Example City, Exampleland",
+        },
+      },
     });
   });
 
@@ -401,6 +431,80 @@ describe("linkedin adapter — layout resolution", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it.each(
+    ["1 week ago", "Reposted 1 week ago", null].flatMap((age) =>
+      ["/jobs/view/100005/", "/jobs/search-results/?currentJobId=100005"].map(
+        (url) => [url, age] as const,
+      ),
+    ),
+  )("captures a separate location row on %s beside promotion and age %s", (url, age) => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", url);
+    if (url.startsWith("/jobs/view/")) {
+      document.querySelector('[componentkey^="job-card-component-ref-"]')!.remove();
+    }
+    const row = [...document.querySelectorAll("p")].find((el) =>
+      el.textContent!.includes("22 hours ago"),
+    )!;
+    row.outerHTML = `<p><span>Example City, Example Region, Exampleland</span></p>
+        <p><span>Promoted</span> · <span><span><span><span>${age ?? ""}</span></span></span></span> · <span>76 applicants</span> · <span>Responses managed off LinkedIn</span></p>`;
+    const { sendMessage } = installFakeChrome();
+
+    linkedinAdapter.scanDetail!();
+    linkedinAdapter.capture!();
+
+    const message = sendMessage.mock.calls.find(
+      ([value]) => (value as BridgeRequest).type === "listing",
+    )?.[0];
+    expect(message).toMatchObject({
+      payload: {
+        meta: {
+          location: "Example City, Example Region, Exampleland",
+          workplace: "On-site",
+          posted_age: age,
+          posted_at: age ? "2026-07-13T12:00:00.000Z" : null,
+        },
+      },
+    });
+  });
+
+  it("does not mistake a promotion badge for a missing location", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    const row = [...document.querySelectorAll("p")].find((el) =>
+      el.textContent!.includes("22 hours ago"),
+    )!;
+    row.innerHTML = "<span>Promoted · 1 week ago · 76 applicants</span>";
+    const { sendMessage } = installFakeChrome();
+
+    linkedinAdapter.capture!();
+
+    expect(sendMessage.mock.calls[0]![0]).toMatchObject({
+      payload: {
+        meta: { location: null, posted_age: "1 week ago", posted_at: "2026-07-13T12:00:00.000Z" },
+      },
+    });
+  });
+
+  it("skips promotion badges preceding a location in the same metadata row", () => {
+    document.body.innerHTML = loadFixture("linkedin-detail-sdui.html");
+    document.title = "Example Senior Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/view/100004/");
+    document.querySelector("p")!.innerHTML =
+      "<span>Promoted · Example City, Exampleland · Reposted 1 week ago · 76 applicants</span>";
+    const { sendMessage } = installFakeChrome();
+
+    linkedinAdapter.capture!();
+
+    expect(sendMessage.mock.calls[0]![0]).toMatchObject({
+      payload: {
+        meta: { location: "Example City, Exampleland", posted_age: "Reposted 1 week ago" },
+      },
+    });
   });
 
   // Layout B — the standalone SDUI page. No stable classes, so identity comes from
@@ -790,9 +894,7 @@ describe("linkedin adapter — detail shortcut", () => {
   });
 });
 
-// The open job's age is scraped page-wide, and on the search-results layout the card
-// column precedes the detail pane. Without scoping, the first card's age wins and
-// every capture is dated by whichever job sits at the top of the list.
+// Cards and recommendation rails must never supply the open job's metadata.
 describe("linkedin adapter — posting age scope", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -819,6 +921,30 @@ describe("linkedin adapter — posting age scope", () => {
     const [message] = sendMessage.mock.calls[0]!;
     expect((message as { payload: { meta: Record<string, unknown> } }).payload.meta).toMatchObject({
       posted_age: "22 hours ago",
+    });
+  });
+
+  it("ignores recommendation ages when the current job has no age", () => {
+    document.body.innerHTML = loadFixture("linkedin-search-results-detail.html");
+    document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", "/jobs/search-results/?currentJobId=100005");
+    [...document.querySelectorAll("span")]
+      .find((el) => el.textContent === "22 hours ago")!
+      .remove();
+    document.body.insertAdjacentHTML(
+      "afterbegin",
+      "<div><span>Other City · Reposted 2 weeks ago</span></div>",
+    );
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      "<div><span>Other Place · 1 day ago</span></div>",
+    );
+    const { sendMessage } = installFakeChrome();
+
+    linkedinAdapter.capture!();
+
+    expect(sendMessage.mock.calls[0]![0]).toMatchObject({
+      payload: { meta: { posted_age: null, posted_at: null, location: "Exampleland" } },
     });
   });
 });

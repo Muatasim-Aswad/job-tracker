@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -107,10 +108,10 @@ def test_card_metadata_patch_preserves_full_detail_capture(client: TestClient) -
         platform="exampleboard",
         platform_id="card-1",
         title="Platform Engineer",
-        meta_patch={"location": "Amsterdam", "salary": "card salary"},
+        meta_patch={"card_label": "Featured", "salary": "card salary"},
     )
     listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
-    assert listing["meta"] == {"location": "Amsterdam", "salary": "card salary"}
+    assert listing["meta"] == {"card_label": "Featured", "salary": "card salary"}
 
     # A full detail capture remains authoritative and may deliberately remove
     # card-only or stale keys.
@@ -138,6 +139,109 @@ def test_card_metadata_patch_preserves_full_detail_capture(client: TestClient) -
         "description": "The complete job description",
         "salary": "new card salary",
         "hours_per_week": "36",
+    }
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        {},
+        {
+            "location": None,
+            "workplace": None,
+            "posted_at": None,
+            "posted_precision": None,
+            "posted_age": None,
+        },
+    ],
+)
+def test_recapture_preserves_known_location_and_posting_evidence(
+    client: TestClient, missing: dict[str, Any]
+) -> None:
+    evidence = {
+        "location": "Example City, Exampleland",
+        "card_location": "Example City",
+        "workplace": "Hybrid",
+        "posted_at": "2026-07-01T00:00:00Z",
+        "posted_precision": "exact",
+        "posted_age": "1 week ago",
+    }
+    first = _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-1",
+        meta={**evidence, "description": "Old description", "stale": True},
+    )
+    _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-1",
+        meta={**missing, "description": "New description"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {**evidence, "description": "New description"}
+
+
+def test_recapture_updates_evidence_and_explicit_edit_can_clear_it(client: TestClient) -> None:
+    first = _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-2",
+        meta={
+            "location": "Old place",
+            "workplace": "Hybrid",
+            "posted_at": "2026-07-01T00:00:00Z",
+            "posted_precision": "exact",
+            "posted_age": "1 week ago",
+        },
+    )
+    replacement = {
+        "location": "New place",
+        "workplace": "Remote",
+        "posted_at": "2026-07-19T00:00:00Z",
+        "posted_precision": "estimated",
+        "posted_age": "1 day ago",
+    }
+    _post_listing(client, platform="linkedin", platform_id="capture-2", meta=replacement)
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == replacement
+
+    response = client.patch(f"/api/listings/{first['listing_id']}", json={"meta": {}})
+    assert response.status_code == 200
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {}
+
+
+def test_recapture_retains_date_as_a_group_before_applying_card_patch(client: TestClient) -> None:
+    first = _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-3",
+        meta={
+            "posted_at": "2026-07-01T00:00:00Z",
+            "posted_precision": "exact",
+            "location": "Known place",
+        },
+    )
+    _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-3",
+        meta={
+            "posted_at": None,
+            "posted_age": "unparseable",
+            "posted_precision": None,
+            "description": "Description",
+        },
+        meta_patch={"workplace": "Hybrid"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {
+        "posted_at": "2026-07-01T00:00:00Z",
+        "posted_precision": "exact",
+        "location": "Known place",
+        "description": "Description",
+        "workplace": "Hybrid",
     }
 
 

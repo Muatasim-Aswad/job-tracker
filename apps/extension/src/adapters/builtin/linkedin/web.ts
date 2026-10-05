@@ -61,6 +61,7 @@ const SEL = {
   topCard:
     ".job-details-jobs-unified-top-card, .job-details-jobs-unified-top-card__container--two-pane",
   topButtons: ".job-details-jobs-unified-top-card__top-buttons",
+  locationLine: ".job-details-jobs-unified-top-card__tertiary-description-container",
   moreOptions: 'button[aria-label="More options"]',
   componentKey: "[componentkey]",
   // Job-description container (resolved across both layouts, in order)
@@ -299,49 +300,91 @@ const detailAnchor = () => detailLayout().anchor();
 const detailElement = () => detailLayout().jd();
 const detailIdentity = () => detailLayout().identity();
 
-// Applicant count, posting age and location live outside the description container.
+// These signals belong to the open job's top card, never recommendations or the JD.
 function scanJobSignals(detail: HTMLElement | null) {
   let applicants: number | null = null; // parsed integer count, when a number is shown
   let applyClicksShown = false; // "N people clicked apply" present (may be 100+)
   let postedAge: string | null = null; // e.g. "17 days ago"
-  let postedAgeEl: Element | null = null;
-  document.querySelectorAll("span").forEach((el) => {
-    if (!detail || el === detail || detail.contains(el)) return;
-    // A span inside a list card belongs to that card, never to the open job. The
-    // search-results cards precede the detail pane, so without this the first card's
-    // age wins and every capture is dated by whichever job leads the list.
-    if (el.closest(CARD_SCOPES)) return;
+  const topCard = detailTopCard();
+  topCard?.querySelectorAll("p, span").forEach((el) => {
+    if (el === detail || detail?.contains(el) || el.closest(CARD_SCOPES + ", .jh-detail-head")) {
+      return;
+    }
     const t = el.textContent!.trim();
     if (!applyClicksShown && /clicked apply/i.test(t)) {
       applyClicksShown = true;
       const numM = t.match(/(\d[\d,]*)\s+people/i);
       if (numM) applicants = Number(numM[1].replace(/,/g, ""));
     }
-    // The current job's own age, rendered prefix-less ("1 month ago") in the top
-    // card, which precedes the similar-jobs rail — so first-match wins and stays
-    // scoped. Weeks/months are matched so this job's date wins over a similar job's
-    // "N days ago"; minutes so a just-posted job doesn't fall through to no
-    // posted_at at all.
-    if (!postedAge && /^\d+\s+(?:minute|hour|day|week|month)s?\s+ago$/i.test(t)) {
-      postedAge = t;
-      postedAgeEl = el;
-    }
+    // The phrase can be prefixed with "Reposted" or share a node with badges and
+    // applicants. Keep only its age evidence for the shared date parser.
+    postedAge ??= postingAge(t);
   });
-  return { applicants, applyClicksShown, postedAge, location: topCardLocation(postedAgeEl) };
+  return { applicants, applyClicksShown, postedAge, location: topCardLocation(topCard) };
 }
 
-// The top card's "Location · age · applicants" line leads with the location in every
-// layout, and the age is the one part of it recognizable without classes. The climb
-// is bounded so a line without separators cannot borrow text from the wider page.
-const LOCATION_LINE_DEPTH = 3;
+function detailTopCard(): Element | null {
+  return (
+    document.querySelector(SEL.topCard) ??
+    standaloneTopCard() ??
+    detailAnchor()?.parentElement ??
+    null
+  );
+}
 
-function topCardLocation(ageEl: Element | null): string | null {
-  let line = ageEl?.parentElement ?? null;
-  for (let i = 0; line && i < LOCATION_LINE_DEPTH; line = line.parentElement, i++) {
-    if (!line.textContent!.includes("·")) continue;
-    const lead = line.textContent!.split("·")[0].replace(/\s+/g, " ").trim();
-    // A line that opens with the age has no location.
-    return lead && lead !== ageEl!.textContent!.trim() ? lead : null;
+function postingAge(text: string): string | null {
+  return (
+    text.match(
+      /\b(?:(?:reposted|posted)\s+)?(?:\d+\+?|an?)\s+(?:minute|hour|day|week|month|year)s?\s+ago\b|\bjust now\b/i,
+    )?.[0] ?? null
+  );
+}
+
+function locationPart(text: string): string | null {
+  const value = text.replace(/\s+/g, " ").trim();
+  if (
+    !value ||
+    postingAge(value) ||
+    /\b(?:applicants?|clicked apply|promoted|responses? managed|actively recruiting)\b/i.test(
+      value,
+    ) ||
+    /^(?:full-time|part-time|contract|internship|easy apply|apply|save)$/i.test(value) ||
+    parseWorkplace(value)
+  ) {
+    return null;
+  }
+  return value;
+}
+
+// Classic pages name the location row. SDUI renders it as a paragraph, either
+// joined to the age or immediately after the title, with promotion badges on a
+// separate row. Neither path needs an age to be present.
+function topCardLocation(topCard: Element | null): string | null {
+  if (!topCard) return null;
+  const namedLine = topCard.querySelector(SEL.locationLine);
+  const title = detailIdentity().title;
+  const titleEl =
+    topCard.querySelector(SEL.jobTitle + ", h1, h2") ??
+    [...topCard.querySelectorAll('a[href*="/jobs/view/"], p')].find(
+      (el) => el.textContent!.trim() === title,
+    );
+  const rows = namedLine ? [namedLine] : [...topCard.querySelectorAll("p")];
+  for (const row of rows) {
+    if (
+      row.closest(CARD_SCOPES + ", .jh-detail-head") ||
+      row.querySelector("a, button") ||
+      (titleEl && row.contains(titleEl))
+    ) {
+      continue;
+    }
+    const text = row.textContent!;
+    const followsTitle =
+      titleEl && Boolean(titleEl.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING);
+    if (!namedLine && !text.includes("·") && !followsTitle) continue;
+    for (const part of text.split("·")) {
+      const place = locationPart(part);
+      if (place) return place;
+    }
   }
   return null;
 }
