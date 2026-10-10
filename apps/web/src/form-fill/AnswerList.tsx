@@ -1,13 +1,7 @@
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { useFormFillAnswers } from "../hooks";
-import {
-  POLICY_LABEL,
-  VALUE_KIND_LABEL,
-  formatDate,
-  type AnswerListItem,
-  type AnswerValueKind,
-} from "./model";
+import { POLICY_LABEL, VALUE_KIND_LABEL, type AnswerListItem, type AnswerValueKind } from "./model";
 
 interface Props {
   onOpen: (answerId: string) => void;
@@ -16,7 +10,7 @@ interface Props {
 
 export function AnswerList({ onOpen, onCreate }: Props) {
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"" | "active" | "disabled">("");
+  const [status, setStatus] = useState<"" | "active" | "disabled">("active");
   const [valueKind, setValueKind] = useState<"" | AnswerValueKind>("");
   const filters = useMemo(
     () => ({
@@ -29,23 +23,26 @@ export function AnswerList({ onOpen, onCreate }: Props) {
   );
   const query = useFormFillAnswers(filters);
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
-  const filteredEmpty = !query.isLoading && items.length === 0 && (!!q || !!status || !!valueKind);
+  const filteredEmpty =
+    !query.isLoading && items.length === 0 && (!!q || status !== "active" || !!valueKind);
 
   return (
     <section aria-labelledby="answers-title" className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div>
           <h2 id="answers-title" className="text-xl font-semibold text-ink">
-            Answers
+            Saved answers
           </h2>
-          <p className="text-sm text-ink-muted">Verified facts you control.</p>
+          <p className="text-sm text-ink-muted">
+            Reusable answers and the questions that use them. Paused answers are hidden by default.
+          </p>
         </div>
         <button
           type="button"
           onClick={onCreate}
-          className="ml-auto inline-flex items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white"
+          className="ml-auto inline-flex items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-medium text-white dark:text-canvas"
         >
-          <Plus size={16} /> Create Answer
+          <Plus size={16} /> New answer
         </button>
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
@@ -120,20 +117,24 @@ export function AnswerList({ onOpen, onCreate }: Props) {
                 <button
                   type="button"
                   onClick={() => onOpen(answer.id)}
-                  className="grid w-full gap-1 p-4 text-left hover:bg-surface-hover sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-4"
+                  className={`grid w-full gap-2 p-4 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4 ${answer.status === "disabled" ? "bg-sunken border-l-4 border-line-strong" : ""}`}
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-ink">{answer.label}</span>
-                    <span className="block truncate text-xs text-ink-muted">
-                      {answer.description || answer.answer_key}
+                    {answer.description && (
+                      <span className="mt-1 block text-sm text-ink-muted">
+                        {answer.description}
+                      </span>
+                    )}
+                    <span className="mt-2 block text-xs text-ink-muted">
+                      {VALUE_KIND_LABEL[answer.value_kind]} • {answer.mapping_count}{" "}
+                      {answer.mapping_count === 1 ? "question uses" : "questions use"} this answer
                     </span>
                   </span>
-                  <span className="text-xs text-ink-muted">
-                    {VALUE_KIND_LABEL[answer.value_kind]} · {POLICY_LABEL[answer.fill_policy]} ·{" "}
-                    {answer.status}
-                  </span>
-                  <span className="text-xs text-ink-muted">
-                    {answer.mapping_count} Matches · {formatDate(answer.updated_at)}
+                  <span
+                    className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${answer.status === "disabled" ? "bg-surface text-ink-muted" : "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200"}`}
+                  >
+                    {answer.status === "disabled" ? "Paused" : POLICY_LABEL[answer.fill_policy]}
                   </span>
                 </button>
               </li>

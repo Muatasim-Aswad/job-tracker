@@ -1158,6 +1158,11 @@ export interface components {
             question: components["schemas"]["QuestionSummary"];
             /** Question Id */
             question_id: string;
+            /**
+             * Question Label
+             * @default
+             */
+            question_label: string;
             /** Resolved At */
             resolved_at?: string | null;
             /** Revision */
@@ -1251,6 +1256,11 @@ export interface components {
             mapping_revision_used?: number | null;
             /** Question Id */
             question_id: string;
+            /**
+             * Question Label
+             * @default
+             */
+            question_label: string;
             /** Resolved At */
             resolved_at?: string | null;
             /** Revision */
@@ -2100,6 +2110,11 @@ export interface components {
              * @enum {string}
              */
             control_kind: "text" | "textarea" | "integer" | "decimal" | "date" | "checkbox_boolean" | "radio" | "select" | "checkbox_group" | "multi_select";
+            /**
+             * Current Capture Count
+             * @default 0
+             */
+            current_capture_count: number;
             /** Current Captures */
             current_captures?: components["schemas"]["CaptureSummary"][];
             /** Events */
@@ -2126,6 +2141,11 @@ export interface components {
             normalized_section: string;
             /** Normalizer Version */
             normalizer_version: number;
+            /**
+             * Option Count
+             * @default 0
+             */
+            option_count: number;
             /** Option Set Hash */
             option_set_hash?: string | null;
             /** Options */
@@ -2196,6 +2216,11 @@ export interface components {
              * @enum {string}
              */
             control_kind: "text" | "textarea" | "integer" | "decimal" | "date" | "checkbox_boolean" | "radio" | "select" | "checkbox_group" | "multi_select";
+            /**
+             * Current Capture Count
+             * @default 0
+             */
+            current_capture_count: number;
             /** First Seen At */
             first_seen_at: string;
             /** Id */
@@ -2205,8 +2230,17 @@ export interface components {
             /** Last Unresolved Reason */
             last_unresolved_reason?: string | null;
             mapping?: components["schemas"]["MappingSummary"] | null;
+            /**
+             * Option Count
+             * @default 0
+             */
+            option_count: number;
+            /** Raw Help */
+            raw_help?: string | null;
             /** Raw Question */
             raw_question: string;
+            /** Raw Section */
+            raw_section?: string | null;
             /**
              * Review State
              * @enum {string}
@@ -3225,6 +3259,7 @@ export interface operations {
                 mapping_status?: ("active" | "disabled" | "retired" | "none") | null;
                 needs_review?: boolean | null;
                 q?: string | null;
+                review_inbox?: boolean | null;
                 review_state?: ("open" | "ignored") | null;
                 site_scope?: string | null;
                 sort?: "last_seen" | "seen_count";

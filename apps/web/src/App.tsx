@@ -14,6 +14,7 @@ import { ViewBar } from "./components/ViewBar";
 import { api } from "./api/client";
 import { useBlockedCompanies, useFormFillReviewPresence, useJobEvents, useJobs } from "./hooks";
 import { FormFillWorkspace } from "./form-fill/FormFillWorkspace";
+import { canLeaveFormFill } from "./form-fill/draftGuard";
 import { countAttention, filterJobs } from "./lib/jobFilters";
 import { usePersistentBoolean } from "./lib/persist";
 import { DEFAULT_SORT_ORDER, SORT_ORDER_VALUES, sortJobs, type SortOrder } from "./lib/jobSort";
@@ -79,12 +80,13 @@ export default function App() {
   }, []);
 
   const changeView = useCallback((next: "jobs" | "form-fill") => {
+    if (!canLeaveFormFill()) return;
     setView(next);
     setSelectedJobId(null);
     const url = new URL(window.location.href);
     url.searchParams.set("view", next);
     if (next === "form-fill") {
-      url.searchParams.set("section", url.searchParams.get("section") ?? "answers");
+      url.searchParams.set("section", url.searchParams.get("section") ?? "review");
       for (const key of [
         "job",
         "platform",

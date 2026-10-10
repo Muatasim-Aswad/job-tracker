@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { AnswerValueKind } from "./model";
-import { answerKey, isChoiceKind, VALUE_KIND_LABEL } from "./model";
+import { answerKey, fillExplanation, isChoiceKind, VALUE_KIND_LABEL } from "./model";
 import type { AnswerDraft } from "./answerDraft";
 import { ChoiceSetDisclosure, INLINE_CHOICE_LIMIT } from "./ChoiceSetDisclosure";
 
@@ -65,74 +65,21 @@ export function AnswerEditor({ draft, existing, questionLocked = false, onChange
             onChange({
               ...draft,
               label,
-              answerKey: existing || draft.answerKey ? draft.answerKey : answerKey(label),
+              answerKey:
+                existing || (draft.answerKey && draft.answerKey !== answerKey(draft.label))
+                  ? draft.answerKey
+                  : answerKey(label),
             });
           }}
           className={inputClass}
         />
       </label>
-      <label className="block text-sm font-medium text-ink">
-        Stable key
-        <input
-          required
-          readOnly={existing}
-          value={draft.answerKey}
-          onChange={(event) => set("answerKey", answerKey(event.target.value))}
-          className={`${inputClass} read-only:bg-sunken`}
-        />
-      </label>
-      <label className="block text-sm font-medium text-ink">
-        Description
-        <textarea
-          value={draft.description}
-          onChange={(event) => set("description", event.target.value)}
-          className={inputClass}
-          rows={2}
-        />
-      </label>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm font-medium text-ink">
-          Value type
-          <select
-            disabled={existing || questionLocked}
-            value={draft.valueKind}
-            onChange={(event) =>
-              onChange({
-                ...draft,
-                valueKind: event.target.value as AnswerValueKind,
-                scalar: "",
-                selected: [],
-                choices: [],
-              })
-            }
-            className={inputClass}
-          >
-            {Object.entries(VALUE_KIND_LABEL).map(([kind, label]) => (
-              <option key={kind} value={kind}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm font-medium text-ink">
-          Fill policy
-          <select
-            value={draft.fillPolicy}
-            onChange={(event) => set("fillPolicy", event.target.value as AnswerDraft["fillPolicy"])}
-            className={inputClass}
-          >
-            <option value="auto">Automatic</option>
-            <option value="confirm_each_time">Ask every time</option>
-            <option value="never">Never fill</option>
-          </select>
-        </label>
-      </div>
-
       {isChoiceKind(draft.valueKind) ? (
         <fieldset className="space-y-3 rounded-lg border border-line p-3">
-          <legend className="px-1 text-sm font-medium text-ink">Choice vocabulary and value</legend>
+          <legend className="px-1 text-sm font-medium text-ink">Choose the answer value</legend>
           <ChoiceSetDisclosure
             count={draft.choices.length}
+            initiallyExpanded={draft.selected.length === 0}
             summary={`${draft.choices.length} choices · ${selectedSummary}`}
           >
             {draft.choices.length > INLINE_CHOICE_LIMIT && (
@@ -281,6 +228,72 @@ export function AnswerEditor({ draft, existing, questionLocked = false, onChange
           />
         </label>
       )}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm font-medium text-ink">
+          Value type
+          <select
+            disabled={existing || questionLocked}
+            value={draft.valueKind}
+            onChange={(event) =>
+              onChange({
+                ...draft,
+                valueKind: event.target.value as AnswerValueKind,
+                scalar: "",
+                selected: [],
+                choices: [],
+              })
+            }
+            className={inputClass}
+          >
+            {Object.entries(VALUE_KIND_LABEL).map(([kind, label]) => (
+              <option key={kind} value={kind}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-medium text-ink">
+          Fill policy
+          <select
+            value={draft.fillPolicy}
+            onChange={(event) => set("fillPolicy", event.target.value as AnswerDraft["fillPolicy"])}
+            className={inputClass}
+          >
+            <option value="auto">Automatic</option>
+            <option value="confirm_each_time">Ask every time</option>
+            <option value="never">Never fill</option>
+          </select>
+        </label>
+      </div>
+
+      <p className="text-sm text-ink-muted">{fillExplanation(draft.fillPolicy, draft.status)}</p>
+      <details className="text-sm text-ink-muted">
+        <summary className="cursor-pointer">Advanced identifier</summary>
+        <p className="my-2">
+          Generated from the label. Change it only to distinguish answers with the same label.
+        </p>
+        <label className="block text-sm font-medium text-ink">
+          Stable key
+          <input
+            required
+            value={draft.answerKey}
+            onChange={(event) => set("answerKey", answerKey(event.target.value))}
+            className={`${inputClass} read-only:bg-sunken`}
+          />
+        </label>
+      </details>
+      <details className="text-sm text-ink-muted">
+        <summary className="cursor-pointer">Optional description</summary>
+        <label className="mt-2 block text-sm font-medium text-ink">
+          Description
+          <textarea
+            value={draft.description}
+            onChange={(event) => set("description", event.target.value)}
+            className={inputClass}
+            rows={2}
+          />
+        </label>
+      </details>
     </div>
   );
 }

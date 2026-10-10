@@ -209,6 +209,11 @@ def test_question_detail_and_filters_expose_current_relations_without_values(con
     )
     assert [item["id"] for item in filters["items"]] == [question_id]
     assert _list(service, needs_review=True)["items"] == []
+    inbox = _list(service, review_inbox=True)
+    assert [item["id"] for item in inbox["items"]] == [question_id]
+    assert inbox["items"][0]["current_capture_count"] == 1
+    assert inbox["items"][0]["raw_section"] == "Additional Questions"
+    assert "PRIVATE-CAPTURE" not in str(inbox)
 
     conn.execute("UPDATE form_question_mappings SET status = 'disabled' WHERE id = 'mapping-1'")
     assert [item["id"] for item in _list(service, needs_review=True)["items"]] == [question_id]
@@ -219,3 +224,52 @@ def test_question_detail_and_filters_expose_current_relations_without_values(con
             question_id,
             QuestionReviewUpdate(expected_revision=detail.revision, review_state="ignored"),
         )
+
+
+def test_review_inbox_pages_questions_once_and_excludes_handled_and_dismissed(conn: Conn) -> None:
+    service = FormFillService(conn)
+    unresolved = _observe(service, "Unresolved question", scan_id="inbox-a")["question_id"]
+    remembered = _observe(service, "Remembered question", scan_id="inbox-b")["question_id"]
+    dismissed = _observe(service, "Dismissed question", scan_id="inbox-c")["question_id"]
+    handled = _observe(service, "Handled question", scan_id="inbox-d")["question_id"]
+    conn.execute(
+        "INSERT INTO form_answers (id, answer_key, label, value_kind, value_json, status, "
+        "fill_policy, revision, verified_at, created_at, updated_at) "
+        "VALUES ('inbox-answer', 'inbox_answer', 'Synthetic answer', 'text', ?, 'active', "
+        "'auto', 1, 't', 't', 't')",
+        ('{"kind":"text","value":"SYNTHETIC-SAVED"}',),
+    )
+    for question_id in [remembered, handled]:
+        conn.execute(
+            "INSERT INTO form_question_mappings "
+            "(id, question_id, answer_id, status, revision, approved_at, created_at, updated_at) "
+            "VALUES (?, ?, 'inbox-answer', 'active', 1, 't', 't', 't')",
+            (f"mapping-{question_id}", question_id),
+        )
+    for index in range(2):
+        conn.execute(
+            "INSERT INTO form_captures (id, capture_key, question_id, application_context_id, "
+            "source, value_kind, value_json, status, revision, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, 'user_input', 'text', ?, 'current', 1, 't', 't')",
+            (
+                f"inbox-capture-{index}",
+                f"inbox-retry-{index}",
+                remembered,
+                f"context-{index}",
+                '{"kind":"text","value":"SYNTHETIC-REMEMBERED"}',
+            ),
+        )
+    service.update_question(
+        dismissed, QuestionReviewUpdate(expected_revision=1, review_state="ignored")
+    )
+    first = _list(service, review_inbox=True, limit=1)
+    second = _list(service, review_inbox=True, limit=1, cursor=first["next_cursor"])
+    rows = first["items"] + second["items"]
+    assert len(rows) == 2
+    assert {row["id"] for row in rows} == {unresolved, remembered}
+    assert next(row for row in rows if row["id"] == remembered)["current_capture_count"] == 2
+    assert second["next_cursor"] is None
+    assert [row["id"] for row in _list(service, review_state="ignored")["items"]] == [dismissed]
+    assert "SYNTHETIC-REMEMBERED" not in str(rows)
+    with pytest.raises(InvalidCursorError):
+        _list(service, review_inbox=False, limit=1, cursor=first["next_cursor"])

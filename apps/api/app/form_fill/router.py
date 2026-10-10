@@ -174,6 +174,7 @@ def list_questions(
         Literal["active", "disabled", "retired", "none"] | None, Query()
     ] = None,
     needs_review: Annotated[bool | None, Query()] = None,
+    review_inbox: Annotated[bool | None, Query()] = None,
     has_current_capture: Annotated[bool | None, Query()] = None,
     site_scope: Annotated[str | None, Query(min_length=1, max_length=253)] = None,
     answer_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
@@ -188,6 +189,7 @@ def list_questions(
         review_state=review_state,
         mapping_status=mapping_status,
         needs_review=needs_review,
+        review_inbox=review_inbox,
         has_current_capture=has_current_capture,
         site_scope=site_scope,
         answer_id=answer_id,

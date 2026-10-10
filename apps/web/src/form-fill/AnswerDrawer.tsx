@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { RevisionConflictPanel } from "../components/RevisionConflictPanel";
 import {
   useCreateFormFillAnswer,
@@ -19,13 +19,15 @@ import {
   type AnswerDraft,
 } from "./answerDraft";
 import { Drawer } from "./Drawer";
-import { formatDate, isChoiceKind, type QuestionDetail } from "./model";
+import { fillExplanation, isChoiceKind, valueText, type QuestionDetail } from "./model";
+import { ChangeReview } from "./ChangeReview";
+import { KnowledgeHistory } from "./KnowledgeHistory";
 
 interface Props {
   answerId: string | null;
   questionContext?: QuestionDetail | null;
   onClose: () => void;
-  onCreated: (answerId: string) => void;
+  onCreated: (answerId: string, advance?: boolean) => void;
   onOpenQuestion: (questionId: string) => void;
 }
 
@@ -50,12 +52,24 @@ export function AnswerDrawer({
     answerId ? null : (questionContext?.id ?? "new"),
   );
   const [announcement, setAnnouncement] = useState("");
+  const formId = useId();
+  const [baseline, setBaseline] = useState(() =>
+    JSON.stringify(questionContext ? draftForQuestion(questionContext) : emptyAnswerDraft()),
+  );
   const answer = query.data;
   const mutation = answerId ? update : context ? createForQuestion : create;
+  useEffect(
+    () => () => {
+      if (answerId) removeDetail("answer", answerId);
+      if (questionContext) removeDetail("question", questionContext.id);
+    },
+    [answerId, questionContext, removeDetail],
+  );
 
   useEffect(() => {
     if (answer && initializedFor !== answer.id) {
       setDraft(draftFromAnswer(answer));
+      setBaseline(JSON.stringify(draftFromAnswer(answer)));
       setInitializedFor(answer.id);
     }
   }, [answer, initializedFor]);
@@ -68,21 +82,22 @@ export function AnswerDrawer({
   const valid =
     !!draft.label.trim() &&
     !!draft.answerKey.trim() &&
-    (draft.valueKind === "boolean" ? !!draft.scalar : true) &&
+    (!isChoiceKind(draft.valueKind) ? !!draft.scalar.trim() : true) &&
     (draft.valueKind === "single_choice" ? draft.selected.length === 1 : true) &&
     (draft.valueKind === "multi_choice" ? draft.selected.length > 0 : true) &&
     (!draft.valueKind.includes("choice") ||
       (draft.choices.length > 0 &&
         draft.choices.every((choice) => choice.choice_key && choice.display_label)));
 
-  async function save() {
+  async function save(advance = false) {
     if (!valid) return;
     try {
       if (answerId && answer) {
-        await update.mutateAsync({
+        const saved = await update.mutateAsync({
           answerId,
           body: {
             expected_revision: answer.revision,
+            answer_key: draft.answerKey,
             choices: draft.choices,
             description: draft.description || null,
             fill_policy: draft.fillPolicy,
@@ -91,6 +106,8 @@ export function AnswerDrawer({
             value: valueFromDraft(draft),
           },
         });
+        setDraft(draftFromAnswer(saved));
+        setBaseline(JSON.stringify(draftFromAnswer(saved)));
         setAnnouncement("Answer saved.");
         toast.info("Answer saved.");
       } else if (context) {
@@ -116,7 +133,7 @@ export function AnswerDrawer({
         if (!created.answer) throw new Error("Question Answer creation returned no Answer");
         setAnnouncement("Answer and Match created.");
         toast.info("Answer and Match created.");
-        onCreated(created.answer.id);
+        onCreated(created.answer.id, advance);
       } else {
         const created = await create.mutateAsync({
           answer_key: draft.answerKey,
@@ -144,7 +161,45 @@ export function AnswerDrawer({
   };
 
   return (
-    <Drawer label={answerId ? "Answer details" : "Create Answer"} onClose={close}>
+    <Drawer
+      label={answerId ? "Edit saved answer" : "New saved answer"}
+      onClose={close}
+      dirty={JSON.stringify(draft) !== baseline}
+      busy={mutation.isPending}
+      footer={
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            form={formId}
+            disabled={!valid || mutation.isPending || (!!answerId && !answer)}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
+          >
+            {mutation.isPending
+              ? "Saving…"
+              : answerId
+                ? "Save answer"
+                : context
+                  ? "Save answer and match"
+                  : "Save answer"}
+          </button>
+          {context && (
+            <button
+              type="button"
+              disabled={!valid || mutation.isPending}
+              onClick={() => void save(true)}
+              className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+            >
+              Save and review next
+            </button>
+          )}
+          <span className="text-xs text-ink-muted">
+            {valid
+              ? "Check the value and fill behavior before saving."
+              : "Add a name and a valid answer value to save."}
+          </span>
+        </div>
+      }
+    >
       <div aria-live="polite" className="sr-only">
         {announcement}
       </div>
@@ -165,6 +220,7 @@ export function AnswerDrawer({
         </div>
       ) : (
         <form
+          id={formId}
           onSubmit={(event) => {
             event.preventDefault();
             void save();
@@ -173,8 +229,7 @@ export function AnswerDrawer({
         >
           {context && (
             <p className="rounded border border-line bg-sunken p-3 text-sm text-ink-muted">
-              Creating for “{context.raw_question}”. Value type and choice vocabulary come from its{" "}
-              {context.control_kind} control, and the Match is created with the Answer.
+              This answer will be saved and used for “{context.raw_question}”.
             </p>
           )}
           <AnswerEditor
@@ -183,6 +238,24 @@ export function AnswerDrawer({
             questionLocked={!!context}
             onChange={setDraft}
           />
+          {(answer || context) && (
+            <ChangeReview
+              before={
+                answer
+                  ? valueText(answer.value, answer.choices)
+                  : "No saved answer for this question"
+              }
+              after={valueText(valueFromDraft(draft), draft.choices)}
+              behavior={fillExplanation(draft.fillPolicy, draft.status)}
+              affected={
+                answer
+                  ? answer.mappings.map((question) => question.raw_question)
+                  : context
+                    ? [context.raw_question]
+                    : []
+              }
+            />
+          )}
           {answer && draft.status === "disabled" && answer.mappings.length > 0 && (
             <p className="rounded border border-amber-500/40 bg-amber-50 p-3 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
               This stops {answer.mappings.length} matched{" "}
@@ -219,13 +292,6 @@ export function AnswerDrawer({
             }}
             onDiscard={discard}
           />
-          <button
-            type="submit"
-            disabled={!valid || mutation.isPending}
-            className="rounded bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {mutation.isPending ? "Saving…" : answerId ? "Save Answer" : "Create Answer"}
-          </button>
         </form>
       )}
 
@@ -233,7 +299,7 @@ export function AnswerDrawer({
         <>
           <section aria-labelledby="answer-matches-title" className="space-y-2">
             <h3 id="answer-matches-title" className="font-semibold text-ink">
-              Affected Matches
+              Questions using this answer
             </h3>
             {answer.mappings.length === 0 ? (
               <p className="text-sm text-ink-muted">No Questions use this Answer.</p>
@@ -256,24 +322,7 @@ export function AnswerDrawer({
               </ul>
             )}
           </section>
-          <section aria-labelledby="answer-history-title" className="space-y-2">
-            <h3 id="answer-history-title" className="font-semibold text-ink">
-              Value-free history
-            </h3>
-            <p className="text-xs text-ink-muted">Previous values are not retained in history.</p>
-            {answer.events.length === 0 ? (
-              <p className="text-sm text-ink-muted">No history yet.</p>
-            ) : (
-              <ul className="space-y-1 text-sm text-ink-muted">
-                {answer.events.map((event) => (
-                  <li key={event.id}>
-                    {event.event} · {formatDate(event.created_at)}
-                    {event.reason ? ` · ${event.reason}` : ""}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <KnowledgeHistory events={answer.events} />
         </>
       )}
     </Drawer>

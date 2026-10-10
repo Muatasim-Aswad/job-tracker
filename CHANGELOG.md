@@ -20,11 +20,15 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Changed
 
+- Form Fill now uses one question-centered review inbox, active-first saved Answers, searchable paginated Answer selection with value previews, before/after review, editable choice suggestions, dismissed-item recovery, and pinned save-and-next actions. Technical identifiers and history move behind optional disclosures.
+
 - Easy Apply treats a question as numeric only when its input declares it, so LinkedIn's years-of-experience questions are text questions in both modals and share one answer.
 - Jobs selected as **To apply** now follow the extension's existing **Dimmed / Removed** treatment on discovery lists without changing their independent hidden flag.
 - Discovery cards now use one **Skip job** action in place of separate hide and site-dismiss controls. Expanded job views retain **Hide** and add **Skip job** until the job is applied or otherwise resolved.
 
 ### Fixed
+
+- Form Fill renders choice labels instead of internal IDs, keeps automatic Answer keys in sync while typing, protects unsaved drafts, and invalidates review when fill policy or other draft fields change.
 
 - Automatic listing captures now merge observed metadata for every adapter, preserve missing or empty facts and known application types, and keep exact posting dates when later captures only provide estimates. Explicit edits can still clear stored fields.
 - LinkedIn detail captures read location independently of posting age, skip promotion badges, and recognize prefixed or combined age text. Recaptures preserve known location, workplace, and posting-date evidence when the page omits it.

@@ -27,7 +27,12 @@ vi.mock("../hooks", () => ({
 }));
 
 vi.mock("./Drawer", () => ({
-  Drawer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Drawer: ({ children, footer }: { children: ReactNode; footer: ReactNode }) => (
+    <div>
+      {children}
+      {footer}
+    </div>
+  ),
 }));
 
 import { AnswerDrawer } from "./AnswerDrawer";
@@ -70,7 +75,7 @@ describe("AnswerDrawer Question creation", () => {
     expect(screen.queryByRole("button", { name: "Add choice" })).toBeNull();
 
     fireEvent.click(screen.getByLabelText("Use Yes as the value"));
-    fireEvent.click(screen.getByRole("button", { name: "Create Answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save answer and match" }));
 
     await waitFor(() => expect(mocks.createForQuestion.mutateAsync).toHaveBeenCalledOnce());
     expect(mocks.create.mutateAsync).not.toHaveBeenCalled();
@@ -94,6 +99,6 @@ describe("AnswerDrawer Question creation", () => {
         ],
       },
     });
-    expect(onCreated).toHaveBeenCalledWith("answer-created");
+    expect(onCreated).toHaveBeenCalledWith("answer-created", false);
   });
 });

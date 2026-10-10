@@ -5,6 +5,9 @@ export interface ReviewListRow {
   title: ReactNode;
   meta: ReactNode;
   aside: ReactNode;
+  badge?: string;
+  warning?: boolean;
+  context?: string;
 }
 
 interface Props {
@@ -52,7 +55,7 @@ export function ReviewList({
         </h3>
         <p className="text-sm text-ink-muted">{description}</p>
       </div>
-      <div role="group" aria-label="Filters" className="flex flex-wrap gap-3">
+      <div role="group" aria-label="Filters" className="flex flex-wrap items-end gap-3">
         {filters}
       </div>
       {isLoading ? (
@@ -78,13 +81,30 @@ export function ReviewList({
               <button
                 type="button"
                 onClick={() => onOpen(row.id)}
-                className="grid w-full gap-1 p-4 text-left hover:bg-surface-hover sm:grid-cols-[minmax(0,1fr)_auto]"
+                className="grid w-full gap-3 p-4 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
               >
                 <span>
-                  <span className="block font-medium text-ink">{row.title}</span>
-                  <span className="text-xs text-ink-muted">{row.meta}</span>
+                  <span className="block max-w-prose font-medium text-ink">{row.title}</span>
+                  {row.context && (
+                    <span
+                      title={row.context}
+                      className="mt-1 line-clamp-2 max-w-prose text-sm text-ink-muted"
+                    >
+                      {row.context}
+                    </span>
+                  )}
+                  <span className="mt-2 block text-xs text-ink-muted">{row.meta}</span>
                 </span>
-                <span className="text-xs text-ink-muted">{row.aside}</span>
+                <span className="flex items-center gap-2 sm:flex-col sm:items-end">
+                  {row.badge && (
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${row.warning ? "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200" : "bg-sunken text-ink-soft"}`}
+                    >
+                      {row.badge}
+                    </span>
+                  )}
+                  {row.aside && <span className="text-xs text-ink-muted">{row.aside}</span>}
+                </span>
               </button>
             </li>
           ))}

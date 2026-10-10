@@ -32,6 +32,19 @@ export const POLICY_LABEL = {
   never: "Never fill",
 } as const;
 
+export const CONTROL_LABEL: Record<QuestionDetail["control_kind"], string> = {
+  text: "Short answer",
+  textarea: "Long answer",
+  integer: "Whole number",
+  decimal: "Number",
+  date: "Date",
+  checkbox_boolean: "Yes or no",
+  radio: "Single choice",
+  select: "Dropdown",
+  checkbox_group: "Multiple choices",
+  multi_select: "Multiple choices",
+};
+
 export const SOURCE_LABEL = {
   user_input: "You typed this",
   confirmed_external: "You chose to remember this",
@@ -52,16 +65,40 @@ export function formatDate(value: string): string {
   return Number.isNaN(date.valueOf()) ? value : date.toLocaleString();
 }
 
-export function valueText(value: AnswerValue | CaptureValue | null | undefined): string {
+type ValueLabel = { id?: string; raw_label?: string; choice_key?: string; display_label?: string };
+
+export function valueText(
+  value: AnswerValue | CaptureValue | null | undefined,
+  labels: ValueLabel[] = [],
+): string {
   if (!value) return "No retained value";
   if (value.kind === "boolean") return value.value ? "Yes" : "No";
+  const choiceLabel = (key: string) =>
+    labels.find((label) => label.choice_key === key)?.display_label ?? "Option no longer available";
+  const optionLabel = (id: string) =>
+    labels.find((label) => label.id === id)?.raw_label ?? "Option no longer available";
   if (value.kind === "single_choice")
-    return "choice_key" in value ? value.choice_key : value.question_option_id;
+    return "choice_key" in value
+      ? choiceLabel(value.choice_key)
+      : optionLabel(value.question_option_id);
   if (value.kind === "multi_choice")
-    return "choice_keys" in value
-      ? value.choice_keys.join(", ")
-      : value.question_option_ids.join(", ");
+    return (
+      "choice_keys" in value
+        ? value.choice_keys.map(choiceLabel)
+        : value.question_option_ids.map(optionLabel)
+    ).join(", ");
   return value.value;
+}
+
+export function siteLabel(scope: string): string {
+  return scope === "linkedin:easy-apply" ? "LinkedIn Easy Apply" : scope;
+}
+
+export function fillExplanation(policy: keyof typeof POLICY_LABEL, status = "active"): string {
+  if (status !== "active") return "Filling is paused for this answer.";
+  if (policy === "never") return "This answer will not fill forms.";
+  if (policy === "confirm_each_time") return "You will be asked before each fill.";
+  return "Fills empty matched fields automatically. Existing form values stay unchanged.";
 }
 
 export function isChoiceKind(kind: AnswerValueKind): boolean {

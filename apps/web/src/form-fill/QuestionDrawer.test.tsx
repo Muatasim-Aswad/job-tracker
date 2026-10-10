@@ -1,86 +1,95 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { testAnswer, testQuestion } from "./testFixtures";
 
-vi.mock("../hooks", () => {
-  const mutation = () => ({
-    error: null,
-    isPending: false,
-    mutateAsync: vi.fn(),
-    reset: vi.fn(),
-  });
+const mocks = vi.hoisted(() => {
+  const mutation = () => ({ error: null, isPending: false, mutateAsync: vi.fn(), reset: vi.fn() });
   return {
-    useFormFillQuestion: () => ({
-      data: {
-        id: "question-1",
-        raw_question: "Synthetic matched question",
-        raw_section: null,
-        raw_help: null,
-        site_scope: "linkedin:easy-apply",
-        control_kind: "text",
-        review_state: "open",
-        revision: 1,
-        seen_count: 2,
-        last_seen_at: "2026-08-14T00:00:00Z",
-        capture_conflict: false,
-        current_captures: [],
-        options: [],
-        events: [],
-        answer: { id: "answer-1", label: "Synthetic answer" },
-        mapping: {
-          id: "mapping-1",
-          answer_id: "answer-1",
-          status: "active",
-          revision: 1,
-          bindings: [],
-        },
-      },
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    }),
-    useFormFillAnswers: () => ({
-      data: { pages: [{ items: [{ id: "answer-1", label: "Synthetic answer" }] }] },
-    }),
-    useFormFillAnswer: () => ({
-      data: { id: "answer-1", revision: 1, value_kind: "text", choices: [] },
-      refetch: vi.fn(),
-    }),
-    useFormFillConflictCaptures: () => [],
-    usePutFormFillMapping: mutation,
-    useUpdateFormFillMapping: mutation,
-    useUpdateFormFillQuestion: mutation,
-    useResolveFormFillCaptureConflict: mutation,
-    useRemoveFormFillDetail: () => vi.fn(),
+    put: mutation(),
+    update: mutation(),
+    review: mutation(),
+    resolve: mutation(),
+    remove: vi.fn(),
   };
 });
-
-vi.mock("./Drawer", () => ({
-  Drawer: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+const question = {
+  ...testQuestion,
+  answer: testAnswer,
+  mapping: {
+    id: "mapping-1",
+    answer_id: "answer-1",
+    status: "active" as const,
+    revision: 1,
+    bindings: [],
+  },
+};
+vi.mock("../hooks", () => ({
+  useFormFillQuestion: () => ({
+    data: question,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+  useFormFillAnswers: () => ({
+    data: { pages: [{ items: [{ ...testAnswer, mapping_count: 1 }] }] },
+  }),
+  useFormFillAnswer: (id: string | null) => ({
+    data: id ? testAnswer : undefined,
+    refetch: vi.fn(),
+  }),
+  useFormFillConflictCaptures: () => [],
+  usePutFormFillMapping: () => mocks.put,
+  useUpdateFormFillMapping: () => mocks.update,
+  useUpdateFormFillQuestion: () => mocks.review,
+  useResolveFormFillCaptureConflict: () => mocks.resolve,
+  useRemoveFormFillDetail: () => mocks.remove,
 }));
-
 import { QuestionDrawer } from "./QuestionDrawer";
-
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("QuestionDrawer", () => {
-  it("does not offer the server-invalid mute action for an active Match", () => {
+  it("shows the saved value and does not offer invalid dismissal for an active match", () => {
     render(<QuestionDrawer questionId="question-1" onClose={vi.fn()} onCreateAnswer={vi.fn()} />);
-
-    expect(screen.getByText("This Question is handled by its active Match.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Mute Question" })).toBeNull();
+    expect(screen.getByText("Synthetic saved value")).toBeTruthy();
+    expect(screen.getByText("This question already uses a saved answer.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Dismiss question" })).toBeNull();
   });
-
-  it("passes the observed Question into contextual Answer creation", () => {
+  it("passes the observed question into contextual answer creation", () => {
     const onCreateAnswer = vi.fn();
     render(
       <QuestionDrawer questionId="question-1" onClose={vi.fn()} onCreateAnswer={onCreateAnswer} />,
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "Create a new Answer for this Question" }));
-
+    fireEvent.click(screen.getByRole("button", { name: "Save a new answer for this question" }));
     expect(onCreateAnswer).toHaveBeenCalledWith(
       expect.objectContaining({ id: "question-1", control_kind: "text" }),
     );
+  });
+  it("reviews value and behavior, then saves with all revision preconditions and advances", async () => {
+    const next = vi.fn();
+    render(
+      <QuestionDrawer
+        questionId="question-1"
+        onClose={vi.fn()}
+        onCreateAnswer={vi.fn()}
+        onNext={next}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Review match" }));
+    expect(screen.getByRole("region", { name: "What will change" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save and review next" }));
+    await waitFor(() => expect(next).toHaveBeenCalledOnce());
+    expect(mocks.put.mutateAsync).toHaveBeenCalledWith({
+      questionId: "question-1",
+      body: {
+        answer_id: "answer-1",
+        expected_answer_revision: 1,
+        expected_mapping_revision: 1,
+        expected_question_revision: 1,
+        bindings: [],
+      },
+    });
   });
 });

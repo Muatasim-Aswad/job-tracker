@@ -13,7 +13,10 @@ function publicSummary(value: unknown): unknown {
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => !["value", "raw_question", "raw_help", "raw_section"].includes(key))
+      .filter(
+        ([key]) =>
+          !["value", "question_label", "raw_question", "raw_help", "raw_section"].includes(key),
+      )
       .map(([key, nested]) => [key, publicSummary(nested)]),
   );
 }

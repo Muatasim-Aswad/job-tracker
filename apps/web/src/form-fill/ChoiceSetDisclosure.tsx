@@ -6,10 +6,16 @@ interface Props {
   children: ReactNode;
   count: number;
   summary: ReactNode;
+  initiallyExpanded?: boolean;
 }
 
-export function ChoiceSetDisclosure({ children, count, summary }: Props) {
-  const [expanded, setExpanded] = useState(false);
+export function ChoiceSetDisclosure({
+  children,
+  count,
+  summary,
+  initiallyExpanded = false,
+}: Props) {
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const previousCount = useRef(count);
 
   useEffect(() => {

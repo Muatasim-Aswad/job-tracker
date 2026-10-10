@@ -36,7 +36,9 @@ describe("FormFillWorkspace navigation", () => {
       "/?view=form-fill&section=answers&q=private-search&raw_question=private-prompt",
     );
     render(<FormFillWorkspace />);
-    expect(screen.getByRole("tab", { name: "Answers" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: "Saved answers" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
     await waitFor(() => expect(window.location.search).toBe("?view=form-fill&section=answers"));
   });
 
@@ -49,20 +51,20 @@ describe("FormFillWorkspace navigation", () => {
     expect(screen.getByText("Answer drawer")).toBeTruthy();
   });
 
-  it("switches the review collection through nested semantic tabs", () => {
+  it("provides one review inbox and separate recovery collections", () => {
     render(<FormFillWorkspace />);
-    fireEvent.click(screen.getByRole("tab", { name: "Needs review" }));
-    expect(screen.getByRole("tab", { name: "Remembered values" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: "Unresolved Questions" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Review inbox" }));
     expect(screen.getByText("Question list")).toBeTruthy();
-    expect(new URLSearchParams(window.location.search).get("type")).toBe("questions");
+    expect(screen.queryByRole("tab", { name: "Remembered values" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Dismissed" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Remembered values" }));
+    expect(screen.getByText("Remembered list")).toBeTruthy();
+    expect(new URLSearchParams(window.location.search).get("section")).toBe("dismissed");
   });
 
-  it("lands on actionable Questions when remembered values are empty", async () => {
-    window.history.replaceState(null, "", "/?view=form-fill&section=review");
+  it("opens the unified inbox for old review links", () => {
+    window.history.replaceState(null, "", "/?view=form-fill&section=review&type=captures");
     render(<FormFillWorkspace />);
-
-    await waitFor(() => expect(screen.getByText("Question list")).toBeTruthy());
-    expect(new URLSearchParams(window.location.search).get("type")).toBe("questions");
+    expect(screen.getByText("Question list")).toBeTruthy();
   });
 });

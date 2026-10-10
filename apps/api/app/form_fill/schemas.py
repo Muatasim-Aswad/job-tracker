@@ -368,6 +368,10 @@ class QuestionSummary(BaseModel):
     site_scope: str
     control_kind: ControlKind
     raw_question: str
+    raw_section: str | None = None
+    raw_help: str | None = None
+    option_count: int = 0
+    current_capture_count: int = 0
     review_state: ReviewState
     revision: int
     capture_conflict: bool
@@ -387,9 +391,7 @@ class QuestionDetail(QuestionSummary):
     normalizer_version: int
     normalized_question: str
     normalized_section: str
-    raw_section: str | None = None
     normalized_help: str
-    raw_help: str | None = None
     autocomplete_token: str | None = None
     option_set_hash: str | None = None
     options: list[QuestionOptionSummary]
@@ -565,6 +567,7 @@ class CaptureCreate(BaseModel):
 
 class CaptureRecordSummary(CaptureSummary):
     question_id: str
+    question_label: str = ""
     application_context_id: str
     job_id: str | None = None
     listing_id: str | None = None

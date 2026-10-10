@@ -232,12 +232,25 @@ class FormFillRepository:
             )
         return option, changed
 
+    def question_review_counts(self, question_id: str) -> tuple[int, int]:
+        row = query_one(
+            self.conn,
+            "SELECT (SELECT COUNT(*) FROM form_question_options "
+            "WHERE question_id = ? AND status = 'active') AS option_count, "
+            "(SELECT COUNT(*) FROM form_captures "
+            "WHERE question_id = ? AND status = 'current') AS capture_count",
+            (question_id, question_id),
+        )
+        assert row is not None
+        return int(row["option_count"]), int(row["capture_count"])
+
     def list_questions(
         self,
         *,
         review_state: str | None,
         mapping_status: str | None,
         needs_review: bool | None,
+        review_inbox: bool | None,
         has_current_capture: bool | None,
         site_scope: str | None,
         answer_id: str | None,
@@ -262,6 +275,14 @@ class FormFillRepository:
                 "(q.capture_conflict = 1 OR m.id IS NULL OR m.status <> 'active'))"
             )
             conditions.append(actionable if needs_review else f"NOT {actionable}")
+        if review_inbox is not None:
+            inbox = (
+                "((q.review_state = 'open' AND "
+                "(q.capture_conflict = 1 OR m.id IS NULL OR m.status <> 'active')) "
+                "OR EXISTS (SELECT 1 FROM form_captures c "
+                "WHERE c.question_id = q.id AND c.status = 'current'))"
+            )
+            conditions.append(inbox if review_inbox else f"NOT {inbox}")
         if has_current_capture is not None:
             predicate = "EXISTS" if has_current_capture else "NOT EXISTS"
             conditions.append(

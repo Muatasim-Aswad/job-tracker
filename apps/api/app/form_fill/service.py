@@ -461,6 +461,7 @@ class FormFillService:
         sort: QuestionSort,
         limit: int,
         cursor: str | None,
+        review_inbox: bool | None = None,
     ) -> QuestionListResponse:
         canonical_scope = normalize_token(site_scope) if site_scope is not None else None
         canonical_query = normalize_evidence(query) if query is not None else None
@@ -468,6 +469,7 @@ class FormFillService:
             "review_state": review_state,
             "mapping_status": mapping_status,
             "needs_review": needs_review,
+            "review_inbox": review_inbox,
             "has_current_capture": has_current_capture,
             "site_scope": canonical_scope,
             "answer_id": answer_id,
@@ -479,6 +481,7 @@ class FormFillService:
             review_state=review_state,
             mapping_status=mapping_status,
             needs_review=needs_review,
+            review_inbox=review_inbox,
             has_current_capture=has_current_capture,
             site_scope=canonical_scope,
             answer_id=answer_id,
@@ -515,9 +518,7 @@ class FormFillService:
             normalizer_version=question.normalizer_version,
             normalized_question=question.normalized_question,
             normalized_section=question.normalized_section,
-            raw_section=question.raw_section,
             normalized_help=question.normalized_help,
-            raw_help=question.raw_help,
             autocomplete_token=question.autocomplete_token or None,
             option_set_hash=question.option_set_hash or None,
             options=[
@@ -1396,11 +1397,16 @@ class FormFillService:
     def _summary(
         self, question: Question, *, mapping: MappingSummary | None = None
     ) -> QuestionSummary:
+        option_count, capture_count = self.repo.question_review_counts(question.id)
         return QuestionSummary(
             id=question.id,
             site_scope=question.site_scope,
             control_kind=question.control_kind,
             raw_question=question.raw_question,
+            raw_section=question.raw_section,
+            raw_help=question.raw_help,
+            option_count=option_count,
+            current_capture_count=capture_count,
             review_state=question.review_state,
             revision=question.revision,
             capture_conflict=question.capture_conflict,
@@ -1439,6 +1445,7 @@ class FormFillService:
         return CaptureRecordSummary(
             id=row["id"],
             question_id=row["question_id"],
+            question_label=self._require_question(row["question_id"]).raw_question,
             application_context_id=row["application_context_id"],
             job_id=row["job_id"],
             listing_id=row["listing_id"],

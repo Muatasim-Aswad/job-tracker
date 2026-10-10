@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RevisionConflictPanel } from "../components/RevisionConflictPanel";
 import {
   useFormFillAnswer,
-  useFormFillAnswers,
   useFormFillConflictCaptures,
   useFormFillQuestion,
   usePutFormFillMapping,
@@ -13,19 +12,36 @@ import {
 } from "../hooks";
 import { toast } from "../lib/toast";
 import { Drawer } from "./Drawer";
-import { bindingsComplete } from "./bindings";
+import { bindingsComplete, suggestBindings } from "./bindings";
 import { OptionBindingEditor } from "./OptionBindingEditor";
-import { controlAcceptsAnswer, formatDate, valueText, type QuestionDetail } from "./model";
+import {
+  fillExplanation,
+  formatDate,
+  siteLabel,
+  SOURCE_LABEL,
+  valueText,
+  type QuestionDetail,
+} from "./model";
+import { AnswerPicker } from "./AnswerPicker";
+import { ChangeReview } from "./ChangeReview";
+import { KnowledgeHistory } from "./KnowledgeHistory";
 
 interface Props {
   questionId: string;
   onClose: () => void;
   onCreateAnswer: (question: QuestionDetail) => void;
+  onOpenCapture?: (id: string) => void;
+  onNext?: () => void;
 }
 
-export function QuestionDrawer({ questionId, onClose, onCreateAnswer }: Props) {
+export function QuestionDrawer({
+  questionId,
+  onClose,
+  onCreateAnswer,
+  onOpenCapture,
+  onNext,
+}: Props) {
   const query = useFormFillQuestion(questionId);
-  const answerList = useFormFillAnswers({ status: "active", limit: 100 });
   const putMapping = usePutFormFillMapping();
   const updateMapping = useUpdateFormFillMapping();
   const updateQuestion = useUpdateFormFillQuestion();
@@ -33,44 +49,23 @@ export function QuestionDrawer({ questionId, onClose, onCreateAnswer }: Props) {
   const removeDetail = useRemoveFormFillDetail();
   const [answerId, setAnswerId] = useState("");
   const [bindings, setBindings] = useState<Record<string, string>>({});
+  const [baseline, setBaseline] = useState("");
   const [winnerId, setWinnerId] = useState("");
   const [reviewed, setReviewed] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const openedAnswerIds = useRef(new Set<string>());
+  const reviewRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (reviewed) reviewRef.current?.scrollIntoView?.({ block: "start" });
+  }, [reviewed]);
+  const retainedCaptureIds = useRef<string[]>([]);
   const question = query.data;
   const selectedAnswer = useFormFillAnswer(answerId || null);
+  const currentAnswer = useFormFillAnswer(question?.answer?.id ?? null);
   const captureIds = question?.current_captures?.map((capture) => capture.id) ?? [];
-  const conflictCaptures = useFormFillConflictCaptures(captureIds);
-  const answers = answerList.data?.pages.flatMap((page) => page.items) ?? [];
-
-  useEffect(() => {
-    if (!question || initialized) return;
-    const nextAnswerId = question.answer?.id ?? "";
-    setAnswerId(nextAnswerId);
-    setBindings(
-      Object.fromEntries(
-        (question.mapping?.bindings ?? []).map((binding) => [
-          binding.question_option_id,
-          binding.answer_choice_id,
-        ]),
-      ),
-    );
-    setWinnerId(question.current_captures?.[0]?.id ?? "");
-    setInitialized(true);
-  }, [question, initialized]);
-
-  useEffect(() => {
-    if (answerId) openedAnswerIds.current.add(answerId);
-  }, [answerId]);
-
-  const compatibleAnswers = useMemo(
-    () =>
-      question
-        ? answers.filter((answer) => controlAcceptsAnswer(question.control_kind, answer.value_kind))
-        : [],
-    [answers, question],
-  );
+  retainedCaptureIds.current = captureIds;
+  const captures = useFormFillConflictCaptures(captureIds);
   const choiceQuestion =
     !!question &&
     ["radio", "select", "checkbox_group", "multi_select"].includes(question.control_kind);
@@ -78,15 +73,48 @@ export function QuestionDrawer({ questionId, onClose, onCreateAnswer }: Props) {
     !choiceQuestion ||
     (!!selectedAnswer.data &&
       bindingsComplete(question?.options ?? [], selectedAnswer.data.choices, bindings));
+  const draft = JSON.stringify({ answerId, bindings });
+  const busy =
+    putMapping.isPending ||
+    updateMapping.isPending ||
+    updateQuestion.isPending ||
+    resolveConflict.isPending;
 
-  function close() {
-    removeDetail("question", questionId);
-    for (const id of captureIds) removeDetail("capture", id);
-    for (const id of openedAnswerIds.current) removeDetail("answer", id);
-    onClose();
-  }
+  useEffect(() => {
+    if (!question || initialized) return;
+    const nextAnswerId = question.answer?.id ?? "";
+    const nextBindings = Object.fromEntries(
+      (question.mapping?.bindings ?? []).map((binding) => [
+        binding.question_option_id,
+        binding.answer_choice_id,
+      ]),
+    );
+    setAnswerId(nextAnswerId);
+    setBindings(nextBindings);
+    setBaseline(JSON.stringify({ answerId: nextAnswerId, bindings: nextBindings }));
+    setInitialized(true);
+  }, [question, initialized]);
+  useEffect(() => {
+    if (answerId) openedAnswerIds.current.add(answerId);
+    if (question?.answer?.id) openedAnswerIds.current.add(question.answer.id);
+  }, [answerId, question?.answer?.id]);
+  useEffect(
+    () => () => {
+      removeDetail("question", questionId);
+      for (const id of retainedCaptureIds.current) removeDetail("capture", id);
+      for (const id of openedAnswerIds.current) removeDetail("answer", id);
+    },
+    [removeDetail, questionId],
+  );
+  useEffect(() => {
+    if (!selectedAnswer.data || !question || !choiceQuestion) return;
+    setBindings((current) =>
+      suggestBindings(question.options, selectedAnswer.data!.choices, current),
+    );
+    setReviewed(false);
+  }, [answerId, selectedAnswer.data, question, choiceQuestion]);
 
-  async function saveMapping() {
+  async function saveMapping(advance = false) {
     if (!question || !selectedAnswer.data || !complete || !reviewed) return;
     try {
       await putMapping.mutateAsync({
@@ -106,15 +134,16 @@ export function QuestionDrawer({ questionId, onClose, onCreateAnswer }: Props) {
             : [],
         },
       });
-      setAnnouncement("Match saved.");
-      toast.info("Match saved.");
+      setBaseline(draft);
       setReviewed(false);
+      setAnnouncement("Answer matched to question.");
+      toast.info("Answer matched to question.");
+      if (advance) onNext?.();
     } catch {
-      setAnnouncement("The Match was not saved.");
+      setAnnouncement("The match was not saved.");
       setReviewed(false);
     }
   }
-
   async function changeMapping(status: "active" | "disabled" | "retired") {
     if (!question?.mapping) return;
     try {
@@ -126,13 +155,11 @@ export function QuestionDrawer({ questionId, onClose, onCreateAnswer }: Props) {
           status,
         },
       });
-      setAnnouncement("Match state saved.");
-      toast.info("Match state saved.");
+      toast.info("Fill behavior saved.");
     } catch {
-      setAnnouncement("The Match state was not saved.");
+      setAnnouncement("The fill behavior was not changed.");
     }
   }
-
   async function changeReview(review_state: "open" | "ignored") {
     if (!question) return;
     try {
@@ -140,275 +167,342 @@ export function QuestionDrawer({ questionId, onClose, onCreateAnswer }: Props) {
         questionId,
         body: { expected_revision: question.revision, review_state },
       });
-      setAnnouncement(review_state === "ignored" ? "Question muted." : "Question reopened.");
-      toast.info(review_state === "ignored" ? "Question muted." : "Question reopened.");
+      setAnnouncement(review_state === "ignored" ? "Question dismissed." : "Question reopened.");
+      toast.info(review_state === "ignored" ? "Question dismissed." : "Question reopened.");
     } catch {
-      setAnnouncement("The Question was not changed.");
+      setAnnouncement("The question was not changed.");
     }
   }
-
   async function chooseWinner() {
-    if (!question || !winnerId || conflictCaptures.some((capture) => !capture.data)) return;
+    if (!question || !winnerId || captures.some((capture) => !capture.data || capture.isError))
+      return;
     try {
       await resolveConflict.mutateAsync({
         questionId,
         body: {
           expected_question_revision: question.revision,
           winner_capture_id: winnerId,
-          captures: conflictCaptures.map((capture) => ({
+          captures: captures.map((capture) => ({
             capture_id: capture.data!.id,
             expected_revision: capture.data!.revision,
           })),
         },
       });
-      setAnnouncement("Remembered-value conflict resolved.");
-      toast.info("Remembered-value conflict resolved.");
+      setWinnerId("");
+      toast.info("Remembered value selected.");
     } catch {
       setAnnouncement("The conflict was not resolved.");
     }
   }
-
   const conflictError =
     putMapping.error ?? updateMapping.error ?? updateQuestion.error ?? resolveConflict.error;
+  const canReview =
+    !!selectedAnswer.data &&
+    !selectedAnswer.isError &&
+    complete &&
+    !question?.capture_conflict &&
+    (!question?.answer || (!!currentAnswer.data && !currentAnswer.isError));
+  const before = currentAnswer.data
+    ? `${currentAnswer.data.label}: ${valueText(currentAnswer.data.value, currentAnswer.data.choices)}`
+    : "No saved answer matched";
 
   return (
-    <Drawer label="Question details" onClose={close}>
-      <div aria-live="polite" className="sr-only">
+    <Drawer
+      label="Review question"
+      onClose={onClose}
+      dirty={initialized && (draft !== baseline || !!winnerId)}
+      busy={busy}
+      footer={
+        question && !question.capture_conflict ? (
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-3">
+              {!reviewed ? (
+                <button
+                  type="button"
+                  disabled={!canReview || busy}
+                  onClick={() => setReviewed(true)}
+                  className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
+                >
+                  Review match
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={!canReview || busy}
+                    onClick={() => void saveMapping()}
+                    className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
+                  >
+                    {busy ? "Saving…" : "Save match"}
+                  </button>
+                  {onNext && (
+                    <button
+                      type="button"
+                      disabled={!canReview || busy}
+                      onClick={() => void saveMapping(true)}
+                      className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+                    >
+                      Save and review next
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+            <p className="text-xs text-ink-muted">
+              {!answerId
+                ? "Choose a saved answer, use a remembered value, or save a new answer."
+                : !complete
+                  ? "Match every form choice before saving."
+                  : "Check the answer value and fill behavior before saving."}
+            </p>
+          </div>
+        ) : undefined
+      }
+    >
+      <p aria-live="polite" className="sr-only">
         {announcement}
-      </div>
+      </p>
       {query.isLoading ? (
-        <p role="status" className="text-sm text-ink-muted">
-          Loading Question…
-        </p>
+        <p role="status">Loading question…</p>
       ) : query.isError || !question ? (
-        <div role="alert" className="space-y-2 text-sm text-red-700 dark:text-red-300">
-          <p>Couldn’t load this Question.</p>
-          <button
-            type="button"
-            onClick={() => void query.refetch()}
-            className="font-medium underline"
-          >
+        <p role="alert">
+          Couldn’t load this question.{" "}
+          <button type="button" className="underline" onClick={() => void query.refetch()}>
             Retry
           </button>
-        </div>
+        </p>
       ) : (
         <>
-          <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-ink">{question.raw_question}</h2>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-              <dt className="text-ink-muted">Site</dt>
-              <dd>{question.site_scope}</dd>
-              <dt className="text-ink-muted">Control</dt>
-              <dd>{question.control_kind}</dd>
-              <dt className="text-ink-muted">Section</dt>
-              <dd>{question.raw_section || "—"}</dd>
-              <dt className="text-ink-muted">Help</dt>
-              <dd>{question.raw_help || "—"}</dd>
-              <dt className="text-ink-muted">Seen</dt>
-              <dd>
-                {question.seen_count} times, last {formatDate(question.last_seen_at)}
-              </dd>
-              <dt className="text-ink-muted">State</dt>
-              <dd>{question.review_state === "ignored" ? "Muted" : "Open"}</dd>
-            </dl>
+          <section className="space-y-3">
+            <h2 className="max-w-prose text-xl font-semibold text-ink">{question.raw_question}</h2>
+            {question.raw_help && (
+              <p className="max-w-prose text-sm text-ink-muted">{question.raw_help}</p>
+            )}
+            <p className="text-sm text-ink-muted">
+              {siteLabel(question.site_scope)} • {question.raw_section || "Application form"} • Seen{" "}
+              {question.seen_count} times
+            </p>
             {question.review_state === "ignored" || question.mapping?.status !== "active" ? (
-              <button
-                type="button"
-                onClick={() =>
-                  void changeReview(question.review_state === "open" ? "ignored" : "open")
-                }
-                className="rounded border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink"
-              >
-                {question.review_state === "open" ? "Mute Question" : "Reopen Question"}
-              </button>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void changeReview(question.review_state === "open" ? "ignored" : "open")
+                  }
+                  className="rounded-md border border-line bg-surface px-3 py-2 text-sm"
+                >
+                  {question.review_state === "open" ? "Dismiss question" : "Reopen question"}
+                </button>
+                {question.review_state === "ignored" && (
+                  <p className="text-sm text-ink-muted">
+                    This question is dismissed and will not fill. Reopen it before matching an
+                    answer.
+                  </p>
+                )}
+              </div>
             ) : (
-              <p className="text-sm text-ink-muted">
-                This Question is handled by its active Match.
-              </p>
+              <p className="text-sm text-ink-muted">This question already uses a saved answer.</p>
             )}
           </section>
-
-          {question.capture_conflict && (
+          {!!captures.length && (
             <section
-              aria-labelledby="capture-conflict-title"
-              className="space-y-3 rounded-lg border border-red-500/40 p-4"
+              className={`space-y-3 rounded-lg border p-4 ${question.capture_conflict ? "border-red-400 bg-red-50 dark:bg-red-950/20" : "border-line bg-surface"}`}
+              aria-label="Remembered values"
             >
-              <h3 id="capture-conflict-title" className="font-semibold text-ink">
-                Competing remembered values
+              <h3 className="font-semibold text-ink">
+                {question.capture_conflict
+                  ? "Choose which remembered value to keep"
+                  : "Remembered answer"}
               </h3>
-              <p className="text-sm text-ink-muted">
-                Nothing fills until you choose the current value.
-              </p>
-              {conflictCaptures.some((capture) => capture.isLoading) ? (
-                <p role="status" className="text-sm text-ink-muted">
-                  Loading remembered values…
+              {question.capture_conflict && (
+                <p className="text-sm text-ink-muted">
+                  Conflicting values block filling. Keeping one clears the other retained values.
+                </p>
+              )}
+              {captures.some((capture) => capture.isLoading) ? (
+                <p role="status">Loading remembered values…</p>
+              ) : captures.some((capture) => capture.isError) ? (
+                <p role="alert">
+                  Couldn’t load every remembered value.{" "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      for (const capture of captures) void capture.refetch();
+                    }}
+                  >
+                    Retry
+                  </button>
                 </p>
               ) : (
-                conflictCaptures.map(
+                captures.map(
                   (capture) =>
                     capture.data && (
-                      <label
-                        key={capture.data.id}
-                        className="flex items-start gap-2 rounded border border-line bg-surface p-3 text-sm text-ink"
-                      >
-                        <input
-                          type="radio"
-                          name="capture-winner"
-                          checked={winnerId === capture.data.id}
-                          onChange={() => setWinnerId(capture.data!.id)}
-                        />
-                        <span>
-                          <span className="block font-medium">{valueText(capture.data.value)}</span>
-                          <span className="text-xs text-ink-muted">
-                            {capture.data.source} · {formatDate(capture.data.created_at)}
+                      <div key={capture.data.id} className="space-y-2">
+                        <label className="flex items-start gap-3">
+                          {question.capture_conflict && (
+                            <input
+                              type="radio"
+                              name="capture-winner"
+                              checked={winnerId === capture.data.id}
+                              onChange={() => setWinnerId(capture.data!.id)}
+                            />
+                          )}
+                          <span>
+                            <span className="block whitespace-pre-wrap break-words text-lg font-medium text-ink">
+                              {valueText(capture.data.value, question.options)}
+                            </span>
+                            <span className="mt-1 block text-xs text-ink-muted">
+                              {SOURCE_LABEL[capture.data.source]} •{" "}
+                              {formatDate(capture.data.created_at)}
+                            </span>
                           </span>
-                        </span>
-                      </label>
+                        </label>
+                        {!question.capture_conflict && onOpenCapture && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenCapture(capture.data!.id)}
+                            className="rounded-md border border-accent px-3 py-2 text-sm font-medium text-accent"
+                          >
+                            Use or dismiss this value
+                          </button>
+                        )}
+                      </div>
                     ),
                 )
               )}
-              <button
-                type="button"
-                disabled={!winnerId || resolveConflict.isPending}
-                onClick={() => void chooseWinner()}
-                className="rounded bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {resolveConflict.isPending ? "Resolving…" : "Keep selected value"}
-              </button>
+              {question.capture_conflict && (
+                <button
+                  type="button"
+                  disabled={
+                    !winnerId ||
+                    busy ||
+                    captures.some((capture) => !capture.data || capture.isError)
+                  }
+                  onClick={() => void chooseWinner()}
+                  className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
+                >
+                  Keep selected value
+                </button>
+              )}
             </section>
           )}
-
-          <section aria-labelledby="match-title" className="space-y-3">
-            <div>
-              <h3 id="match-title" className="font-semibold text-ink">
-                Match
-              </h3>
-              <p className="text-sm text-ink-muted">
-                Connect this exact Question to one compatible Answer.
-              </p>
-            </div>
-            {question.mapping && (
-              <p className="text-sm text-ink">
-                Current Match: <strong>{question.answer?.label ?? "Unknown Answer"}</strong> ·{" "}
-                {question.mapping.status}
-              </p>
-            )}
-            <label className="block text-sm font-medium text-ink">
-              Destination Answer
-              <select
+          {!question.capture_conflict && (
+            <section className="space-y-4" aria-label="Saved answer for this question">
+              <h3 className="font-semibold text-ink">Choose what should fill this question</h3>
+              <AnswerPicker
+                control={question.control_kind}
+                prompt={question.raw_question}
                 value={answerId}
-                onChange={(event) => {
-                  setAnswerId(event.target.value);
+                selected={selectedAnswer.data}
+                loading={selectedAnswer.isLoading}
+                error={selectedAnswer.isError}
+                onRetry={() => void selectedAnswer.refetch()}
+                onChange={(id) => {
+                  setAnswerId(id);
                   setBindings({});
                   setReviewed(false);
                 }}
-                className="mt-1 w-full rounded border border-line bg-surface px-3 py-2"
-              >
-                <option value="">Choose an Answer</option>
-                {compatibleAnswers.map((answer) => (
-                  <option key={answer.id} value={answer.id}>
-                    {answer.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={() => onCreateAnswer(question)}
-              className="text-sm font-medium text-accent"
-            >
-              Create a new Answer for this Question
-            </button>
-            {choiceQuestion && selectedAnswer.data && (
-              <OptionBindingEditor
-                options={question.options}
-                choices={selectedAnswer.data.choices}
-                value={bindings}
-                onChange={(next) => {
-                  setBindings(next);
-                  setReviewed(false);
-                }}
               />
-            )}
-            {answerId && complete && !reviewed && (
               <button
                 type="button"
-                onClick={() => setReviewed(true)}
-                className="rounded border border-accent px-3 py-2 text-sm font-medium text-accent"
+                onClick={() => onCreateAnswer(question)}
+                className="text-sm font-medium text-accent"
               >
-                Review Match change
+                Save a new answer for this question
               </button>
-            )}
-            {reviewed && selectedAnswer.data && (
-              <div className="space-y-2 rounded-lg border border-accent p-3 text-sm">
-                <p className="font-semibold text-ink">Affected-resource review</p>
-                <p>
-                  Question revision {question.revision}; Answer revision{" "}
-                  {selectedAnswer.data.revision};{" "}
-                  {question.mapping ? `Match revision ${question.mapping.revision}` : "new Match"}.{" "}
-                  {choiceQuestion
-                    ? `${question.options.filter((option) => option.status === "active").length} Option matches will be replaced.`
-                    : "No Option matches are needed."}
-                </p>
-                <button
-                  type="button"
-                  disabled={putMapping.isPending}
-                  onClick={() => void saveMapping()}
-                  className="rounded bg-accent px-3 py-2 font-medium text-white disabled:opacity-50"
+              {choiceQuestion && selectedAnswer.data && (
+                <OptionBindingEditor
+                  options={question.options}
+                  choices={selectedAnswer.data.choices}
+                  value={bindings}
+                  onChange={(next) => {
+                    setBindings(next);
+                    setReviewed(false);
+                  }}
+                />
+              )}
+              {reviewed && selectedAnswer.data && (
+                <ChangeReview
+                  ref={reviewRef}
+                  before={before}
+                  after={`${selectedAnswer.data.label}: ${valueText(selectedAnswer.data.value, selectedAnswer.data.choices)}`}
+                  behavior={
+                    question.review_state === "ignored"
+                      ? "This question stays dismissed and will not fill until reopened."
+                      : fillExplanation(selectedAnswer.data.fill_policy, selectedAnswer.data.status)
+                  }
+                  affected={[question.raw_question]}
                 >
-                  {putMapping.isPending ? "Saving…" : "Save reviewed Match"}
-                </button>
-              </div>
-            )}
-            {question.mapping?.status === "active" && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => void changeMapping("disabled")}
-                  className="rounded border border-line px-3 py-1.5 text-sm"
-                >
-                  Disable Match
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void changeMapping("retired")}
-                  className="rounded border border-line px-3 py-1.5 text-sm"
-                >
-                  Retire Match
-                </button>
-              </div>
-            )}
-            {question.mapping?.status === "disabled" && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => void changeMapping("active")}
-                  className="rounded border border-line px-3 py-1.5 text-sm"
-                >
-                  Enable Match
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void changeMapping("retired")}
-                  className="rounded border border-line px-3 py-1.5 text-sm"
-                >
-                  Retire Match
-                </button>
-              </div>
-            )}
-            {question.mapping?.status === "retired" && (
-              <p className="text-sm text-ink-muted">
-                Choose an Answer and save to reactivate this Match.
-              </p>
-            )}
-          </section>
-
+                  {choiceQuestion && (
+                    <ul className="space-y-1 text-sm text-ink-muted">
+                      {question.options
+                        .filter((option) => option.status === "active")
+                        .map((option) => (
+                          <li key={option.id}>
+                            {option.raw_label} →{" "}
+                            {
+                              selectedAnswer.data!.choices.find(
+                                (choice) => choice.id === bindings[option.id],
+                              )?.display_label
+                            }
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                  {!!captures.length && (
+                    <p className="text-sm text-ink-muted">
+                      An identical remembered value is marked reviewed. A differing remembered value
+                      stays in the inbox.
+                    </p>
+                  )}
+                </ChangeReview>
+              )}
+              {question.mapping && (
+                <details className="border-t border-line pt-3 text-sm text-ink-muted">
+                  <summary className="cursor-pointer">Manage filling for this question</summary>
+                  <p className="my-3">
+                    Pausing stops filling and keeps the match. Removing the match retires it; a new
+                    match can be saved later.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void changeMapping(
+                          question.mapping!.status === "active" ? "disabled" : "active",
+                        )
+                      }
+                      className="rounded border border-line px-3 py-2"
+                    >
+                      {question.mapping.status === "active" ? "Pause filling" : "Resume filling"}
+                    </button>
+                    {question.mapping.status !== "retired" && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void changeMapping("retired")}
+                        className="rounded border border-line px-3 py-2"
+                      >
+                        Remove match
+                      </button>
+                    )}
+                  </div>
+                </details>
+              )}
+            </section>
+          )}
           <RevisionConflictPanel
             error={conflictError}
-            draft={JSON.stringify({ answerId, bindings }, null, 2)}
+            draft={draft}
             onReviewCurrent={async () => {
-              await query.refetch();
-              await selectedAnswer.refetch();
+              await Promise.all([
+                query.refetch(),
+                selectedAnswer.refetch(),
+                currentAnswer.refetch(),
+              ]);
               setReviewed(false);
               putMapping.reset();
               updateMapping.reset();
@@ -416,15 +510,17 @@ export function QuestionDrawer({ questionId, onClose, onCreateAnswer }: Props) {
               resolveConflict.reset();
             }}
             onDiscard={() => {
-              setAnswerId(question.answer?.id ?? "");
-              setBindings(
-                Object.fromEntries(
-                  (question.mapping?.bindings ?? []).map((binding) => [
-                    binding.question_option_id,
-                    binding.answer_choice_id,
-                  ]),
-                ),
+              const id = question.answer?.id ?? "";
+              const next = Object.fromEntries(
+                (question.mapping?.bindings ?? []).map((binding) => [
+                  binding.question_option_id,
+                  binding.answer_choice_id,
+                ]),
               );
+              setAnswerId(id);
+              setBindings(next);
+              setBaseline(JSON.stringify({ answerId: id, bindings: next }));
+              setWinnerId("");
               setReviewed(false);
               putMapping.reset();
               updateMapping.reset();
@@ -432,24 +528,7 @@ export function QuestionDrawer({ questionId, onClose, onCreateAnswer }: Props) {
               resolveConflict.reset();
             }}
           />
-
-          <section aria-labelledby="question-history-title" className="space-y-2">
-            <h3 id="question-history-title" className="font-semibold text-ink">
-              Value-free history
-            </h3>
-            <p className="text-xs text-ink-muted">Previous values are not retained in history.</p>
-            {!question.events?.length ? (
-              <p className="text-sm text-ink-muted">No history yet.</p>
-            ) : (
-              <ul className="space-y-1 text-sm text-ink-muted">
-                {question.events.map((event) => (
-                  <li key={event.id}>
-                    {event.event} · {formatDate(event.created_at)}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <KnowledgeHistory events={question.events ?? []} />
         </>
       )}
     </Drawer>

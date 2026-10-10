@@ -2,10 +2,25 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AnswerEditor } from "./AnswerEditor";
 import { emptyAnswerDraft } from "./answerDraft";
+import { useState } from "react";
 
 afterEach(cleanup);
 
 describe("AnswerEditor", () => {
+  it("keeps an automatic key in sync while typing and preserves a custom key", () => {
+    function Harness() {
+      const [draft, setDraft] = useState(emptyAnswerDraft);
+      return <AnswerEditor draft={draft} existing={false} onChange={setDraft} />;
+    }
+    render(<Harness />);
+    const label = screen.getByLabelText("Label");
+    fireEvent.change(label, { target: { value: "U" } });
+    fireEvent.change(label, { target: { value: "UX audit draft" } });
+    expect((screen.getByLabelText("Stable key") as HTMLInputElement).value).toBe("ux_audit_draft");
+    fireEvent.change(screen.getByLabelText("Stable key"), { target: { value: "custom_key" } });
+    fireEvent.change(label, { target: { value: "Another label" } });
+    expect((screen.getByLabelText("Stable key") as HTMLInputElement).value).toBe("custom_key");
+  });
   it("collapses and searches a large vocabulary with the selected choice first", async () => {
     const choices = Array.from({ length: 6 }, (_, index) => ({
       choice_key: `country_${index + 1}`,

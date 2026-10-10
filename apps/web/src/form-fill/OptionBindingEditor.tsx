@@ -1,5 +1,7 @@
 import type { AnswerChoiceSummary, QuestionOption } from "./model";
 import { ChoiceSetDisclosure } from "./ChoiceSetDisclosure";
+import { useState } from "react";
+import { suggestBindings } from "./bindings";
 
 interface Props {
   choices: AnswerChoiceSummary[];
@@ -9,6 +11,8 @@ interface Props {
 }
 
 export function OptionBindingEditor({ choices, options, value, onChange }: Props) {
+  const [search, setSearch] = useState("");
+  const [unmatchedOnly, setUnmatchedOnly] = useState(false);
   const activeOptions = options.filter((option) => option.status === "active");
   const activeChoices = choices.filter((choice) => choice.status === "active");
   const activeChoiceIds = new Set(activeChoices.map((choice) => choice.id));
@@ -25,53 +29,61 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
   }
   const hasDuplicate = [...choiceOwners.values()].some((owners) => owners.size > 1);
   function rows() {
-    return activeOptions.map((option) => {
-      const selectedId = value[option.id] ?? "";
-      const selectedChoice = activeChoices.find((choice) => choice.id === selectedId);
-      const remainingChoices = activeChoices.filter((choice) => choice.id !== selectedId);
-      return (
-        <label
-          key={option.id}
-          className="grid gap-1 text-sm text-ink sm:grid-cols-2 sm:items-center"
-        >
-          <span>{option.raw_label}</span>
-          <select
-            aria-label={`Meaning of ${option.raw_label}`}
-            value={selectedId}
-            onChange={(event) => onChange({ ...value, [option.id]: event.target.value })}
-            className="rounded border border-line bg-surface px-3 py-2"
+    return activeOptions
+      .filter(
+        (option) =>
+          (!unmatchedOnly || !activeChoiceIds.has(value[option.id])) &&
+          option.raw_label.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
+      )
+      .map((option) => {
+        const selectedId = value[option.id] ?? "";
+        const selectedChoice = activeChoices.find((choice) => choice.id === selectedId);
+        const remainingChoices = activeChoices.filter((choice) => choice.id !== selectedId);
+        return (
+          <label
+            key={option.id}
+            className="grid gap-1 text-sm text-ink sm:grid-cols-2 sm:items-center"
           >
-            {selectedChoice && (
-              <option
-                value={selectedChoice.id}
-                disabled={(choiceOwners.get(selectedChoice.id)?.size ?? 0) > 1}
-              >
-                {selectedChoice.display_label}
-              </option>
-            )}
-            <option value="">Select an Answer choice</option>
-            {remainingChoices.map((choice) => (
-              <option
-                key={choice.id}
-                value={choice.id}
-                disabled={
-                  choiceOwners.has(choice.id) && !choiceOwners.get(choice.id)?.has(option.id)
-                }
-              >
-                {choice.display_label}
-              </option>
-            ))}
-          </select>
-        </label>
-      );
-    });
+            <span>{option.raw_label}</span>
+            <select
+              aria-label={`Meaning of ${option.raw_label}`}
+              value={selectedId}
+              onChange={(event) => onChange({ ...value, [option.id]: event.target.value })}
+              className="rounded border border-line bg-surface px-3 py-2"
+            >
+              {selectedChoice && (
+                <option
+                  value={selectedChoice.id}
+                  disabled={(choiceOwners.get(selectedChoice.id)?.size ?? 0) > 1}
+                >
+                  {selectedChoice.display_label}
+                </option>
+              )}
+              <option value="">Select an Answer choice</option>
+              {remainingChoices.map((choice) => (
+                <option
+                  key={choice.id}
+                  value={choice.id}
+                  disabled={
+                    choiceOwners.has(choice.id) && !choiceOwners.get(choice.id)?.has(option.id)
+                  }
+                >
+                  {choice.display_label}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      });
   }
   return (
     <fieldset className="space-y-3 rounded-lg border border-line p-3">
-      <legend className="px-1 text-sm font-semibold text-ink">Complete Option matches</legend>
+      <legend className="px-1 text-sm font-semibold text-ink">
+        Match form choices to answer choices
+      </legend>
       <p className="text-xs text-ink-muted">
-        Choose a different Answer choice for every current form option. Saving replaces the entire
-        set.
+        Each form choice needs a different answer choice. Identical labels can be suggested; review
+        every match before saving.
       </p>
       {hasDuplicate && (
         <p role="alert" className="text-xs text-red-700 dark:text-red-300">
@@ -80,9 +92,38 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
       )}
       <ChoiceSetDisclosure
         count={activeOptions.length}
-        summary={`${activeOptions.length} Option matches · ${selectedCount} selected`}
+        initiallyExpanded={selectedCount < activeOptions.length}
+        summary={`${selectedCount} of ${activeOptions.length} choices matched`}
       >
-        {rows()}
+        <button
+          type="button"
+          onClick={() => onChange(suggestBindings(options, choices, value))}
+          className="text-sm font-medium text-accent"
+        >
+          Suggest identical labels
+        </button>
+        {activeOptions.length > 5 && (
+          <div className="space-y-2">
+            <label className="block text-sm">
+              Search form choices
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="mt-1 w-full rounded border border-line bg-surface px-3 py-2"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={unmatchedOnly}
+                onChange={(event) => setUnmatchedOnly(event.target.checked)}
+              />
+              Only unmatched choices
+            </label>
+          </div>
+        )}
+        <div className="max-h-80 space-y-3 overflow-y-auto">{rows()}</div>
       </ChoiceSetDisclosure>
     </fieldset>
   );

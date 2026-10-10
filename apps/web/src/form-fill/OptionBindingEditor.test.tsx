@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { bindingsComplete } from "./bindings";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { bindingsComplete, suggestBindings } from "./bindings";
 import { OptionBindingEditor } from "./OptionBindingEditor";
 import type { AnswerChoiceSummary, QuestionOption } from "./model";
 
@@ -28,6 +28,17 @@ const choices: AnswerChoiceSummary[] = [
 ];
 
 describe("OptionBindingEditor", () => {
+  it("suggests only unambiguous identical labels and preserves explicit selections", () => {
+    const exact = choices.map((choice, index) => ({
+      ...choice,
+      display_label: options[index].raw_label,
+    }));
+    expect(suggestBindings(options, exact)).toEqual({ "qo-a": "ac-a", "qo-b": "ac-b" });
+    expect(suggestBindings(options, exact, { "qo-a": "ac-b" })).toEqual({ "qo-a": "ac-b" });
+    expect(suggestBindings(options, [...exact, { ...exact[0], id: "duplicate" }])).toEqual({
+      "qo-b": "ac-b",
+    });
+  });
   it("requires every active form option to have an active meaning", () => {
     expect(bindingsComplete(options, choices, { "qo-a": "ac-a" })).toBe(false);
     expect(bindingsComplete(options, choices, { "qo-a": "ac-a", "qo-b": "ac-b" })).toBe(true);
@@ -64,7 +75,7 @@ describe("OptionBindingEditor", () => {
     expect([...second.options].find((option) => option.value === "ac-b")?.disabled).toBe(true);
   });
 
-  it("collapses large option sets until their mappings are opened", async () => {
+  it("opens incomplete option sets and makes missing matches searchable", async () => {
     const manyOptions = Array.from({ length: 6 }, (_, index) => ({
       id: `qo-${index}`,
       raw_label: `Option ${index}`,
@@ -88,12 +99,13 @@ describe("OptionBindingEditor", () => {
     );
 
     const details = container.querySelector("details")!;
-    expect(details.open).toBe(false);
-    expect(screen.queryAllByRole("combobox")).toHaveLength(0);
-    fireEvent.click(container.querySelector("summary")!);
-    await waitFor(() => {
-      expect(details.open).toBe(true);
-      expect(screen.getAllByRole("combobox")).toHaveLength(6);
+    expect(details.open).toBe(true);
+    expect(screen.getAllByRole("combobox")).toHaveLength(6);
+    fireEvent.click(screen.getByLabelText("Only unmatched choices"));
+    expect(screen.getAllByRole("combobox")).toHaveLength(5);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search form choices" }), {
+      target: { value: "Option 3" },
     });
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
   });
 });

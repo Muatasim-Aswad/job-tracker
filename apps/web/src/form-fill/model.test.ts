@@ -15,6 +15,21 @@ describe("form-fill value helpers", () => {
 
   it("renders typed values without serializing the wrapper", () => {
     expect(valueText({ kind: "boolean", value: true })).toBe("Yes");
-    expect(valueText({ kind: "multi_choice", choice_keys: ["one", "two"] })).toBe("one, two");
+    expect(
+      valueText({ kind: "multi_choice", choice_keys: ["one", "two"] }, [
+        { choice_key: "one", display_label: "First" },
+        { choice_key: "two", display_label: "Second" },
+      ]),
+    ).toBe("First, Second");
+  });
+
+  it("shows choice labels and never leaks an option id when a label is missing", () => {
+    const options = [{ id: "opaque-option", raw_label: "Professional experience" }];
+    expect(valueText({ kind: "single_choice", question_option_id: "opaque-option" }, options)).toBe(
+      "Professional experience",
+    );
+    expect(valueText({ kind: "single_choice", question_option_id: "unknown" }, options)).toBe(
+      "Option no longer available",
+    );
   });
 });

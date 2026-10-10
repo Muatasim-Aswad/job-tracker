@@ -5,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useCallback } from "react";
 import { api } from "./api/client";
 import type {
   AnswerCreate,
@@ -549,9 +550,12 @@ export function useResolveFormFillCaptureConflict() {
 
 export function useRemoveFormFillDetail() {
   const qc = useQueryClient();
-  return (kind: "answer" | "capture" | "question", id: string) => {
-    qc.removeQueries({ queryKey: [...FORM_FILL_KEY, kind, id], exact: true });
-  };
+  return useCallback(
+    (kind: "answer" | "capture" | "question", id: string) => {
+      qc.removeQueries({ queryKey: [...FORM_FILL_KEY, kind, id], exact: true });
+    },
+    [qc],
+  );
 }
 
 // Edit a listing's own fields (url, JD in meta, …). Exposed only for manual listings:
