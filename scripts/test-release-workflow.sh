@@ -30,7 +30,7 @@ grep -A5 '^  publish:' "$WORKFLOW" | grep -Fq 'contents: write' || fail "publica
 [[ "$(grep -Fc 'contents: write' "$WORKFLOW")" == 1 ]] || fail "contents: write must be limited to publication."
 [[ "$(grep -Fc 'persist-credentials: false' "$WORKFLOW")" == 2 ]] || fail "every checkout must disable persisted credentials."
 [[ "$(grep -Fc 'ref: ${{ github.ref }}' "$WORKFLOW")" == 2 ]] || fail "every checkout must select the pushed ref."
-[[ "$(grep -Fc 'astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9' "$WORKFLOW")" == 2 ]] || fail "every job that runs release scripts must install pinned uv."
+[[ "$(grep -Fc 'astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d' "$WORKFLOW")" == 2 ]] || fail "every job that runs release scripts must install pinned uv."
 [[ "$(grep -Fc 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' "$WORKFLOW")" == 2 ]] || fail "every job that verifies release contents must install pinned Node."
 grep -Fq 'workflow_dispatch:' "$CONTAINER_WORKFLOW" || fail "container workflow lacks manual release recovery."
 [[ "$(grep -Fc "format('refs/tags/{0}', inputs.tag)" "$CONTAINER_WORKFLOW")" == 2 ]] ||
@@ -51,8 +51,8 @@ if grep -Fq 'github.repository_owner' "$CONTAINER_WORKFLOW"; then
   fail "container image path must not preserve mixed-case repository ownership."
 fi
 for required in \
-  'astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9' \
-  'pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86' \
+  'astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d' \
+  'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413' \
   'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' \
   'pnpm install --frozen-lockfile' \
   'bash scripts/check.sh' \
