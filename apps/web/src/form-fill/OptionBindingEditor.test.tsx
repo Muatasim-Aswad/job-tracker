@@ -50,6 +50,12 @@ describe("OptionBindingEditor", () => {
     render(
       <OptionBindingEditor options={options} choices={choices} value={{}} onChange={onChange} />,
     );
+    const suggest = screen.getByRole("button", { name: "Suggest identical labels" });
+    fireEvent.mouseEnter(suggest.parentElement!);
+    expect(screen.getByRole("tooltip").textContent).toContain("review every match");
+    fireEvent.click(suggest);
+    expect(onChange).toHaveBeenCalledOnce();
+    fireEvent.mouseLeave(suggest.parentElement!);
     fireEvent.change(screen.getByRole("combobox", { name: "Meaning of Option A" }), {
       target: { value: "ac-a" },
     });

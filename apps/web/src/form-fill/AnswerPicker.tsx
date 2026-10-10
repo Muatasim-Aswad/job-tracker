@@ -93,9 +93,12 @@ export function AnswerPicker({
       )}
       {(expanded || !value) && (
         <>
-          <div className="flex items-end gap-2">
-            <label className="block flex-1 text-sm font-medium text-ink">
-              Find a saved answer
+          <label className="block flex-1 text-sm font-medium text-ink">
+            Find a saved answer
+            <HelpTip
+              text="Compatible answers, with similar names first. Check the value before saving."
+              className="block"
+            >
               <input
                 type="search"
                 value={search}
@@ -104,12 +107,9 @@ export function AnswerPicker({
                 placeholder="Search by name or description"
                 className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
               />
-            </label>
-            <HelpTip
-              label="About answer selection"
-              text="Compatible answers, with similar names first. Check the value before saving."
-            />
-          </div>
+            </HelpTip>
+          </label>
+
           {query.isLoading ? (
             <p role="status">Loading answers…</p>
           ) : query.isError ? (

@@ -43,6 +43,27 @@ describe("Tooltip", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
+  it("leaves action clicks intact when click toggling is disabled", () => {
+    const action = vi.fn();
+    render(
+      <Tooltip label="Save the reviewed changes" toggleOnClick={false}>
+        <button type="button" onClick={action}>
+          Save
+        </button>
+      </Tooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    fireEvent.focus(button);
+    fireEvent.click(button);
+    expect(action).toHaveBeenCalledOnce();
+    expect(screen.getByRole("tooltip").textContent).toBe("Save the reviewed changes");
+    fireEvent.keyDown(button, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.click(button);
+    expect(action).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("describes the trigger itself while open, and stops when closed", () => {
     render(trigger());
     const btn = screen.getByRole("button");

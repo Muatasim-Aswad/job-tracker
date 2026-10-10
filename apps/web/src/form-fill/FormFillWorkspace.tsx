@@ -117,29 +117,38 @@ export function FormFillWorkspace() {
         <div role="tablist" aria-label="Form Fill sections" className="flex flex-1 flex-wrap">
           {(
             [
-              ["review", "Review inbox"],
-              ["answers", "Saved answers"],
-              ["dismissed", "Dismissed"],
+              [
+                "review",
+                "Review inbox",
+                "Review a remembered value or choose what should fill this question. Each question appears once.",
+              ],
+              [
+                "answers",
+                "Saved answers",
+                "Reusable answers and the questions that use them. Paused answers are hidden by default.",
+              ],
+              [
+                "dismissed",
+                "Dismissed",
+                "Reopen dismissed questions or inspect the history of cleared remembered values.",
+              ],
             ] as const
-          ).map(([section, label]) => (
-            <button
-              key={section}
-              type="button"
-              role="tab"
-              aria-selected={state.section === section}
-              onClick={() =>
-                navigate({ section, answerId: null, captureId: null, questionId: null })
-              }
-              className={`border-b-2 px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent ${state.section === section ? "border-accent text-ink" : "border-transparent text-ink-muted"}`}
-            >
-              {label}
-            </button>
+          ).map(([section, label, help]) => (
+            <HelpTip key={section} text={help}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={state.section === section}
+                onClick={() =>
+                  navigate({ section, answerId: null, captureId: null, questionId: null })
+                }
+                className={`border-b-2 px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent ${state.section === section ? "border-accent text-ink" : "border-transparent text-ink-muted"}`}
+              >
+                {label}
+              </button>
+            </HelpTip>
           ))}
         </div>
-        <HelpTip
-          label="About Form Fill"
-          text="Choose the answers Job Tracker can reuse in application forms. Review new questions here; edit your saved answers anytime."
-        />
       </div>
       {state.section === "answers" ? (
         <AnswerList
@@ -156,20 +165,25 @@ export function FormFillWorkspace() {
           <div role="tablist" aria-label="Dismissed items" className="flex gap-2">
             {(
               [
-                ["questions", "Questions"],
-                ["captures", "Remembered values"],
+                ["questions", "Questions", "Reopen a question to include it in review again."],
+                [
+                  "captures",
+                  "Remembered values",
+                  "Dismissal clears the retained value. Open the question to review it again, then enter a fresh value in the application form.",
+                ],
               ] as const
-            ).map(([reviewType, label]) => (
-              <button
-                key={reviewType}
-                type="button"
-                role="tab"
-                aria-selected={state.reviewType === reviewType}
-                className={`rounded-md border border-line px-3 py-2 text-sm ${state.reviewType === reviewType ? "bg-surface-hover text-ink" : "text-ink-muted"}`}
-                onClick={() => navigate({ reviewType, questionId: null, captureId: null })}
-              >
-                {label}
-              </button>
+            ).map(([reviewType, label, help]) => (
+              <HelpTip key={reviewType} text={help}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={state.reviewType === reviewType}
+                  className={`rounded-md border border-line px-3 py-2 text-sm ${state.reviewType === reviewType ? "bg-surface-hover text-ink" : "text-ink-muted"}`}
+                  onClick={() => navigate({ reviewType, questionId: null, captureId: null })}
+                >
+                  {label}
+                </button>
+              </HelpTip>
             ))}
           </div>
           {state.reviewType === "captures" ? (
@@ -181,11 +195,13 @@ export function FormFillWorkspace() {
       ) : (
         <div className="space-y-4">
           <label className="flex items-center gap-2 text-sm text-ink-muted">
-            <input
-              type="checkbox"
-              checked={showAllQuestions}
-              onChange={(event) => setShowAllQuestions(event.target.checked)}
-            />
+            <HelpTip text="Find and adjust existing matches, including questions already handled.">
+              <input
+                type="checkbox"
+                checked={showAllQuestions}
+                onChange={(event) => setShowAllQuestions(event.target.checked)}
+              />
+            </HelpTip>
             Include questions already handled
           </label>
           <QuestionList

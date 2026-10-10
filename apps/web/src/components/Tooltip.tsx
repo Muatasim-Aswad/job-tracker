@@ -19,6 +19,8 @@ interface Props {
   // truncate inside a grid cell needs `block min-w-0 truncate` instead, and the
   // wrapper is the only element in the chain that can carry it.
   className?: string;
+  // Action controls use hover/focus only so a click keeps its existing purpose.
+  toggleOnClick?: boolean;
 }
 
 // Hover + focus + tap, described to assistive tech, and never clipped.
@@ -34,7 +36,12 @@ interface Props {
 //     `position: fixed`, so the drawer's overflow and stacking context can't cut it
 //     off at the panel edge — the failure that makes an in-flow tooltip useless on
 //     exactly the controls nearest the edge, which is most of them.
-export function Tooltip({ label, children, className = "inline-flex" }: Props) {
+export function Tooltip({
+  label,
+  children,
+  className = "inline-flex",
+  toggleOnClick = true,
+}: Props) {
   const id = useId();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -95,7 +102,7 @@ export function Tooltip({ label, children, className = "inline-flex" }: Props) {
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOnClick ? () => setOpen((v) => !v) : undefined}
       >
         {trigger}
       </span>

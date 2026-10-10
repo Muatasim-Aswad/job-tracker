@@ -92,7 +92,7 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
         initiallyExpanded={selectedCount < activeOptions.length}
         summary={`${selectedCount} of ${activeOptions.length} choices matched`}
       >
-        <div className="flex items-center gap-2">
+        <HelpTip text="Each form choice needs a different answer choice. Identical labels can be suggested; review every match before saving.">
           <button
             type="button"
             onClick={() => onChange(suggestBindings(options, choices, value))}
@@ -100,11 +100,7 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
           >
             Suggest identical labels
           </button>
-          <HelpTip
-            label="About choice matching"
-            text="Each form choice needs a different answer choice. Identical labels can be suggested; review every match before saving."
-          />
-        </div>
+        </HelpTip>
         {activeOptions.length > 5 && (
           <div className="space-y-2">
             <label className="block text-sm">

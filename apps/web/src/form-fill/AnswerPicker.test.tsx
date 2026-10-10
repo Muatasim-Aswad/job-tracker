@@ -48,7 +48,11 @@ describe("AnswerPicker", () => {
     const later = await screen.findByRole("button", { name: /Synthetic answer 101/ });
     fireEvent.click(later);
     expect(change).toHaveBeenCalledWith("answer-101");
-    fireEvent.change(screen.getByRole("searchbox", { name: "Find a saved answer" }), {
+    const search = screen.getByRole("searchbox", { name: "Find a saved answer" });
+    fireEvent.focus(search);
+    expect(screen.getByRole("tooltip").textContent).toContain("Compatible answers");
+    expect(search.getAttribute("aria-describedby")).toBe(screen.getByRole("tooltip").id);
+    fireEvent.change(search, {
       target: { value: "Later answer" },
     });
     await waitFor(() =>

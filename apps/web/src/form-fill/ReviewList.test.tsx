@@ -7,7 +7,6 @@ afterEach(cleanup);
 const baseProps = {
   titleId: "review-title",
   title: "Remembered values",
-  description: "Provisional values.",
   isLoading: false,
   isError: false,
   onRetry: () => {},
@@ -21,18 +20,11 @@ const baseProps = {
 };
 
 describe("Form Fill review list", () => {
-  it("keeps a named region without repeating the navigation title and shows explanations on demand", () => {
+  it("keeps a named region without repeating the navigation title or adding help buttons", () => {
     render(<ReviewList {...baseProps} filters={null} rows={[]} onOpen={() => {}} />);
     expect(screen.getByRole("region", { name: "Remembered values" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Remembered values" })).toBeNull();
-    expect(screen.queryByText("Provisional values.")).toBeNull();
-    const help = screen.getByRole("button", { name: "About remembered values" });
-    fireEvent.mouseEnter(help.parentElement!);
-    expect(screen.getByRole("tooltip").textContent).toBe("Provisional values.");
-    fireEvent.mouseLeave(help.parentElement!);
-    expect(screen.queryByRole("tooltip")).toBeNull();
-    fireEvent.focus(help);
-    expect(help.getAttribute("aria-describedby")).toBe(screen.getByRole("tooltip").id);
+    expect(screen.queryByRole("button", { name: /About/ })).toBeNull();
   });
   it("keeps filters in their own block and opens rows by id", () => {
     const onOpen = vi.fn();

@@ -22,13 +22,7 @@ describe("Saved answers presentation", () => {
     expect(screen.getByRole("region", { name: "Saved answers" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Saved answers" })).toBeNull();
     expect(screen.queryByText(/Reusable answers and the questions/)).toBeNull();
-    const help = screen.getByRole("button", { name: "About saved answers" });
-    fireEvent.click(help);
-    expect(screen.getByRole("tooltip").textContent).toContain(
-      "Paused answers are hidden by default.",
-    );
-    fireEvent.click(help);
-    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(screen.queryByRole("button", { name: /About/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Synthetic answer/ }));
     expect(open).toHaveBeenCalledWith(testAnswer.id);
     fireEvent.click(screen.getByRole("button", { name: "New answer" }));

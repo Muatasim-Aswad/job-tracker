@@ -33,10 +33,18 @@ describe("FormFillWorkspace navigation", () => {
     render(<FormFillWorkspace />);
     expect(screen.queryByRole("heading", { name: "Form Fill" })).toBeNull();
     expect(screen.queryByText(/Choose the answers Job Tracker can reuse/)).toBeNull();
-    fireEvent.focus(screen.getByRole("button", { name: "About Form Fill" }));
+    const tab = screen.getByRole("tab", { name: "Saved answers" });
+    expect(screen.queryByRole("button", { name: /About/ })).toBeNull();
+    fireEvent.mouseEnter(tab.parentElement!);
     expect(screen.getByRole("tooltip").textContent).toContain(
-      "Choose the answers Job Tracker can reuse",
+      "Reusable answers and the questions that use them",
     );
+    fireEvent.mouseLeave(tab.parentElement!);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.focus(tab);
+    expect(tab.getAttribute("aria-describedby")).toBe(screen.getByRole("tooltip").id);
+    fireEvent.click(tab);
+    expect(screen.getByRole("tooltip")).toBeTruthy();
   });
   it("uses semantic tabs and keeps only enum and resource state in the URL", async () => {
     window.history.replaceState(

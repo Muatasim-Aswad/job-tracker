@@ -169,34 +169,34 @@ export function AnswerDrawer({
       busy={mutation.isPending}
       footer={
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="submit"
-            form={formId}
-            disabled={!valid || mutation.isPending || (!!answerId && !answer)}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
-          >
-            {mutation.isPending
-              ? "Saving…"
-              : answerId
-                ? "Save answer"
-                : context
-                  ? "Save answer and match"
-                  : "Save answer"}
-          </button>
-          {context && (
+          <HelpTip text="Check the value and fill behavior before saving.">
             <button
-              type="button"
-              disabled={!valid || mutation.isPending}
-              onClick={() => void save(true)}
-              className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+              type="submit"
+              form={formId}
+              disabled={!valid || mutation.isPending || (!!answerId && !answer)}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
             >
-              Save and review next
+              {mutation.isPending
+                ? "Saving…"
+                : answerId
+                  ? "Save answer"
+                  : context
+                    ? "Save answer and match"
+                    : "Save answer"}
             </button>
+          </HelpTip>
+          {context && (
+            <HelpTip text="Save this answer and match, then open the next question.">
+              <button
+                type="button"
+                disabled={!valid || mutation.isPending}
+                onClick={() => void save(true)}
+                className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+              >
+                Save and review next
+              </button>
+            </HelpTip>
           )}
-          <HelpTip
-            label="About saving answers"
-            text="Check the value and fill behavior before saving."
-          />
           {!valid && (
             <span className="text-xs text-ink-muted">
               Add a name and a valid answer value to save.

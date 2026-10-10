@@ -218,40 +218,42 @@ export function QuestionDrawer({
           <div className="space-y-2">
             <div className="flex flex-wrap gap-3">
               {!reviewed ? (
-                <button
-                  type="button"
-                  disabled={!canReview || busy}
-                  onClick={() => setReviewed(true)}
-                  className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
-                >
-                  Review match
-                </button>
-              ) : (
-                <>
+                <HelpTip text="Check the answer value and fill behavior before saving.">
                   <button
                     type="button"
                     disabled={!canReview || busy}
-                    onClick={() => void saveMapping()}
+                    onClick={() => setReviewed(true)}
                     className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
                   >
-                    {busy ? "Saving…" : "Save match"}
+                    Review match
                   </button>
-                  {onNext && (
+                </HelpTip>
+              ) : (
+                <>
+                  <HelpTip text="Check the answer value and fill behavior before saving.">
                     <button
                       type="button"
                       disabled={!canReview || busy}
-                      onClick={() => void saveMapping(true)}
-                      className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+                      onClick={() => void saveMapping()}
+                      className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
                     >
-                      Save and review next
+                      {busy ? "Saving…" : "Save match"}
                     </button>
+                  </HelpTip>
+                  {onNext && (
+                    <HelpTip text="Save this match, then open the next question.">
+                      <button
+                        type="button"
+                        disabled={!canReview || busy}
+                        onClick={() => void saveMapping(true)}
+                        className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+                      >
+                        Save and review next
+                      </button>
+                    </HelpTip>
                   )}
                 </>
               )}
-              <HelpTip
-                label="About saving matches"
-                text="Check the answer value and fill behavior before saving."
-              />
             </div>
             {(!answerId || !complete) && (
               <p className="text-xs text-ink-muted">

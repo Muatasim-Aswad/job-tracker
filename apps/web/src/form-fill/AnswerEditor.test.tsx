@@ -7,6 +7,26 @@ import { useState } from "react";
 afterEach(cleanup);
 
 describe("AnswerEditor", () => {
+  it("explains the fill policy on the select without changing selection behavior", () => {
+    function Harness() {
+      const [draft, setDraft] = useState(emptyAnswerDraft);
+      return <AnswerEditor draft={draft} existing={false} onChange={setDraft} />;
+    }
+    render(<Harness />);
+    const policy = screen.getByRole("combobox", { name: "Fill policy" });
+    expect(screen.queryByRole("button", { name: /About/ })).toBeNull();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.focus(policy);
+    expect(policy.getAttribute("aria-describedby")).toBe(screen.getByRole("tooltip").id);
+    fireEvent.click(policy);
+    expect(screen.getByRole("tooltip")).toBeTruthy();
+    fireEvent.change(policy, { target: { value: "never" } });
+    expect((policy as HTMLSelectElement).value).toBe("never");
+    expect(screen.getByRole("tooltip").textContent).toBe("This answer will not fill forms.");
+    fireEvent.blur(policy);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("keeps an automatic key in sync while typing and preserves a custom key", () => {
     function Harness() {
       const [draft, setDraft] = useState(emptyAnswerDraft);

@@ -34,13 +34,6 @@ export function QuestionList({ onOpen, mode = "inbox", onItemsChange }: Props) {
             ? "Dismissed questions"
             : "All questions"
       }
-      description={
-        mode === "inbox"
-          ? "Review a remembered value or choose what should fill this question. Each question appears once."
-          : mode === "muted"
-            ? "Reopen a question to include it in review again."
-            : "Find and adjust existing matches, including questions already handled."
-      }
       filters={
         <>
           <label className="min-w-0 basis-64 flex-1 text-sm font-medium text-ink">

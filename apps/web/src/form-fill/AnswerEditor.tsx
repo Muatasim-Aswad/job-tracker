@@ -253,9 +253,10 @@ export function AnswerEditor({ draft, existing, questionLocked = false, onChange
             ))}
           </select>
         </label>
-        <div className="flex items-end gap-2">
-          <label className="block flex-1 text-sm font-medium text-ink">
-            Fill policy
+
+        <label className="block flex-1 text-sm font-medium text-ink">
+          Fill policy
+          <HelpTip text={fillExplanation(draft.fillPolicy, draft.status)} className="block">
             <select
               value={draft.fillPolicy}
               onChange={(event) =>
@@ -267,12 +268,8 @@ export function AnswerEditor({ draft, existing, questionLocked = false, onChange
               <option value="confirm_each_time">Ask every time</option>
               <option value="never">Never fill</option>
             </select>
-          </label>
-          <HelpTip
-            label="About fill policy"
-            text={fillExplanation(draft.fillPolicy, draft.status)}
-          />
-        </div>
+          </HelpTip>
+        </label>
       </div>
 
       <details className="text-sm text-ink-muted">

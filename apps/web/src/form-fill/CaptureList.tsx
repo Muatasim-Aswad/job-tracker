@@ -16,7 +16,6 @@ export function CaptureList({ onOpen }: Props) {
     <ReviewList
       titleId="captures-title"
       title="Dismissed remembered values"
-      description="Dismissal clears the retained value. Open the question to review it again, then enter a fresh value in the application form."
       filters={
         <label className="flex-1 text-sm font-medium text-ink">
           Search dismissed values

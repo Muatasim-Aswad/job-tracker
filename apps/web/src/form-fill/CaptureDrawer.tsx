@@ -342,40 +342,42 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
           <div className="space-y-2">
             <div className="flex flex-wrap gap-3">
               {!reviewed ? (
-                <button
-                  type="button"
-                  disabled={!actionValid || busy}
-                  onClick={() => setReviewed(true)}
-                  className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
-                >
-                  Review changes
-                </button>
-              ) : (
-                <>
+                <HelpTip text="Check the value and affected questions before saving.">
                   <button
                     type="button"
                     disabled={!actionValid || busy}
-                    onClick={() => void apply()}
+                    onClick={() => setReviewed(true)}
                     className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
                   >
-                    {busy ? "Saving…" : "Save changes"}
+                    Review changes
                   </button>
-                  {onNext && (
+                </HelpTip>
+              ) : (
+                <>
+                  <HelpTip text="Check the value and affected questions before saving.">
                     <button
                       type="button"
                       disabled={!actionValid || busy}
-                      onClick={() => void apply(true)}
-                      className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+                      onClick={() => void apply()}
+                      className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
                     >
-                      Save and review next
+                      {busy ? "Saving…" : "Save changes"}
                     </button>
+                  </HelpTip>
+                  {onNext && (
+                    <HelpTip text="Save these changes, then open the next question.">
+                      <button
+                        type="button"
+                        disabled={!actionValid || busy}
+                        onClick={() => void apply(true)}
+                        className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+                      >
+                        Save and review next
+                      </button>
+                    </HelpTip>
                   )}
                 </>
               )}
-              <HelpTip
-                label="About saving remembered answers"
-                text="Check the value and affected questions before saving."
-              />
             </div>
             {!actionValid && (
               <p className="text-xs text-ink-muted">
@@ -544,9 +546,10 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                         className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
                       />
                     </label>
-                    <div className="flex items-end gap-2">
-                      <label className="block flex-1 text-sm font-medium text-ink">
-                        Fill behavior
+
+                    <label className="block flex-1 text-sm font-medium text-ink">
+                      Fill behavior
+                      <HelpTip text={fillExplanation(fillPolicy)} className="block">
                         <select
                           value={fillPolicy}
                           onChange={(event) =>
@@ -558,9 +561,9 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                           <option value="confirm_each_time">Ask every time</option>
                           <option value="never">Never fill</option>
                         </select>
-                      </label>
-                      <HelpTip label="About fill behavior" text={fillExplanation(fillPolicy)} />
-                    </div>
+                      </HelpTip>
+                    </label>
+
                     <details className="text-sm text-ink-muted">
                       <summary className="cursor-pointer">Optional details</summary>
                       <div className="mt-3 space-y-3">

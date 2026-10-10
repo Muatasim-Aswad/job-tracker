@@ -1,3 +1,5 @@
+import { Tooltip } from "./Tooltip";
+
 interface Props {
   view: "jobs" | "form-fill";
   hasReview: boolean;
@@ -12,7 +14,7 @@ export function FormFillNav({ view, hasReview, onChange }: Props) {
     >
       {(["jobs", "form-fill"] as const).map((item) => {
         const selected = view === item;
-        return (
+        const button = (
           <button
             key={item}
             type="button"
@@ -30,6 +32,17 @@ export function FormFillNav({ view, hasReview, onChange }: Props) {
               />
             )}
           </button>
+        );
+        return item === "form-fill" ? (
+          <Tooltip
+            key={item}
+            label="Choose the answers Job Tracker can reuse in application forms. Review new questions here; edit your saved answers anytime."
+            toggleOnClick={false}
+          >
+            {button}
+          </Tooltip>
+        ) : (
+          button
         );
       })}
     </nav>
