@@ -29,6 +29,7 @@ export const testQuestion: QuestionDetail = {
   revision: 1,
   capture_conflict: false,
   current_capture_count: 0,
+  ignored_capture_count: 0,
   option_count: 0,
   seen_count: 2,
   first_seen_at: time,

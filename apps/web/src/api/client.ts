@@ -64,6 +64,7 @@ export type QuestionListResponse = FormFillSchemas["QuestionListResponse"];
 export type QuestionReviewUpdate = FormFillSchemas["QuestionReviewUpdate"];
 
 export interface AnswerFilters {
+  sort?: "updated_at" | "label" | "mapping_count";
   cursor?: string;
   limit?: number;
   q?: string;
@@ -89,9 +90,11 @@ export interface QuestionFilters {
   mapping_status?: "active" | "disabled" | "retired" | "none";
   needs_review?: boolean;
   review_inbox?: boolean;
+  include_matched?: boolean;
+  include_dismissed?: boolean;
   review_state?: "open" | "ignored";
   site_scope?: string;
-  sort?: "last_seen" | "seen_count";
+  sort?: "last_seen" | "seen_count" | "prompt";
   [key: string]: string | number | boolean | undefined;
 }
 

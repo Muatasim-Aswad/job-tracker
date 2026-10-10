@@ -9,6 +9,7 @@ from app.form_fill.schemas import (
     AnswerCreate,
     AnswerDetail,
     AnswerListResponse,
+    AnswerSort,
     AnswerUpdate,
     CaptureApply,
     CaptureApplyResponse,
@@ -56,13 +57,14 @@ def list_answers(
         Query(),
     ] = None,
     q: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
+    sort: Annotated[AnswerSort, Query()] = "updated_at",
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     cursor: Annotated[str | None, Query(min_length=1, max_length=2048)] = None,
     service: FormFillService = Depends(get_service),
 ) -> AnswerListResponse:
     _private(response)
     return service.list_answers(
-        status=status, value_kind=value_kind, query=q, limit=limit, cursor=cursor
+        status=status, value_kind=value_kind, query=q, sort=sort, limit=limit, cursor=cursor
     )
 
 
@@ -175,11 +177,13 @@ def list_questions(
     ] = None,
     needs_review: Annotated[bool | None, Query()] = None,
     review_inbox: Annotated[bool | None, Query()] = None,
+    include_matched: Annotated[bool, Query()] = False,
+    include_dismissed: Annotated[bool, Query()] = False,
     has_current_capture: Annotated[bool | None, Query()] = None,
     site_scope: Annotated[str | None, Query(min_length=1, max_length=253)] = None,
     answer_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
     q: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
-    sort: Annotated[Literal["last_seen", "seen_count"], Query()] = "last_seen",
+    sort: Annotated[Literal["last_seen", "seen_count", "prompt"], Query()] = "last_seen",
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     cursor: Annotated[str | None, Query(min_length=1, max_length=2048)] = None,
     service: FormFillService = Depends(get_service),
@@ -190,6 +194,8 @@ def list_questions(
         mapping_status=mapping_status,
         needs_review=needs_review,
         review_inbox=review_inbox,
+        include_matched=include_matched,
+        include_dismissed=include_dismissed,
         has_current_capture=has_current_capture,
         site_scope=site_scope,
         answer_id=answer_id,

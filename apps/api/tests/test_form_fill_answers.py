@@ -6,9 +6,15 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError as PydanticValidationError
 
-from app.core.db import Conn
+from app.core.db import Conn, execute
 from app.core.errors import ConflictError, InvalidCursorError, NotFoundError, ValidationError
-from app.form_fill.schemas import AnswerCreate, AnswerUpdate
+from app.form_fill.schemas import (
+    AnswerCreate,
+    AnswerSort,
+    AnswerUpdate,
+    MappingPut,
+    ResolutionRequest,
+)
 from app.form_fill.service import FormFillService
 
 
@@ -239,3 +245,109 @@ def test_answer_value_routes_are_no_store(client: TestClient) -> None:
     assert invalid.status_code == 422
     assert invalid.headers["cache-control"] == "no-store"
     assert sentinel not in str(invalid.headers)
+
+
+@pytest.mark.parametrize("sort", ["updated_at", "label", "mapping_count"])
+def test_answer_orders_paginate_ties_and_bind_cursors(conn: Conn, sort: AnswerSort) -> None:
+    service = FormFillService(conn)
+    labels = ["Zulu", "alpha", "Alpha", "Beta"]
+    counts = [0, 2, 2, 1]
+    answers = [
+        service.create_answer(_answer(f"ordered_{index}").model_copy(update={"label": label}))
+        for index, label in enumerate(labels)
+    ]
+    for index, answer in enumerate(answers):
+        execute(
+            conn,
+            "UPDATE form_answers SET updated_at = ? WHERE id = ?",
+            ("2026-01-02T00:00:00Z" if index == 0 else "2026-01-01T00:00:00Z", answer.id),
+        )
+        for occurrence in range(counts[index]):
+            resolved = service.resolve(
+                ResolutionRequest.model_validate(
+                    {
+                        "scan_id": f"order-{index}-{occurrence}",
+                        "application_context_id": "synthetic-order-test",
+                        "page": {
+                            "site_scope": "synthetic",
+                            "adapter_id": "synthetic",
+                            "adapter_version": "1",
+                            "platform": "synthetic",
+                            "platform_id": "synthetic-sort",
+                        },
+                        "fields": [
+                            {
+                                "client_field_id": "field",
+                                "prompt": f"Question {index} {occurrence}",
+                                "control_kind": "text",
+                                "required": False,
+                                "has_value": False,
+                                "user_confirmed": False,
+                                "options": [],
+                            }
+                        ],
+                    }
+                )
+            )
+            question = service.get_question(resolved.results[0].question_id)
+            service.put_mapping(
+                question.id,
+                MappingPut(
+                    answer_id=answer.id,
+                    expected_answer_revision=1,
+                    expected_question_revision=question.revision,
+                ),
+            )
+    if sort == "label":
+        expected = sorted(answers, key=lambda a: (a.label.lower(), a.id))
+    elif sort == "mapping_count":
+        expected = sorted(answers, key=lambda a: (counts[answers.index(a)], a.id), reverse=True)
+    else:
+        expected = [answers[0], *sorted(answers[1:], key=lambda a: a.id, reverse=True)]
+    first = service.list_answers(
+        status=None, value_kind="text", query=None, sort=sort, limit=2, cursor=None
+    )
+    assert first.next_cursor
+    second = service.list_answers(
+        status=None, value_kind="text", query=None, sort=sort, limit=2, cursor=first.next_cursor
+    )
+    assert [item.id for item in first.items + second.items] == [answer.id for answer in expected]
+    assert second.next_cursor is None
+    assert "Private value" not in first.model_dump_json()
+    assert "sort_value" not in first.model_dump_json()
+    if sort == "mapping_count":
+        assert [item.mapping_count for item in first.items + second.items] == [2, 2, 1, 0]
+    with pytest.raises(InvalidCursorError):
+        service.list_answers(
+            status=None,
+            value_kind="text",
+            query=None,
+            sort="label" if sort != "label" else "updated_at",
+            limit=2,
+            cursor=first.next_cursor,
+        )
+    with pytest.raises(InvalidCursorError):
+        service.list_answers(
+            status="disabled",
+            value_kind="text",
+            query=None,
+            sort=sort,
+            limit=2,
+            cursor=first.next_cursor,
+        )
+
+
+def test_answer_order_parameter_is_validated_and_defaults_to_recent(client: TestClient) -> None:
+    for key, label in [("sort_z", "Zulu"), ("sort_a", "Alpha")]:
+        body = _answer(key).model_dump(mode="json")
+        body["label"] = label
+        assert client.post("/api/form-fill/answers", json=body).status_code == 200
+    by_name = client.get("/api/form-fill/answers", params={"sort": "label"})
+    assert by_name.status_code == 200
+    assert [item["label"] for item in by_name.json()["items"]] == ["Alpha", "Zulu"]
+    assert by_name.headers["cache-control"] == "no-store"
+    assert (
+        client.get("/api/form-fill/answers").json()
+        == client.get("/api/form-fill/answers?sort=updated_at").json()
+    )
+    assert client.get("/api/form-fill/answers?sort=unknown").status_code == 422

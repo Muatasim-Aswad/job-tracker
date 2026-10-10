@@ -2,14 +2,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnswerDrawer } from "./AnswerDrawer";
 import { AnswerList } from "./AnswerList";
 import { CaptureDrawer } from "./CaptureDrawer";
-import { CaptureList } from "./CaptureList";
 import { QuestionDrawer } from "./QuestionDrawer";
 import { QuestionList } from "./QuestionList";
 import { canLeaveFormFill } from "./draftGuard";
 import { HelpTip } from "./HelpTip";
 import type { QuestionDetail } from "./model";
 
-const URL_KEYS = new Set(["view", "section", "type", "answer", "capture", "question"]);
+const URL_KEYS = new Set([
+  "view",
+  "section",
+  "type",
+  "include",
+  "history",
+  "answer",
+  "capture",
+  "question",
+]);
 function removeNonViewState(url: URL): boolean {
   let changed = false;
   for (const key of [...url.searchParams.keys()]) {
@@ -23,25 +31,49 @@ function removeNonViewState(url: URL): boolean {
 function readState() {
   const params = new URLSearchParams(window.location.search);
   const section = params.get("section");
+  const included = new Set(params.get("include")?.split(",") ?? []);
+  const legacyHistory =
+    params.get("history") === "cleared" ||
+    (section === "dismissed" && params.get("type") === "captures");
+  const legacyAll = included.has("handled") || legacyHistory;
   return {
-    section:
-      section === "answers"
-        ? ("answers" as const)
-        : section === "dismissed"
-          ? ("dismissed" as const)
-          : ("review" as const),
-    reviewType: params.get("type") === "captures" ? ("captures" as const) : ("questions" as const),
+    section: section === "answers" ? ("answers" as const) : ("review" as const),
+    includeMatched: included.has("matched") || legacyAll,
+    includeDismissed: included.has("dismissed") || legacyAll || section === "dismissed",
     answerId: params.get("answer"),
     captureId: params.get("capture"),
     questionId: params.get("question"),
   };
 }
 
-export function FormFillWorkspace() {
+function stateUrl(state: ReturnType<typeof readState>) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", "form-fill");
+  url.searchParams.set("section", state.section);
+  url.searchParams.delete("type");
+  url.searchParams.delete("history");
+  const included = [
+    state.includeMatched ? "matched" : null,
+    state.includeDismissed ? "dismissed" : null,
+  ].filter(Boolean);
+  if (included.length) url.searchParams.set("include", included.join(","));
+  else url.searchParams.delete("include");
+  for (const [key, value] of [
+    ["answer", state.answerId],
+    ["capture", state.captureId],
+    ["question", state.questionId],
+  ] as const) {
+    if (value) url.searchParams.set(key, value);
+    else url.searchParams.delete(key);
+  }
+  removeNonViewState(url);
+  return url;
+}
+
+export function FormFillWorkspace({ toolbarHost }: { toolbarHost?: HTMLElement | null }) {
   const [state, setState] = useState(readState);
   const [creatingAnswer, setCreatingAnswer] = useState(false);
   const [answerQuestion, setAnswerQuestion] = useState<QuestionDetail | null>(null);
-  const [showAllQuestions, setShowAllQuestions] = useState(false);
   const inboxIds = useRef<string[]>([]);
   const rememberItems = useCallback((ids: string[]) => {
     inboxIds.current = ids;
@@ -56,28 +88,15 @@ export function FormFillWorkspace() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
   useEffect(() => {
-    const url = new URL(window.location.href);
-    if (removeNonViewState(url)) window.history.replaceState(null, "", url);
+    const url = stateUrl(readState());
+    if (url.href !== window.location.href) window.history.replaceState(null, "", url);
   }, []);
 
   const navigate = useCallback(
     (next: Partial<ReturnType<typeof readState>>, replace = false, handled = false) => {
       if (!handled && !canLeaveFormFill()) return false;
       const merged = { ...state, ...next };
-      const url = new URL(window.location.href);
-      url.searchParams.set("view", "form-fill");
-      url.searchParams.set("section", merged.section);
-      if (merged.section === "dismissed") url.searchParams.set("type", merged.reviewType);
-      else url.searchParams.delete("type");
-      for (const [key, value] of [
-        ["answer", merged.answerId],
-        ["capture", merged.captureId],
-        ["question", merged.questionId],
-      ] as const) {
-        if (value) url.searchParams.set(key, value);
-        else url.searchParams.delete(key);
-      }
-      removeNonViewState(url);
+      const url = stateUrl(merged);
       window.history[replace ? "replaceState" : "pushState"](null, "", url);
       setState(merged);
       return true;
@@ -113,7 +132,7 @@ export function FormFillWorkspace() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
-      <div className="flex items-center gap-2 border-b border-line">
+      <div className="flex flex-wrap items-end gap-x-2 border-b border-line">
         <div role="tablist" aria-label="Form Fill sections" className="flex flex-1 flex-wrap">
           {(
             [
@@ -126,11 +145,6 @@ export function FormFillWorkspace() {
                 "answers",
                 "Saved answers",
                 "Reusable answers and the questions that use them. Paused answers are hidden by default.",
-              ],
-              [
-                "dismissed",
-                "Dismissed",
-                "Reopen dismissed questions or inspect the history of cleared remembered values.",
               ],
             ] as const
           ).map(([section, label, help]) => (
@@ -152,6 +166,7 @@ export function FormFillWorkspace() {
       </div>
       {state.section === "answers" ? (
         <AnswerList
+          toolbarHost={toolbarHost}
           onOpen={openAnswer}
           onCreate={() => {
             if (navigate({ answerId: null, captureId: null, questionId: null })) {
@@ -160,53 +175,14 @@ export function FormFillWorkspace() {
             }
           }}
         />
-      ) : state.section === "dismissed" ? (
-        <div className="space-y-5">
-          <div role="tablist" aria-label="Dismissed items" className="flex gap-2">
-            {(
-              [
-                ["questions", "Questions", "Reopen a question to include it in review again."],
-                [
-                  "captures",
-                  "Remembered values",
-                  "Dismissal clears the retained value. Open the question to review it again, then enter a fresh value in the application form.",
-                ],
-              ] as const
-            ).map(([reviewType, label, help]) => (
-              <HelpTip key={reviewType} text={help}>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={state.reviewType === reviewType}
-                  className={`rounded-md border border-line px-3 py-2 text-sm ${state.reviewType === reviewType ? "bg-surface-hover text-ink" : "text-ink-muted"}`}
-                  onClick={() => navigate({ reviewType, questionId: null, captureId: null })}
-                >
-                  {label}
-                </button>
-              </HelpTip>
-            ))}
-          </div>
-          {state.reviewType === "captures" ? (
-            <CaptureList onOpen={(captureId) => navigate({ captureId, questionId: null })} />
-          ) : (
-            <QuestionList mode="muted" onOpen={openQuestion} />
-          )}
-        </div>
       ) : (
         <div className="space-y-4">
-          <label className="flex items-center gap-2 text-sm text-ink-muted">
-            <HelpTip text="Find and adjust existing matches, including questions already handled.">
-              <input
-                type="checkbox"
-                checked={showAllQuestions}
-                onChange={(event) => setShowAllQuestions(event.target.checked)}
-              />
-            </HelpTip>
-            Include questions already handled
-          </label>
           <QuestionList
-            key={showAllQuestions ? "all" : "inbox"}
-            mode={showAllQuestions ? "all" : "inbox"}
+            toolbarHost={toolbarHost}
+            includeMatched={state.includeMatched}
+            includeDismissed={state.includeDismissed}
+            onIncludeMatchedChange={(includeMatched) => navigate({ includeMatched })}
+            onIncludeDismissedChange={(includeDismissed) => navigate({ includeDismissed })}
             onOpen={openQuestion}
             onItemsChange={rememberItems}
           />

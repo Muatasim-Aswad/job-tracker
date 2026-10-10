@@ -5,6 +5,7 @@ from typing import Literal
 from app.core.db import Conn, Row, execute, query_all, query_one
 from app.form_fill.identity import NORMALIZER_VERSION, QuestionIdentity
 from app.form_fill.models import Question, QuestionOption, QuestionPage
+from app.form_fill.schemas import AnswerSort
 
 _QUESTION_COLUMNS = (
     "id, signature, identity_kind, site_scope, adapter_id, adapter_version, "
@@ -232,17 +233,23 @@ class FormFillRepository:
             )
         return option, changed
 
-    def question_review_counts(self, question_id: str) -> tuple[int, int]:
+    def question_review_counts(self, question_id: str) -> tuple[int, int, int]:
         row = query_one(
             self.conn,
             "SELECT (SELECT COUNT(*) FROM form_question_options "
             "WHERE question_id = ? AND status = 'active') AS option_count, "
             "(SELECT COUNT(*) FROM form_captures "
-            "WHERE question_id = ? AND status = 'current') AS capture_count",
-            (question_id, question_id),
+            "WHERE question_id = ? AND status = 'current') AS capture_count, "
+            "(SELECT COUNT(*) FROM form_captures "
+            "WHERE question_id = ? AND status = 'ignored') AS ignored_capture_count",
+            (question_id, question_id, question_id),
         )
         assert row is not None
-        return int(row["option_count"]), int(row["capture_count"])
+        return (
+            int(row["option_count"]),
+            int(row["capture_count"]),
+            int(row["ignored_capture_count"]),
+        )
 
     def list_questions(
         self,
@@ -258,6 +265,8 @@ class FormFillRepository:
         sort: str,
         limit: int,
         cursor_values: tuple[object, str] | None,
+        include_matched: bool = False,
+        include_dismissed: bool = False,
     ) -> QuestionPage:
         conditions: list[str] = []
         params: list[object] = []
@@ -282,7 +291,13 @@ class FormFillRepository:
                 "OR EXISTS (SELECT 1 FROM form_captures c "
                 "WHERE c.question_id = q.id AND c.status = 'current'))"
             )
-            conditions.append(inbox if review_inbox else f"NOT {inbox}")
+            included = [inbox]
+            if include_matched:
+                included.append("(q.review_state = 'open' AND m.status = 'active')")
+            if include_dismissed:
+                included.append("q.review_state = 'ignored'")
+            combined = "(" + " OR ".join(included) + ")"
+            conditions.append(combined if review_inbox else f"NOT {combined}")
         if has_current_capture is not None:
             predicate = "EXISTS" if has_current_capture else "NOT EXISTS"
             conditions.append(
@@ -302,17 +317,24 @@ class FormFillRepository:
                 "OR instr(q.normalized_help, ?) > 0)"
             )
             params.extend([query, query, query])
-        sort_column = "q.last_seen_at" if sort == "last_seen" else "q.seen_count"
+        sort_column = {
+            "last_seen": "q.last_seen_at",
+            "seen_count": "q.seen_count",
+            "prompt": "q.normalized_question",
+        }[sort]
+        direction, comparison = ("ASC", ">") if sort == "prompt" else ("DESC", "<")
         if cursor_values is not None:
             last_value, last_id = cursor_values
-            conditions.append(f"({sort_column} < ? OR ({sort_column} = ? AND q.id < ?))")
+            conditions.append(
+                f"({sort_column} {comparison} ? OR ({sort_column} = ? AND q.id {comparison} ?))"
+            )
             params.extend([last_value, last_value, last_id])
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         rows = query_all(
             self.conn,
             f"SELECT {_QUALIFIED_QUESTION_COLUMNS} "
             "FROM form_questions q LEFT JOIN form_question_mappings m ON m.question_id = q.id "
-            f"{where} ORDER BY {sort_column} DESC, q.id DESC LIMIT ?",
+            f"{where} ORDER BY {sort_column} {direction}, q.id {direction} LIMIT ?",
             (*params, limit + 1),
         )
         return QuestionPage(
@@ -368,7 +390,8 @@ class FormFillRepository:
         value_kind: str | None,
         query: str | None,
         limit: int,
-        cursor_values: tuple[str, str] | None,
+        cursor_values: tuple[object, str] | None,
+        sort: AnswerSort = "updated_at",
     ) -> tuple[list[Row], bool]:
         conditions: list[str] = []
         params: list[object] = []
@@ -384,17 +407,28 @@ class FormFillRepository:
                 "OR instr(lower(coalesce(a.description, '')), ?) > 0)"
             )
             params.extend([query, query, query])
-        if cursor_values is not None:
-            updated_at, answer_id = cursor_values
-            conditions.append("(a.updated_at < ? OR (a.updated_at = ? AND a.id < ?))")
-            params.extend([updated_at, updated_at, answer_id])
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        sort_column = {
+            "updated_at": "updated_at",
+            "label": "lower(label)",
+            "mapping_count": "mapping_count",
+        }[sort]
+        direction, comparison = ("ASC", ">") if sort == "label" else ("DESC", "<")
+        cursor_where = ""
+        if cursor_values is not None:
+            last_value, last_id = cursor_values
+            cursor_where = (
+                f"WHERE ({sort_column} {comparison} ? OR ({sort_column} = ? AND id {comparison} ?))"
+            )
+            params.extend([last_value, last_value, last_id])
         rows = query_all(
             self.conn,
+            f"SELECT answers.*, {sort_column} AS sort_value FROM ("
             "SELECT a.id, a.answer_key, a.label, a.description, a.value_kind, a.status, "
             "a.fill_policy, a.revision, a.updated_at, COUNT(m.id) AS mapping_count "
             "FROM form_answers a LEFT JOIN form_question_mappings m ON m.answer_id = a.id "
-            f"{where} GROUP BY a.id ORDER BY a.updated_at DESC, a.id DESC LIMIT ?",
+            f"{where} GROUP BY a.id) answers {cursor_where} "
+            f"ORDER BY {sort_column} {direction}, id {direction} LIMIT ?",
             (*params, limit + 1),
         )
         return rows[:limit], len(rows) > limit

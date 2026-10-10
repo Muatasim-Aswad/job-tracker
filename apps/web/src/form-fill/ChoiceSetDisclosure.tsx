@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-export const INLINE_CHOICE_LIMIT = 5;
+export const INLINE_CHOICE_LIMIT = 10;
 
 interface Props {
   children: ReactNode;
@@ -31,9 +31,9 @@ export function ChoiceSetDisclosure({
     <details
       open={expanded}
       onToggle={(event) => setExpanded(event.currentTarget.open)}
-      className="rounded border border-line bg-surface px-3 py-2"
+      className="text-sm text-ink-muted"
     >
-      <summary className="cursor-pointer text-sm font-medium text-ink">{summary}</summary>
+      <summary className="cursor-pointer font-medium">{summary}</summary>
       {expanded && <div className="mt-3 space-y-3">{children}</div>}
     </details>
   );

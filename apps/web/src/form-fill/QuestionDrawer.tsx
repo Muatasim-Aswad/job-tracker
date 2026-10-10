@@ -15,6 +15,7 @@ import { Drawer } from "./Drawer";
 import { bindingsComplete, suggestBindings } from "./bindings";
 import { OptionBindingEditor } from "./OptionBindingEditor";
 import {
+  CONTROL_LABEL,
   fillExplanation,
   formatDate,
   siteLabel,
@@ -67,6 +68,7 @@ export function QuestionDrawer({
   const captureIds = question?.current_captures?.map((capture) => capture.id) ?? [];
   retainedCaptureIds.current = captureIds;
   const captures = useFormFillConflictCaptures(captureIds);
+  const rememberedCapture = captures.length === 1 ? captures[0].data : undefined;
   const choiceQuestion =
     !!question &&
     ["radio", "select", "checkbox_group", "multi_select"].includes(question.control_kind);
@@ -210,61 +212,71 @@ export function QuestionDrawer({
   return (
     <Drawer
       label="Review question"
+      title={
+        question && (
+          <h2 className="text-lg font-semibold leading-7 text-ink">{question.raw_question}</h2>
+        )
+      }
       onClose={onClose}
       dirty={initialized && (draft !== baseline || !!winnerId)}
       busy={busy}
       footer={
         question && !question.capture_conflict ? (
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-3">
-              {!reviewed ? (
-                <HelpTip text="Check the answer value and fill behavior before saving.">
-                  <button
-                    type="button"
-                    disabled={!canReview || busy}
-                    onClick={() => setReviewed(true)}
-                    className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
-                  >
-                    Review match
-                  </button>
-                </HelpTip>
-              ) : (
-                <>
+          rememberedCapture && onOpenCapture && (!answerId || draft === baseline) && !reviewed ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onOpenCapture(rememberedCapture.id)}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
+            >
+              Review remembered value
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-3">
+                {!reviewed ? (
                   <HelpTip text="Check the answer value and fill behavior before saving.">
                     <button
                       type="button"
                       disabled={!canReview || busy}
-                      onClick={() => void saveMapping()}
+                      onClick={() => setReviewed(true)}
                       className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
                     >
-                      {busy ? "Saving…" : "Save match"}
+                      Review match
                     </button>
                   </HelpTip>
-                  {onNext && (
-                    <HelpTip text="Save this match, then open the next question.">
+                ) : (
+                  <>
+                    <HelpTip text="Check the answer value and fill behavior before saving.">
                       <button
                         type="button"
                         disabled={!canReview || busy}
-                        onClick={() => void saveMapping(true)}
-                        className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+                        onClick={() => void saveMapping()}
+                        className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
                       >
-                        Save and review next
+                        {busy ? "Saving…" : "Save match"}
                       </button>
                     </HelpTip>
-                  )}
-                </>
+                    {onNext && (
+                      <HelpTip text="Save this match, then open the next question.">
+                        <button
+                          type="button"
+                          disabled={!canReview || busy}
+                          onClick={() => void saveMapping(true)}
+                          className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+                        >
+                          Save and review next
+                        </button>
+                      </HelpTip>
+                    )}
+                  </>
+                )}
+              </div>
+              {answerId && !complete && (
+                <p className="text-xs text-ink-muted">Match every form choice before saving.</p>
               )}
             </div>
-            {(!answerId || !complete) && (
-              <p className="text-xs text-ink-muted">
-                {!answerId
-                  ? "Choose a saved answer, use a remembered value, or save a new answer."
-                  : !complete
-                    ? "Match every form choice before saving."
-                    : ""}
-              </p>
-            )}
-          </div>
+          )
         ) : undefined
       }
     >
@@ -282,47 +294,36 @@ export function QuestionDrawer({
         </p>
       ) : (
         <>
-          <section className="space-y-3">
-            <h2 className="max-w-prose text-xl font-semibold text-ink">{question.raw_question}</h2>
-            {question.raw_help && (
-              <p className="max-w-prose text-sm text-ink-muted">{question.raw_help}</p>
-            )}
-            <p className="text-sm text-ink-muted">
-              {siteLabel(question.site_scope)} • {question.raw_section || "Application form"} • Seen{" "}
-              {question.seen_count} times
-            </p>
-            {question.review_state === "ignored" || question.mapping?.status !== "active" ? (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    void changeReview(question.review_state === "open" ? "ignored" : "open")
-                  }
-                  className="rounded-md border border-line bg-surface px-3 py-2 text-sm"
-                >
-                  {question.review_state === "open" ? "Dismiss question" : "Reopen question"}
-                </button>
-                {question.review_state === "ignored" && (
-                  <p className="text-sm text-ink-muted">
-                    This question is dismissed and will not fill. Reopen it before matching an
-                    answer.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-ink-muted">This question already uses a saved answer.</p>
-            )}
-          </section>
+          {question.review_state === "ignored" && (
+            <div className="space-y-2 rounded-md border border-line bg-sunken p-3">
+              <p className="text-sm text-ink-muted">
+                This question is dismissed and will not fill.
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void changeReview("open")}
+                className="text-sm font-medium text-accent"
+              >
+                Reopen question
+              </button>
+            </div>
+          )}
           {!!captures.length && (
             <section
-              className={`space-y-3 rounded-lg border p-4 ${question.capture_conflict ? "border-red-400 bg-red-50 dark:bg-red-950/20" : "border-line bg-surface"}`}
+              className={`space-y-3 ${question.capture_conflict ? "rounded-lg border border-red-400 bg-red-50 p-4 dark:bg-red-950/20" : ""}`}
               aria-label="Remembered values"
             >
-              <h3 className="font-semibold text-ink">
+              <h3
+                className={
+                  question.capture_conflict
+                    ? "font-medium text-ink"
+                    : "text-xs font-normal text-ink-muted"
+                }
+              >
                 {question.capture_conflict
                   ? "Choose which remembered value to keep"
-                  : "Remembered answer"}
+                  : "Remembered value"}
               </h3>
               {question.capture_conflict && (
                 <p className="text-sm text-ink-muted">
@@ -359,16 +360,18 @@ export function QuestionDrawer({
                             />
                           )}
                           <span>
-                            <span className="block whitespace-pre-wrap break-words text-lg font-medium text-ink">
+                            <span className="block whitespace-pre-wrap break-words text-lg font-normal text-ink">
                               {valueText(capture.data.value, question.options)}
                             </span>
-                            <span className="mt-1 block text-xs text-ink-muted">
-                              {SOURCE_LABEL[capture.data.source]} •{" "}
-                              {formatDate(capture.data.created_at)}
-                            </span>
+                            {question.capture_conflict && (
+                              <span className="mt-1 block text-xs text-ink-muted">
+                                {SOURCE_LABEL[capture.data.source]} •{" "}
+                                {formatDate(capture.data.created_at)}
+                              </span>
+                            )}
                           </span>
                         </label>
-                        {!question.capture_conflict && onOpenCapture && (
+                        {!question.capture_conflict && onOpenCapture && captures.length > 1 && (
                           <button
                             type="button"
                             onClick={() => onOpenCapture(capture.data!.id)}
@@ -380,6 +383,9 @@ export function QuestionDrawer({
                       </div>
                     ),
                 )
+              )}
+              {question.raw_help && (
+                <p className="max-w-prose text-xs leading-5 text-ink-muted">{question.raw_help}</p>
               )}
               {question.capture_conflict && (
                 <button
@@ -399,28 +405,22 @@ export function QuestionDrawer({
           )}
           {!question.capture_conflict && (
             <section className="space-y-4" aria-label="Saved answer for this question">
-              <h3 className="font-semibold text-ink">Choose what should fill this question</h3>
               <AnswerPicker
                 control={question.control_kind}
                 prompt={question.raw_question}
                 value={answerId}
                 selected={selectedAnswer.data}
+                valueHelp={question.raw_help}
                 loading={selectedAnswer.isLoading}
                 error={selectedAnswer.isError}
                 onRetry={() => void selectedAnswer.refetch()}
+                onCreate={() => onCreateAnswer(question)}
                 onChange={(id) => {
                   setAnswerId(id);
                   setBindings({});
                   setReviewed(false);
                 }}
               />
-              <button
-                type="button"
-                onClick={() => onCreateAnswer(question)}
-                className="text-sm font-medium text-accent"
-              >
-                Save a new answer for this question
-              </button>
               {choiceQuestion && selectedAnswer.data && (
                 <OptionBindingEditor
                   options={question.options}
@@ -468,14 +468,21 @@ export function QuestionDrawer({
                   )}
                 </ChangeReview>
               )}
-              {question.mapping && (
-                <details className="border-t border-line pt-3 text-sm text-ink-muted">
-                  <summary className="cursor-pointer">Manage filling for this question</summary>
-                  <p className="my-3">
-                    Pausing stops filling and keeps the match. Removing the match retires it; a new
-                    match can be saved later.
-                  </p>
-                  <div className="flex gap-2">
+            </section>
+          )}
+          <details className="border-t border-line pt-3 text-sm text-ink-muted">
+            <summary className="cursor-pointer font-medium">
+              Manage question
+              {question.mapping?.status === "active"
+                ? " · Matched"
+                : question.mapping?.status === "disabled"
+                  ? " · Filling paused"
+                  : ""}
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-3">
+              {question.mapping && !question.capture_conflict && (
+                <>
+                  <HelpTip text="Pausing stops filling and keeps the match.">
                     <button
                       type="button"
                       disabled={busy}
@@ -488,7 +495,9 @@ export function QuestionDrawer({
                     >
                       {question.mapping.status === "active" ? "Pause filling" : "Resume filling"}
                     </button>
-                    {question.mapping.status !== "retired" && (
+                  </HelpTip>
+                  {question.mapping.status !== "retired" && (
+                    <HelpTip text="Remove this match. You can choose another saved answer later.">
                       <button
                         type="button"
                         disabled={busy}
@@ -497,12 +506,57 @@ export function QuestionDrawer({
                       >
                         Remove match
                       </button>
-                    )}
-                  </div>
-                </details>
+                    </HelpTip>
+                  )}
+                </>
               )}
-            </section>
-          )}
+              {question.review_state === "open" && question.mapping?.status !== "active" && (
+                <HelpTip text="Dismiss this question and clear its current remembered values. It will not fill until reopened.">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void changeReview("ignored")}
+                    className="rounded border border-line px-3 py-2"
+                  >
+                    Dismiss question
+                  </button>
+                </HelpTip>
+              )}
+            </div>
+          </details>
+          <details className="border-t border-line pt-3 text-sm text-ink-muted">
+            <summary className="cursor-pointer font-medium">Question details</summary>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs">Section</dt>
+                <dd className="mt-1 text-ink">{question.raw_section || "Application form"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs">Field type</dt>
+                <dd className="mt-1 text-ink">
+                  {CONTROL_LABEL[question.control_kind]}
+                  {question.option_count ? ` · ${question.option_count} choices` : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs">Source</dt>
+                <dd className="mt-1 text-ink">{siteLabel(question.site_scope)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs">Seen</dt>
+                <dd className="mt-1 text-ink">
+                  {question.seen_count} {question.seen_count === 1 ? "time" : "times"}
+                </dd>
+              </div>
+            </dl>
+            {captures
+              .filter((capture) => capture.data)
+              .map((capture) => (
+                <p key={capture.data!.id} className="mt-3 text-xs">
+                  {SOURCE_LABEL[capture.data!.source]} · {formatDate(capture.data!.created_at)}
+                </p>
+              ))}
+          </details>
           <RevisionConflictPanel
             error={conflictError}
             draft={draft}

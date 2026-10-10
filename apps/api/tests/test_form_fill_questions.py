@@ -11,7 +11,12 @@ from app.core.db import Conn
 from app.core.errors import ConflictError, InvalidCursorError, ValidationError
 from app.form_fill.router import get_question
 from app.form_fill.router import list_questions as list_questions_route
-from app.form_fill.schemas import QuestionReviewUpdate, ResolutionRequest
+from app.form_fill.schemas import (
+    CaptureCreate,
+    CaptureUpdate,
+    QuestionReviewUpdate,
+    ResolutionRequest,
+)
 from app.form_fill.service import FormFillService
 
 
@@ -271,5 +276,125 @@ def test_review_inbox_pages_questions_once_and_excludes_handled_and_dismissed(co
     assert second["next_cursor"] is None
     assert [row["id"] for row in _list(service, review_state="ignored")["items"]] == [dismissed]
     assert "SYNTHETIC-REMEMBERED" not in str(rows)
+    for include_matched, include_dismissed, expected in [
+        (False, False, {unresolved, remembered}),
+        (True, False, {unresolved, remembered, handled}),
+        (False, True, {unresolved, remembered, dismissed}),
+        (True, True, {unresolved, remembered, handled, dismissed}),
+    ]:
+        selected_rows: list[dict[str, Any]] = []
+        cursor = None
+        while True:
+            selected = _list(
+                service,
+                review_inbox=True,
+                review_state=None if include_dismissed else "open",
+                include_matched=include_matched,
+                include_dismissed=include_dismissed,
+                limit=1,
+                cursor=cursor,
+            )
+            selected_rows.extend(selected["items"])
+            cursor = selected["next_cursor"]
+            if cursor is None:
+                break
+        assert {row["id"] for row in selected_rows} == expected
+        assert len(selected_rows) == len(expected)
+    with pytest.raises(InvalidCursorError):
+        _list(
+            service, review_inbox=True, include_matched=True, limit=1, cursor=first["next_cursor"]
+        )
+    with pytest.raises(ValidationError):
+        _list(service, include_matched=True)
     with pytest.raises(InvalidCursorError):
         _list(service, review_inbox=False, limit=1, cursor=first["next_cursor"])
+
+
+def test_question_rows_count_dismissed_captures_without_values_or_duplicate_questions(
+    conn: Conn,
+) -> None:
+    service = FormFillService(conn)
+    question_id = _observe(service, "Synthetic history question", scan_id="history-a")[
+        "question_id"
+    ]
+    for index in range(4):
+        created = service.create_capture(
+            CaptureCreate.model_validate(
+                {
+                    "capture_key": f"history-{index}",
+                    "question_id": question_id,
+                    "application_context_id": "application-1",
+                    "page": {"platform": "linkedin", "platform_id": "uncaptured-listing"},
+                    "source": "user_input",
+                    "value": {"kind": "text", "value": f"PRIVATE-HISTORY-{index}"},
+                }
+            )
+        )
+        if index < 2:
+            service.update_capture(
+                created.capture.id,
+                CaptureUpdate(expected_revision=created.capture.revision, status="ignored"),
+            )
+    detail = service.get_question(question_id)
+    assert detail.ignored_capture_count == 2
+    assert detail.current_capture_count == 1
+    assert sum(event.event == "capture_ignored" for event in detail.events) == 2
+    rows = _list(service, review_inbox=True)["items"]
+    assert len(rows) == 1
+    assert rows[0]["ignored_capture_count"] == 2
+    assert rows[0]["current_capture_count"] == 1
+    assert "PRIVATE-HISTORY" not in str(rows)
+    service.update_question(
+        question_id, QuestionReviewUpdate(expected_revision=detail.revision, review_state="ignored")
+    )
+    dismissed = service.get_question(question_id)
+    assert dismissed.current_capture_count == 0
+    assert dismissed.ignored_capture_count == 3
+    assert _list(service, review_state="open", has_current_capture=True)["items"] == []
+
+
+def test_question_alphabetical_order_paginates_exact_prompt_variants(conn: Conn) -> None:
+    service = FormFillService(conn)
+    ids = []
+    for index, prompt in enumerate(["Zulu", "alpha", "Alpha", "Beta"]):
+        result = _observe(service, prompt, scan_id=f"alphabetical-{index}")
+        ids.append(result["question_id"])
+    # Same normalized prompt is one identity; a separate section is an exact variant.
+    request = ResolutionRequest.model_validate(
+        {
+            "scan_id": "alphabetical-variant",
+            "application_context_id": "application-1",
+            "page": {
+                "site_scope": "linkedin:easy-apply",
+                "adapter_id": "linkedin",
+                "adapter_version": "1",
+                "platform": "linkedin",
+                "platform_id": "uncaptured-listing",
+            },
+            "fields": [
+                {
+                    "client_field_id": "field-variant",
+                    "prompt": "ALPHA",
+                    "section": "Other section",
+                    "control_kind": "text",
+                    "required": False,
+                    "has_value": False,
+                    "user_confirmed": False,
+                    "options": [],
+                }
+            ],
+        }
+    )
+    variant = service.resolve(request).results[0].question_id
+    first = _list(service, sort="prompt", limit=2)
+    assert first["next_cursor"]
+    second = _list(service, sort="prompt", limit=2, cursor=first["next_cursor"])
+    assert [row["id"] for row in first["items"] + second["items"]] == sorted([ids[1], variant]) + [
+        ids[3],
+        ids[0],
+    ]
+    assert second["next_cursor"] is None
+    with pytest.raises(InvalidCursorError):
+        _list(service, sort="last_seen", cursor=first["next_cursor"])
+    with pytest.raises(InvalidCursorError):
+        _list(service, sort="prompt", query="alpha", cursor=first["next_cursor"])

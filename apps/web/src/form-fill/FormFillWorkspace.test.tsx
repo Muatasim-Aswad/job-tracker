@@ -17,8 +17,39 @@ vi.mock("./AnswerList", () => ({
     </button>
   ),
 }));
-vi.mock("./CaptureList", () => ({ CaptureList: () => <div>Remembered list</div> }));
-vi.mock("./QuestionList", () => ({ QuestionList: () => <div>Question list</div> }));
+vi.mock("./QuestionList", () => ({
+  QuestionList: ({
+    includeMatched,
+    includeDismissed,
+    onIncludeMatchedChange,
+    onIncludeDismissedChange,
+  }: {
+    includeMatched: boolean;
+    includeDismissed: boolean;
+    onIncludeMatchedChange: (checked: boolean) => void;
+    onIncludeDismissedChange: (checked: boolean) => void;
+  }) => (
+    <div data-matched={includeMatched} data-dismissed={includeDismissed}>
+      Question list
+      <label>
+        Matched
+        <input
+          type="checkbox"
+          checked={includeMatched}
+          onChange={(event) => onIncludeMatchedChange(event.target.checked)}
+        />
+      </label>
+      <label>
+        Dismissed
+        <input
+          type="checkbox"
+          checked={includeDismissed}
+          onChange={(event) => onIncludeDismissedChange(event.target.checked)}
+        />
+      </label>
+    </div>
+  ),
+}));
 vi.mock("./AnswerDrawer", () => ({ AnswerDrawer: () => <div>Answer drawer</div> }));
 vi.mock("./CaptureDrawer", () => ({ CaptureDrawer: () => <div>Capture drawer</div> }));
 vi.mock("./QuestionDrawer", () => ({ QuestionDrawer: () => <div>Question drawer</div> }));
@@ -68,15 +99,66 @@ describe("FormFillWorkspace navigation", () => {
     expect(screen.getByText("Answer drawer")).toBeTruthy();
   });
 
-  it("provides one review inbox and separate recovery collections", () => {
+  it("includes matched and dismissed questions independently without a separate history table", () => {
     render(<FormFillWorkspace />);
     fireEvent.click(screen.getByRole("tab", { name: "Review inbox" }));
-    expect(screen.getByText("Question list")).toBeTruthy();
-    expect(screen.queryByRole("tab", { name: "Remembered values" })).toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: "Dismissed" }));
-    fireEvent.click(screen.getByRole("tab", { name: "Remembered values" }));
-    expect(screen.getByText("Remembered list")).toBeTruthy();
-    expect(new URLSearchParams(window.location.search).get("section")).toBe("dismissed");
+    const matched = screen.getByRole("checkbox", { name: "Matched" });
+    const dismissed = screen.getByRole("checkbox", { name: "Dismissed" });
+    expect(screen.queryByRole("tab", { name: "Dismissed" })).toBeNull();
+    expect(screen.queryByText("Cleared value history")).toBeNull();
+    fireEvent.click(matched);
+    expect(screen.getByText("Question list").getAttribute("data-matched")).toBe("true");
+    expect(screen.getByText("Question list").getAttribute("data-dismissed")).toBe("false");
+    expect(new URLSearchParams(window.location.search).get("include")).toBe("matched");
+    fireEvent.click(dismissed);
+    expect(new URLSearchParams(window.location.search).get("include")).toBe("matched,dismissed");
+    fireEvent.click(matched);
+    expect(screen.getByText("Question list").getAttribute("data-matched")).toBe("false");
+    expect(screen.getByText("Question list").getAttribute("data-dismissed")).toBe("true");
+    expect(new URLSearchParams(window.location.search).get("include")).toBe("dismissed");
+  });
+
+  it.each(["questions", "captures"])(
+    "preserves legacy Dismissed %s links in the unified inbox",
+    (type) => {
+      window.history.replaceState(
+        null,
+        "",
+        `/?view=form-fill&section=dismissed&type=${type}&capture=capture-opaque`,
+      );
+      render(<FormFillWorkspace />);
+      expect(screen.getByRole("tab", { name: "Review inbox" }).getAttribute("aria-selected")).toBe(
+        "true",
+      );
+      expect(
+        (screen.getByRole("checkbox", { name: "Dismissed" }) as HTMLInputElement).checked,
+      ).toBe(true);
+      expect((screen.getByRole("checkbox", { name: "Matched" }) as HTMLInputElement).checked).toBe(
+        type === "captures",
+      );
+      expect(screen.getByText("Capture drawer")).toBeTruthy();
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("section")).toBe("review");
+      expect(params.get("type")).toBeNull();
+      expect(params.get("history")).toBeNull();
+      expect(params.get("include")).toBe(type === "captures" ? "matched,dismissed" : "dismissed");
+      expect(params.get("capture")).toBe("capture-opaque");
+    },
+  );
+
+  it("preserves old combined filter links and restores filters through browser history", () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/?view=form-fill&section=review&include=handled&history=cleared",
+    );
+    render(<FormFillWorkspace />);
+    expect(screen.getByText("Question list").getAttribute("data-matched")).toBe("true");
+    expect(screen.getByText("Question list").getAttribute("data-dismissed")).toBe("true");
+    window.history.replaceState(null, "", "/?view=form-fill&section=review");
+    fireEvent.popState(window);
+    expect(screen.getByText("Question list").getAttribute("data-matched")).toBe("false");
+    expect(screen.getByText("Question list").getAttribute("data-dismissed")).toBe("false");
   });
 
   it("opens the unified inbox for old review links", () => {

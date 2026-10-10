@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { CollectionToolbar, FilterPopover } from "./CollectionToolbar";
 
 export interface ReviewListRow {
   id: string;
@@ -6,14 +7,18 @@ export interface ReviewListRow {
   meta: ReactNode;
   aside: ReactNode;
   badge?: string;
+  secondaryBadge?: string;
   warning?: boolean;
   context?: string;
 }
 
 interface Props {
+  toolbarHost?: HTMLElement | null;
+  filtersApplied?: boolean;
   titleId: string;
   title: string;
   filters: ReactNode;
+  listControls?: ReactNode;
   isLoading: boolean;
   isError: boolean;
   onRetry: () => void;
@@ -29,9 +34,12 @@ interface Props {
 }
 
 export function ReviewList({
+  toolbarHost,
+  filtersApplied = false,
   titleId,
   title,
   filters,
+  listControls,
   isLoading,
   isError,
   onRetry,
@@ -45,11 +53,40 @@ export function ReviewList({
   isFetchingNextPage,
   onLoadMore,
 }: Props) {
+  const [showQuestionDetails, setShowQuestionDetails] = useState(true);
+  const [showSourceDetails, setShowSourceDetails] = useState(false);
   return (
     <section id={titleId} aria-label={title} className="space-y-4">
-      <div role="group" aria-label="Filters" className="flex flex-wrap items-end gap-3">
+      <CollectionToolbar host={toolbarHost}>
         {filters}
-      </div>
+        <FilterPopover
+          applied={filtersApplied || !showQuestionDetails || showSourceDetails}
+          label="List options"
+        >
+          {listControls}
+          <div className="space-y-3 border-t border-line pt-3">
+            <p className="text-xs text-ink-muted">Display</p>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showQuestionDetails}
+                onChange={(event) => setShowQuestionDetails(event.target.checked)}
+                className="accent-accent"
+              />
+              Show question details
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showSourceDetails}
+                onChange={(event) => setShowSourceDetails(event.target.checked)}
+                className="accent-accent"
+              />
+              Show source details
+            </label>
+          </div>
+        </FilterPopover>
+      </CollectionToolbar>
       {isLoading ? (
         <p role="status" className="text-sm text-ink-muted">
           {loadingLabel}
@@ -73,28 +110,39 @@ export function ReviewList({
               <button
                 type="button"
                 onClick={() => onOpen(row.id)}
-                className="grid w-full gap-3 p-4 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                className="grid w-full gap-2 px-4 py-3 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
               >
                 <span>
-                  <span className="block max-w-prose font-medium text-ink">{row.title}</span>
-                  {row.context && (
+                  <span className="block max-w-prose text-base font-medium leading-6 text-ink">
+                    {row.title}
+                  </span>
+                  {showQuestionDetails && row.context && (
                     <span
                       title={row.context}
-                      className="mt-1 line-clamp-2 max-w-prose text-sm text-ink-muted"
+                      className="mt-0.5 line-clamp-2 max-w-prose text-prose text-ink-muted"
                     >
                       {row.context}
                     </span>
                   )}
-                  <span className="mt-2 block text-xs text-ink-muted">{row.meta}</span>
+                  {showSourceDetails && (
+                    <span className="mt-1 block text-xs text-ink-muted">{row.meta}</span>
+                  )}
                 </span>
                 <span className="flex items-center gap-2 sm:flex-col sm:items-end">
-                  {row.badge && (
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${row.warning ? "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200" : "bg-sunken text-ink-soft"}`}
-                    >
-                      {row.badge}
-                    </span>
-                  )}
+                  <span className="flex flex-wrap gap-1.5 sm:justify-end">
+                    {row.badge && (
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${row.warning ? "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200" : "bg-sunken text-ink-soft"}`}
+                      >
+                        {row.badge}
+                      </span>
+                    )}
+                    {row.secondaryBadge && (
+                      <span className="rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-muted">
+                        {row.secondaryBadge}
+                      </span>
+                    )}
+                  </span>
                   {row.aside && <span className="text-xs text-ink-muted">{row.aside}</span>}
                 </span>
               </button>
@@ -130,12 +178,12 @@ export function ReviewFilterSelect<T extends string>({
   options,
 }: FilterSelectProps<T>) {
   return (
-    <label className="text-sm text-ink">
+    <label className="text-xs text-ink-muted">
       {label}{" "}
       <select
         value={value}
         onChange={(event) => onChange(event.target.value as T)}
-        className="ml-2 rounded border border-line bg-surface px-2 py-1.5"
+        className="ml-2 rounded border border-line bg-surface px-2 py-1.5 text-sm text-ink"
       >
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>

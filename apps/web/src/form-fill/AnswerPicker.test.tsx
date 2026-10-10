@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api/client";
@@ -11,6 +11,83 @@ afterEach(() => {
 });
 
 describe("AnswerPicker", () => {
+  it("keeps search and the add icon visible when a selected answer arrives", async () => {
+    vi.spyOn(api, "listFormFillAnswers").mockResolvedValue({ items: [], next_cursor: null });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const props = {
+      control: "text" as const,
+      prompt: "Synthetic question",
+      onChange: vi.fn(),
+      onRetry: vi.fn(),
+      onCreate: vi.fn(),
+    };
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <AnswerPicker {...props} value="" />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("searchbox", { name: "Find a saved answer" })).toBeTruthy();
+    const add = screen.getByRole("button", { name: "New answer" });
+    expect(add.textContent).toBe("");
+    expect(add.getAttribute("title")).toBe("New answer");
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    fireEvent.click(add);
+    expect(props.onCreate).toHaveBeenCalledOnce();
+    rerender(
+      <QueryClientProvider client={client}>
+        <AnswerPicker {...props} value={testAnswer.id} selected={testAnswer} />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("searchbox", { name: "Find a saved answer" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "New answer" })).toBeTruthy();
+    expect(screen.getByText("Synthetic saved value")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Change answer" })).toBeNull();
+    client.clear();
+  });
+
+  it("uses one chooser with similar names first and all compatible answers without fetching values", async () => {
+    vi.spyOn(api, "listFormFillAnswers").mockResolvedValue({
+      items: [
+        {
+          ...testAnswer,
+          id: "employment",
+          label: "Employment status",
+          value_kind: "single_choice",
+          mapping_count: 0,
+        },
+        {
+          ...testAnswer,
+          id: "english",
+          label: "English proficiency",
+          value_kind: "single_choice",
+          mapping_count: 0,
+        },
+      ],
+      next_cursor: null,
+    });
+    const detail = vi.spyOn(api, "getFormFillAnswer");
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AnswerPicker
+          control="radio"
+          prompt="Employment status"
+          value=""
+          onChange={vi.fn()}
+          onRetry={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("button", { name: /Employment status/ });
+    expect(
+      within(screen.getAllByRole("listitem")[0]).getByRole("button", { name: /Employment status/ }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /English proficiency/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Browse compatible answers" })).toBeNull();
+    expect(detail).not.toHaveBeenCalled();
+    client.clear();
+  });
+
   it("searches on the server and reaches an answer beyond the first 100 results", async () => {
     const item = (index: number) => ({
       ...testAnswer,

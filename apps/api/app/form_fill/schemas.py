@@ -21,6 +21,7 @@ ChoiceControlKind = Literal["radio", "select", "checkbox_group", "multi_select"]
 ReviewState = Literal["open", "ignored"]
 MappingStatus = Literal["active", "disabled", "retired"]
 AnswerStatus = Literal["active", "disabled"]
+AnswerSort = Literal["updated_at", "label", "mapping_count"]
 FillPolicy = Literal["auto", "confirm_each_time", "never"]
 AnswerValueKind = Literal[
     "text", "long_text", "decimal", "boolean", "date", "single_choice", "multi_choice"
@@ -372,6 +373,7 @@ class QuestionSummary(BaseModel):
     raw_help: str | None = None
     option_count: int = 0
     current_capture_count: int = 0
+    ignored_capture_count: int = 0
     review_state: ReviewState
     revision: int
     capture_conflict: bool

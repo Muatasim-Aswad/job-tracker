@@ -2128,6 +2128,11 @@ export interface components {
              * @enum {string}
              */
             identity_kind: "generic_signature" | "adapter_key";
+            /**
+             * Ignored Capture Count
+             * @default 0
+             */
+            ignored_capture_count: number;
             /** Last Seen At */
             last_seen_at: string;
             /** Last Unresolved Reason */
@@ -2225,6 +2230,11 @@ export interface components {
             first_seen_at: string;
             /** Id */
             id: string;
+            /**
+             * Ignored Capture Count
+             * @default 0
+             */
+            ignored_capture_count: number;
             /** Last Seen At */
             last_seen_at: string;
             /** Last Unresolved Reason */
@@ -2900,6 +2910,7 @@ export interface operations {
                 cursor?: string | null;
                 limit?: number;
                 q?: string | null;
+                sort?: "updated_at" | "label" | "mapping_count";
                 status?: ("active" | "disabled") | null;
                 value_kind?: ("text" | "long_text" | "decimal" | "boolean" | "date" | "single_choice" | "multi_choice") | null;
             };
@@ -3255,6 +3266,8 @@ export interface operations {
                 answer_id?: string | null;
                 cursor?: string | null;
                 has_current_capture?: boolean | null;
+                include_dismissed?: boolean;
+                include_matched?: boolean;
                 limit?: number;
                 mapping_status?: ("active" | "disabled" | "retired" | "none") | null;
                 needs_review?: boolean | null;
@@ -3262,7 +3275,7 @@ export interface operations {
                 review_inbox?: boolean | null;
                 review_state?: ("open" | "ignored") | null;
                 site_scope?: string | null;
-                sort?: "last_seen" | "seen_count";
+                sort?: "last_seen" | "seen_count" | "prompt";
             };
             header?: {
                 "x-api-key"?: string | null;

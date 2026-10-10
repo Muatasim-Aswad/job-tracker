@@ -16,17 +16,19 @@ import { OptionBindingEditor } from "./OptionBindingEditor";
 import {
   answerKey,
   fillExplanation,
+  POLICY_LABEL,
   siteLabel,
   isChoiceKind,
   SOURCE_LABEL,
   valueText,
+  VALUE_KIND_LABEL,
   type AnswerValue,
 } from "./model";
 
 import { AnswerPicker } from "./AnswerPicker";
 import { ChangeReview } from "./ChangeReview";
 import { KnowledgeHistory } from "./KnowledgeHistory";
-import { choicePairsForQuestion } from "./answerDraft";
+import { choicePairsForQuestion, valueKindForQuestion } from "./answerDraft";
 import { HelpTip } from "./HelpTip";
 
 type Action = CaptureApply["action"];
@@ -334,6 +336,13 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
   return (
     <Drawer
       label="Review remembered answer"
+      title={
+        capture && (
+          <h2 className="text-lg font-semibold leading-7 text-ink">
+            {capture.question.raw_question}
+          </h2>
+        )
+      }
       onClose={close}
       dirty={initialized && draft !== baseline}
       busy={busy}
@@ -403,12 +412,13 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
       ) : (
         <>
           <section className="space-y-3">
-            <h2 className="max-w-prose text-xl font-semibold text-ink">
-              {capture.question.raw_question}
-            </h2>
-            <p className="text-sm text-ink-muted">
-              {siteLabel(capture.question.site_scope)} • {SOURCE_LABEL[capture.source]}
-            </p>
+            <button
+              type="button"
+              onClick={() => onOpenQuestion(capture.question_id)}
+              className="text-sm font-medium text-accent"
+            >
+              Back to question
+            </button>
             {questionQuery.isLoading ? (
               <p role="status">Loading question and choices…</p>
             ) : questionQuery.isError ? (
@@ -423,37 +433,12 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                 </button>
               </p>
             ) : (
-              <div className="rounded-lg border border-line bg-surface p-4">
+              <div>
                 <p className="text-xs text-ink-muted">Remembered value</p>
-                <p className="mt-2 whitespace-pre-wrap break-words text-xl font-medium text-ink">
+                <p className="mt-2 whitespace-pre-wrap break-words text-lg font-normal text-ink">
                   {valueText(capture.value, question?.options)}
                 </p>
               </div>
-            )}
-            <button
-              type="button"
-              onClick={() => onOpenQuestion(capture.question_id)}
-              className="text-sm font-medium text-accent"
-            >
-              Back to question and saved answers
-            </button>
-            {capture.status === "current" && (
-              <details className="text-sm text-ink-muted">
-                <summary className="cursor-pointer">Dismiss this remembered value</summary>
-                <p className="my-3">
-                  Dismissal clears this retained value and stops it being reused. Your saved answer
-                  stays unchanged. You can find the question under Dismissed and enter a fresh value
-                  later.
-                </p>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void changeStatus("ignored")}
-                  className="rounded border border-red-300 px-3 py-2 text-red-700 dark:text-red-300"
-                >
-                  Dismiss and clear value
-                </button>
-              </details>
             )}
             {capture.status !== "current" && (
               <p className="rounded border border-line bg-sunken p-3 text-sm">
@@ -462,6 +447,46 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
               </p>
             )}
           </section>
+          {capture.status === "current" &&
+            question &&
+            !capture.question.capture_conflict &&
+            reviewed && (
+              <ChangeReview
+                ref={reviewRef}
+                before={before}
+                after={`${action === "create_answer_and_map" ? label : (selectedAnswer.data?.label ?? "")}: ${valueText(afterValue, afterLabels)}`}
+                behavior={behavior}
+                affected={affected}
+              >
+                {action === "update_answer" && (
+                  <p className="text-sm text-ink-muted">
+                    Every question using this saved answer will use the new value. No other answer
+                    is changed.
+                  </p>
+                )}
+                {(action === "retarget_mapping" || action === "replace_option_bindings") && (
+                  <p className="text-sm text-ink-muted">
+                    The saved answer’s value stays unchanged. This remembered value is cleared after
+                    saving.
+                  </p>
+                )}
+                {choiceQuestion && (
+                  <ul className="space-y-1 text-sm text-ink-muted">
+                    {pairs.map(({ option, choiceKey }) => (
+                      <li key={option.id}>
+                        {option.raw_label} →{" "}
+                        {action === "create_answer_and_map"
+                          ? newChoices.find((choice) => choice.choice_key === choiceKey)
+                              ?.display_label
+                          : selectedAnswer.data?.choices.find(
+                              (choice) => choice.id === bindings[option.id],
+                            )?.display_label}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </ChangeReview>
+            )}
           {capture.question.capture_conflict ? (
             <section className="space-y-3 rounded-lg border border-red-400 p-4">
               <p className="font-semibold">This question has conflicting remembered values.</p>
@@ -480,108 +505,115 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
             capture.status === "current" &&
             question && (
               <section className="space-y-4" aria-label="How to use this value">
-                <h3 className="font-semibold text-ink">How should this value be used?</h3>
-                <fieldset className="space-y-2">
-                  <legend className="sr-only">Action</legend>
-                  {(
-                    [
-                      ...(!capture.mapping || capture.mapping.status === "retired"
-                        ? [["create_answer_and_map", "Save as a new answer for this question"]]
-                        : []),
-                      ...(capture.mapping
-                        ? [["update_answer", "Replace the saved answer’s value"]]
-                        : []),
-                      ...(capture.mapping
-                        ? [["retarget_mapping", "Use a different saved answer for this question"]]
-                        : []),
-                      ...(capture.mapping && choiceQuestion
-                        ? [
-                            [
-                              "replace_option_bindings",
-                              "Correct how form choices match the saved answer",
-                            ],
-                          ]
-                        : []),
-                    ] as [Action, string][]
-                  ).map(([value, text]) => (
-                    <label
-                      key={value}
-                      className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm ${action === value ? "border-accent bg-surface text-ink" : "border-line text-ink-muted"}`}
-                    >
-                      <input
-                        type="radio"
-                        name="capture-action"
-                        checked={action === value}
-                        onChange={() => {
-                          setAction(value);
-                          setReviewed(false);
-                          if (value === "update_answer" || value === "replace_option_bindings") {
-                            setAnswerId(capture.answer?.id ?? "");
-                            setBindings(
-                              Object.fromEntries(
-                                (capture.mapping?.bindings ?? []).map((binding) => [
-                                  binding.question_option_id,
-                                  binding.answer_choice_id,
-                                ]),
-                              ),
-                            );
-                          }
-                        }}
-                      />
-                      <span>{text}</span>
-                    </label>
-                  ))}
-                </fieldset>
+                <h3 className="text-sm font-medium text-ink-muted">
+                  {!capture.mapping || capture.mapping.status === "retired"
+                    ? "Save as a new answer"
+                    : "Use remembered value"}
+                </h3>
+                {capture.mapping && (
+                  <fieldset className="space-y-2">
+                    <legend className="sr-only">Action</legend>
+                    {(
+                      [
+                        ...(!capture.mapping || capture.mapping.status === "retired"
+                          ? [["create_answer_and_map", "New answer"]]
+                          : []),
+                        ...(capture.mapping ? [["update_answer", "Update saved value"]] : []),
+                        ...(capture.mapping ? [["retarget_mapping", "Use another answer"]] : []),
+                        ...(capture.mapping && choiceQuestion
+                          ? [["replace_option_bindings", "Change choice matches"]]
+                          : []),
+                      ] as [Action, string][]
+                    ).map(([value, text]) => (
+                      <label
+                        key={value}
+                        className="flex cursor-pointer items-center gap-3 py-1 text-sm text-ink"
+                      >
+                        <input
+                          type="radio"
+                          name="capture-action"
+                          checked={action === value}
+                          onChange={() => {
+                            setAction(value);
+                            setReviewed(false);
+                            if (value === "update_answer" || value === "replace_option_bindings") {
+                              setAnswerId(capture.answer?.id ?? "");
+                              setBindings(
+                                Object.fromEntries(
+                                  (capture.mapping?.bindings ?? []).map((binding) => [
+                                    binding.question_option_id,
+                                    binding.answer_choice_id,
+                                  ]),
+                                ),
+                              );
+                            }
+                          }}
+                        />
+                        <span>{text}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
                 {action === "create_answer_and_map" ? (
                   <div className="space-y-4">
-                    <label className="block text-sm font-medium text-ink">
-                      Answer name
-                      <input
-                        value={label}
-                        onChange={(event) => {
-                          const next = event.target.value;
-                          setLabel(next);
-                          if (!key || key === answerKey(label)) setKey(answerKey(next));
-                        }}
-                        className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
-                      />
-                    </label>
-
-                    <label className="block flex-1 text-sm font-medium text-ink">
-                      Fill behavior
-                      <HelpTip text={fillExplanation(fillPolicy)} className="block">
-                        <select
-                          value={fillPolicy}
-                          onChange={(event) =>
-                            setFillPolicy(event.target.value as typeof fillPolicy)
-                          }
-                          className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
-                        >
-                          <option value="auto">Fill automatically</option>
-                          <option value="confirm_each_time">Ask every time</option>
-                          <option value="never">Never fill</option>
-                        </select>
-                      </HelpTip>
-                    </label>
-
-                    <details className="text-sm text-ink-muted">
-                      <summary className="cursor-pointer">Optional details</summary>
+                    <details className="border-t border-line pt-3 text-sm text-ink-muted">
+                      <summary className="cursor-pointer font-medium">Answer details</summary>
                       <div className="mt-3 space-y-3">
-                        <label className="block">
+                        <dl>
+                          <dt className="text-xs text-ink-muted">Value type</dt>
+                          <dd className="mt-1 text-sm text-ink">
+                            {VALUE_KIND_LABEL[valueKindForQuestion(question.control_kind)]}
+                          </dd>
+                        </dl>
+                        <label className="block flex-1 text-xs font-normal text-ink-muted">
+                          Fill behavior
+                          <HelpTip text={fillExplanation(fillPolicy)} className="block">
+                            <select
+                              value={fillPolicy}
+                              onChange={(event) =>
+                                setFillPolicy(event.target.value as typeof fillPolicy)
+                              }
+                              className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
+                            >
+                              <option value="auto">Automatic</option>
+                              <option value="confirm_each_time">Ask every time</option>
+                              <option value="never">Never fill</option>
+                            </select>
+                          </HelpTip>
+                        </label>
+                        <label className="block text-xs font-normal text-ink-muted">
+                          Answer name
+                          <input
+                            value={label}
+                            onChange={(event) => {
+                              const next = event.target.value;
+                              setLabel(next);
+                              if (!key || key === answerKey(label)) setKey(answerKey(next));
+                            }}
+                            className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
+                          />
+                        </label>
+
+                        <label className="block text-xs font-normal text-ink-muted">
+                          Stable key
+                          <HelpTip
+                            text="Generated from the label. Change it only to distinguish answers with the same label."
+                            className="block"
+                          >
+                            <input
+                              value={key}
+                              onChange={(event) => setKey(answerKey(event.target.value))}
+                              className="mt-1 w-full rounded border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
+                            />
+                          </HelpTip>
+                        </label>
+                        <label className="block text-xs font-normal text-ink-muted">
                           Description
                           <textarea
                             value={description}
                             onChange={(event) => setDescription(event.target.value)}
                             rows={2}
-                            className="mt-1 w-full rounded border border-line bg-surface px-3 py-2"
-                          />
-                        </label>
-                        <label className="block">
-                          Stable key
-                          <input
-                            value={key}
-                            onChange={(event) => setKey(answerKey(event.target.value))}
-                            className="mt-1 w-full rounded border border-line bg-surface px-3 py-2"
+                            className="mt-1 w-full rounded border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
                           />
                         </label>
                       </div>
@@ -617,28 +649,30 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                 ) : (
                   selectedAnswer.data && (
                     <div className="rounded border border-line bg-surface p-4">
-                      <p className="font-semibold">{selectedAnswer.data.label}</p>
+                      <p className="text-xs text-ink-muted">{selectedAnswer.data.label}</p>
                       <p className="mt-1 whitespace-pre-wrap break-words text-lg">
                         {valueText(selectedAnswer.data.value, selectedAnswer.data.choices)}
                       </p>
-                      <p className="mt-2 text-sm text-ink-muted">
-                        Used by {selectedAnswer.data.mappings.length} questions.
+                      <p className="mt-2 text-xs text-ink-muted">
+                        {selectedAnswer.data.status === "disabled"
+                          ? "Paused"
+                          : POLICY_LABEL[selectedAnswer.data.fill_policy]}{" "}
+                        · {selectedAnswer.data.mappings.length}{" "}
+                        {selectedAnswer.data.mappings.length === 1 ? "question" : "questions"}
                       </p>
                     </div>
                   )
                 )}
                 {!capture.mapping && (
-                  <p className="text-sm text-ink-muted">
-                    Already have an answer?{" "}
+                  <div>
                     <button
                       type="button"
                       onClick={() => onOpenQuestion(capture.question_id)}
                       className="font-medium text-accent"
                     >
-                      Match a saved answer instead
+                      Use a saved answer
                     </button>
-                    .
-                  </p>
+                  </div>
                 )}
                 {choiceQuestion &&
                   action &&
@@ -651,43 +685,6 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                       onChange={setBindings}
                     />
                   )}
-                {reviewed && (
-                  <ChangeReview
-                    ref={reviewRef}
-                    before={before}
-                    after={`${action === "create_answer_and_map" ? label : (selectedAnswer.data?.label ?? "")}: ${valueText(afterValue, afterLabels)}`}
-                    behavior={behavior}
-                    affected={affected}
-                  >
-                    {action === "update_answer" && (
-                      <p className="text-sm text-ink-muted">
-                        Every question using this saved answer will use the new value. No other
-                        answer is changed.
-                      </p>
-                    )}
-                    {(action === "retarget_mapping" || action === "replace_option_bindings") && (
-                      <p className="text-sm text-ink-muted">
-                        The saved answer’s value stays unchanged. This remembered value is cleared
-                        after saving.
-                      </p>
-                    )}
-                    {choiceQuestion && (
-                      <ul className="space-y-1 text-sm text-ink-muted">
-                        {pairs.map(({ option, choiceKey }) => (
-                          <li key={option.id}>
-                            {option.raw_label} →{" "}
-                            {action === "create_answer_and_map"
-                              ? newChoices.find((choice) => choice.choice_key === choiceKey)
-                                  ?.display_label
-                              : selectedAnswer.data?.choices.find(
-                                  (choice) => choice.id === bindings[option.id],
-                                )?.display_label}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </ChangeReview>
-                )}
               </section>
             )
           )}
@@ -713,6 +710,29 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
               updateCapture.reset();
             }}
           />
+          {capture.status === "current" && (
+            <details className="border-t border-line pt-3 text-sm text-ink-muted">
+              <summary className="cursor-pointer font-medium">Manage remembered value</summary>
+              <p className="my-3">
+                Clearing removes this remembered value and stops its reuse. Your saved answer stays
+                unchanged. Enter it again in an application form to remember it later.
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void changeStatus("ignored")}
+                className="rounded border border-red-300 px-3 py-2 text-red-700 dark:text-red-300"
+              >
+                Dismiss and clear value
+              </button>
+            </details>
+          )}
+          <details className="border-t border-line pt-3 text-sm text-ink-muted">
+            <summary className="cursor-pointer font-medium">Source details</summary>
+            <p className="mt-3">
+              {siteLabel(capture.question.site_scope)} · {SOURCE_LABEL[capture.source]}
+            </p>
+          </details>
           <KnowledgeHistory events={capture.events} />
         </>
       )}

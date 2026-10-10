@@ -9,10 +9,26 @@ interface Props {
   onChange: (value: SortOrder) => void;
 }
 
+interface ChoiceProps<T extends string> {
+  value: T;
+  onChange: (value: T) => void;
+  options: readonly { value: T; label: string }[];
+  menuLabel: string;
+  actionLabel?: string;
+  size?: "md" | "field";
+  className?: string;
+}
+
 const ITEM =
   "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-hover focus-visible:bg-surface-hover focus-visible:outline-none";
 
-function SortMenuDropdown({ value, onChange, onClose }: Props & { onClose: () => void }) {
+function SortMenuDropdown<T extends string>({
+  value,
+  onChange,
+  options,
+  menuLabel,
+  onClose,
+}: ChoiceProps<T> & { onClose: () => void }) {
   const menuRef = useRef<HTMLDivElement>(null);
   useFocusTrap(menuRef, onClose);
 
@@ -49,12 +65,12 @@ function SortMenuDropdown({ value, onChange, onClose }: Props & { onClose: () =>
     <div
       ref={menuRef}
       role="menu"
-      aria-label="Sort jobs"
+      aria-label={menuLabel}
       tabIndex={-1}
       onKeyDown={onKeyDown}
       className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-line bg-surface py-1 shadow-lg outline-none"
     >
-      {SORT_OPTIONS.map((option) => {
+      {options.map((option) => {
         const selected = option.value === value;
         return (
           <button
@@ -78,11 +94,19 @@ function SortMenuDropdown({ value, onChange, onClose }: Props & { onClose: () =>
   );
 }
 
-export function SortMenu({ value, onChange }: Props) {
+export function SortChoiceMenu<T extends string>({
+  value,
+  onChange,
+  options,
+  menuLabel,
+  actionLabel = "Sort",
+  size = "md",
+  className = "text-ink-muted hover:text-ink",
+}: ChoiceProps<T>) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
-  const label = SORT_OPTIONS.find((option) => option.value === value)?.label ?? "Sort jobs";
+  const label = options.find((option) => option.value === value)?.label ?? menuLabel;
 
   useEffect(() => {
     if (!open) return;
@@ -96,16 +120,36 @@ export function SortMenu({ value, onChange }: Props) {
   return (
     <div ref={wrapperRef} className="relative shrink-0">
       <IconButton
-        label={`Sort: ${label}`}
+        label={`${actionLabel}: ${label}`}
+        size={size}
         active={open}
         activeMeans="expanded"
         aria-haspopup="menu"
         onClick={() => setOpen((current) => !current)}
-        className="text-ink-muted hover:text-ink"
+        className={className}
       >
-        <ArrowDownUp size={16} />
+        <ArrowDownUp size={16} aria-hidden="true" />
       </IconButton>
-      {open && <SortMenuDropdown value={value} onChange={onChange} onClose={close} />}
+      {open && (
+        <SortMenuDropdown
+          value={value}
+          onChange={onChange}
+          options={options}
+          menuLabel={menuLabel}
+          onClose={close}
+        />
+      )}
     </div>
+  );
+}
+
+export function SortMenu({ value, onChange }: Props) {
+  return (
+    <SortChoiceMenu
+      value={value}
+      onChange={onChange}
+      options={SORT_OPTIONS}
+      menuLabel="Sort jobs"
+    />
   );
 }

@@ -82,14 +82,14 @@ describe("OptionBindingEditor", () => {
   });
 
   it("opens incomplete option sets and makes missing matches searchable", async () => {
-    const manyOptions = Array.from({ length: 6 }, (_, index) => ({
+    const manyOptions = Array.from({ length: 11 }, (_, index) => ({
       id: `qo-${index}`,
       raw_label: `Option ${index}`,
       normalized_label: `option ${index}`,
       stable_option_key: null,
       status: "active" as const,
     }));
-    const manyChoices = Array.from({ length: 6 }, (_, index) => ({
+    const manyChoices = Array.from({ length: 11 }, (_, index) => ({
       id: `ac-${index}`,
       choice_key: `choice-${index}`,
       display_label: `Meaning ${index}`,
@@ -106,9 +106,9 @@ describe("OptionBindingEditor", () => {
 
     const details = container.querySelector("details")!;
     expect(details.open).toBe(true);
-    expect(screen.getAllByRole("combobox")).toHaveLength(6);
+    expect(screen.getAllByRole("combobox")).toHaveLength(11);
     fireEvent.click(screen.getByLabelText("Only unmatched choices"));
-    expect(screen.getAllByRole("combobox")).toHaveLength(5);
+    expect(screen.getAllByRole("combobox")).toHaveLength(10);
     fireEvent.change(screen.getByRole("searchbox", { name: "Search form choices" }), {
       target: { value: "Option 3" },
     });

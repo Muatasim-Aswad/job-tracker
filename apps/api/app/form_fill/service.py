@@ -30,6 +30,7 @@ from app.form_fill.schemas import (
     AnswerListResponse,
     AnswerMultiChoiceValue,
     AnswerSingleChoiceValue,
+    AnswerSort,
     AnswerSummary,
     AnswerUpdate,
     AnswerValue,
@@ -83,7 +84,7 @@ from app.form_fill.schemas import (
 )
 from app.listings.repository import ListingRepository
 
-QuestionSort = Literal["last_seen", "seen_count"]
+QuestionSort = Literal["last_seen", "seen_count", "prompt"]
 QuestionMappingFilter = Literal["active", "disabled", "retired", "none"]
 
 _ANSWER_VALUE: TypeAdapter[AnswerValue] = TypeAdapter(AnswerValue)
@@ -123,16 +124,20 @@ def _cursor_payload(cursor: str) -> dict[str, object]:
         raise InvalidCursorError from None
 
 
-def _decode_cursor(cursor: str, fingerprint: str, sort: QuestionSort) -> tuple[object, str]:
+def _decode_cursor(
+    cursor: str, fingerprint: str, sort: QuestionSort | AnswerSort
+) -> tuple[object, str]:
     try:
         payload = _cursor_payload(cursor)
         if payload.get("filters") != fingerprint or payload.get("sort") != sort:
             raise ValueError
         value = payload["value"]
         resource_id = payload["id"]
-        if sort == "last_seen" and not isinstance(value, str):
+        if sort in ("last_seen", "prompt", "updated_at", "label") and not isinstance(value, str):
             raise ValueError
-        if sort == "seen_count" and (not isinstance(value, int) or isinstance(value, bool)):
+        if sort in ("seen_count", "mapping_count") and (
+            not isinstance(value, int) or isinstance(value, bool)
+        ):
             raise ValueError
         if not isinstance(resource_id, str):
             raise ValueError
@@ -462,7 +467,11 @@ class FormFillService:
         limit: int,
         cursor: str | None,
         review_inbox: bool | None = None,
+        include_matched: bool = False,
+        include_dismissed: bool = False,
     ) -> QuestionListResponse:
+        if (include_matched or include_dismissed) and review_inbox is not True:
+            raise ValidationError("include filters require review_inbox=true")
         canonical_scope = normalize_token(site_scope) if site_scope is not None else None
         canonical_query = normalize_evidence(query) if query is not None else None
         filters = {
@@ -470,6 +479,8 @@ class FormFillService:
             "mapping_status": mapping_status,
             "needs_review": needs_review,
             "review_inbox": review_inbox,
+            "include_matched": include_matched,
+            "include_dismissed": include_dismissed,
             "has_current_capture": has_current_capture,
             "site_scope": canonical_scope,
             "answer_id": answer_id,
@@ -482,6 +493,8 @@ class FormFillService:
             mapping_status=mapping_status,
             needs_review=needs_review,
             review_inbox=review_inbox,
+            include_matched=include_matched,
+            include_dismissed=include_dismissed,
             has_current_capture=has_current_capture,
             site_scope=canonical_scope,
             answer_id=answer_id,
@@ -494,7 +507,13 @@ class FormFillService:
         next_cursor = None
         if page.has_more and page.items:
             last = page.items[-1]
-            value: object = last.last_seen_at if sort == "last_seen" else last.seen_count
+            value: object = (
+                last.normalized_question
+                if sort == "prompt"
+                else last.last_seen_at
+                if sort == "last_seen"
+                else last.seen_count
+            )
             next_cursor = _encode_cursor(
                 {"filters": fingerprint, "sort": sort, "value": value, "id": last.id}
             )
@@ -580,17 +599,19 @@ class FormFillService:
         query: str | None,
         limit: int,
         cursor: str | None,
+        sort: AnswerSort = "updated_at",
     ) -> AnswerListResponse:
         canonical_query = normalize_evidence(query) if query is not None else None
         filters = {"status": status, "value_kind": value_kind, "query": canonical_query}
         fingerprint = _filter_fingerprint(filters)
-        cursor_values = _decode_time_cursor(cursor, fingerprint, "updated_at") if cursor else None
+        cursor_values = _decode_cursor(cursor, fingerprint, sort) if cursor else None
         rows, has_more = self.repo.list_answers(
             status=status,
             value_kind=value_kind,
             query=canonical_query,
             limit=limit,
             cursor_values=cursor_values,
+            sort=sort,
         )
         items = [AnswerListItem(**row) for row in rows]
         next_cursor = None
@@ -598,8 +619,8 @@ class FormFillService:
             next_cursor = _encode_cursor(
                 {
                     "filters": fingerprint,
-                    "sort": "updated_at",
-                    "value": rows[-1]["updated_at"],
+                    "sort": sort,
+                    "value": rows[-1]["sort_value"],
                     "id": rows[-1]["id"],
                 }
             )
@@ -1397,7 +1418,9 @@ class FormFillService:
     def _summary(
         self, question: Question, *, mapping: MappingSummary | None = None
     ) -> QuestionSummary:
-        option_count, capture_count = self.repo.question_review_counts(question.id)
+        option_count, capture_count, ignored_capture_count = self.repo.question_review_counts(
+            question.id
+        )
         return QuestionSummary(
             id=question.id,
             site_scope=question.site_scope,
@@ -1407,6 +1430,7 @@ class FormFillService:
             raw_help=question.raw_help,
             option_count=option_count,
             current_capture_count=capture_count,
+            ignored_capture_count=ignored_capture_count,
             review_state=question.review_state,
             revision=question.revision,
             capture_conflict=question.capture_conflict,

@@ -1,5 +1,5 @@
 import type { AnswerChoiceSummary, QuestionOption } from "./model";
-import { ChoiceSetDisclosure } from "./ChoiceSetDisclosure";
+import { ChoiceSetDisclosure, INLINE_CHOICE_LIMIT } from "./ChoiceSetDisclosure";
 import { useState } from "react";
 import { suggestBindings } from "./bindings";
 import { HelpTip } from "./HelpTip";
@@ -78,10 +78,8 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
       });
   }
   return (
-    <fieldset className="space-y-3 rounded-lg border border-line p-3">
-      <legend className="px-1 text-sm font-semibold text-ink">
-        Match form choices to answer choices
-      </legend>
+    <fieldset className="space-y-3">
+      <legend className="sr-only">Match form choices to answer choices</legend>
       {hasDuplicate && (
         <p role="alert" className="text-xs text-red-700 dark:text-red-300">
           Every form option needs a different Answer choice.
@@ -92,24 +90,28 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
         initiallyExpanded={selectedCount < activeOptions.length}
         summary={`${selectedCount} of ${activeOptions.length} choices matched`}
       >
-        <HelpTip text="Each form choice needs a different answer choice. Identical labels can be suggested; review every match before saving.">
-          <button
-            type="button"
-            onClick={() => onChange(suggestBindings(options, choices, value))}
-            className="text-sm font-medium text-accent"
-          >
-            Suggest identical labels
-          </button>
-        </HelpTip>
-        {activeOptions.length > 5 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-sm font-medium text-ink-muted">Choice matches</span>
+          <HelpTip text="Each form choice needs a different answer choice. Identical labels can be suggested; review every match before saving.">
+            <button
+              type="button"
+              onClick={() => onChange(suggestBindings(options, choices, value))}
+              className="text-sm font-medium text-accent"
+            >
+              Suggest identical labels
+            </button>
+          </HelpTip>
+        </div>
+        {activeOptions.length > INLINE_CHOICE_LIMIT && (
           <div className="space-y-2">
-            <label className="block text-sm">
-              Search form choices
+            <label className="block text-xs text-ink-muted">
+              <span className="sr-only">Search form choices</span>
               <input
                 type="search"
+                placeholder="Search form choices"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                className="mt-1 w-full rounded border border-line bg-surface px-3 py-2"
+                className="w-full rounded border border-line bg-surface px-3 py-2 text-sm text-ink"
               />
             </label>
             <label className="flex items-center gap-2 text-sm">
@@ -122,6 +124,10 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
             </label>
           </div>
         )}
+        <div className="hidden grid-cols-2 gap-3 text-xs text-ink-muted sm:grid" aria-hidden="true">
+          <span>Form choice</span>
+          <span>Saved choice</span>
+        </div>
         <div className="max-h-80 space-y-3 overflow-y-auto">{rows()}</div>
       </ChoiceSetDisclosure>
     </fieldset>

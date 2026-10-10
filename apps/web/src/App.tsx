@@ -47,6 +47,7 @@ export default function App() {
     new URLSearchParams(window.location.search).get("view") === "form-fill" ? "form-fill" : "jobs",
   );
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [formFillToolbarHost, setFormFillToolbarHost] = useState<HTMLDivElement | null>(null);
   const [search, setSearch] = useState(() =>
     view === "jobs" ? (new URLSearchParams(window.location.search).get("q") ?? "") : "",
   );
@@ -320,7 +321,9 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex shrink-0 items-center gap-4 border-b border-line px-4 py-3">
+      <header
+        className={`relative z-20 flex shrink-0 items-center gap-4 border-b border-line px-4 py-3 ${view === "form-fill" ? "flex-wrap" : ""}`}
+      >
         <h1 className="text-base font-semibold text-ink">Job Tracker</h1>
         <FormFillNav view={view} hasReview={reviewPresence.hasReview} onChange={changeView} />
         {view === "jobs" && (
@@ -357,6 +360,12 @@ export default function App() {
             </IconButton>
           </>
         )}
+        {view === "form-fill" && (
+          <div
+            ref={setFormFillToolbarHost}
+            className="order-last flex min-w-0 basis-full lg:order-none lg:ml-auto lg:max-w-[620px] lg:basis-auto lg:flex-1"
+          />
+        )}
         <HeaderMenu
           onOpenBlocked={() => setShowBlocked(true)}
           onOpenHelp={() => setShowHelp(true)}
@@ -367,7 +376,7 @@ export default function App() {
 
       <main className={`min-h-0 flex-1 ${view === "form-fill" ? "overflow-y-auto" : ""}`}>
         {view === "form-fill" ? (
-          <FormFillWorkspace />
+          <FormFillWorkspace toolbarHost={formFillToolbarHost} />
         ) : (
           <>
             {isLoading && <div className="p-6 text-sm text-ink-muted">Loading jobs…</div>}

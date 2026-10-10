@@ -15,25 +15,26 @@ export function CaptureList({ onOpen }: Props) {
   return (
     <ReviewList
       titleId="captures-title"
-      title="Dismissed remembered values"
+      title="Cleared value history"
       filters={
-        <label className="flex-1 text-sm font-medium text-ink">
-          Search dismissed values
+        <label className="flex-1 text-xs font-normal text-ink-muted">
+          <span className="sr-only">Search cleared value history</span>
           <input
             type="search"
+            placeholder="Search cleared value history"
             maxLength={256}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
           />
         </label>
       }
       isLoading={query.isLoading}
       isError={query.isError}
       onRetry={() => void query.refetch()}
-      loadingLabel="Loading dismissed values…"
-      errorLabel="Couldn’t load dismissed values."
-      emptyTitle={q ? "No dismissed values match your search." : "No dismissed values."}
+      loadingLabel="Loading cleared value history…"
+      errorLabel="Couldn’t load cleared value history."
+      emptyTitle={q ? "No cleared values match your search." : "No cleared values."}
       emptyBody="Values you dismiss appear here with their question and activity history."
       rows={items.map((capture) => ({
         id: capture.id,
