@@ -28,7 +28,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Fixed
 
-- Form Fill now scrolls at the page edge, removes headings duplicated from navigation, and shows general explanations as hover/focus tooltips on the relevant tabs and controls, without separate help icons or changes to click actions.
+- Form Fill now scrolls beneath the fixed application header with its scrollbar at the viewport edge, removes headings duplicated from navigation, and shows general explanations as hover/focus tooltips on the relevant tabs and controls, without separate help icons or changes to click actions.
 
 - Form Fill renders choice labels instead of internal IDs, keeps automatic Answer keys in sync while typing, protects unsaved drafts, and invalidates review when fill policy or other draft fields change.
 
