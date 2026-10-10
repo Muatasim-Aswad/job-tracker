@@ -22,6 +22,9 @@ const supported =
 if (!supported) process.exit(1);
 ' || fail "Node.js $NODE_REQUIREMENT is required; found $(node --version)."
 
+command -v cmake >/dev/null 2>&1 ||
+  fail "cmake is required. Install it and retry."
+
 command -v corepack >/dev/null 2>&1 ||
   fail "Corepack is required. Install a Node.js distribution that includes Corepack."
 corepack pnpm --version >/dev/null 2>&1 ||
