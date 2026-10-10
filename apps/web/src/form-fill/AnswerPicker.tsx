@@ -1,5 +1,6 @@
 import { useDeferredValue, useState } from "react";
 import { useFormFillAnswers } from "../hooks";
+import { HelpTip } from "./HelpTip";
 import {
   controlAcceptsAnswer,
   fillExplanation,
@@ -92,20 +93,23 @@ export function AnswerPicker({
       )}
       {(expanded || !value) && (
         <>
-          <label className="block text-sm font-medium text-ink">
-            Find a saved answer
-            <input
-              type="search"
-              value={search}
-              maxLength={256}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name or description"
-              className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
+          <div className="flex items-end gap-2">
+            <label className="block flex-1 text-sm font-medium text-ink">
+              Find a saved answer
+              <input
+                type="search"
+                value={search}
+                maxLength={256}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by name or description"
+                className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
+              />
+            </label>
+            <HelpTip
+              label="About answer selection"
+              text="Compatible answers, with similar names first. Check the value before saving."
             />
-          </label>
-          <p className="text-xs text-ink-muted">
-            Compatible answers, with similar names first. Check the value before saving.
-          </p>
+          </div>
           {query.isLoading ? (
             <p role="status">Loading answers…</p>
           ) : query.isError ? (

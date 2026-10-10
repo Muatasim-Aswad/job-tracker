@@ -25,6 +25,7 @@ import {
 import { AnswerPicker } from "./AnswerPicker";
 import { ChangeReview } from "./ChangeReview";
 import { KnowledgeHistory } from "./KnowledgeHistory";
+import { HelpTip } from "./HelpTip";
 
 interface Props {
   questionId: string;
@@ -247,14 +248,20 @@ export function QuestionDrawer({
                   )}
                 </>
               )}
+              <HelpTip
+                label="About saving matches"
+                text="Check the answer value and fill behavior before saving."
+              />
             </div>
-            <p className="text-xs text-ink-muted">
-              {!answerId
-                ? "Choose a saved answer, use a remembered value, or save a new answer."
-                : !complete
-                  ? "Match every form choice before saving."
-                  : "Check the answer value and fill behavior before saving."}
-            </p>
+            {(!answerId || !complete) && (
+              <p className="text-xs text-ink-muted">
+                {!answerId
+                  ? "Choose a saved answer, use a remembered value, or save a new answer."
+                  : !complete
+                    ? "Match every form choice before saving."
+                    : ""}
+              </p>
+            )}
           </div>
         ) : undefined
       }

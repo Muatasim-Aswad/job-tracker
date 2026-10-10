@@ -22,6 +22,7 @@ import { Drawer } from "./Drawer";
 import { fillExplanation, isChoiceKind, valueText, type QuestionDetail } from "./model";
 import { ChangeReview } from "./ChangeReview";
 import { KnowledgeHistory } from "./KnowledgeHistory";
+import { HelpTip } from "./HelpTip";
 
 interface Props {
   answerId: string | null;
@@ -192,11 +193,15 @@ export function AnswerDrawer({
               Save and review next
             </button>
           )}
-          <span className="text-xs text-ink-muted">
-            {valid
-              ? "Check the value and fill behavior before saving."
-              : "Add a name and a valid answer value to save."}
-          </span>
+          <HelpTip
+            label="About saving answers"
+            text="Check the value and fill behavior before saving."
+          />
+          {!valid && (
+            <span className="text-xs text-ink-muted">
+              Add a name and a valid answer value to save.
+            </span>
+          )}
         </div>
       }
     >

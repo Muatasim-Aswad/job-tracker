@@ -28,6 +28,8 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Fixed
 
+- Form Fill now scrolls at the page edge, removes headings duplicated from navigation, and shows general explanations in accessible help tooltips.
+
 - Form Fill renders choice labels instead of internal IDs, keeps automatic Answer keys in sync while typing, protects unsaved drafts, and invalidates review when fill policy or other draft fields change.
 
 - Automatic listing captures now merge observed metadata for every adapter, preserve missing or empty facts and known application types, and keep exact posting dates when later captures only provide estimates. Explicit edits can still clear stored fields.

@@ -3,6 +3,7 @@ import type { AnswerValueKind } from "./model";
 import { answerKey, fillExplanation, isChoiceKind, VALUE_KIND_LABEL } from "./model";
 import type { AnswerDraft } from "./answerDraft";
 import { ChoiceSetDisclosure, INLINE_CHOICE_LIMIT } from "./ChoiceSetDisclosure";
+import { HelpTip } from "./HelpTip";
 
 interface Props {
   draft: AnswerDraft;
@@ -252,21 +253,28 @@ export function AnswerEditor({ draft, existing, questionLocked = false, onChange
             ))}
           </select>
         </label>
-        <label className="block text-sm font-medium text-ink">
-          Fill policy
-          <select
-            value={draft.fillPolicy}
-            onChange={(event) => set("fillPolicy", event.target.value as AnswerDraft["fillPolicy"])}
-            className={inputClass}
-          >
-            <option value="auto">Automatic</option>
-            <option value="confirm_each_time">Ask every time</option>
-            <option value="never">Never fill</option>
-          </select>
-        </label>
+        <div className="flex items-end gap-2">
+          <label className="block flex-1 text-sm font-medium text-ink">
+            Fill policy
+            <select
+              value={draft.fillPolicy}
+              onChange={(event) =>
+                set("fillPolicy", event.target.value as AnswerDraft["fillPolicy"])
+              }
+              className={inputClass}
+            >
+              <option value="auto">Automatic</option>
+              <option value="confirm_each_time">Ask every time</option>
+              <option value="never">Never fill</option>
+            </select>
+          </label>
+          <HelpTip
+            label="About fill policy"
+            text={fillExplanation(draft.fillPolicy, draft.status)}
+          />
+        </div>
       </div>
 
-      <p className="text-sm text-ink-muted">{fillExplanation(draft.fillPolicy, draft.status)}</p>
       <details className="text-sm text-ink-muted">
         <summary className="cursor-pointer">Advanced identifier</summary>
         <p className="my-2">

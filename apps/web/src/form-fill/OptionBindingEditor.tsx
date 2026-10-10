@@ -2,6 +2,7 @@ import type { AnswerChoiceSummary, QuestionOption } from "./model";
 import { ChoiceSetDisclosure } from "./ChoiceSetDisclosure";
 import { useState } from "react";
 import { suggestBindings } from "./bindings";
+import { HelpTip } from "./HelpTip";
 
 interface Props {
   choices: AnswerChoiceSummary[];
@@ -81,10 +82,6 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
       <legend className="px-1 text-sm font-semibold text-ink">
         Match form choices to answer choices
       </legend>
-      <p className="text-xs text-ink-muted">
-        Each form choice needs a different answer choice. Identical labels can be suggested; review
-        every match before saving.
-      </p>
       {hasDuplicate && (
         <p role="alert" className="text-xs text-red-700 dark:text-red-300">
           Every form option needs a different Answer choice.
@@ -95,13 +92,19 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
         initiallyExpanded={selectedCount < activeOptions.length}
         summary={`${selectedCount} of ${activeOptions.length} choices matched`}
       >
-        <button
-          type="button"
-          onClick={() => onChange(suggestBindings(options, choices, value))}
-          className="text-sm font-medium text-accent"
-        >
-          Suggest identical labels
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onChange(suggestBindings(options, choices, value))}
+            className="text-sm font-medium text-accent"
+          >
+            Suggest identical labels
+          </button>
+          <HelpTip
+            label="About choice matching"
+            text="Each form choice needs a different answer choice. Identical labels can be suggested; review every match before saving."
+          />
+        </div>
         {activeOptions.length > 5 && (
           <div className="space-y-2">
             <label className="block text-sm">

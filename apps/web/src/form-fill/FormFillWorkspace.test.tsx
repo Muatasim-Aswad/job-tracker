@@ -29,6 +29,15 @@ beforeEach(() => window.history.replaceState(null, "", "/?view=form-fill&section
 afterEach(cleanup);
 
 describe("FormFillWorkspace navigation", () => {
+  it("uses navigation labels without repeating a workspace heading or permanent introduction", () => {
+    render(<FormFillWorkspace />);
+    expect(screen.queryByRole("heading", { name: "Form Fill" })).toBeNull();
+    expect(screen.queryByText(/Choose the answers Job Tracker can reuse/)).toBeNull();
+    fireEvent.focus(screen.getByRole("button", { name: "About Form Fill" }));
+    expect(screen.getByRole("tooltip").textContent).toContain(
+      "Choose the answers Job Tracker can reuse",
+    );
+  });
   it("uses semantic tabs and keeps only enum and resource state in the URL", async () => {
     window.history.replaceState(
       null,

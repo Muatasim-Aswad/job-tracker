@@ -6,6 +6,7 @@ import { CaptureList } from "./CaptureList";
 import { QuestionDrawer } from "./QuestionDrawer";
 import { QuestionList } from "./QuestionList";
 import { canLeaveFormFill } from "./draftGuard";
+import { HelpTip } from "./HelpTip";
 import type { QuestionDetail } from "./model";
 
 const URL_KEYS = new Set(["view", "section", "type", "answer", "capture", "question"]);
@@ -111,37 +112,34 @@ export function FormFillWorkspace() {
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-6 overflow-y-auto p-4 sm:p-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Form Fill</h1>
-        <p className="max-w-prose text-sm text-ink-muted">
-          Choose the answers Job Tracker can reuse in application forms. Review new questions here;
-          edit your saved answers anytime.
-        </p>
-      </header>
-      <div
-        role="tablist"
-        aria-label="Form Fill sections"
-        className="flex flex-wrap border-b border-line"
-      >
-        {(
-          [
-            ["review", "Review inbox"],
-            ["answers", "Saved answers"],
-            ["dismissed", "Dismissed"],
-          ] as const
-        ).map(([section, label]) => (
-          <button
-            key={section}
-            type="button"
-            role="tab"
-            aria-selected={state.section === section}
-            onClick={() => navigate({ section, answerId: null, captureId: null, questionId: null })}
-            className={`border-b-2 px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent ${state.section === section ? "border-accent text-ink" : "border-transparent text-ink-muted"}`}
-          >
-            {label}
-          </button>
-        ))}
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 p-4 sm:p-6">
+      <div className="flex items-center gap-2 border-b border-line">
+        <div role="tablist" aria-label="Form Fill sections" className="flex flex-1 flex-wrap">
+          {(
+            [
+              ["review", "Review inbox"],
+              ["answers", "Saved answers"],
+              ["dismissed", "Dismissed"],
+            ] as const
+          ).map(([section, label]) => (
+            <button
+              key={section}
+              type="button"
+              role="tab"
+              aria-selected={state.section === section}
+              onClick={() =>
+                navigate({ section, answerId: null, captureId: null, questionId: null })
+              }
+              className={`border-b-2 px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-accent ${state.section === section ? "border-accent text-ink" : "border-transparent text-ink-muted"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <HelpTip
+          label="About Form Fill"
+          text="Choose the answers Job Tracker can reuse in application forms. Review new questions here; edit your saved answers anytime."
+        />
       </div>
       {state.section === "answers" ? (
         <AnswerList

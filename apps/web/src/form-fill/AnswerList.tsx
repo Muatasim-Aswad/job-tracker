@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { useFormFillAnswers } from "../hooks";
 import { POLICY_LABEL, VALUE_KIND_LABEL, type AnswerListItem, type AnswerValueKind } from "./model";
+import { HelpTip } from "./HelpTip";
 
 interface Props {
   onOpen: (answerId: string) => void;
@@ -27,16 +28,12 @@ export function AnswerList({ onOpen, onCreate }: Props) {
     !query.isLoading && items.length === 0 && (!!q || status !== "active" || !!valueKind);
 
   return (
-    <section aria-labelledby="answers-title" className="space-y-4">
+    <section aria-label="Saved answers" className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <h2 id="answers-title" className="text-xl font-semibold text-ink">
-            Saved answers
-          </h2>
-          <p className="text-sm text-ink-muted">
-            Reusable answers and the questions that use them. Paused answers are hidden by default.
-          </p>
-        </div>
+        <HelpTip
+          label="About saved answers"
+          text="Reusable answers and the questions that use them. Paused answers are hidden by default."
+        />
         <button
           type="button"
           onClick={onCreate}

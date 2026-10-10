@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { HelpTip } from "./HelpTip";
 
 export interface ReviewListRow {
   id: string;
@@ -48,15 +49,10 @@ export function ReviewList({
   onLoadMore,
 }: Props) {
   return (
-    <section aria-labelledby={titleId} className="space-y-4">
-      <div>
-        <h3 id={titleId} className="text-lg font-semibold text-ink">
-          {title}
-        </h3>
-        <p className="text-sm text-ink-muted">{description}</p>
-      </div>
+    <section id={titleId} aria-label={title} className="space-y-4">
       <div role="group" aria-label="Filters" className="flex flex-wrap items-end gap-3">
         {filters}
+        <HelpTip label={`About ${title.toLowerCase()}`} text={description} />
       </div>
       {isLoading ? (
         <p role="status" className="text-sm text-ink-muted">

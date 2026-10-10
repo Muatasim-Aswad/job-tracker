@@ -27,6 +27,7 @@ import { AnswerPicker } from "./AnswerPicker";
 import { ChangeReview } from "./ChangeReview";
 import { KnowledgeHistory } from "./KnowledgeHistory";
 import { choicePairsForQuestion } from "./answerDraft";
+import { HelpTip } from "./HelpTip";
 
 type Action = CaptureApply["action"];
 
@@ -371,12 +372,16 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                   )}
                 </>
               )}
+              <HelpTip
+                label="About saving remembered answers"
+                text="Check the value and affected questions before saving."
+              />
             </div>
-            <p className="text-xs text-ink-muted">
-              {actionValid
-                ? "Check the value and affected questions before saving."
-                : "Choose an action and complete any missing choice matches."}
-            </p>
+            {!actionValid && (
+              <p className="text-xs text-ink-muted">
+                Choose an action and complete any missing choice matches.
+              </p>
+            )}
           </div>
         ) : undefined
       }
@@ -539,19 +544,23 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                         className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
                       />
                     </label>
-                    <label className="block text-sm font-medium text-ink">
-                      Fill behavior
-                      <select
-                        value={fillPolicy}
-                        onChange={(event) => setFillPolicy(event.target.value as typeof fillPolicy)}
-                        className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
-                      >
-                        <option value="auto">Fill automatically</option>
-                        <option value="confirm_each_time">Ask every time</option>
-                        <option value="never">Never fill</option>
-                      </select>
-                    </label>
-                    <p className="text-sm text-ink-muted">{fillExplanation(fillPolicy)}</p>
+                    <div className="flex items-end gap-2">
+                      <label className="block flex-1 text-sm font-medium text-ink">
+                        Fill behavior
+                        <select
+                          value={fillPolicy}
+                          onChange={(event) =>
+                            setFillPolicy(event.target.value as typeof fillPolicy)
+                          }
+                          className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2"
+                        >
+                          <option value="auto">Fill automatically</option>
+                          <option value="confirm_each_time">Ask every time</option>
+                          <option value="never">Never fill</option>
+                        </select>
+                      </label>
+                      <HelpTip label="About fill behavior" text={fillExplanation(fillPolicy)} />
+                    </div>
                     <details className="text-sm text-ink-muted">
                       <summary className="cursor-pointer">Optional details</summary>
                       <div className="mt-3 space-y-3">

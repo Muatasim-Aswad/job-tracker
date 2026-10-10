@@ -319,8 +319,10 @@ export default function App() {
   const noResults = jobs !== undefined && jobs.length > 0 && filtered.length === 0;
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-center gap-4 border-b border-line px-4 py-3">
+    <div className={`flex flex-col ${view === "form-fill" ? "min-h-full" : "h-full"}`}>
+      <header
+        className={`flex items-center gap-4 border-b border-line px-4 py-3 ${view === "form-fill" ? "sticky top-0 z-20 bg-canvas" : ""}`}
+      >
         <h1 className="text-base font-semibold text-ink">Job Tracker</h1>
         <FormFillNav view={view} hasReview={reviewPresence.hasReview} onChange={changeView} />
         {view === "jobs" && (

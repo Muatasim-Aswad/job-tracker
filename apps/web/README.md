@@ -29,6 +29,8 @@ pnpm run build:web
 
 ## Form Fill workspace
 
+Form Fill uses document scrolling at the viewport edge, with centered content and a sticky application header. Navigation tabs identify the workspace and collections without repeated visible headings; regions retain accessible names. General explanations appear in help tooltips on hover, keyboard focus, or tap. Values, change summaries, validation, and clearing warnings remain visible where they inform a decision.
+
 The **Form Fill** view opens a question-centered **Review inbox**. Each exact Question appears once when it needs a Match or has a current Capture, including differing Captures on active Matches. Search includes prompt, section, and help; rows show context and choice counts so similar variants remain distinguishable. **Include questions already handled** also exposes existing Matches. The inbox refreshes every two seconds while visible.
 
 **Saved answers** defaults to active Answers; paused Answers have a separate filter and distinct styling. Collection reads never fetch Answer values. Searchable, paginated Answer pickers rank similar names within loaded compatible results and fetch the selected Answer detail for a value and fill-policy preview. Choice labels are resolved from the Question options or Answer vocabulary; missing options show a readable unavailable label, never an opaque ID.
