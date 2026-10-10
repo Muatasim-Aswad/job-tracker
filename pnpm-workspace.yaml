@@ -2,10 +2,11 @@ packages:
   - "apps/*"
   - "packages/*"
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@0.2.7
-  vite-plus: 0.2.7
+  vite: npm:@voidzero-dev/vite-plus-core@0.3.3
+  vite-plus: 0.3.3
 overrides:
   vite: "catalog:"
+  typescript: "~6.0.3"
   "@redocly/openapi-core>js-yaml": "4.3.2"
 peerDependencyRules:
   allowAny:

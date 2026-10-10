@@ -74,22 +74,22 @@ describe("Tooltip", () => {
   it("keeps the bubble inside the viewport", () => {
     // A trigger hard against the right edge: the bubble must slide back, not
     // centre itself off-screen.
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
-      function (this: HTMLElement) {
-        const wide = this.getAttribute("role") === "tooltip";
-        return {
-          top: 4,
-          bottom: 24,
-          left: wide ? 0 : window.innerWidth - 10,
-          right: wide ? 200 : window.innerWidth,
-          width: wide ? 200 : 10,
-          height: wide ? 30 : 20,
-          x: 0,
-          y: 0,
-          toJSON: () => ({}),
-        } as DOMRect;
-      },
-    );
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const wide = this.getAttribute("role") === "tooltip";
+      return {
+        top: 4,
+        bottom: 24,
+        left: wide ? 0 : window.innerWidth - 10,
+        right: wide ? 200 : window.innerWidth,
+        width: wide ? 200 : 10,
+        height: wide ? 30 : 20,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect;
+    });
     render(trigger());
     fireEvent.focus(screen.getByRole("button"));
     const tip = screen.getByRole("tooltip");

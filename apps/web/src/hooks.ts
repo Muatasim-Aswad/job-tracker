@@ -73,8 +73,7 @@ function project(base: JobState, events: EventItem[]): JobState {
     else if (event === "unhidden") hidden = false;
     else if (event === "starred") starred = true;
     else if (event === "unstarred") starred = false;
-    else if (event === "note")
-      continue; // a note sets no state
+    else if (event === "note") continue; // a note sets no state
     else status = event as Status; // funnel event name == the status it sets
   }
   return { status, hidden, starred };
