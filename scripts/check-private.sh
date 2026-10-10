@@ -25,15 +25,29 @@ ts_paths=(
 )
 
 # These directories are deliberately gitignored, so explicitly opt them back
-# into the format/lint gates. Keep formatter paths relative so the root config's
-# fixture exclusions still match. Oxlint needs absolute paths to avoid an
-# upstream type-aware path-resolution panic on ignored relative directories.
+# into the format/lint gates. Enumerate files to avoid ignored-directory traversal.
+# Keep formatter paths relative for fixture exclusions and Oxlint paths absolute
+# to avoid its type-aware path-resolution panic on ignored relative inputs.
 (
   cd "$ROOT"
-  pnpm exec vp fmt --check --ignore-path /dev/null \
-    apps/extension/src/adapters/local \
-    apps/web/src/platforms/local
-  pnpm exec vp lint --no-ignore "${ts_paths[@]}"
+  fmt_paths=()
+  lint_paths=()
+  for path in "${ts_paths[@]}"; do
+    if [[ -d "$path" ]]; then
+      while IFS= read -r -d '' file; do
+        fmt_paths+=("${file#"$ROOT/"}")
+        case "$file" in
+          *.ts|*.tsx) lint_paths+=("$file") ;;
+        esac
+      done < <(find "$path" -type f -print0)
+    fi
+  done
+  if (( ${#fmt_paths[@]} )); then
+    pnpm exec vp fmt --check --ignore-path /dev/null "${fmt_paths[@]}"
+  fi
+  if (( ${#lint_paths[@]} )); then
+    pnpm exec vp lint --no-ignore "${lint_paths[@]}"
+  fi
 )
 
 python_path="$ROOT/apps/api/scripts/local"
