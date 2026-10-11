@@ -1,5 +1,6 @@
 import { FilterPopover } from "../components/FilterPopover";
-import { useState, type ReactNode } from "react";
+import { usePersistentBoolean } from "../lib/persist";
+import { type ReactNode } from "react";
 import {
   CollectionSearch,
   CollectionToolbar,
@@ -64,8 +65,14 @@ export function ReviewList({
   isFetchingNextPage,
   onLoadMore,
 }: Props) {
-  const [showQuestionDetails, setShowQuestionDetails] = useState(true);
-  const [showSourceDetails, setShowSourceDetails] = useState(false);
+  const [showQuestionDetails, setShowQuestionDetails] = usePersistentBoolean(
+    "jt.formFill.showQuestionDetails",
+    true,
+  );
+  const [showSourceDetails, setShowSourceDetails] = usePersistentBoolean(
+    "jt.formFill.showSourceDetails",
+    false,
+  );
   const applied = filtersApplied || !showQuestionDetails || showSourceDetails;
   const clearFilters = () => {
     setShowQuestionDetails(true);

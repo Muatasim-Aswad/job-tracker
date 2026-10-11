@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { ReviewFilterSelect, ReviewList } from "./ReviewList";
 import { QuestionList } from "./QuestionList";
@@ -8,7 +8,19 @@ import { useState } from "react";
 const queries = vi.hoisted(() => ({ questions: vi.fn() }));
 vi.mock("../hooks", () => ({ useFormFillQuestions: queries.questions }));
 
-afterEach(cleanup);
+beforeEach(() => {
+  const values = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    clear: () => values.clear(),
+  });
+});
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.unstubAllGlobals();
+});
 
 const baseProps = {
   titleId: "review-title",
@@ -26,6 +38,29 @@ const baseProps = {
 };
 
 describe("Form Fill review list", () => {
+  it("restores display choices after unmounting", () => {
+    localStorage.setItem("jt.formFill.showQuestionDetails", "false");
+    localStorage.setItem("jt.formFill.showSourceDetails", "true");
+    render(
+      <ReviewList
+        {...baseProps}
+        rows={[
+          {
+            id: "q",
+            title: "Question",
+            context: "Question help",
+            meta: "Source",
+            aside: "",
+            badge: "Matched",
+          },
+        ]}
+        onOpen={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("Question help")).toBeNull();
+    expect(screen.getByText("Source")).toBeTruthy();
+  });
+
   it("keeps cleared values on one question row alongside its current status and passes independent filters", () => {
     queries.questions.mockReturnValue({
       data: {

@@ -16,9 +16,10 @@ import { useBlockedCompanies, useFormFillReviewPresence, useJobEvents, useJobs }
 import { FormFillWorkspace } from "./form-fill/FormFillWorkspace";
 import { canLeaveFormFill } from "./form-fill/draftGuard";
 import { countAttention, filterJobs } from "./lib/jobFilters";
-import { usePersistentBoolean } from "./lib/persist";
+import { persistPreference, usePersistentBoolean } from "./lib/persist";
 import { DEFAULT_SORT_ORDER, SORT_ORDER_VALUES, sortJobs, type SortOrder } from "./lib/jobSort";
-import { usePersistentChoice } from "./lib/usePersistentChoice";
+import { readPersistentChoice, usePersistentChoice } from "./lib/usePersistentChoice";
+import { initialWorkspace } from "./lib/workspace";
 import { useTheme } from "./lib/theme";
 import { toast } from "./lib/toast";
 import type { EventItem } from "@job-tracker/shared/api";
@@ -44,9 +45,13 @@ export default function App() {
   const { data: blockedCompanies } = useBlockedCompanies();
 
   const [view, setView] = useState<"jobs" | "form-fill">(() =>
-    new URLSearchParams(window.location.search).get("view") === "form-fill" ? "form-fill" : "jobs",
+    initialWorkspace(
+      new URLSearchParams(window.location.search),
+      readPersistentChoice("jt.workspace", ["jobs", "form-fill"], "jobs"),
+    ),
   );
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [formFillActionHost, setFormFillActionHost] = useState<HTMLDivElement | null>(null);
   const [formFillToolbarHost, setFormFillToolbarHost] = useState<HTMLDivElement | null>(null);
   const [search, setSearch] = useState(() =>
     view === "jobs" ? (new URLSearchParams(window.location.search).get("q") ?? "") : "",
@@ -80,6 +85,8 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  useEffect(() => persistPreference("jt.workspace", view), [view]);
+
   const changeView = useCallback((next: "jobs" | "form-fill") => {
     if (!canLeaveFormFill()) return;
     setView(next);
@@ -87,7 +94,11 @@ export default function App() {
     const url = new URL(window.location.href);
     url.searchParams.set("view", next);
     if (next === "form-fill") {
-      url.searchParams.set("section", url.searchParams.get("section") ?? "review");
+      url.searchParams.set(
+        "section",
+        url.searchParams.get("section") ??
+          readPersistentChoice("jt.formFill.section", ["review", "answers"], "review"),
+      );
       for (const key of [
         "job",
         "platform",
@@ -323,10 +334,37 @@ export default function App() {
     <div className="flex h-full flex-col">
       <header className="relative z-20 flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-3 sm:gap-4">
         <h1 className="shrink-0 text-sm font-semibold text-ink sm:text-base">Job Tracker</h1>
-        <FormFillNav view={view} hasReview={reviewPresence.hasReview} onChange={changeView} />
+        <div
+          ref={view === "form-fill" ? setFormFillActionHost : undefined}
+          className="flex shrink-0 items-center gap-1"
+        >
+          {view === "jobs" && (
+            <>
+              <IconButton
+                size="field"
+                label="Add a job (n)"
+                onClick={() => setShowAdd(true)}
+                className="shrink-0 text-ink-muted hover:text-ink"
+              >
+                <Plus size={16} />
+              </IconButton>
+              <IconButton
+                size="field"
+                label="Refresh data"
+                onClick={() => refetch()}
+                className="shrink-0 text-ink-muted hover:text-ink"
+              >
+                <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} />
+              </IconButton>
+            </>
+          )}
+        </div>
+        <div className="hidden sm:block">
+          <FormFillNav view={view} hasReview={reviewPresence.hasReview} onChange={changeView} />
+        </div>
         <div
           ref={view === "form-fill" ? setFormFillToolbarHost : undefined}
-          className="relative order-last flex min-w-0 basis-full flex-wrap items-center gap-2 lg:order-none lg:ml-auto lg:max-w-[740px] lg:basis-auto lg:flex-1"
+          className="relative order-last flex min-w-0 basis-full items-center gap-2 lg:order-none lg:ml-auto lg:max-w-[740px] lg:basis-auto lg:flex-1"
         >
           {view === "jobs" && (
             <>
@@ -350,26 +388,13 @@ export default function App() {
                 onClearAll={clearFilters}
               />
               <SortMenu value={sortOrder} onChange={setSortOrder} />
-              <IconButton
-                size="field"
-                label="Add a job (n)"
-                onClick={() => setShowAdd(true)}
-                className="shrink-0 text-ink-muted hover:text-ink"
-              >
-                <Plus size={16} />
-              </IconButton>
-              <IconButton
-                size="field"
-                label="Refresh data"
-                onClick={() => refetch()}
-                className="shrink-0 text-ink-muted hover:text-ink"
-              >
-                <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} />
-              </IconButton>
             </>
           )}
         </div>
         <HeaderMenu
+          view={view}
+          hasReview={reviewPresence.hasReview}
+          onChangeView={changeView}
           onOpenBlocked={() => setShowBlocked(true)}
           onOpenHelp={() => setShowHelp(true)}
           themePref={themePref}
@@ -379,7 +404,7 @@ export default function App() {
 
       <main className={`min-h-0 flex-1 ${view === "form-fill" ? "overflow-y-auto" : ""}`}>
         {view === "form-fill" ? (
-          <FormFillWorkspace toolbarHost={formFillToolbarHost} />
+          <FormFillWorkspace toolbarHost={formFillToolbarHost} actionHost={formFillActionHost} />
         ) : (
           <>
             {isLoading && <div className="p-6 text-sm text-ink-muted">Loading jobs…</div>}

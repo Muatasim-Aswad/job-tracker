@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Ban, Keyboard, Monitor, Moon, MoreHorizontal, Sun } from "lucide-react";
+import { Ban, Keyboard, Monitor, Moon, Menu, Sun } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import type { ThemePref } from "../lib/theme";
@@ -20,18 +20,24 @@ interface DropdownProps {
   onOpenHelp: () => void;
   themePref: ThemePref;
   cycleTheme: () => void;
+  view: "jobs" | "form-fill";
+  hasReview: boolean;
+  onChangeView: (view: "jobs" | "form-fill") => void;
 }
 
 // The dropdown's own mount lifetime *is* the open state (rendered only while
 // `open`), so useFocusTrap's mount/unmount effects land exactly on open/close —
 // the same trick ShortcutsDialog and AddJobDialog rely on for Esc-close, Tab
-// cycling, and restoring focus to whatever was focused (the ⋯ trigger) on close.
+// cycling, and restoring focus to whatever was focused (the menu trigger) on close.
 function HeaderMenuDropdown({
   onClose,
   onOpenBlocked,
   onOpenHelp,
   themePref,
   cycleTheme,
+  view,
+  hasReview,
+  onChangeView,
 }: DropdownProps) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, onClose);
@@ -39,14 +45,20 @@ function HeaderMenuDropdown({
   // Land focus on the first item rather than the container — the ARIA menu
   // pattern. Declared after useFocusTrap so its mount effect (which focuses the
   // container) runs first and this one overrides it.
+  const menuItems = () =>
+    Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []).filter(
+      (item) =>
+        !item.closest("[data-mobile-navigation]") ||
+        !window.matchMedia("(min-width: 640px)").matches,
+    );
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    menuItems()[0]?.focus();
   }, []);
 
   // Roving arrow-key navigation between items, same pattern as JobCard's
   // change-status menu.
   const onKeyDown = (e: React.KeyboardEvent) => {
-    const items = Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+    const items = menuItems();
     if (items.length === 0) return;
     const i = items.indexOf(document.activeElement as HTMLElement);
     if (e.key === "ArrowDown") {
@@ -64,11 +76,31 @@ function HeaderMenuDropdown({
     <div
       ref={ref}
       role="menu"
-      aria-label="More"
+      aria-label="Navigation and settings"
       tabIndex={-1}
       onKeyDown={onKeyDown}
       className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-line bg-surface py-1 shadow-lg outline-none"
     >
+      <div data-mobile-navigation className="border-b border-line pb-1 mb-1 sm:hidden">
+        {(["jobs", "form-fill"] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            role="menuitem"
+            aria-current={view === item ? "page" : undefined}
+            className={ITEM}
+            onClick={() => {
+              onChangeView(item);
+              onClose();
+            }}
+          >
+            {item === "jobs" ? "Jobs" : "Form Fill"}
+            {item === "form-fill" && hasReview && (
+              <span className="size-2 rounded-full bg-amber-500" aria-label="Items need review" />
+            )}
+          </button>
+        ))}
+      </div>
       <button
         role="menuitem"
         onClick={() => {
@@ -108,16 +140,7 @@ function HeaderMenuDropdown({
   );
 }
 
-// The header's overflow menu: rare items (blocked companies, the shortcuts
-// sheet, theme) get names instead of glyphs, so future settings land here
-// without widening the header. The trigger stays mounted always; only the
-// dropdown mounts/unmounts with `open`.
-export function HeaderMenu(props: {
-  onOpenBlocked: () => void;
-  onOpenHelp: () => void;
-  themePref: ThemePref;
-  cycleTheme: () => void;
-}) {
+export function HeaderMenu(props: Omit<DropdownProps, "onClose">) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -137,7 +160,7 @@ export function HeaderMenu(props: {
   return (
     <div className="relative ml-auto shrink-0 lg:ml-0" ref={wrapRef}>
       <IconButton
-        label="More"
+        label="Navigation and settings"
         size="field"
         active={open}
         activeMeans="expanded"
@@ -145,17 +168,9 @@ export function HeaderMenu(props: {
         onClick={() => setOpen((v) => !v)}
         className="text-ink-muted hover:text-ink"
       >
-        <MoreHorizontal size={16} />
+        <Menu size={16} />
       </IconButton>
-      {open && (
-        <HeaderMenuDropdown
-          onClose={close}
-          onOpenBlocked={props.onOpenBlocked}
-          onOpenHelp={props.onOpenHelp}
-          themePref={props.themePref}
-          cycleTheme={props.cycleTheme}
-        />
-      )}
+      {open && <HeaderMenuDropdown {...props} onClose={close} />}
     </div>
   );
 }

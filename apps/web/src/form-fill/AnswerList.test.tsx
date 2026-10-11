@@ -15,9 +15,40 @@ beforeEach(() =>
 );
 import { AnswerList } from "./AnswerList";
 
-afterEach(cleanup);
+beforeEach(() => {
+  const values = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    clear: () => values.clear(),
+  });
+});
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.unstubAllGlobals();
+});
 
 describe("Saved answers presentation", () => {
+  it("restores status, type and order after unmounting", () => {
+    const props = { onOpen: vi.fn(), onCreate: vi.fn() };
+    const view = render(<AnswerList {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+      target: { value: "disabled" },
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Value type" }), {
+      target: { value: "text" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Order: Most recent" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "A–Z" }));
+    view.unmount();
+    render(<AnswerList {...props} />);
+    expect(queries.answers).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "disabled", value_kind: "text", sort: "label" }),
+    );
+  });
+
   it("keeps secondary filters collapsed until requested", () => {
     function HeaderList() {
       const [host, setHost] = useState<HTMLElement | null>(null);

@@ -1,4 +1,5 @@
 import { useDeferredValue, useEffect, useState } from "react";
+import { usePersistentChoice } from "../lib/usePersistentChoice";
 import { useFormFillQuestions } from "../hooks";
 import { CONTROL_LABEL, siteLabel } from "./model";
 import { ReviewList } from "./ReviewList";
@@ -33,7 +34,11 @@ export function QuestionList({
   onItemsChange,
 }: Props) {
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"last_seen" | "seen_count" | "prompt">("last_seen");
+  const [sort, setSort] = usePersistentChoice(
+    "jt.formFill.questionOrder",
+    ORDER_OPTIONS.map((option) => option.value),
+    "last_seen",
+  );
   const q = useDeferredValue(search.trim());
   const query = useFormFillQuestions({
     review_inbox: true,

@@ -13,7 +13,7 @@ export function CollectionToolbar({
     <div
       role="group"
       aria-label="Filters"
-      className="relative flex w-full min-w-0 flex-wrap items-center gap-2"
+      className="relative flex w-full min-w-0 items-center gap-2"
     >
       {children}
     </div>

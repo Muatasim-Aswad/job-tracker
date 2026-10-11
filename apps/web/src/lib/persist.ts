@@ -1,5 +1,22 @@
 import { useEffect, useState } from "react";
 
+export function readPersistentBoolean(key: string, initial: boolean): boolean {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored === "true" ? true : stored === "false" ? false : initial;
+  } catch {
+    return initial;
+  }
+}
+
+export function persistPreference(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage may be disabled.
+  }
+}
+
 // A boolean useState mirrored to localStorage, so a view preference like "hide
 // hidden" survives reloads. No SSR guard is needed in a client-only SPA, but reads
 // are wrapped so a blocked or disabled localStorage never throws.
@@ -8,12 +25,7 @@ export function usePersistentBoolean(
   initial: boolean,
 ): [boolean, (value: boolean) => void] {
   const [value, setValue] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw === null ? initial : raw === "true";
-    } catch {
-      return initial;
-    }
+    return readPersistentBoolean(key, initial);
   });
 
   useEffect(() => {

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { persistPreference, readPersistentBoolean } from "../lib/persist";
+import { readPersistentChoice } from "../lib/usePersistentChoice";
 import { AnswerDrawer } from "./AnswerDrawer";
 import { AnswerList } from "./AnswerList";
 import { CaptureDrawer } from "./CaptureDrawer";
@@ -28,9 +30,13 @@ function removeNonViewState(url: URL): boolean {
   }
   return changed;
 }
-function readState() {
+function readState(restorePreferences = false) {
   const params = new URLSearchParams(window.location.search);
-  const section = params.get("section");
+  const section =
+    params.get("section") ??
+    (restorePreferences
+      ? readPersistentChoice("jt.formFill.section", ["review", "answers"], "review")
+      : "review");
   const included = new Set(params.get("include")?.split(",") ?? []);
   const legacyHistory =
     params.get("history") === "cleared" ||
@@ -38,8 +44,21 @@ function readState() {
   const legacyAll = included.has("handled") || legacyHistory;
   return {
     section: section === "answers" ? ("answers" as const) : ("review" as const),
-    includeMatched: included.has("matched") || legacyAll,
-    includeDismissed: included.has("dismissed") || legacyAll || section === "dismissed",
+    includeMatched:
+      included.has("matched") ||
+      legacyAll ||
+      (restorePreferences &&
+        !params.has("include") &&
+        !legacyHistory &&
+        section !== "dismissed" &&
+        readPersistentBoolean("jt.formFill.includeMatched", false)),
+    includeDismissed:
+      included.has("dismissed") ||
+      legacyAll ||
+      section === "dismissed" ||
+      (restorePreferences &&
+        !params.has("include") &&
+        readPersistentBoolean("jt.formFill.includeDismissed", false)),
     answerId: params.get("answer"),
     captureId: params.get("capture"),
     questionId: params.get("question"),
@@ -70,8 +89,14 @@ function stateUrl(state: ReturnType<typeof readState>) {
   return url;
 }
 
-export function FormFillWorkspace({ toolbarHost }: { toolbarHost?: HTMLElement | null }) {
-  const [state, setState] = useState(readState);
+export function FormFillWorkspace({
+  toolbarHost,
+  actionHost,
+}: {
+  toolbarHost?: HTMLElement | null;
+  actionHost?: HTMLElement | null;
+}) {
+  const [state, setState] = useState(() => readState(true));
   const [creatingAnswer, setCreatingAnswer] = useState(false);
   const [answerQuestion, setAnswerQuestion] = useState<QuestionDetail | null>(null);
   const inboxIds = useRef<string[]>([]);
@@ -88,9 +113,15 @@ export function FormFillWorkspace({ toolbarHost }: { toolbarHost?: HTMLElement |
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
   useEffect(() => {
-    const url = stateUrl(readState());
+    const url = stateUrl(state);
     if (url.href !== window.location.href) window.history.replaceState(null, "", url);
   }, []);
+
+  useEffect(() => {
+    persistPreference("jt.formFill.section", state.section);
+    persistPreference("jt.formFill.includeMatched", String(state.includeMatched));
+    persistPreference("jt.formFill.includeDismissed", String(state.includeDismissed));
+  }, [state.section, state.includeMatched, state.includeDismissed]);
 
   const navigate = useCallback(
     (next: Partial<ReturnType<typeof readState>>, replace = false, handled = false) => {
@@ -167,6 +198,7 @@ export function FormFillWorkspace({ toolbarHost }: { toolbarHost?: HTMLElement |
       {state.section === "answers" ? (
         <AnswerList
           toolbarHost={toolbarHost}
+          actionHost={actionHost}
           onOpen={openAnswer}
           onCreate={() => {
             if (navigate({ answerId: null, captureId: null, questionId: null })) {

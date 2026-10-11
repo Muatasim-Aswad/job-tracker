@@ -57,9 +57,35 @@ vi.mock("./QuestionDrawer", () => ({ QuestionDrawer: () => <div>Question drawer<
 import { FormFillWorkspace } from "./FormFillWorkspace";
 
 beforeEach(() => window.history.replaceState(null, "", "/?view=form-fill&section=answers"));
-afterEach(cleanup);
+beforeEach(() => {
+  const values = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    clear: () => values.clear(),
+  });
+});
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+  vi.unstubAllGlobals();
+});
 
 describe("FormFillWorkspace navigation", () => {
+  it("restores local collection and inclusion preferences on a fresh visit", () => {
+    localStorage.setItem("jt.formFill.section", "review");
+    localStorage.setItem("jt.formFill.includeMatched", "true");
+    localStorage.setItem("jt.formFill.includeDismissed", "true");
+    window.history.replaceState(null, "", "/?view=form-fill");
+    const view = render(<FormFillWorkspace />);
+    expect(screen.getByText("Question list").getAttribute("data-matched")).toBe("true");
+    expect(screen.getByText("Question list").getAttribute("data-dismissed")).toBe("true");
+    view.unmount();
+    window.history.replaceState(null, "", "/?view=form-fill&section=review&include=matched");
+    render(<FormFillWorkspace />);
+    expect(screen.getByText("Question list").getAttribute("data-dismissed")).toBe("false");
+  });
+
   it("uses navigation labels without repeating a workspace heading or permanent introduction", () => {
     render(<FormFillWorkspace />);
     expect(screen.queryByRole("heading", { name: "Form Fill" })).toBeNull();

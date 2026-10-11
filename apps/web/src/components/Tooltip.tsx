@@ -46,6 +46,7 @@ export function Tooltip({
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const touchRef = useRef(false);
   const bubbleRef = useRef<HTMLDivElement | null>(null);
 
   // Measured after paint: the bubble's own size decides whether it fits above the
@@ -98,11 +99,32 @@ export function Tooltip({
         className={className}
         // Focus/blur are listened for on the wrapper because React's onFocus/onBlur
         // bubble — the trigger stays whatever the caller passed.
-        onMouseEnter={() => setOpen(true)}
+        onTouchStart={() => {
+          touchRef.current = true;
+          setOpen(false);
+        }}
+        onPointerDown={(event) => {
+          touchRef.current = event.pointerType === "touch";
+          if (touchRef.current) setOpen(false);
+        }}
+        onKeyDown={() => {
+          touchRef.current = false;
+        }}
+        onMouseEnter={() => {
+          if (!touchRef.current) setOpen(true);
+        }}
         onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          if (!touchRef.current) setOpen(true);
+        }}
         onBlur={() => setOpen(false)}
-        onClick={toggleOnClick ? () => setOpen((v) => !v) : undefined}
+        onClick={
+          toggleOnClick
+            ? () => setOpen((v) => !v)
+            : () => {
+                if (touchRef.current) setOpen(false);
+              }
+        }
       >
         {trigger}
       </span>

@@ -43,6 +43,22 @@ describe("Tooltip", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
+  it("does not open an action tooltip from touch focus or emulated hover", () => {
+    const action = vi.fn();
+    render(
+      <Tooltip label="Navigate" toggleOnClick={false}>
+        <button onClick={action}>Navigate</button>
+      </Tooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Navigate" });
+    fireEvent.touchStart(button);
+    fireEvent.focus(button);
+    fireEvent.mouseEnter(button.parentElement!);
+    fireEvent.click(button);
+    expect(action).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("leaves action clicks intact when click toggling is disabled", () => {
     const action = vi.fn();
     render(

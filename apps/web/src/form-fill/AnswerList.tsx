@@ -1,6 +1,7 @@
+import { createPortal } from "react-dom";
 import { FilterPopover } from "../components/FilterPopover";
 import { useMemo, useState } from "react";
-import type { AnswerFilters } from "../api/client";
+import { usePersistentChoice } from "../lib/usePersistentChoice";
 import { SortChoiceMenu } from "../components/SortMenu";
 import { Plus } from "lucide-react";
 import { CollectionSearch, CollectionToolbar } from "./CollectionToolbar";
@@ -16,15 +17,28 @@ const ORDER_OPTIONS = [
 
 interface Props {
   toolbarHost?: HTMLElement | null;
+  actionHost?: HTMLElement | null;
   onOpen: (answerId: string) => void;
   onCreate: () => void;
 }
 
-export function AnswerList({ toolbarHost, onOpen, onCreate }: Props) {
-  const [sort, setSort] = useState<NonNullable<AnswerFilters["sort"]>>("updated_at");
+export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props) {
+  const [sort, setSort] = usePersistentChoice(
+    "jt.formFill.answerOrder",
+    ORDER_OPTIONS.map((option) => option.value),
+    "updated_at",
+  );
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"" | "active" | "disabled">("active");
-  const [valueKind, setValueKind] = useState<"" | AnswerValueKind>("");
+  const [status, setStatus] = usePersistentChoice(
+    "jt.formFill.answerStatus",
+    ["", "active", "disabled"],
+    "active",
+  );
+  const [valueKind, setValueKind] = usePersistentChoice<"" | AnswerValueKind>(
+    "jt.formFill.answerType",
+    ["", ...(Object.keys(VALUE_KIND_LABEL) as AnswerValueKind[])],
+    "",
+  );
   const filtersApplied = status !== "active" || !!valueKind;
   const clearFilters = () => {
     setQ("");
@@ -46,8 +60,20 @@ export function AnswerList({ toolbarHost, onOpen, onCreate }: Props) {
   const filteredEmpty =
     !query.isLoading && items.length === 0 && (!!q || status !== "active" || !!valueKind);
 
+  const addButton = (
+    <IconButton
+      type="button"
+      label="New answer"
+      size="field"
+      onClick={onCreate}
+      className="shrink-0 text-ink-muted hover:text-ink"
+    >
+      <Plus size={16} aria-hidden="true" />
+    </IconButton>
+  );
   return (
     <section aria-label="Saved answers" className="space-y-4">
+      {actionHost && createPortal(addButton, actionHost)}
       <CollectionToolbar host={toolbarHost}>
         <CollectionSearch
           label="Search saved answers"
@@ -98,15 +124,7 @@ export function AnswerList({ toolbarHost, onOpen, onCreate }: Props) {
           actionLabel="Order"
           size="field"
         />
-        <IconButton
-          type="button"
-          label="New answer"
-          size="field"
-          onClick={onCreate}
-          className="shrink-0 text-ink-muted hover:text-ink"
-        >
-          <Plus size={16} aria-hidden="true" />
-        </IconButton>
+        {!actionHost && addButton}
       </CollectionToolbar>
       {query.isLoading ? (
         <p role="status" className="text-sm text-ink-muted">
