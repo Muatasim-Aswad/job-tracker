@@ -186,7 +186,7 @@ describe("Form Fill review list", () => {
     );
     expect(
       (screen.getByRole("checkbox", { name: "Show question details" }) as HTMLInputElement).checked,
-    ).toBe(true);
+    ).toBe(false);
     expect(
       (screen.getByRole("checkbox", { name: "Show source details" }) as HTMLInputElement).checked,
     ).toBe(false);
@@ -289,9 +289,17 @@ describe("Form Fill review list", () => {
         onOpen={() => {}}
       />,
     );
-    expect(screen.getByText("Required. Maximum 200 characters.")).toBeTruthy();
+    expect(screen.queryByText("Required. Maximum 200 characters.")).toBeNull();
     expect(screen.queryByText(/Seen 12 times/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    expect(
+      (screen.getByRole("checkbox", { name: "Show question details" }) as HTMLInputElement).checked,
+    ).toBe(false);
+    expect(
+      (screen.getByRole("checkbox", { name: "Show source details" }) as HTMLInputElement).checked,
+    ).toBe(false);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show question details" }));
+    expect(screen.getByText("Required. Maximum 200 characters.")).toBeTruthy();
     fireEvent.click(screen.getByRole("checkbox", { name: "Show question details" }));
     expect(screen.queryByText("Required. Maximum 200 characters.")).toBeNull();
     expect(screen.getByText("Where do you live?")).toBeTruthy();

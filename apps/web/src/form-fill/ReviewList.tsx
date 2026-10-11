@@ -68,15 +68,15 @@ export function ReviewList({
 }: Props) {
   const [showQuestionDetails, setShowQuestionDetails] = usePersistentBoolean(
     "jt.formFill.showQuestionDetails",
-    true,
+    false,
   );
   const [showSourceDetails, setShowSourceDetails] = usePersistentBoolean(
     "jt.formFill.showSourceDetails",
     false,
   );
-  const applied = filtersApplied || !showQuestionDetails || showSourceDetails;
+  const applied = filtersApplied || showQuestionDetails || showSourceDetails;
   const clearFilters = () => {
-    setShowQuestionDetails(true);
+    setShowQuestionDetails(false);
     setShowSourceDetails(false);
     onClearFilters?.();
   };

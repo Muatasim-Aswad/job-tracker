@@ -30,6 +30,40 @@ afterEach(() => {
 });
 
 describe("Saved answers presentation", () => {
+  it("defaults details and badges off, remembers enabling them, and clears them together", () => {
+    queries.answers.mockReturnValue({
+      data: {
+        pages: [
+          { items: [{ ...testAnswer, description: "Synthetic description", mapping_count: 2 }] },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+    });
+    const props = { onOpen: vi.fn(), onCreate: vi.fn() };
+    const view = render(<AnswerList {...props} />);
+    expect(screen.getByText(testAnswer.label)).toBeTruthy();
+    expect(screen.queryByText("Synthetic description")).toBeNull();
+    expect(screen.queryByText("Text • 2 questions")).toBeNull();
+    expect(screen.queryByText("Automatic")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    const details = screen.getByRole("checkbox", { name: "Show details" }) as HTMLInputElement;
+    expect(details.checked).toBe(false);
+    fireEvent.click(details);
+    expect(screen.getByText("Synthetic description")).toBeTruthy();
+    expect(screen.getByText("Text • 2 questions")).toBeTruthy();
+    expect(screen.getByText("Automatic")).toBeTruthy();
+    view.unmount();
+    render(<AnswerList {...props} />);
+    expect(screen.getByText("Automatic")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(screen.queryByText("Synthetic description")).toBeNull();
+    expect(screen.queryByText("Text • 2 questions")).toBeNull();
+    expect(screen.queryByText("Automatic")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+  });
+
   it("restores status, type and order after unmounting", () => {
     const props = { onOpen: vi.fn(), onCreate: vi.fn() };
     const view = render(<AnswerList {...props} />);

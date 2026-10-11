@@ -19,6 +19,33 @@ const props = {
 };
 
 describe("mobile header actions", () => {
+  it.each([
+    ["jobs", "Jobs", "Form Fill"],
+    ["form-fill", "Form Fill", "Jobs"],
+  ] as const)("marks and disables the current %s workspace", (view, current, other) => {
+    const change = vi.fn();
+    render(<HeaderMenu {...props} view={view} onChangeView={change} onAdd={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Navigation and settings" }));
+    const selected = screen.getByRole("menuitem", { name: current }) as HTMLButtonElement;
+    const next = screen.getByRole("menuitem", { name: other });
+    expect(selected.disabled).toBe(true);
+    expect(selected.getAttribute("aria-current")).toBe("page");
+    expect(document.activeElement).toBe(next);
+    fireEvent.click(selected);
+    expect(change).not.toHaveBeenCalled();
+    expect(screen.getByRole("menu")).toBeTruthy();
+    const divider = screen.getByRole("separator");
+    const add = screen.getByRole("menuitem", {
+      name: view === "jobs" ? "Add a job" : "New answer",
+    });
+    expect(next.compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(divider.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.keyDown(next, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(add);
+    fireEvent.click(next);
+    expect(change).toHaveBeenCalledWith(view === "jobs" ? "form-fill" : "jobs");
+  });
+
   it.each(["Add a job", "Refresh data"])("runs %s and closes the menu", (label) => {
     const add = vi.fn();
     const refresh = vi.fn();

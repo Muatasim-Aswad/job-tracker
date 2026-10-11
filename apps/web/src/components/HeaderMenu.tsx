@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Ban, Keyboard, Monitor, Moon, Menu, Plus, RefreshCw, Sun } from "lucide-react";
+import { Ban, Keyboard, Monitor, Moon, Menu, Plus, RefreshCw, Sun, Check } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import type { ThemePref } from "../lib/theme";
@@ -50,7 +50,9 @@ function HeaderMenuDropdown({
   // pattern. Declared after useFocusTrap so its mount effect (which focuses the
   // container) runs first and this one overrides it.
   const menuItems = () =>
-    Array.from(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []).filter(
+    Array.from(
+      ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [],
+    ).filter(
       (item) =>
         !item.closest("[data-mobile-navigation]") ||
         !window.matchMedia("(min-width: 640px)").matches,
@@ -92,18 +94,21 @@ function HeaderMenuDropdown({
             type="button"
             role="menuitem"
             aria-current={view === item ? "page" : undefined}
-            className={ITEM}
+            disabled={view === item}
+            className={`${ITEM} ${view === item ? "bg-sunken font-semibold disabled:hover:bg-sunken" : ""}`}
             onClick={() => {
               onChangeView(item);
               onClose();
             }}
           >
-            {item === "jobs" ? "Jobs" : "Form Fill"}
+            <span className="flex-1">{item === "jobs" ? "Jobs" : "Form Fill"}</span>
+            {view === item && <Check size={14} aria-hidden="true" className="text-accent" />}
             {item === "form-fill" && hasReview && (
               <span className="size-2 rounded-full bg-amber-500" aria-label="Items need review" />
             )}
           </button>
         ))}
+        {(onAdd || onRefresh) && <hr className="my-1 border-line" />}
         {onAdd && (
           <button
             type="button"

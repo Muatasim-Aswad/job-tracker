@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import { KnowledgeBadge } from "./KnowledgeBadge";
 import { FilterPopover } from "../components/FilterPopover";
 import { useMemo, useState } from "react";
+import { usePersistentBoolean } from "../lib/persist";
 import { usePersistentChoice } from "../lib/usePersistentChoice";
 import { SortChoiceMenu } from "../components/SortMenu";
 import { Plus } from "lucide-react";
@@ -40,11 +41,16 @@ export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props)
     ["", ...(Object.keys(VALUE_KIND_LABEL) as AnswerValueKind[])],
     "",
   );
-  const filtersApplied = status !== "active" || !!valueKind;
+  const [showDetails, setShowDetails] = usePersistentBoolean(
+    "jt.formFill.showAnswerDetails",
+    false,
+  );
+  const filtersApplied = status !== "active" || !!valueKind || showDetails;
   const clearFilters = () => {
     setQ("");
     setStatus("active");
     setValueKind("");
+    setShowDetails(false);
   };
   const filters = useMemo(
     () => ({
@@ -116,6 +122,18 @@ export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props)
               ))}
             </select>
           </label>
+          <div className="space-y-3 border-t border-line pt-3">
+            <p className="text-xs text-ink-muted">Display</p>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showDetails}
+                onChange={(event) => setShowDetails(event.target.checked)}
+                className="accent-accent"
+              />
+              Show details
+            </label>
+          </div>
         </FilterPopover>
         <SortChoiceMenu
           value={sort}
@@ -167,19 +185,23 @@ export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props)
                     <span className="block text-base font-medium leading-6 text-ink">
                       {answer.label}
                     </span>
-                    {answer.description && (
+                    {showDetails && answer.description && (
                       <span className="mt-0.5 line-clamp-1 block text-prose text-ink-muted">
                         {answer.description}
                       </span>
                     )}
-                    <span className="mt-1 block text-xs text-ink-muted">
-                      {VALUE_KIND_LABEL[answer.value_kind]} • {answer.mapping_count}{" "}
-                      {answer.mapping_count === 1 ? "question" : "questions"}
-                    </span>
+                    {showDetails && (
+                      <span className="mt-1 block text-xs text-ink-muted">
+                        {VALUE_KIND_LABEL[answer.value_kind]} • {answer.mapping_count}{" "}
+                        {answer.mapping_count === 1 ? "question" : "questions"}
+                      </span>
+                    )}
                   </span>
-                  <KnowledgeBadge>
-                    {answer.status === "disabled" ? "Paused" : POLICY_LABEL[answer.fill_policy]}
-                  </KnowledgeBadge>
+                  {showDetails && (
+                    <KnowledgeBadge>
+                      {answer.status === "disabled" ? "Paused" : POLICY_LABEL[answer.fill_policy]}
+                    </KnowledgeBadge>
+                  )}
                 </button>
               </li>
             ))}
