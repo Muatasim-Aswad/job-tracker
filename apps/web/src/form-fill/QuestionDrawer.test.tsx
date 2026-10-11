@@ -55,6 +55,20 @@ afterEach(() => {
 });
 
 describe("QuestionDrawer", () => {
+  it("closes after a successful match save and stays open if saving fails", async () => {
+    const close = vi.fn();
+    mocks.put.mutateAsync.mockRejectedValueOnce(new Error("Save failed"));
+    render(<QuestionDrawer questionId="question-1" onClose={close} onCreateAnswer={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Review match" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save match" }));
+    await screen.findByRole("button", { name: "Review match" });
+    expect(close).not.toHaveBeenCalled();
+    mocks.put.mutateAsync.mockResolvedValueOnce({});
+    fireEvent.click(screen.getByRole("button", { name: "Review match" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save match" }));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+  });
+
   it("keeps conflict resolution explicit and sends every capture revision", async () => {
     question.capture_conflict = true;
     mocks.captures = ["First candidate", "Second candidate"].map((value, index) => ({
@@ -112,8 +126,8 @@ describe("QuestionDrawer", () => {
   });
   it("shows the saved value and does not offer invalid dismissal for an active match", () => {
     render(<QuestionDrawer questionId="question-1" onClose={vi.fn()} onCreateAnswer={vi.fn()} />);
-    const value = screen.getByText("Synthetic saved value");
-    expect(value.nextElementSibling).toBe(screen.getByText("Synthetic help"));
+    expect(screen.getByText("Synthetic saved value")).toBeTruthy();
+    expect(screen.getByText("Synthetic help").closest("details")?.open).toBe(false);
     expect(screen.getAllByRole("heading", { name: testQuestion.raw_question })).toHaveLength(1);
     expect(screen.getByText("Manage question · Matched").closest("details")?.open).toBe(false);
     expect(screen.getByText("Question details").closest("details")?.open).toBe(false);
@@ -124,8 +138,9 @@ describe("QuestionDrawer", () => {
     render(
       <QuestionDrawer questionId="question-1" onClose={vi.fn()} onCreateAnswer={onCreateAnswer} />,
     );
-    expect(screen.getByRole("searchbox", { name: "Find a saved answer" })).toBeTruthy();
     expect(screen.getByText("Synthetic saved value")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel answer selection" }));
+    expect(screen.getByRole("searchbox", { name: "Find a saved answer" })).toBeTruthy();
     expect(screen.queryByText("Saved answer")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "New answer" }));
     expect(onCreateAnswer).toHaveBeenCalledWith(

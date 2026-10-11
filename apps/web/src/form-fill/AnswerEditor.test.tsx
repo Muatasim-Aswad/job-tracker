@@ -7,7 +7,7 @@ import { useState } from "react";
 afterEach(cleanup);
 
 describe("AnswerEditor", () => {
-  it("associates question requirements with the contextual input below it", () => {
+  it("keeps contextual requirements in collapsed answer details", () => {
     render(
       <AnswerEditor
         draft={emptyAnswerDraft()}
@@ -20,8 +20,7 @@ describe("AnswerEditor", () => {
     const value = screen.getByRole("textbox", { name: "Value" });
     const help = screen.getByText("Required. Maximum 200 characters.");
     expect(value.getAttribute("aria-describedby")).toBe(help.id);
-    expect(value.closest("label")?.nextElementSibling).toBe(help);
-    expect(help.closest("details")).toBeNull();
+    expect(help.closest("details")?.open).toBe(false);
   });
   it("explains the stable key on focus without adding permanent help copy or changing its name", () => {
     render(<AnswerEditor draft={emptyAnswerDraft()} existing={false} onChange={vi.fn()} />);

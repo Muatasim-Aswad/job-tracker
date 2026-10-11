@@ -290,16 +290,16 @@ export function AnswerEditor({
             />
           </label>
         )}
-        {valueHelp && (
-          <p id={helpId} className="max-w-prose text-xs leading-5 text-ink-muted">
-            {valueHelp}
-          </p>
-        )}
       </div>
       {afterValue}
 
       <details className="border-t border-line pt-3 text-sm text-ink-muted">
         <summary className="cursor-pointer font-medium">Answer details</summary>
+        {valueHelp && (
+          <p id={helpId} className="max-w-prose text-xs leading-5 text-ink-muted">
+            {valueHelp}
+          </p>
+        )}
         {!existing && !questionLocked && (
           <label className="mt-3 block text-xs font-normal text-ink-muted">
             Value type

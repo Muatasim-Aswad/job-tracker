@@ -733,6 +733,12 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
               {siteLabel(capture.question.site_scope)} · {SOURCE_LABEL[capture.source]}
             </p>
           </details>
+          {question?.raw_help && (
+            <details className="border-t border-line pt-3 text-sm text-ink-muted">
+              <summary className="cursor-pointer font-medium">Question details</summary>
+              <p className="mt-3 max-w-prose text-xs leading-5">{question.raw_help}</p>
+            </details>
+          )}
           <KnowledgeHistory events={capture.events} />
         </>
       )}

@@ -233,17 +233,14 @@ export function FormFillWorkspace({
             setAnswerQuestion(null);
             navigate({ answerId: null, questionId }, true, true);
           }}
-          onCreated={(answerId, advance) => {
+          onCreated={(_answerId, advance) => {
             if (advance) {
               nextQuestion();
               return;
             }
             setCreatingAnswer(false);
-            if (answerQuestion) {
-              const questionId = answerQuestion.id;
-              setAnswerQuestion(null);
-              navigate({ questionId, answerId: null }, true, true);
-            } else navigate({ section: "answers", answerId }, true, true);
+            setAnswerQuestion(null);
+            navigate({ answerId: null, questionId: null, captureId: null }, true, true);
           }}
           onOpenQuestion={openQuestion}
         />
@@ -252,7 +249,7 @@ export function FormFillWorkspace({
         <CaptureDrawer
           key={state.captureId}
           captureId={state.captureId}
-          onClose={() => navigate({ captureId: null }, true, true)}
+          onClose={() => navigate({ captureId: null, questionId: null }, true, true)}
           onOpenQuestion={openQuestion}
           onNext={state.section === "review" ? nextQuestion : undefined}
         />

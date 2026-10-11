@@ -1,3 +1,4 @@
+import { KnowledgeBadge } from "./KnowledgeBadge";
 import { FilterPopover } from "../components/FilterPopover";
 import { usePersistentBoolean } from "../lib/persist";
 import { type ReactNode } from "react";
@@ -154,16 +155,10 @@ export function ReviewList({
                 <span className="flex items-center gap-2 sm:flex-col sm:items-end">
                   <span className="flex flex-wrap gap-1.5 sm:justify-end">
                     {row.badge && (
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${row.warning ? "bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200" : "bg-sunken text-ink-soft"}`}
-                      >
-                        {row.badge}
-                      </span>
+                      <KnowledgeBadge warning={row.warning}>{row.badge}</KnowledgeBadge>
                     )}
                     {row.secondaryBadge && (
-                      <span className="rounded-full bg-sunken px-2.5 py-1 text-xs text-ink-muted">
-                        {row.secondaryBadge}
-                      </span>
+                      <KnowledgeBadge secondary>{row.secondaryBadge}</KnowledgeBadge>
                     )}
                   </span>
                   {row.aside && <span className="text-xs text-ink-muted">{row.aside}</span>}

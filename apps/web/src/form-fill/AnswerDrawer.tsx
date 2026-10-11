@@ -131,6 +131,7 @@ export function AnswerDrawer({
         setEditingName(false);
         setAnnouncement("Answer saved.");
         toast.info("Answer saved.");
+        onClose();
       } else if (context) {
         const created = await createForQuestion.mutateAsync({
           questionId: context.id,

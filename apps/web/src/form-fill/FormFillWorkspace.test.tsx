@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { testQuestion } from "./testFixtures";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("../hooks", () => ({
@@ -11,10 +12,13 @@ vi.mock("../hooks", () => ({
 }));
 
 vi.mock("./AnswerList", () => ({
-  AnswerList: ({ onOpen }: { onOpen: (id: string) => void }) => (
-    <button type="button" onClick={() => onOpen("answer-opaque")}>
-      Open synthetic Answer
-    </button>
+  AnswerList: ({ onOpen, onCreate }: { onOpen: (id: string) => void; onCreate: () => void }) => (
+    <>
+      <button type="button" onClick={() => onOpen("answer-opaque")}>
+        Open synthetic Answer
+      </button>
+      <button onClick={onCreate}>Create synthetic Answer</button>
+    </>
   ),
 }));
 vi.mock("./QuestionList", () => ({
@@ -23,7 +27,9 @@ vi.mock("./QuestionList", () => ({
     includeDismissed,
     onIncludeMatchedChange,
     onIncludeDismissedChange,
+    onOpen,
   }: {
+    onOpen: (id: string) => void;
     includeMatched: boolean;
     includeDismissed: boolean;
     onIncludeMatchedChange: (checked: boolean) => void;
@@ -31,6 +37,7 @@ vi.mock("./QuestionList", () => ({
   }) => (
     <div data-matched={includeMatched} data-dismissed={includeDismissed}>
       Question list
+      <button onClick={() => onOpen(testQuestion.id)}>Open synthetic Question</button>
       <label>
         Matched
         <input
@@ -50,9 +57,32 @@ vi.mock("./QuestionList", () => ({
     </div>
   ),
 }));
-vi.mock("./AnswerDrawer", () => ({ AnswerDrawer: () => <div>Answer drawer</div> }));
-vi.mock("./CaptureDrawer", () => ({ CaptureDrawer: () => <div>Capture drawer</div> }));
-vi.mock("./QuestionDrawer", () => ({ QuestionDrawer: () => <div>Question drawer</div> }));
+vi.mock("./AnswerDrawer", () => ({
+  AnswerDrawer: ({ onCreated }: { onCreated: (id: string) => void }) => (
+    <div>
+      Answer drawer<button onClick={() => onCreated("answer-created")}>Finish answer</button>
+    </div>
+  ),
+}));
+vi.mock("./CaptureDrawer", () => ({
+  CaptureDrawer: ({ onClose }: { onClose: () => void }) => (
+    <div>
+      Capture drawer<button onClick={onClose}>Finish capture</button>
+    </div>
+  ),
+}));
+vi.mock("./QuestionDrawer", () => ({
+  QuestionDrawer: ({
+    onCreateAnswer,
+  }: {
+    onCreateAnswer: (question: typeof testQuestion) => void;
+  }) => (
+    <div>
+      Question drawer
+      <button onClick={() => onCreateAnswer(testQuestion)}>Create matched answer</button>
+    </div>
+  ),
+}));
 
 import { FormFillWorkspace } from "./FormFillWorkspace";
 
@@ -72,6 +102,26 @@ afterEach(() => {
 });
 
 describe("FormFillWorkspace navigation", () => {
+  it("closes contextual creation after completion instead of reopening the question", () => {
+    window.history.replaceState(null, "", "/?view=form-fill&section=review");
+    render(<FormFillWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Open synthetic Question" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create matched answer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Finish answer" }));
+    expect(screen.queryByText("Answer drawer")).toBeNull();
+    expect(screen.queryByText("Question drawer")).toBeNull();
+    expect(new URLSearchParams(window.location.search).has("question")).toBe(false);
+  });
+
+  it("closes capture review and its underlying question after completion", () => {
+    window.history.replaceState(null, "", "/?view=form-fill&section=review&question=q&capture=c");
+    render(<FormFillWorkspace />);
+    fireEvent.click(screen.getByRole("button", { name: "Finish capture" }));
+    expect(screen.queryByText("Capture drawer")).toBeNull();
+    expect(screen.queryByText("Question drawer")).toBeNull();
+    expect(new URLSearchParams(window.location.search).has("question")).toBe(false);
+  });
+
   it("restores local collection and inclusion preferences on a fresh visit", () => {
     localStorage.setItem("jt.formFill.section", "review");
     localStorage.setItem("jt.formFill.includeMatched", "true");

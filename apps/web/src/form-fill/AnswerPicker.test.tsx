@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 describe("AnswerPicker", () => {
-  it("keeps search and the add icon visible when a selected answer arrives", async () => {
+  it("replaces search and candidates with the selected card and a cancel icon", async () => {
     vi.spyOn(api, "listFormFillAnswers").mockResolvedValue({ items: [], next_cursor: null });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const props = {
@@ -38,9 +38,12 @@ describe("AnswerPicker", () => {
         <AnswerPicker {...props} value={testAnswer.id} selected={testAnswer} />
       </QueryClientProvider>,
     );
-    expect(screen.getByRole("searchbox", { name: "Find a saved answer" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "New answer" })).toBeTruthy();
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: "New answer" })).toBeNull();
+    expect(screen.queryByRole("list")).toBeNull();
     expect(screen.getByText("Synthetic saved value")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel answer selection" }));
+    expect(props.onChange).toHaveBeenCalledWith("");
     expect(screen.queryByRole("button", { name: "Change answer" })).toBeNull();
     client.clear();
   });

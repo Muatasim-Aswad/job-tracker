@@ -68,6 +68,23 @@ afterEach(() => {
 });
 
 describe("AnswerDrawer Question creation", () => {
+  it("closes after saving an edited answer", async () => {
+    mocks.answer = testAnswer;
+    mocks.update.mutateAsync.mockResolvedValueOnce(testAnswer);
+    const close = vi.fn();
+    render(
+      <AnswerDrawer
+        answerId={testAnswer.id}
+        onClose={close}
+        onCreated={vi.fn()}
+        onOpenQuestion={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Value"), { target: { value: "Changed value" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save answer" }));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+  });
+
   it("keeps the current fill policy visible while its control starts in answer management", () => {
     mocks.answer = testAnswer;
     render(
@@ -191,7 +208,7 @@ describe("AnswerDrawer Question creation", () => {
     expect(screen.getByRole("region", { name: "What will change" })).toBeTruthy();
     const valueGroup = screen.getByRole("group", { name: "Value" });
     const help = screen.getByText("This field is required.");
-    expect(valueGroup.nextElementSibling).toBe(help);
+    expect(help.closest("details")?.open).toBe(false);
     expect(valueGroup.getAttribute("aria-describedby")).toBe(help.id);
     expect(valueGroup.parentElement?.nextElementSibling).toBe(
       screen.getByRole("region", { name: "What will change" }),

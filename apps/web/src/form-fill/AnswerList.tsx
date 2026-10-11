@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { KnowledgeBadge } from "./KnowledgeBadge";
 import { FilterPopover } from "../components/FilterPopover";
 import { useMemo, useState } from "react";
 import { usePersistentChoice } from "../lib/usePersistentChoice";
@@ -176,11 +177,9 @@ export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props)
                       {answer.mapping_count === 1 ? "question" : "questions"}
                     </span>
                   </span>
-                  <span
-                    className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${answer.status === "disabled" ? "bg-surface text-ink-muted" : "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200"}`}
-                  >
+                  <KnowledgeBadge>
                     {answer.status === "disabled" ? "Paused" : POLICY_LABEL[answer.fill_policy]}
-                  </span>
+                  </KnowledgeBadge>
                 </button>
               </li>
             ))}

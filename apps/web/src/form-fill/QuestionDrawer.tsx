@@ -141,7 +141,8 @@ export function QuestionDrawer({
       setReviewed(false);
       setAnnouncement("Answer matched to question.");
       toast.info("Answer matched to question.");
-      if (advance) onNext?.();
+      if (advance && onNext) onNext();
+      else onClose();
     } catch {
       setAnnouncement("The match was not saved.");
       setReviewed(false);
@@ -159,6 +160,7 @@ export function QuestionDrawer({
         },
       });
       toast.info("Fill behavior saved.");
+      onClose();
     } catch {
       setAnnouncement("The fill behavior was not changed.");
     }
@@ -172,6 +174,7 @@ export function QuestionDrawer({
       });
       setAnnouncement(review_state === "ignored" ? "Question dismissed." : "Question reopened.");
       toast.info(review_state === "ignored" ? "Question dismissed." : "Question reopened.");
+      onClose();
     } catch {
       setAnnouncement("The question was not changed.");
     }
@@ -384,9 +387,6 @@ export function QuestionDrawer({
                     ),
                 )
               )}
-              {question.raw_help && (
-                <p className="max-w-prose text-xs leading-5 text-ink-muted">{question.raw_help}</p>
-              )}
               {question.capture_conflict && (
                 <button
                   type="button"
@@ -410,7 +410,6 @@ export function QuestionDrawer({
                 prompt={question.raw_question}
                 value={answerId}
                 selected={selectedAnswer.data}
-                valueHelp={question.raw_help}
                 loading={selectedAnswer.isLoading}
                 error={selectedAnswer.isError}
                 onRetry={() => void selectedAnswer.refetch()}
@@ -526,6 +525,9 @@ export function QuestionDrawer({
           </details>
           <details className="border-t border-line pt-3 text-sm text-ink-muted">
             <summary className="cursor-pointer font-medium">Question details</summary>
+            {question.raw_help && (
+              <p className="mt-3 max-w-prose text-xs leading-5">{question.raw_help}</p>
+            )}
             <dl className="mt-3 grid gap-3 sm:grid-cols-2">
               <div>
                 <dt className="text-xs">Section</dt>
