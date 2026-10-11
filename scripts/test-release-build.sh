@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prove that two clean release builds from identical tracked inputs are identical.
+# Prove deterministic release builds and content checks for large asset inventories.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,3 +24,28 @@ diff -qr "$WORK/first" "$WORK/second" >/dev/null || {
   exit 1
 }
 printf 'release build determinism OK\n'
+
+uv run --directory "$ROOT/apps/api" python - "$WORK/second" <<'PY'
+import hashlib
+import sys
+import tarfile
+from pathlib import Path
+
+release = Path(sys.argv[1])
+runtime = next(release.glob("*.tar.gz"))
+candidate = runtime.with_suffix(".candidate")
+with tarfile.open(runtime, "r:gz") as source, tarfile.open(candidate, "w:gz") as target:
+    for member in source.getmembers():
+        target.addfile(member, source.extractfile(member) if member.isfile() else None)
+    for index in range(2048):
+        target.addfile(tarfile.TarInfo(f"apps/web/dist/assets/content-check-{index}.js"))
+candidate.replace(runtime)
+checksums = [
+    f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+    for path in sorted(release.iterdir())
+    if path.name != "SHA256SUMS"
+]
+(release / "SHA256SUMS").write_text("".join(checksums))
+PY
+bash "$ROOT/scripts/check-release-contents.sh" "$WORK/second"
+printf 'large release inventory checks OK\n'

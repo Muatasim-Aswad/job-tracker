@@ -31,7 +31,8 @@ mkdir -p "$WORK/runtime"
 tar -xzf "$RELEASE_DIR/$RUNTIME" -C "$WORK/runtime"
 mapfile -t runtime_paths < <(tar -tzf "$RELEASE_DIR/$RUNTIME" | sed 's#^\./##')
 for required in VERSION LICENSE job-tracker apps/api/pyproject.toml apps/api/uv.lock apps/api/app/main.py apps/api/app/core/schema.sql apps/web/dist/index.html; do
-  printf '%s\n' "${runtime_paths[@]}" | grep -Fxq "$required" || fail "runtime is missing $required."
+  # Drain the listing: grep -q can SIGPIPE printf and fail a present path under pipefail.
+  printf '%s\n' "${runtime_paths[@]}" | grep -Fx "$required" >/dev/null || fail "runtime is missing $required."
 done
 for path in "${runtime_paths[@]}"; do
   normalized="${path%/}"
@@ -53,7 +54,7 @@ if rg -a -Fq "$ROOT" "$WORK/runtime"; then
 fi
 
 mapfile -t extension_paths < <(unzip -Z1 "$RELEASE_DIR/$EXTENSION" | LC_ALL=C sort)
-printf '%s\n' "${extension_paths[@]}" | grep -Fxq manifest.json || fail "extension ZIP has no root manifest.json."
+printf '%s\n' "${extension_paths[@]}" | grep -Fx manifest.json >/dev/null || fail "extension ZIP has no root manifest.json."
 for path in "${extension_paths[@]}"; do
   case "$path" in
     /* | ./* | */../* | ../* | *'.map' | *'.env'* | *'.db'* | *'node_modules'* | *'/local/'* | *'/fixtures/'*)
@@ -88,7 +89,7 @@ for required in \
   "job_tracker-$VERSION.dist-info/METADATA" \
   "job_tracker-$VERSION.dist-info/licenses/LICENSE" \
   "job_tracker-$VERSION.dist-info/entry_points.txt"; do
-  printf '%s\n' "${wheel_paths[@]}" | grep -Fxq "$required" || fail "wheel is missing $required."
+  printf '%s\n' "${wheel_paths[@]}" | grep -Fx "$required" >/dev/null || fail "wheel is missing $required."
 done
 for path in "${wheel_paths[@]}"; do
   case "$path" in
