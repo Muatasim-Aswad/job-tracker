@@ -29,7 +29,11 @@
     "tailwindcss": "^4.3.2",
     "typescript": "~6.0.2",
     "vite": "catalog:",
-    "vitest": "4.1.11"
+    "vite-plugin-pwa": "2.0.0",
+    "vitest": "4.1.11",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1",
+    "workbox-strategies": "^7.4.1"
   },
   "packageManager": "pnpm@11.15.0"
 }

@@ -54,6 +54,7 @@ Generated source artifacts are tracked so that a clean checkout builds and type-
 
 | Generated file | Generator | Source of truth |
 | --- | --- | --- |
+| `apps/web/public/{pwa-192,pwa-512,apple-touch-icon}.png` | `rsvg-convert` commands in the [dashboard README](../apps/web/README.md#installable-app) | `apps/web/public/app-icon.svg` |
 | `packages/shared/src/api/schema.ts` | `pnpm --filter @job-tracker/shared gen:api` | FastAPI route and model definitions |
 | `packages/shared/src/funnel/funnel.contract.json` | API test suite | `apps/api/app/core/enums.py` |
 | `packages/shared/src/text/text.golden.json` | API test suite | `apps/api/app/core/text.py` |

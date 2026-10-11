@@ -29,8 +29,12 @@ Answer history is value-free. Capture history is also value-free, and a Capture'
 
 Search diagnostics use a **Never**, **30 minutes**, or **Always** scope. A fresh install uses Never and sends and stores nothing. Both active scopes store the timestamp, page host, automatic seed and extraction rule, the seed's result count, the final query and result count, and clicked job ID. Seed replacement is derived by comparing the seed and final query; a click is derived from the presence of a job ID. Diagnostics remain on your configured Job Tracker server, are capped at the newest 1,000 rows, and can be erased at any time with **Clear stored data** in extension settings. If that database is configured to sync with Turso, the diagnostic rows sync with it as part of the database.
 
+The dashboard stores enum/Boolean view preferences in browser-local storage, without Answer values, remembered values, search text, or drafts. Its optional installed PWA caches only the app shell, icons, and static build assets. API responses and navigation query strings are not cached by its service worker; private detail values remain in runtime memory and are removed from the detail cache when drawers close.
+
 ## Backup, deletion, and uninstall
 
 Follow the API's tested [backup and restore procedure](apps/api/README.md#backup--restore) to export the database as a SQLite snapshot. Manual backups, automatic pre-replacement backups, and pre-pull recovery snapshots contain the retained form-fill values present in the source database. Delete every backup or recovery copy as well as the database file (and its `.sync` sibling in local-first mode) to remove local server data. If Turso is configured, deleting local files does not delete the remote database; remove it separately in your Turso account.
 
 Removing the extension deletes its browser-local settings but does **not** delete records already stored by the server. Removing the repository or uninstalling dependencies likewise leaves database and backup files until you delete them explicitly.
+
+Uninstalling the dashboard PWA does not delete server records. Clear the Job Tracker origin’s site data to remove its service worker, static caches, and local view preferences.

@@ -124,7 +124,7 @@ Current Answer and Capture values are deliberately retained private data. Supers
 
 All feature routes are mounted under `/api`; `/docs` and `/openapi.json` remain unprefixed. OpenAPI is the contract for endpoint and payload detail.
 
-The built SPA entry document is served with `Cache-Control: no-cache` so an existing browser session revalidates it after a rebuild and loads the current content-hashed assets.
+The built SPA entry document is served with `Cache-Control: no-cache` so an existing browser session revalidates it after a rebuild and loads the current content-hashed assets. The dashboard PWA worker keeps entry-document requests network-first and precaches only the built shell and static assets. Its offline fallback uses the canonical shell rather than caching visited URLs; API responses and private values never enter worker caches. Existing app windows finish on their current worker before an update activates.
 
 The main boundaries are:
 

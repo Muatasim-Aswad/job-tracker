@@ -27,6 +27,20 @@ pnpm exec vp run -F web typecheck
 pnpm run build:web
 ```
 
+## Installable app
+
+Production builds include a PWA manifest, app icons, and a Workbox service worker through `vite-plugin-pwa`. Use the browser's **Install app** or **Add to Home Screen** action on HTTPS or localhost; plain HTTP on a remote host cannot register the worker. Installation keeps the existing server and database. The app shell can reopen offline, but reads and writes still need the server.
+
+`src/sw.ts` fetches entry documents from the network first, falling back to the precached canonical shell only on network failure. Only build assets are precached: API responses, external requests, and navigation query strings are never stored by the worker. Updates activate after existing app tabs/windows close; reopening gets the current build. Vite development does not register a worker. Test the built app with `pnpm --filter web exec vp preview` and DevTools' Application and offline controls.
+
+`public/app-icon.svg` owns the PWA icon artwork. Regenerate its tracked PNG variants with `rsvg-convert`:
+
+```bash
+rsvg-convert -w 192 -h 192 -o apps/web/public/pwa-192.png apps/web/public/app-icon.svg
+rsvg-convert -w 512 -h 512 -o apps/web/public/pwa-512.png apps/web/public/app-icon.svg
+rsvg-convert -w 180 -h 180 -o apps/web/public/apple-touch-icon.png apps/web/public/app-icon.svg
+```
+
 ## Job drawer
 
 The header gives the title its own row with Close on the right. The second row pairs Company and Edit on the left, with Star and Hide together on the right and Copy separated by a small gap.

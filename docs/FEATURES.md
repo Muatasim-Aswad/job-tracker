@@ -109,6 +109,8 @@ This feature is prospective and API-only: existing applications are not backfill
 
 The record follows its submitted event through relinks, merges, repeated aliases, and canonical-ID changes. Reverting that event or correcting the job back before application removes the now-invalid record. A merge or relink that would combine two records is refused instead of silently discarding either one.
 
+The dashboard can be installed through the browser as a standalone PWA. Its static shell opens offline; loading and saving jobs or answers still requires the configured server.
+
 ## Local by default
 
 Job Tracker is a single-user, self-hosted application:
