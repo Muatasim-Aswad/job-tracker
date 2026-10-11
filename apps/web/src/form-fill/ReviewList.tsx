@@ -1,4 +1,5 @@
 import { KnowledgeBadge } from "./KnowledgeBadge";
+import { ListContinuation } from "./ListContinuation";
 import { FilterPopover } from "../components/FilterPopover";
 import { usePersistentBoolean } from "../lib/persist";
 import { type ReactNode } from "react";
@@ -41,6 +42,9 @@ interface Props {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
+  onPrefetch?: () => void;
+  isNextPageError?: boolean;
+  continuationKey?: string;
 }
 
 export function ReviewList({
@@ -65,6 +69,9 @@ export function ReviewList({
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
+  onPrefetch,
+  isNextPageError,
+  continuationKey,
 }: Props) {
   const [showQuestionDetails, setShowQuestionDetails] = usePersistentBoolean(
     "jt.formFill.showQuestionDetails",
@@ -168,15 +175,15 @@ export function ReviewList({
           ))}
         </ul>
       )}
-      {hasNextPage && (
-        <button
-          type="button"
-          disabled={isFetchingNextPage}
-          onClick={onLoadMore}
-          className="rounded border border-line bg-surface px-3 py-2 text-sm font-medium text-ink disabled:opacity-50"
-        >
-          {isFetchingNextPage ? "Loading…" : "Load more"}
-        </button>
+      {!isLoading && rows.length > 0 && (
+        <ListContinuation
+          hasMore={hasNextPage}
+          loading={isFetchingNextPage}
+          failed={isNextPageError}
+          pageKey={continuationKey ?? rows.map((row) => row.id).join(",")}
+          onLoad={onLoadMore}
+          onApproach={onPrefetch}
+        />
       )}
     </section>
   );

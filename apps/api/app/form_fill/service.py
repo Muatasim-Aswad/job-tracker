@@ -14,6 +14,7 @@ from pydantic import TypeAdapter
 from app.core.db import Conn, Row
 from app.core.errors import ConflictError, InvalidCursorError, NotFoundError, ValidationError
 from app.core.timeutil import utc_now
+from app.form_fill.candidates import compatible_options, relevance, value_preview
 from app.form_fill.identity import (
     QuestionIdentity,
     build_identity,
@@ -23,6 +24,8 @@ from app.form_fill.identity import (
 from app.form_fill.models import Question
 from app.form_fill.repository import FormFillRepository
 from app.form_fill.schemas import (
+    AnswerCandidate,
+    AnswerCandidateResponse,
     AnswerChoiceSummary,
     AnswerCreate,
     AnswerDetail,
@@ -625,6 +628,96 @@ class FormFillService:
                 }
             )
         return AnswerListResponse(items=items, next_cursor=next_cursor)
+
+    def list_answer_candidates(
+        self, question_id: str, *, query: str | None, limit: int, cursor: str | None
+    ) -> AnswerCandidateResponse:
+        question = self._require_question(question_id)
+        kinds = {
+            "text": ("text", "long_text"),
+            "textarea": ("text", "long_text"),
+            "integer": ("decimal",),
+            "decimal": ("decimal",),
+            "date": ("date",),
+            "checkbox_boolean": ("boolean",),
+            "select": ("single_choice",),
+            "radio": ("single_choice",),
+            "checkbox_group": ("multi_choice",),
+            "multi_select": ("multi_choice",),
+        }[question.control_kind]
+        options = [o for o in self.repo.list_options(question_id) if o.status == "active"]
+        choice_question = question.control_kind in _CHOICE_CONTROLS
+        canonical_query = normalize_evidence(query) or None
+        answers = self.repo.candidate_answers(
+            kinds, len(options) if choice_question else None, canonical_query
+        )
+        choices_by_answer: dict[str, list[Row]] = {}
+        if choice_question:
+            for choice in self.repo.candidate_choices(kinds):
+                choices_by_answer.setdefault(choice["answer_id"], []).append(choice)
+        mappings_by_answer: dict[str, list[Row]] = {}
+        for mapping in self.repo.candidate_mappings(kinds):
+            mappings_by_answer.setdefault(mapping["answer_id"], []).append(mapping)
+        ranked: list[tuple[int, str, str, AnswerCandidate]] = []
+        for answer in answers:
+            value = _ANSWER_VALUE.validate_json(answer["value_json"])
+            choices = choices_by_answer.get(answer["id"], [])
+            mappings = mappings_by_answer.get(answer["id"], [])
+            if not choice_question and self._scalar_action(question.control_kind, value) is None:
+                continue
+            if choice_question:
+                available_keys = {choice["choice_key"] for choice in choices}
+                selected_keys = (
+                    {value.choice_key}
+                    if isinstance(value, AnswerSingleChoiceValue)
+                    else set(value.choice_keys)
+                    if isinstance(value, AnswerMultiChoiceValue)
+                    else set()
+                )
+                if not selected_keys <= available_keys:
+                    continue
+                if not canonical_query and not compatible_options(
+                    question, options, choices, mappings
+                ):
+                    continue
+            score = relevance(question, answer, mappings)
+            if not canonical_query and score == 0:
+                continue
+            candidate = AnswerCandidate(
+                id=answer["id"],
+                label=answer["label"],
+                revision=answer["revision"],
+                value_preview=value_preview(value, choices),
+            )
+            ranked.append((-score, normalize_evidence(candidate.label), candidate.id, candidate))
+        ranked.sort(key=lambda item: item[:3])
+        fingerprint = _filter_fingerprint(
+            {
+                "question": question_id,
+                "revision": question.revision,
+                "query": canonical_query,
+                "candidates": [(item[2], item[3].revision, item[0]) for item in ranked],
+            }
+        )
+        offset = 0
+        if cursor:
+            payload = _cursor_payload(cursor)
+            offset_value = payload.get("offset")
+            if (
+                payload.get("filters") != fingerprint
+                or type(offset_value) is not int
+                or offset_value < 0
+                or offset_value > len(ranked)
+            ):
+                raise InvalidCursorError
+            offset = offset_value
+        next_offset = offset + limit
+        return AnswerCandidateResponse(
+            items=[item[3] for item in ranked[offset:next_offset]],
+            next_cursor=_encode_cursor({"filters": fingerprint, "offset": next_offset})
+            if next_offset < len(ranked)
+            else None,
+        )
 
     def create_answer(self, create: AnswerCreate) -> AnswerDetail:
         self._validate_answer_key(create.answer_key)

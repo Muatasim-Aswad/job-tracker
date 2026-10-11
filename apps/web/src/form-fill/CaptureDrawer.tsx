@@ -621,8 +621,8 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                   </div>
                 ) : action === "retarget_mapping" ? (
                   <AnswerPicker
-                    control={question.control_kind}
-                    prompt={question.raw_question}
+                    questionId={question.id}
+                    questionRevision={question.revision}
                     value={answerId}
                     selected={selectedAnswer.data}
                     loading={selectedAnswer.isLoading}

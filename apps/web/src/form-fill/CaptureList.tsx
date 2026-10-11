@@ -30,7 +30,7 @@ export function CaptureList({ onOpen }: Props) {
         </label>
       }
       isLoading={query.isLoading}
-      isError={query.isError}
+      isError={query.isError && !query.data}
       onRetry={() => void query.refetch()}
       loadingLabel="Loading cleared value history…"
       errorLabel="Couldn’t load cleared value history."
@@ -47,6 +47,9 @@ export function CaptureList({ onOpen }: Props) {
       hasNextPage={query.hasNextPage}
       isFetchingNextPage={query.isFetchingNextPage}
       onLoadMore={() => void query.fetchNextPage()}
+      onPrefetch={() => void query.prefetchNextPage()}
+      isNextPageError={query.isFetchNextPageError}
+      continuationKey={query.data?.pages.at(-1)?.next_cursor ?? ""}
     />
   );
 }

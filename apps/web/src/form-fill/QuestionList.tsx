@@ -64,7 +64,7 @@ export function QuestionList({
         placeholder: "Search questions, sections or help",
         value: search,
         onChange: setSearch,
-        count: query.isLoading || query.isError ? null : items.length,
+        count: query.isLoading || (query.isError && !query.data) ? null : items.length,
         loading: query.isLoading,
         hasNextPage: query.hasNextPage,
         itemName: "question",
@@ -110,7 +110,7 @@ export function QuestionList({
         </div>
       }
       isLoading={query.isLoading}
-      isError={query.isError}
+      isError={query.isError && !query.data}
       onRetry={() => void query.refetch()}
       loadingLabel="Loading questions…"
       errorLabel="Couldn’t load questions."
@@ -167,6 +167,9 @@ export function QuestionList({
       hasNextPage={query.hasNextPage}
       isFetchingNextPage={query.isFetchingNextPage}
       onLoadMore={() => void query.fetchNextPage()}
+      onPrefetch={() => void query.prefetchNextPage()}
+      isNextPageError={query.isFetchNextPageError}
+      continuationKey={query.data?.pages.at(-1)?.next_cursor ?? ""}
     />
   );
 }

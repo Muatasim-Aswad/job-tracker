@@ -433,6 +433,57 @@ class FormFillRepository:
         )
         return rows[:limit], len(rows) > limit
 
+    def candidate_answers(
+        self, value_kinds: tuple[str, ...], option_count: int | None, query: str | None
+    ) -> list[Row]:
+        placeholders = ", ".join("?" for _ in value_kinds)
+        conditions = [f"a.value_kind IN ({placeholders})", "a.status = 'active'"]
+        params: list[object] = list(value_kinds)
+        if option_count is not None:
+            conditions.append(
+                "(SELECT COUNT(*) FROM form_answer_choices c "
+                "WHERE c.answer_id = a.id AND c.status = 'active') = ?"
+            )
+            params.append(option_count)
+        if query:
+            conditions.append(
+                "(instr(lower(a.answer_key), ?) > 0 OR instr(lower(a.label), ?) > 0 "
+                "OR instr(lower(coalesce(a.description, '')), ?) > 0)"
+            )
+            params.extend([query, query, query])
+        return query_all(
+            self.conn,
+            "SELECT a.id, a.label, a.description, a.value_kind, a.value_json, a.revision "
+            f"FROM form_answers a WHERE {' AND '.join(conditions)}",
+            tuple(params),
+        )
+
+    def candidate_choices(self, value_kinds: tuple[str, ...]) -> list[Row]:
+        placeholders = ", ".join("?" for _ in value_kinds)
+        return query_all(
+            self.conn,
+            "SELECT c.* FROM form_answer_choices c JOIN form_answers a ON a.id = c.answer_id "
+            f"WHERE a.status = 'active' AND a.value_kind IN ({placeholders}) "
+            "AND c.status = 'active' ORDER BY c.id",
+            value_kinds,
+        )
+
+    def candidate_mappings(self, value_kinds: tuple[str, ...]) -> list[Row]:
+        placeholders = ", ".join("?" for _ in value_kinds)
+        return query_all(
+            self.conn,
+            "SELECT m.answer_id, m.question_id, q.raw_question, q.control_kind, "
+            "b.question_option_id, b.answer_choice_id, o.normalized_label "
+            "FROM form_question_mappings m JOIN form_answers a ON a.id = m.answer_id "
+            "JOIN form_questions q ON q.id = m.question_id "
+            "LEFT JOIN form_mapping_option_bindings b ON b.mapping_id = m.id "
+            "LEFT JOIN form_question_options o ON o.id = b.question_option_id "
+            "AND o.status = 'active' "
+            f"WHERE a.status = 'active' AND a.value_kind IN ({placeholders}) "
+            "AND m.status = 'active' AND q.review_state = 'open'",
+            value_kinds,
+        )
+
     def list_answer_choices(self, answer_id: str) -> list[Row]:
         return query_all(
             self.conn,

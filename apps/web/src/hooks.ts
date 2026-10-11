@@ -9,6 +9,7 @@ import { useCallback } from "react";
 import { api } from "./api/client";
 import type {
   AnswerCreate,
+  AnswerCandidateFilters,
   AnswerFilters,
   AnswerUpdate,
   CaptureApply,
@@ -392,12 +393,55 @@ const answerDetailKey = (id: string) => [...FORM_FILL_KEY, "answer", id] as cons
 const captureDetailKey = (id: string) => [...FORM_FILL_KEY, "capture", id] as const;
 const questionDetailKey = (id: string) => [...FORM_FILL_KEY, "question", id] as const;
 
-export function useFormFillAnswers(filters: Omit<AnswerFilters, "cursor">) {
-  return useInfiniteQuery({
-    queryKey: [...FORM_FILL_KEY, "answers", filters] as const,
+function useFormFillCollection<T extends { next_cursor?: string | null }>(
+  queryKey: readonly unknown[],
+  fetchPage: (cursor: string | undefined) => Promise<T>,
+  live = false,
+) {
+  const qc = useQueryClient();
+  const pageOptions = (cursor: string | undefined) => ({
+    queryKey: [...queryKey, "page", cursor],
+    queryFn: () => fetchPage(cursor),
+    staleTime: cursor ? 10_000 : 0,
+    gcTime: 30_000,
+  });
+  const query = useInfiniteQuery({
+    queryKey,
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => api.listFormFillAnswers({ ...filters, cursor: pageParam }),
+    queryFn: ({ pageParam }) => qc.fetchQuery(pageOptions(pageParam)),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
+    refetchInterval: live ? FORM_FILL_REFRESH_MS : false,
+    refetchIntervalInBackground: false,
+  });
+  const nextCursor = query.data?.pages.at(-1)?.next_cursor;
+  return {
+    ...query,
+    prefetchNextPage: () =>
+      nextCursor ? qc.prefetchQuery(pageOptions(nextCursor)) : Promise.resolve(),
+  };
+}
+
+export function useFormFillAnswers(filters: Omit<AnswerFilters, "cursor">) {
+  return useFormFillCollection([...FORM_FILL_KEY, "answers", filters], (cursor) =>
+    api.listFormFillAnswers({ ...filters, cursor }),
+  );
+}
+
+export function useFormFillAnswerCandidates(
+  questionId: string,
+  questionRevision: number,
+  filters: Omit<AnswerCandidateFilters, "cursor">,
+  enabled: boolean,
+) {
+  return useInfiniteQuery({
+    queryKey: [...FORM_FILL_KEY, "answer-candidates", questionId, questionRevision, filters],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.listFormFillAnswerCandidates(questionId, { ...filters, cursor: pageParam }),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
+    enabled,
+    gcTime: 0,
+    retry: false,
   });
 }
 
@@ -411,14 +455,11 @@ export function useFormFillAnswer(answerId: string | null) {
 }
 
 export function useFormFillCaptures(filters: Omit<CaptureFilters, "cursor">) {
-  return useInfiniteQuery({
-    queryKey: [...FORM_FILL_KEY, "captures", filters] as const,
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => api.listFormFillCaptures({ ...filters, cursor: pageParam }),
-    getNextPageParam: (page) => page.next_cursor ?? undefined,
-    refetchInterval: FORM_FILL_REFRESH_MS,
-    refetchIntervalInBackground: false,
-  });
+  return useFormFillCollection(
+    [...FORM_FILL_KEY, "captures", filters],
+    (cursor) => api.listFormFillCaptures({ ...filters, cursor }),
+    true,
+  );
 }
 
 export function useFormFillCapture(captureId: string | null) {
@@ -441,14 +482,11 @@ export function useFormFillConflictCaptures(captureIds: string[]) {
 }
 
 export function useFormFillQuestions(filters: Omit<QuestionFilters, "cursor">) {
-  return useInfiniteQuery({
-    queryKey: [...FORM_FILL_KEY, "questions", filters] as const,
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) => api.listFormFillQuestions({ ...filters, cursor: pageParam }),
-    getNextPageParam: (page) => page.next_cursor ?? undefined,
-    refetchInterval: FORM_FILL_REFRESH_MS,
-    refetchIntervalInBackground: false,
-  });
+  return useFormFillCollection(
+    [...FORM_FILL_KEY, "questions", filters],
+    (cursor) => api.listFormFillQuestions({ ...filters, cursor }),
+    true,
+  );
 }
 
 export function useFormFillQuestion(questionId: string | null) {

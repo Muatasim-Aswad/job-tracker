@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import { KnowledgeBadge } from "./KnowledgeBadge";
+import { ListContinuation } from "./ListContinuation";
 import { FilterPopover } from "../components/FilterPopover";
 import { useMemo, useState } from "react";
 import { usePersistentBoolean } from "../lib/persist";
@@ -87,7 +88,7 @@ export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props)
           placeholder="Search saved answers"
           value={q}
           onChange={setQ}
-          count={query.isLoading || query.isError ? null : items.length}
+          count={query.isLoading || (query.isError && !query.data) ? null : items.length}
           loading={query.isLoading}
           hasNextPage={query.hasNextPage}
           itemName="answer"
@@ -149,7 +150,7 @@ export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props)
         <p role="status" className="text-sm text-ink-muted">
           Loading Answers…
         </p>
-      ) : query.isError ? (
+      ) : query.isError && !query.data ? (
         <div role="alert" className="space-y-2 text-sm text-red-700 dark:text-red-300">
           <p>Couldn’t load Answers.</p>
           <button
@@ -208,15 +209,15 @@ export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props)
           </ul>
         </div>
       )}
-      {query.hasNextPage && (
-        <button
-          type="button"
-          disabled={query.isFetchingNextPage}
-          onClick={() => void query.fetchNextPage()}
-          className="rounded border border-line bg-surface px-3 py-2 text-sm font-medium text-ink disabled:opacity-50"
-        >
-          {query.isFetchingNextPage ? "Loading…" : "Load more"}
-        </button>
+      {items.length > 0 && (
+        <ListContinuation
+          hasMore={query.hasNextPage}
+          loading={query.isFetchingNextPage}
+          failed={query.isFetchNextPageError}
+          pageKey={query.data?.pages.at(-1)?.next_cursor ?? ""}
+          onLoad={() => void query.fetchNextPage()}
+          onApproach={() => void query.prefetchNextPage()}
+        />
       )}
     </section>
   );

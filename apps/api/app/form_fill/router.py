@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.deps import service_factory
 from app.form_fill.schemas import (
+    AnswerCandidateResponse,
     AnswerCreate,
     AnswerDetail,
     AnswerListResponse,
@@ -204,6 +205,19 @@ def list_questions(
         limit=limit,
         cursor=cursor,
     )
+
+
+@router.get("/questions/{question_id}/answer-candidates", response_model=AnswerCandidateResponse)
+def list_answer_candidates(
+    question_id: str,
+    response: Response,
+    q: Annotated[str | None, Query(min_length=1, max_length=256)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+    cursor: Annotated[str | None, Query(min_length=1, max_length=2048)] = None,
+    service: FormFillService = Depends(get_service),
+) -> AnswerCandidateResponse:
+    _private(response)
+    return service.list_answer_candidates(question_id, query=q, limit=limit, cursor=cursor)
 
 
 @router.get("/questions/{question_id}", response_model=QuestionDetail)

@@ -1,20 +1,15 @@
 import { useDeferredValue, useState } from "react";
-import { Check, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { IconButton } from "../components/IconButton";
-import { useFormFillAnswers } from "../hooks";
+import { useFormFillAnswerCandidates } from "../hooks";
+import { ListContinuation } from "./ListContinuation";
+import { FormFillApiError } from "../api/client";
 import { HelpTip } from "./HelpTip";
-import {
-  controlAcceptsAnswer,
-  fillExplanation,
-  POLICY_LABEL,
-  valueText,
-  type AnswerDetail,
-  type QuestionDetail,
-} from "./model";
+import { fillExplanation, POLICY_LABEL, valueText, type AnswerDetail } from "./model";
 
 interface Props {
-  control: QuestionDetail["control_kind"];
-  prompt: string;
+  questionId: string;
+  questionRevision: number;
   value: string;
   selected?: AnswerDetail;
   loading?: boolean;
@@ -24,32 +19,9 @@ interface Props {
   onCreate?: () => void;
 }
 
-const COMMON_QUESTION_WORDS = new Set([
-  "the",
-  "and",
-  "for",
-  "with",
-  "your",
-  "you",
-  "have",
-  "how",
-  "many",
-  "what",
-  "when",
-  "are",
-  "can",
-  "will",
-  "this",
-  "that",
-  "work",
-  "working",
-  "experience",
-  "years",
-]);
-
 export function AnswerPicker({
-  control,
-  prompt,
+  questionId,
+  questionRevision,
   value,
   selected,
   loading,
@@ -59,26 +31,15 @@ export function AnswerPicker({
   onCreate,
 }: Props) {
   const [search, setSearch] = useState("");
+  const [scrollRoot, setScrollRoot] = useState<HTMLUListElement | null>(null);
   const q = useDeferredValue(search.trim());
-  const query = useFormFillAnswers({ status: "active", q: q || undefined, limit: 30 });
-  const terms = new Set(
-    prompt
-      .toLocaleLowerCase()
-      .split(/\W+/)
-      .filter((term) => term.length > 2 && !COMMON_QUESTION_WORDS.has(term)),
+  const query = useFormFillAnswerCandidates(
+    questionId,
+    questionRevision,
+    { q: q || undefined, limit: 30 },
+    !value,
   );
-  const score = (label: string) =>
-    label
-      .toLocaleLowerCase()
-      .split(/\W+/)
-      .filter((term) => terms.has(term)).length;
-  const compatibleAnswers = (query.data?.pages.flatMap((page) => page.items) ?? [])
-    .filter((answer) => controlAcceptsAnswer(control, answer.value_kind))
-    .sort(
-      (left, right) =>
-        score(right.label) - score(left.label) || left.label.localeCompare(right.label),
-    );
-  const answers = compatibleAnswers;
+  const answers = query.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <section aria-label="Choose a saved answer" className="space-y-3">
       {!value && (
@@ -87,7 +48,7 @@ export function AnswerPicker({
             <label className="block min-w-0 flex-1 text-xs font-normal text-ink-muted">
               <span className="sr-only">Find a saved answer</span>
               <HelpTip
-                text="Compatible answers, with similar names first. Check the value before saving."
+                text="Suggested answers match the field type and options. Search other answers with a compatible type and option count. Check the value and bindings before saving."
                 className="block"
               >
                 <input
@@ -114,7 +75,7 @@ export function AnswerPicker({
 
           {query.isLoading ? (
             <p role="status">Loading answers…</p>
-          ) : query.isError ? (
+          ) : query.isError && !query.data ? (
             <p role="alert">
               Couldn’t load answers.{" "}
               <button type="button" className="underline" onClick={() => void query.refetch()}>
@@ -122,7 +83,10 @@ export function AnswerPicker({
               </button>
             </p>
           ) : (
-            <ul className="max-h-52 divide-y divide-line overflow-y-auto rounded-md border border-line bg-surface">
+            <ul
+              ref={setScrollRoot}
+              className="max-h-60 divide-y divide-line overflow-y-auto rounded-md border border-line bg-surface"
+            >
               {answers.map((answer) => (
                 <li key={answer.id}>
                   <button
@@ -131,37 +95,42 @@ export function AnswerPicker({
                     onClick={() => {
                       onChange(answer.id);
                     }}
-                    className={`w-full px-3 py-2.5 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent ${value === answer.id ? "bg-sunken" : ""}`}
+                    className="w-full space-y-1.5 px-4 py-3 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent"
                   >
-                    <span className="flex items-center justify-between gap-3 font-medium text-ink">
+                    <span className="block text-sm font-medium leading-5 text-ink-muted">
                       {answer.label}
-                      {value === answer.id && (
-                        <Check size={16} className="shrink-0 text-accent" aria-hidden="true" />
-                      )}
                     </span>
-                    <span className="mt-0.5 block text-xs text-ink-muted">
-                      {answer.description || POLICY_LABEL[answer.fill_policy]}
+                    <span className="line-clamp-2 block break-words text-base font-normal leading-6 text-ink">
+                      {answer.value_preview}
                     </span>
                   </button>
                 </li>
               ))}
               {!answers.length && (
                 <li className="p-3 text-sm text-ink-muted">
-                  No compatible answers. Try another search
+                  {q ? "No compatible answers match your search." : "No suggested matches."}{" "}
+                  {q ? "Try another search" : "Search for another answer"}
                   {onCreate ? " or create a new answer" : ""}.
                 </li>
               )}
+              {(query.hasNextPage || query.isFetchNextPageError) && (
+                <li>
+                  <ListContinuation
+                    automatic
+                    root={scrollRoot}
+                    hasMore={query.hasNextPage}
+                    loading={query.isFetchingNextPage}
+                    failed={query.isFetchNextPageError}
+                    pageKey={query.data?.pages.at(-1)?.next_cursor ?? ""}
+                    onLoad={() => {
+                      if (query.error instanceof FormFillApiError && query.error.status === 400)
+                        void query.refetch();
+                      else void query.fetchNextPage();
+                    }}
+                  />
+                </li>
+              )}
             </ul>
-          )}
-          {query.hasNextPage && (
-            <button
-              type="button"
-              disabled={query.isFetchingNextPage}
-              onClick={() => void query.fetchNextPage()}
-              className="rounded border border-line px-3 py-2 text-sm"
-            >
-              {query.isFetchingNextPage ? "Loading…" : "Load more answers"}
-            </button>
           )}
         </>
       )}

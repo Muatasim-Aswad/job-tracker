@@ -41,6 +41,7 @@ const request = <T>(path: string, init?: RequestInit): Promise<T> =>
   apiRequest<T>(path, init, API_BASE);
 
 type FormFillSchemas = components["schemas"];
+export type AnswerCandidateResponse = FormFillSchemas["AnswerCandidateResponse"];
 export type AnswerCreate = FormFillSchemas["AnswerCreate"];
 export type AnswerDetail = FormFillSchemas["AnswerDetail"];
 export type AnswerListResponse = FormFillSchemas["AnswerListResponse"];
@@ -70,6 +71,13 @@ export interface AnswerFilters {
   q?: string;
   status?: "active" | "disabled";
   value_kind?: AnswerCreate["value_kind"];
+  [key: string]: string | number | boolean | undefined;
+}
+
+export interface AnswerCandidateFilters {
+  cursor?: string;
+  limit?: number;
+  q?: string;
   [key: string]: string | number | boolean | undefined;
 }
 
@@ -264,6 +272,13 @@ export const api = {
 
   listFormFillAnswers: (filters: AnswerFilters = {}): Promise<AnswerListResponse> =>
     formFillRequest(`/form-fill/answers${toQuery(filters)}`),
+  listFormFillAnswerCandidates: (
+    questionId: string,
+    filters: AnswerCandidateFilters = {},
+  ): Promise<AnswerCandidateResponse> =>
+    formFillRequest(
+      `/form-fill/questions/${encodeURIComponent(questionId)}/answer-candidates${toQuery(filters)}`,
+    ),
   getFormFillAnswer: (answerId: string): Promise<AnswerDetail> =>
     formFillRequest(`/form-fill/answers/${encodeURIComponent(answerId)}`),
   createFormFillAnswer: (body: AnswerCreate): Promise<AnswerDetail> =>

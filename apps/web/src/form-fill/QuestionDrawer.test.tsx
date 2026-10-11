@@ -32,7 +32,7 @@ vi.mock("../hooks", () => ({
     isError: false,
     refetch: vi.fn(),
   }),
-  useFormFillAnswers: () => ({
+  useFormFillAnswerCandidates: () => ({
     data: { pages: [{ items: [{ ...testAnswer, mapping_count: 1 }] }] },
   }),
   useFormFillAnswer: (id: string | null) => ({

@@ -36,4 +36,17 @@ describe("form-fill API privacy boundary", () => {
       "/api/form-fill/answers?status=active&cursor=opaque-cursor&limit=1",
     );
   });
+
+  it("requests candidates by opaque question ID without putting prompts or values in URLs", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ items: [], next_cursor: null }), { status: 200 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    await api.listFormFillAnswerCandidates("question-1", { cursor: "opaque-cursor", limit: 30 });
+    expect(String(fetchMock.mock.calls[0][0])).toBe(
+      "/api/form-fill/questions/question-1/answer-candidates?cursor=opaque-cursor&limit=30",
+    );
+  });
 });

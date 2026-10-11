@@ -259,6 +259,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/form-fill/questions/{question_id}/answer-candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Answer Candidates */
+        get: operations["list_answer_candidates_api_form_fill_questions__question_id__answer_candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/form-fill/questions/{question_id}/capture-conflicts/resolve": {
         parameters: {
             query?: never;
@@ -713,6 +730,24 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnswerCandidate */
+        AnswerCandidate: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Revision */
+            revision: number;
+            /** Value Preview */
+            value_preview: string;
+        };
+        /** AnswerCandidateResponse */
+        AnswerCandidateResponse: {
+            /** Items */
+            items: components["schemas"]["AnswerCandidate"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
         /** AnswerChoiceInput */
         AnswerChoiceInput: {
             /** Choice Key */
@@ -3399,6 +3434,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuestionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_answer_candidates_api_form_fill_questions__question_id__answer_candidates_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+                q?: string | null;
+            };
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerCandidateResponse"];
                 };
             };
             /** @description Validation Error */

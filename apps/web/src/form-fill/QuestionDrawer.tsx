@@ -406,8 +406,8 @@ export function QuestionDrawer({
           {!question.capture_conflict && (
             <section className="space-y-4" aria-label="Saved answer for this question">
               <AnswerPicker
-                control={question.control_kind}
-                prompt={question.raw_question}
+                questionId={question.id}
+                questionRevision={question.revision}
                 value={answerId}
                 selected={selectedAnswer.data}
                 loading={selectedAnswer.isLoading}

@@ -490,6 +490,18 @@ class AnswerListResponse(BaseModel):
     next_cursor: str | None = None
 
 
+class AnswerCandidate(BaseModel):
+    id: str
+    label: str
+    revision: int
+    value_preview: str = Field(max_length=160)
+
+
+class AnswerCandidateResponse(BaseModel):
+    items: list[AnswerCandidate]
+    next_cursor: str | None = None
+
+
 class MappingPut(BaseModel):
     answer_id: str = Field(min_length=1, max_length=128)
     expected_question_revision: int = Field(ge=1)
