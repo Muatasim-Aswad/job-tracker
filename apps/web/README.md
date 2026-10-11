@@ -27,6 +27,12 @@ pnpm exec vp run -F web typecheck
 pnpm run build:web
 ```
 
+## Job drawer
+
+The header gives the title its own row with Close on the right. The second row pairs Company and Edit on the left, with Star and Hide together on the right and Copy separated by a small gap.
+
+Listings, Custom fields, Documents, and Timeline have collapsible headings with counts. Sections start expanded; collapsed section keys are stored in browser-local storage under `jt.collapsedJobSections`, shared across jobs and retained after reloads. Only section keys are saved. The status summary and actions remain visible. Collapsing hides mounted content, preserving an unsaved draft while the drawer remains open. Add actions expand their section; an attention-driven **Add note** request expands Timeline before focusing its composer. **CollapsibleSection** shares the heading, disclosure, and add behavior through **SectionHeader**; the drawer owns preferences through the existing persistent-set hook.
+
 ## Application header
 
 Jobs and Form Fill share 38px search and toolbar controls, search/count styling, alignment, and narrow-screen wrapping. Action icons are unboxed at rest, with a background on hover or while their menu is open and a visible keyboard focus ring. Controls follow search/count, filters, order, add (when available), and More. Both workspaces use one funnel whose icon takes the accent color for active filters or changed display options. Jobs groups five labelled checkboxes under Show only and Visibility; its attention count and A/S/E/H/B shortcut hints appear inside the panel. A changed search or filter highlights the search bar and reveals **Clear filters**. Clearing restores the current collection's default filters and display options and empties search, preserving order. Form Fill counts remain loaded counts, with **+** when more pages exist.

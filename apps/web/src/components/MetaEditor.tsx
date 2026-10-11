@@ -6,7 +6,7 @@ import { useMetaVocabulary, useUpdateJob } from "../hooks";
 import { ExpandableText } from "./ExpandableText";
 import { IconButton } from "./IconButton";
 import { InlineConfirm } from "./InlineConfirm";
-import { SectionHeader } from "./SectionHeader";
+import { CollapsibleSection, type SectionDisclosure } from "./CollapsibleSection";
 
 // Edit the job's free-form metadata as individual custom fields. Writes replace
 // the complete bag, so every update must preserve unrelated entries.
@@ -191,7 +191,13 @@ function MetaCard({
   );
 }
 
-export function MetaEditor({ job }: { job: JobDetail }) {
+export function MetaEditor({
+  job,
+  disclosure,
+}: {
+  job: JobDetail;
+  disclosure?: SectionDisclosure;
+}) {
   const updateJob = useUpdateJob();
   const { data: vocab } = useMetaVocabulary("jobs");
   const [adding, setAdding] = useState(false);
@@ -226,18 +232,17 @@ export function MetaEditor({ job }: { job: JobDetail }) {
   };
 
   return (
-    <section>
-      <SectionHeader
-        title="Custom fields"
-        count={entries.length}
-        help={HELP}
-        add={{
-          noun: "custom field",
-          open: adding,
-          onToggle: () => (adding ? close() : setAdding(true)),
-        }}
-      />
-
+    <CollapsibleSection
+      title="Custom fields"
+      count={entries.length}
+      help={HELP}
+      add={{
+        noun: "custom field",
+        open: adding,
+        onToggle: () => (adding ? close() : setAdding(true)),
+      }}
+      disclosure={disclosure}
+    >
       {/* Shared key vocabulary — native datalist gives substring matching for free. */}
       <datalist id={KEY_LIST}>
         {(vocab?.keys ?? []).map((k) => (
@@ -298,6 +303,6 @@ export function MetaEditor({ job }: { job: JobDetail }) {
           <MetaCard key={k} job={job} name={k} value={v} vocab={vocab} />
         ))}
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }

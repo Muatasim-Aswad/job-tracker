@@ -95,6 +95,8 @@ History remains correctable rather than disposable. You can undo a transition, r
 
 Attention rules identify applications that have waited too long at applied or in-process stages. Adding a note can reset attention, and the dashboard can filter the queue or mark a job ghosted.
 
+The job drawer’s Listings, Custom fields, Documents, and Timeline sections can be collapsed. Section choices apply to every job and survive browser reloads; section counts stay visible, and add actions reopen their section. Collapsing preserves the current draft.
+
 The Jobs header funnel opens labelled filters for attention, starred jobs, Easy Apply, hidden jobs, and blocked companies. The funnel takes the accent color when filters are active; the result count and clear-filters action stay beside search. The existing filter keyboard shortcuts remain available.
 
 Custom fields support reusable vocabulary suggestions. Structured material records track which CV, cover letter, or other material accompanied an application, including requested and provided states. Job Tracker records the material's role and status; it does not upload or store the file itself.

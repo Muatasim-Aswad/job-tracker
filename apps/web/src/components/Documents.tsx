@@ -8,7 +8,7 @@ import { ExpandableText } from "./ExpandableText";
 import { IconButton } from "./IconButton";
 import { InlineConfirm } from "./InlineConfirm";
 import { MetaLine } from "./MetaLine";
-import { SectionHeader } from "./SectionHeader";
+import { CollapsibleSection, type SectionDisclosure } from "./CollapsibleSection";
 
 const DOC_TYPES = ["cover_letter", "motivation_letter", "cv", "other"];
 
@@ -202,7 +202,15 @@ function DocumentCard({ jobId, doc }: { jobId: string; doc: JobDocument }) {
   );
 }
 
-export function Documents({ jobId, documents }: { jobId: string; documents: JobDocument[] }) {
+export function Documents({
+  jobId,
+  documents,
+  disclosure,
+}: {
+  jobId: string;
+  documents: JobDocument[];
+  disclosure?: SectionDisclosure;
+}) {
   const addDoc = useAddDocument();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -228,17 +236,17 @@ export function Documents({ jobId, documents }: { jobId: string; documents: JobD
   };
 
   return (
-    <section>
-      <SectionHeader
-        title="Documents"
-        count={documents.length}
-        help={HELP}
-        add={{
-          noun: "document",
-          open: adding,
-          onToggle: () => (adding ? close() : setAdding(true)),
-        }}
-      />
+    <CollapsibleSection
+      title="Documents"
+      count={documents.length}
+      help={HELP}
+      add={{
+        noun: "document",
+        open: adding,
+        onToggle: () => (adding ? close() : setAdding(true)),
+      }}
+      disclosure={disclosure}
+    >
       <div className="flex flex-col gap-2">
         {adding && (
           <div
@@ -276,6 +284,6 @@ export function Documents({ jobId, documents }: { jobId: string; documents: JobD
             three a third time, and made an empty section taller than a full one
             with a single card. The header IS the empty state. */}
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }

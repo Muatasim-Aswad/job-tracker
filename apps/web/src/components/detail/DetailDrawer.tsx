@@ -22,7 +22,8 @@ import { IconButton } from "../IconButton";
 import { InlineConfirm } from "../InlineConfirm";
 import { MetaEditor } from "../MetaEditor";
 import { MetaLine } from "../MetaLine";
-import { SectionHeader } from "../SectionHeader";
+import { CollapsibleSection } from "../CollapsibleSection";
+import { usePersistentStringSet } from "../../lib/persist";
 import { StatusBadge } from "../StatusBadge";
 import { Timeline } from "../Timeline";
 import { CorrectPanel } from "./CorrectPanel";
@@ -78,6 +79,11 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [editing, setEditing] = useState(false);
+  const [collapsedSections, toggleSection] = usePersistentStringSet("jt.collapsedJobSections");
+  const disclosure = (section: string) => ({
+    collapsed: collapsedSections.has(section),
+    onToggle: () => toggleSection(section),
+  });
 
   // Which status action owns the panel below the toolbar. At most one is open, so
   // opening one closes the others (see the toolbar handlers). Move/Correct keep
@@ -188,102 +194,103 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
           </div>
         ) : (
           <div className="flex flex-col gap-6 p-6">
-            <header className="sticky top-0 z-20 -mx-6 -mt-6 flex items-start justify-between gap-3 border-b border-line bg-canvas px-6 pb-3 pt-6">
-              <div className="min-w-0 flex-1">
-                {editing ? (
-                  <div
-                    className="flex flex-col gap-2"
-                    onKeyDown={formKeys(saveHeader, () => setEditing(false))}
-                  >
-                    <input
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      aria-label="Job title"
-                      placeholder="Title"
-                      autoFocus
-                      className="rounded border border-line bg-surface px-2 py-1 text-sm text-ink"
-                    />
-                    <input
-                      value={company}
-                      onChange={(e) => setCompany(e.target.value)}
-                      aria-label="Company"
-                      placeholder="Company"
-                      className="rounded border border-line bg-surface px-2 py-1 text-sm text-ink"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={saveHeader}
-                        className="rounded bg-violet-600 px-2 py-1 text-xs font-medium text-white hover:bg-violet-700"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => setEditing(false)}
-                        className="rounded px-2 py-1 text-xs text-ink-muted hover:text-ink"
-                      >
-                        Cancel
-                      </button>
+            <header className="sticky top-0 z-20 -mx-6 -mt-6 flex flex-col gap-1 border-b border-line bg-canvas px-6 pb-3 pt-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {editing ? (
+                    <div
+                      className="flex flex-col gap-2"
+                      onKeyDown={formKeys(saveHeader, () => setEditing(false))}
+                    >
+                      <input
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        aria-label="Job title"
+                        placeholder="Title"
+                        autoFocus
+                        className="rounded border border-line bg-surface px-2 py-1 text-sm text-ink"
+                      />
+                      <input
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                        aria-label="Company"
+                        placeholder="Company"
+                        className="rounded border border-line bg-surface px-2 py-1 text-sm text-ink"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={saveHeader}
+                          className="rounded bg-violet-600 px-2 py-1 text-xs font-medium text-white hover:bg-violet-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditing(false)}
+                          className="rounded px-2 py-1 text-xs text-ink-muted hover:text-ink"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  // The drawer IS the detail view: a title clipped here was
-                  // readable nowhere else short of opening the edit form. Two
-                  // lines rather than unbounded wrap, because the header is
-                  // sticky and a five-line title would eat the viewport; the
-                  // `title` attribute carries whatever the second line can't.
-                  <>
+                  ) : (
+                    // The drawer IS the detail view: a title clipped here was
+                    // readable nowhere else short of opening the edit form. Two
+                    // lines rather than unbounded wrap, because the header is
+                    // sticky and a five-line title would eat the viewport; the
+                    // `title` attribute carries whatever the second line can't.
                     <h2
                       title={job.title ?? undefined}
                       className="line-clamp-2 text-lg font-semibold text-ink"
                     >
                       {job.title ?? "(untitled)"}
                     </h2>
+                  )}
+                </div>
+                {closeButton}
+              </div>
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                {!editing && (
+                  <div className="flex min-w-0 items-center gap-1">
                     <div
                       title={job.company ?? undefined}
-                      className="truncate text-sm text-ink-muted"
+                      className="min-w-0 truncate text-sm text-ink-muted"
                     >
                       {job.company ?? "—"}
                     </div>
-                  </>
+                    <IconButton
+                      label="Edit title / company"
+                      onClick={() => setEditing(true)}
+                      className={`${NEUTRAL} shrink-0`}
+                    >
+                      <Pencil size={ICON_SIZE} />
+                    </IconButton>
+                  </div>
                 )}
-              </div>
-              <div className="flex shrink-0 items-center gap-0.5">
-                {!editing && (
+                <div className="ml-auto flex shrink-0 items-center gap-0.5">
                   <IconButton
-                    label="Edit title / company"
-                    onClick={() => setEditing(true)}
-                    className={NEUTRAL}
+                    label={job.starred ? "Unstar" : "Star"}
+                    onClick={() => onEvent(jobId, [{ event: flagEvent("starred", job.starred) }])}
+                    className={job.starred ? "text-amber-600 dark:text-amber-400" : NEUTRAL}
                   >
-                    <Pencil size={ICON_SIZE} />
+                    <Star size={ICON_SIZE} fill={job.starred ? "currentColor" : "none"} />
                   </IconButton>
-                )}
-                <IconButton
-                  label={job.starred ? "Unstar" : "Star"}
-                  onClick={() => onEvent(jobId, [{ event: flagEvent("starred", job.starred) }])}
-                  className={job.starred ? "text-amber-600 dark:text-amber-400" : NEUTRAL}
-                >
-                  <Star size={ICON_SIZE} fill={job.starred ? "currentColor" : "none"} />
-                </IconButton>
-                <IconButton
-                  label={job.hidden ? "Hidden from board — click to unhide" : "Hide from board"}
-                  active={job.hidden}
-                  onClick={() => onEvent(jobId, [{ event: flagEvent("hidden", job.hidden) }])}
-                  className={job.hidden ? "text-ink" : NEUTRAL}
-                >
-                  {job.hidden ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
-                </IconButton>
-                {/* Copying the raw response is a debugging affordance, so it sits
-                    last before Close and keeps the neutral tone. Its full name is
-                    the accessible name and the hover text — a glyph alone would
-                    not distinguish it from the listing card's copy-JD. */}
-                <IconButton
-                  label="Copy full response JSON"
-                  onClick={() => void copyJson()}
-                  className={NEUTRAL}
-                >
-                  <Copy size={ICON_SIZE} />
-                </IconButton>
-                {closeButton}
+                  <IconButton
+                    label={job.hidden ? "Hidden from board — click to unhide" : "Hide from board"}
+                    active={job.hidden}
+                    onClick={() => onEvent(jobId, [{ event: flagEvent("hidden", job.hidden) }])}
+                    className={job.hidden ? "text-ink" : NEUTRAL}
+                  >
+                    {job.hidden ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+                  </IconButton>
+                  {/* The full name distinguishes this debugging action from copy-JD. */}
+                  <IconButton
+                    label="Copy full response JSON"
+                    onClick={() => void copyJson()}
+                    className={`ml-2 ${NEUTRAL}`}
+                  >
+                    <Copy size={ICON_SIZE} />
+                  </IconButton>
+                </div>
               </div>
             </header>
 
@@ -428,22 +435,24 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
               {attention && (
                 <AttentionPanel
                   attention={attention}
-                  onAddNote={() =>
+                  onAddNote={() => {
+                    if (collapsedSections.has("timeline")) toggleSection("timeline");
                     setAddNoteRequest((request) => ({
                       jobId,
                       token: request?.jobId === jobId ? request.token + 1 : 1,
-                    }))
-                  }
+                    }));
+                  }}
                   onMarkGhosted={() => onEvent(jobId, [{ event: "ghosted" }])}
                 />
               )}
             </section>
 
             {/* Listings */}
-            <section>
-              {/* No `+`: listings arrive by capture or by adding a job, never from
-                  inside the drawer. No `?` either — the title is the whole idea. */}
-              <SectionHeader title="Listings" count={job.listings.length} />
+            <CollapsibleSection
+              title="Listings"
+              count={job.listings.length}
+              disclosure={disclosure("listings")}
+            >
               <div className="flex flex-col gap-2">
                 {job.listings.map((l) => (
                   <ListingCard
@@ -473,16 +482,21 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
                 {/* Defensive fallback for inconsistent imported data. */}
                 {job.listings.length === 0 && <EmptyBlock message="No listings." />}
               </div>
-            </section>
+            </CollapsibleSection>
 
-            <MetaEditor job={job} />
+            <MetaEditor job={job} disclosure={disclosure("custom-fields")} />
 
-            <Documents jobId={jobId} documents={job.documents} />
+            <Documents
+              jobId={jobId}
+              documents={job.documents}
+              disclosure={disclosure("documents")}
+            />
 
             <Timeline
               key={jobId}
               jobId={jobId}
               events={job.events}
+              disclosure={disclosure("timeline")}
               addNoteRequest={addNoteRequest?.jobId === jobId ? addNoteRequest.token : 0}
             />
 

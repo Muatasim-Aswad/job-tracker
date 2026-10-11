@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { ChevronRight, Plus, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
@@ -15,24 +15,51 @@ interface Props {
   // One sentence explaining what the section is, behind a `?`. For sections whose
   // meaning is not obvious from the title alone.
   help?: string;
+  collapse?: { collapsed: boolean; controlsId: string; onToggle: () => void };
   // Extra controls, right of the add toggle.
   children?: ReactNode;
   className?: string;
 }
 
-// The one section heading: title, count, optional `+`, optional `?`.
-//
-// Timeline, Documents, and Custom fields each hand-rolled this row with the same
-// classes and Plus/X toggle, which is how their headings drifted apart in tone and
-// wording. Centralising it also settles the heading level, the uppercase micro-label
-// styling, and the AA-passing `ink-muted` tone once instead of per section.
-export function SectionHeader({ title, count, add, help, children, className = "" }: Props) {
+// Shared title, count, disclosure, help, and add controls keep section headings consistent.
+export function SectionHeader({
+  title,
+  count,
+  add,
+  help,
+  collapse,
+  children,
+  className = "",
+}: Props) {
+  const heading = (
+    <>
+      {title}
+      {count === undefined ? "" : ` (${count})`}
+    </>
+  );
   return (
     <div className={`mb-2 flex items-center justify-between gap-2 ${className}`}>
       <div className="flex items-center gap-1">
         <h3 className="text-xs uppercase tracking-wide text-ink-muted">
-          {title}
-          {count === undefined ? "" : ` (${count})`}
+          {collapse ? (
+            <button
+              type="button"
+              aria-label={`${collapse.collapsed ? "Expand" : "Collapse"} ${title}`}
+              aria-expanded={!collapse.collapsed}
+              aria-controls={collapse.controlsId}
+              onClick={collapse.onToggle}
+              className="flex min-h-6 items-center gap-1 rounded pr-1 text-left uppercase tracking-wide hover:bg-surface-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+            >
+              <ChevronRight
+                size={14}
+                aria-hidden="true"
+                className={collapse.collapsed ? "" : "rotate-90"}
+              />
+              {heading}
+            </button>
+          ) : (
+            heading
+          )}
         </h3>
         {help && (
           <Tooltip label={help}>

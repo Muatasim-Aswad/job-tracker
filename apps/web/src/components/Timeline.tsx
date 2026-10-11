@@ -10,7 +10,7 @@ import { ExpandableText } from "./ExpandableText";
 import { IconButton } from "./IconButton";
 import { InlineConfirm } from "./InlineConfirm";
 import { MetaLine } from "./MetaLine";
-import { SectionHeader } from "./SectionHeader";
+import { CollapsibleSection, type SectionDisclosure } from "./CollapsibleSection";
 
 const TITLE_LIST = "note-title-vocab";
 
@@ -95,9 +95,10 @@ interface Props {
   jobId: string;
   events: JobEvent[];
   addNoteRequest?: number;
+  disclosure?: SectionDisclosure;
 }
 
-export function Timeline({ jobId, events, addNoteRequest = 0 }: Props) {
+export function Timeline({ jobId, events, addNoteRequest = 0, disclosure }: Props) {
   const updateEvent = useUpdateEvent();
   const addNote = useAddNote();
   const deleteEvent = useDeleteEvent();
@@ -179,18 +180,17 @@ export function Timeline({ jobId, events, addNoteRequest = 0 }: Props) {
   };
 
   return (
-    <section>
-      <SectionHeader
-        title="Timeline"
-        count={events.length}
-        help={HELP}
-        add={{
-          noun: "note",
-          open: adding,
-          onToggle: () => (adding ? closeAdd() : setAdding(true)),
-        }}
-      />
-
+    <CollapsibleSection
+      title="Timeline"
+      count={events.length}
+      help={HELP}
+      add={{
+        noun: "note",
+        open: adding,
+        onToggle: () => (adding ? closeAdd() : setAdding(true)),
+      }}
+      disclosure={disclosure}
+    >
       <datalist id={TITLE_LIST}>
         {(titles ?? []).map((t) => (
           <option key={t} value={t} />
@@ -403,6 +403,6 @@ export function Timeline({ jobId, events, addNoteRequest = 0 }: Props) {
           })}
         </ol>
       )}
-    </section>
+    </CollapsibleSection>
   );
 }
