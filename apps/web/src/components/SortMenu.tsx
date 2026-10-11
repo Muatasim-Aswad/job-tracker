@@ -150,6 +150,7 @@ export function SortMenu({ value, onChange }: Props) {
       onChange={onChange}
       options={SORT_OPTIONS}
       menuLabel="Sort jobs"
+      size="field"
     />
   );
 }

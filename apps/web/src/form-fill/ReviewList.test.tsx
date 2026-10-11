@@ -41,6 +41,7 @@ describe("Form Fill review list", () => {
     const inclusionControls = {
       onIncludeMatchedChange: vi.fn(),
       onIncludeDismissedChange: vi.fn(),
+      onClearInclusions: vi.fn(),
     };
     const { rerender } = render(
       <QuestionList {...inclusionControls} includeMatched includeDismissed onOpen={onOpen} />,
@@ -108,6 +109,54 @@ describe("Form Fill review list", () => {
     expect(inclusionControls.onIncludeMatchedChange).toHaveBeenCalledWith(true);
     expect(screen.getByRole("checkbox", { name: "Dismissed" })).toBeTruthy();
   });
+  it("clears search, inclusion and display options together", () => {
+    queries.questions.mockReturnValue({
+      data: { pages: [{ items: [testQuestion] }] },
+      hasNextPage: false,
+      isLoading: false,
+      isError: false,
+    });
+    function Questions() {
+      const [includeMatched, setMatched] = useState(true);
+      const [includeDismissed, setDismissed] = useState(true);
+      return (
+        <QuestionList
+          onOpen={vi.fn()}
+          includeMatched={includeMatched}
+          includeDismissed={includeDismissed}
+          onIncludeMatchedChange={setMatched}
+          onIncludeDismissedChange={setDismissed}
+          onClearInclusions={() => {
+            setMatched(false);
+            setDismissed(false);
+          }}
+        />
+      );
+    }
+    render(<Questions />);
+    const search = screen.getByRole("searchbox", { name: "Search questions" });
+    fireEvent.change(search, { target: { value: "Synthetic search" } });
+    fireEvent.click(screen.getByRole("button", { name: "Filters applied" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show question details" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show source details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect((search as HTMLInputElement).value).toBe("");
+    expect(queries.questions).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        q: undefined,
+        include_matched: false,
+        include_dismissed: false,
+        review_state: "open",
+      }),
+    );
+    expect(
+      (screen.getByRole("checkbox", { name: "Show question details" }) as HTMLInputElement).checked,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("checkbox", { name: "Show source details" }) as HTMLInputElement).checked,
+    ).toBe(false);
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+  });
   it("shows loaded counts in the header without implying a total or showing zero on failure", () => {
     const data = { pages: [{ items: [testQuestion] }] };
     queries.questions.mockReturnValue({
@@ -126,6 +175,7 @@ describe("Form Fill review list", () => {
             onOpen={vi.fn()}
             onIncludeMatchedChange={vi.fn()}
             onIncludeDismissedChange={vi.fn()}
+            onClearInclusions={vi.fn()}
           />
         </>
       );

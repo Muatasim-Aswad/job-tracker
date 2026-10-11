@@ -52,15 +52,17 @@ describe("ViewBar", () => {
   it("expands when attention-only is on and shows the non-hidden candidate count", () => {
     renderBar({ showAttention: true, attentionCount: 3, shownCount: 3 });
     expect(screen.getByText("3 of 1172")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Filters applied" }));
     expect(screen.getByText("3")).toBeTruthy();
-    expect(screen.getByLabelText("Stop filtering by attention").getAttribute("aria-pressed")).toBe(
-      "true",
-    );
+    expect(
+      (screen.getByRole("checkbox", { name: "Needs attention only" }) as HTMLInputElement).checked,
+    ).toBe(true);
   });
 
   it("keeps the attention toggle operable without rendering a zero badge", () => {
     renderBar({ attentionCount: 0 });
-    expect(screen.getByLabelText("Show jobs needing attention")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    expect(screen.getByRole("checkbox", { name: "Needs attention only" })).toBeTruthy();
     expect(screen.queryByText("0")).toBeNull();
   });
 
@@ -81,19 +83,52 @@ describe("ViewBar", () => {
     expect(onClearAll).toHaveBeenCalledTimes(1);
   });
 
-  it("reflects toggle state via aria-pressed", () => {
+  it("reflects filter state through labelled checkboxes", () => {
     renderBar({ hideHidden: true, showStarred: false });
-    expect(screen.getByLabelText("Include hidden").getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByLabelText("Show starred only").getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Filters applied" }));
+    expect(
+      (screen.getByRole("checkbox", { name: "Hide hidden jobs" }) as HTMLInputElement).checked,
+    ).toBe(true);
+    expect(
+      (screen.getByRole("checkbox", { name: "Starred only" }) as HTMLInputElement).checked,
+    ).toBe(false);
+  });
+
+  it("closes on Escape or outside interaction and restores focus on Escape", () => {
+    renderBar();
+    const trigger = screen.getByRole("button", { name: "Filters" });
+    fireEvent.click(trigger);
+    fireEvent.keyDown(screen.getByRole("checkbox", { name: "Needs attention only" }), {
+      key: "Escape",
+    });
+    expect(screen.queryByRole("group", { name: "Job filters" })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(trigger);
+    fireEvent.pointerDown(screen.getByRole("searchbox"));
+    expect(screen.queryByRole("group", { name: "Job filters" })).toBeNull();
   });
 
   it("calls the toggle handlers on click", () => {
-    const { onToggleHidden, onToggleStarred, onToggleAttention } = renderBar();
-    fireEvent.click(screen.getByLabelText("Show jobs needing attention"));
-    fireEvent.click(screen.getByLabelText("Only visible"));
-    fireEvent.click(screen.getByLabelText("Show starred only"));
+    const {
+      onToggleHidden,
+      onToggleStarred,
+      onToggleAttention,
+      onToggleBlocked,
+      onToggleEasyApply,
+    } = renderBar();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    expect(screen.getAllByRole("checkbox")).toHaveLength(5);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Needs attention only" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Hide hidden jobs" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Starred only" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Hide blocked companies" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Easy Apply only" }));
     expect(onToggleHidden).toHaveBeenCalledTimes(1);
     expect(onToggleStarred).toHaveBeenCalledTimes(1);
     expect(onToggleAttention).toHaveBeenCalledTimes(1);
+    expect(onToggleBlocked).toHaveBeenCalledTimes(1);
+    expect(onToggleEasyApply).toHaveBeenCalledTimes(1);
   });
 });

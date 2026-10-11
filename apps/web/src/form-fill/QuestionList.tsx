@@ -3,7 +3,6 @@ import { useFormFillQuestions } from "../hooks";
 import { CONTROL_LABEL, siteLabel } from "./model";
 import { ReviewList } from "./ReviewList";
 import { HelpTip } from "./HelpTip";
-import { CollectionSearch } from "./CollectionToolbar";
 import { SortChoiceMenu } from "../components/SortMenu";
 
 const ORDER_OPTIONS = [
@@ -19,6 +18,7 @@ interface Props {
   includeDismissed?: boolean;
   onIncludeMatchedChange: (checked: boolean) => void;
   onIncludeDismissedChange: (checked: boolean) => void;
+  onClearInclusions: () => void;
   onItemsChange?: (ids: string[]) => void;
 }
 
@@ -29,6 +29,7 @@ export function QuestionList({
   includeDismissed = false,
   onIncludeMatchedChange,
   onIncludeDismissedChange,
+  onClearInclusions,
   onItemsChange,
 }: Props) {
   const [search, setSearch] = useState("");
@@ -53,29 +54,30 @@ export function QuestionList({
       filtersApplied={includeMatched || includeDismissed}
       titleId="questions-title"
       title={includeMatched || includeDismissed ? "All matching questions" : "Questions to review"}
-      filters={
-        <>
-          <CollectionSearch
-            label="Search questions"
-            placeholder="Search questions, sections or help"
-            value={search}
-            onChange={setSearch}
-            count={query.isLoading || query.isError ? null : items.length}
-            loading={query.isLoading}
-            hasNextPage={query.hasNextPage}
-            itemName="question"
-            maxLength={256}
-          />
-          <SortChoiceMenu
-            value={sort}
-            onChange={setSort}
-            options={ORDER_OPTIONS}
-            menuLabel="Order questions"
-            actionLabel="Order"
-            size="field"
-            className="border border-line bg-surface text-ink"
-          />
-        </>
+      search={{
+        label: "Search questions",
+        placeholder: "Search questions, sections or help",
+        value: search,
+        onChange: setSearch,
+        count: query.isLoading || query.isError ? null : items.length,
+        loading: query.isLoading,
+        hasNextPage: query.hasNextPage,
+        itemName: "question",
+        maxLength: 256,
+      }}
+      onClearFilters={() => {
+        setSearch("");
+        onClearInclusions();
+      }}
+      orderControl={
+        <SortChoiceMenu
+          value={sort}
+          onChange={setSort}
+          options={ORDER_OPTIONS}
+          menuLabel="Order questions"
+          actionLabel="Order"
+          size="field"
+        />
       }
       listControls={
         <div role="group" aria-label="Include questions" className="space-y-3">

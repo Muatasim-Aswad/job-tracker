@@ -1,8 +1,9 @@
+import { FilterPopover } from "../components/FilterPopover";
 import { useMemo, useState } from "react";
 import type { AnswerFilters } from "../api/client";
 import { SortChoiceMenu } from "../components/SortMenu";
 import { Plus } from "lucide-react";
-import { CollectionSearch, CollectionToolbar, FilterPopover } from "./CollectionToolbar";
+import { CollectionSearch, CollectionToolbar } from "./CollectionToolbar";
 import { IconButton } from "../components/IconButton";
 import { useFormFillAnswers } from "../hooks";
 import { POLICY_LABEL, VALUE_KIND_LABEL, type AnswerListItem, type AnswerValueKind } from "./model";
@@ -25,6 +26,11 @@ export function AnswerList({ toolbarHost, onOpen, onCreate }: Props) {
   const [status, setStatus] = useState<"" | "active" | "disabled">("active");
   const [valueKind, setValueKind] = useState<"" | AnswerValueKind>("");
   const filtersApplied = status !== "active" || !!valueKind;
+  const clearFilters = () => {
+    setQ("");
+    setStatus("active");
+    setValueKind("");
+  };
   const filters = useMemo(
     () => ({
       q: q || undefined,
@@ -52,15 +58,8 @@ export function AnswerList({ toolbarHost, onOpen, onCreate }: Props) {
           loading={query.isLoading}
           hasNextPage={query.hasNextPage}
           itemName="answer"
-        />
-        <SortChoiceMenu
-          value={sort}
-          onChange={setSort}
-          options={ORDER_OPTIONS}
-          menuLabel="Order saved answers"
-          actionLabel="Order"
-          size="field"
-          className="border border-line bg-surface text-ink"
+          active={filtersApplied}
+          onClear={clearFilters}
         />
         <FilterPopover applied={filtersApplied} label="Saved answer filters">
           <label className="block text-xs text-ink-muted">
@@ -91,12 +90,20 @@ export function AnswerList({ toolbarHost, onOpen, onCreate }: Props) {
             </select>
           </label>
         </FilterPopover>
+        <SortChoiceMenu
+          value={sort}
+          onChange={setSort}
+          options={ORDER_OPTIONS}
+          menuLabel="Order saved answers"
+          actionLabel="Order"
+          size="field"
+        />
         <IconButton
           type="button"
           label="New answer"
           size="field"
           onClick={onCreate}
-          className="border border-line bg-surface text-ink"
+          className="shrink-0 text-ink-muted hover:text-ink"
         >
           <Plus size={16} aria-hidden="true" />
         </IconButton>

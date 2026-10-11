@@ -1,5 +1,10 @@
+import { FilterPopover } from "../components/FilterPopover";
 import { useState, type ReactNode } from "react";
-import { CollectionToolbar, FilterPopover } from "./CollectionToolbar";
+import {
+  CollectionSearch,
+  CollectionToolbar,
+  type CollectionSearchProps,
+} from "./CollectionToolbar";
 
 export interface ReviewListRow {
   id: string;
@@ -17,7 +22,10 @@ interface Props {
   filtersApplied?: boolean;
   titleId: string;
   title: string;
-  filters: ReactNode;
+  filters?: ReactNode;
+  search?: CollectionSearchProps;
+  orderControl?: ReactNode;
+  onClearFilters?: () => void;
   listControls?: ReactNode;
   isLoading: boolean;
   isError: boolean;
@@ -39,6 +47,9 @@ export function ReviewList({
   titleId,
   title,
   filters,
+  search,
+  orderControl,
+  onClearFilters,
   listControls,
   isLoading,
   isError,
@@ -55,14 +66,18 @@ export function ReviewList({
 }: Props) {
   const [showQuestionDetails, setShowQuestionDetails] = useState(true);
   const [showSourceDetails, setShowSourceDetails] = useState(false);
+  const applied = filtersApplied || !showQuestionDetails || showSourceDetails;
+  const clearFilters = () => {
+    setShowQuestionDetails(true);
+    setShowSourceDetails(false);
+    onClearFilters?.();
+  };
   return (
     <section id={titleId} aria-label={title} className="space-y-4">
       <CollectionToolbar host={toolbarHost}>
+        {search && <CollectionSearch {...search} active={applied} onClear={clearFilters} />}
         {filters}
-        <FilterPopover
-          applied={filtersApplied || !showQuestionDetails || showSourceDetails}
-          label="List options"
-        >
+        <FilterPopover applied={applied} label="List options">
           {listControls}
           <div className="space-y-3 border-t border-line pt-3">
             <p className="text-xs text-ink-muted">Display</p>
@@ -86,6 +101,7 @@ export function ReviewList({
             </label>
           </div>
         </FilterPopover>
+        {orderControl}
       </CollectionToolbar>
       {isLoading ? (
         <p role="status" className="text-sm text-ink-muted">

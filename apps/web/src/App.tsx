@@ -321,51 +321,54 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <header
-        className={`relative z-20 flex shrink-0 items-center gap-4 border-b border-line px-4 py-3 ${view === "form-fill" ? "flex-wrap" : ""}`}
-      >
-        <h1 className="text-base font-semibold text-ink">Job Tracker</h1>
+      <header className="relative z-20 flex shrink-0 flex-wrap items-center gap-4 border-b border-line px-4 py-3">
+        <h1 className="shrink-0 text-base font-semibold text-ink">Job Tracker</h1>
         <FormFillNav view={view} hasReview={reviewPresence.hasReview} onChange={changeView} />
-        {view === "jobs" && (
-          <>
-            <IconButton
-              label="Refresh data"
-              onClick={() => refetch()}
-              className="text-ink-muted hover:text-ink"
-            >
-              <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} />
-            </IconButton>
-            <ViewBar
-              search={search}
-              onSearchChange={setSearch}
-              searchRef={searchRef}
-              hideHidden={hideHidden}
-              onToggleHidden={() => setHideHidden(!hideHidden)}
-              showStarred={showStarred}
-              onToggleStarred={() => setShowStarred(!showStarred)}
-              showAttention={showAttention}
-              onToggleAttention={() => setShowAttention(!showAttention)}
-              hideBlocked={hideBlocked}
-              onToggleBlocked={() => setHideBlocked(!hideBlocked)}
-              easyApplyOnly={easyApplyOnly}
-              onToggleEasyApply={() => setEasyApplyOnly(!easyApplyOnly)}
-              attentionCount={attentionCount}
-              shownCount={filtered.length}
-              totalCount={jobs?.length ?? 0}
-              onClearAll={clearFilters}
-            />
-            <SortMenu value={sortOrder} onChange={setSortOrder} />
-            <IconButton label="Add a job (n)" onClick={() => setShowAdd(true)}>
-              <Plus size={16} />
-            </IconButton>
-          </>
-        )}
-        {view === "form-fill" && (
-          <div
-            ref={setFormFillToolbarHost}
-            className="order-last flex min-w-0 basis-full lg:order-none lg:ml-auto lg:max-w-[620px] lg:basis-auto lg:flex-1"
-          />
-        )}
+        <div
+          ref={view === "form-fill" ? setFormFillToolbarHost : undefined}
+          className="relative order-last flex min-w-0 basis-full flex-wrap items-center gap-2 lg:order-none lg:ml-auto lg:max-w-[740px] lg:basis-auto lg:flex-1"
+        >
+          {view === "jobs" && (
+            <>
+              <ViewBar
+                search={search}
+                onSearchChange={setSearch}
+                searchRef={searchRef}
+                hideHidden={hideHidden}
+                onToggleHidden={() => setHideHidden(!hideHidden)}
+                showStarred={showStarred}
+                onToggleStarred={() => setShowStarred(!showStarred)}
+                showAttention={showAttention}
+                onToggleAttention={() => setShowAttention(!showAttention)}
+                hideBlocked={hideBlocked}
+                onToggleBlocked={() => setHideBlocked(!hideBlocked)}
+                easyApplyOnly={easyApplyOnly}
+                onToggleEasyApply={() => setEasyApplyOnly(!easyApplyOnly)}
+                attentionCount={attentionCount}
+                shownCount={filtered.length}
+                totalCount={jobs?.length ?? 0}
+                onClearAll={clearFilters}
+              />
+              <SortMenu value={sortOrder} onChange={setSortOrder} />
+              <IconButton
+                size="field"
+                label="Add a job (n)"
+                onClick={() => setShowAdd(true)}
+                className="shrink-0 text-ink-muted hover:text-ink"
+              >
+                <Plus size={16} />
+              </IconButton>
+              <IconButton
+                size="field"
+                label="Refresh data"
+                onClick={() => refetch()}
+                className="shrink-0 text-ink-muted hover:text-ink"
+              >
+                <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} />
+              </IconButton>
+            </>
+          )}
+        </div>
         <HeaderMenu
           onOpenBlocked={() => setShowBlocked(true)}
           onOpenHelp={() => setShowHelp(true)}

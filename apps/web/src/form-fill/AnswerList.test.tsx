@@ -86,6 +86,31 @@ describe("Saved answers presentation", () => {
     fireEvent.pointerDown(search);
     expect(screen.queryByRole("combobox", { name: "Status" })).toBeNull();
   });
+  it("clears search, status and type together while preserving order", () => {
+    render(<AnswerList onOpen={vi.fn()} onCreate={vi.fn()} />);
+    const search = screen.getByRole("searchbox", { name: "Search saved answers" });
+    fireEvent.change(search, { target: { value: "Synthetic search" } });
+    fireEvent.click(screen.getByRole("button", { name: "Order: Most recent" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "A–Z" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), {
+      target: { value: "disabled" },
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Value type" }), {
+      target: { value: "boolean" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect((search as HTMLInputElement).value).toBe("");
+    expect(queries.answers).toHaveBeenLastCalledWith({
+      q: undefined,
+      status: "active",
+      value_kind: undefined,
+      sort: "label",
+      limit: 30,
+    });
+    expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Filters" })).toBeTruthy();
+  });
   it("keeps help off the page until requested and retains the row and create actions", () => {
     const open = vi.fn();
     const create = vi.fn();

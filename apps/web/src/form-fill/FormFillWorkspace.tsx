@@ -183,6 +183,7 @@ export function FormFillWorkspace({ toolbarHost }: { toolbarHost?: HTMLElement |
             includeDismissed={state.includeDismissed}
             onIncludeMatchedChange={(includeMatched) => navigate({ includeMatched })}
             onIncludeDismissedChange={(includeDismissed) => navigate({ includeDismissed })}
+            onClearInclusions={() => navigate({ includeMatched: false, includeDismissed: false })}
             onOpen={openQuestion}
             onItemsChange={rememberItems}
           />

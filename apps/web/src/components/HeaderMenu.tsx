@@ -135,11 +135,13 @@ export function HeaderMenu(props: {
   }, [open, close]);
 
   return (
-    <div className="relative" ref={wrapRef}>
+    <div className="relative ml-auto shrink-0 lg:ml-0" ref={wrapRef}>
       <IconButton
         label="More"
+        size="field"
+        active={open}
+        activeMeans="expanded"
         aria-haspopup="menu"
-        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="text-ink-muted hover:text-ink"
       >
