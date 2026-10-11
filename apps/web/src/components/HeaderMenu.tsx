@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Ban, Keyboard, Monitor, Moon, Menu, Sun } from "lucide-react";
+import { Ban, Keyboard, Monitor, Moon, Menu, Plus, RefreshCw, Sun } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import type { ThemePref } from "../lib/theme";
@@ -23,6 +23,8 @@ interface DropdownProps {
   view: "jobs" | "form-fill";
   hasReview: boolean;
   onChangeView: (view: "jobs" | "form-fill") => void;
+  onAdd?: (() => void) | null;
+  onRefresh?: () => void;
 }
 
 // The dropdown's own mount lifetime *is* the open state (rendered only while
@@ -38,6 +40,8 @@ function HeaderMenuDropdown({
   view,
   hasReview,
   onChangeView,
+  onAdd,
+  onRefresh,
 }: DropdownProps) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, onClose);
@@ -100,6 +104,34 @@ function HeaderMenuDropdown({
             )}
           </button>
         ))}
+        {onAdd && (
+          <button
+            type="button"
+            role="menuitem"
+            className={ITEM}
+            onClick={() => {
+              onAdd();
+              onClose();
+            }}
+          >
+            <Plus size={14} aria-hidden="true" />
+            <span>{view === "jobs" ? "Add a job" : "New answer"}</span>
+          </button>
+        )}
+        {onRefresh && (
+          <button
+            type="button"
+            role="menuitem"
+            className={ITEM}
+            onClick={() => {
+              onRefresh();
+              onClose();
+            }}
+          >
+            <RefreshCw size={14} aria-hidden="true" />
+            <span>Refresh data</span>
+          </button>
+        )}
       </div>
       <button
         role="menuitem"

@@ -51,6 +51,10 @@ export default function App() {
     ),
   );
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [formFillCreate, setFormFillCreate] = useState<(() => void) | null>(null);
+  const registerFormFillCreate = useCallback((action: (() => void) | null) => {
+    setFormFillCreate(() => action);
+  }, []);
   const [formFillActionHost, setFormFillActionHost] = useState<HTMLDivElement | null>(null);
   const [formFillToolbarHost, setFormFillToolbarHost] = useState<HTMLDivElement | null>(null);
   const [search, setSearch] = useState(() =>
@@ -336,7 +340,7 @@ export default function App() {
         <h1 className="shrink-0 text-sm font-semibold text-ink sm:text-base">Job Tracker</h1>
         <div
           ref={view === "form-fill" ? setFormFillActionHost : undefined}
-          className="flex shrink-0 items-center gap-1"
+          className="hidden shrink-0 items-center gap-1 sm:flex"
         >
           {view === "jobs" && (
             <>
@@ -394,6 +398,14 @@ export default function App() {
         <HeaderMenu
           view={view}
           hasReview={reviewPresence.hasReview}
+          onAdd={view === "jobs" ? () => setShowAdd(true) : formFillCreate}
+          onRefresh={
+            view === "jobs"
+              ? () => {
+                  void refetch();
+                }
+              : undefined
+          }
           onChangeView={changeView}
           onOpenBlocked={() => setShowBlocked(true)}
           onOpenHelp={() => setShowHelp(true)}
@@ -404,7 +416,11 @@ export default function App() {
 
       <main className={`min-h-0 flex-1 ${view === "form-fill" ? "overflow-y-auto" : ""}`}>
         {view === "form-fill" ? (
-          <FormFillWorkspace toolbarHost={formFillToolbarHost} actionHost={formFillActionHost} />
+          <FormFillWorkspace
+            toolbarHost={formFillToolbarHost}
+            actionHost={formFillActionHost}
+            onCreateReady={registerFormFillCreate}
+          />
         ) : (
           <>
             {isLoading && <div className="p-6 text-sm text-ink-muted">Loading jobs…</div>}

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { testQuestion } from "./testFixtures";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("../hooks", () => ({
   useFormFillReviewPresence: () => ({
@@ -102,6 +102,20 @@ afterEach(() => {
 });
 
 describe("FormFillWorkspace navigation", () => {
+  it("exposes answer creation to the header only in Saved answers", () => {
+    const ready = vi.fn();
+    const view = render(<FormFillWorkspace onCreateReady={ready} />);
+    const create = ready.mock.calls.at(-1)?.[0];
+    expect(create).toBeTypeOf("function");
+    act(() => create());
+    expect(screen.getByText("Answer drawer")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Finish answer" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Review inbox" }));
+    expect(ready).toHaveBeenLastCalledWith(null);
+    view.unmount();
+    expect(ready).toHaveBeenLastCalledWith(null);
+  });
+
   it("closes contextual creation after completion instead of reopening the question", () => {
     window.history.replaceState(null, "", "/?view=form-fill&section=review");
     render(<FormFillWorkspace />);

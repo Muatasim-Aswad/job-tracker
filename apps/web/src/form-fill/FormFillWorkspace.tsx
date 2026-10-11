@@ -92,9 +92,11 @@ function stateUrl(state: ReturnType<typeof readState>) {
 export function FormFillWorkspace({
   toolbarHost,
   actionHost,
+  onCreateReady,
 }: {
   toolbarHost?: HTMLElement | null;
   actionHost?: HTMLElement | null;
+  onCreateReady?: (action: (() => void) | null) => void;
 }) {
   const [state, setState] = useState(() => readState(true));
   const [creatingAnswer, setCreatingAnswer] = useState(false);
@@ -134,6 +136,17 @@ export function FormFillWorkspace({
     },
     [state],
   );
+
+  const createAnswer = useCallback(() => {
+    if (navigate({ answerId: null, captureId: null, questionId: null })) {
+      setAnswerQuestion(null);
+      setCreatingAnswer(true);
+    }
+  }, [navigate]);
+  useEffect(() => {
+    onCreateReady?.(state.section === "answers" ? createAnswer : null);
+    return () => onCreateReady?.(null);
+  }, [state.section, createAnswer, onCreateReady]);
 
   function openAnswer(answerId: string) {
     if (navigate({ section: "answers", answerId, captureId: null, questionId: null })) {
@@ -200,12 +213,7 @@ export function FormFillWorkspace({
           toolbarHost={toolbarHost}
           actionHost={actionHost}
           onOpen={openAnswer}
-          onCreate={() => {
-            if (navigate({ answerId: null, captureId: null, questionId: null })) {
-              setAnswerQuestion(null);
-              setCreatingAnswer(true);
-            }
-          }}
+          onCreate={createAnswer}
         />
       ) : (
         <div className="space-y-4">
