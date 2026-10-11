@@ -20,7 +20,7 @@ export function FormFillNav({ view, hasReview, onChange }: Props) {
             type="button"
             aria-current={selected ? "page" : undefined}
             onClick={() => onChange(item)}
-            className={`relative rounded px-3 py-1.5 text-sm font-medium ${
+            className={`relative rounded px-2 py-1.5 text-sm font-medium sm:px-3 pointer-coarse:min-h-9 ${
               selected ? "bg-surface-hover text-ink" : "text-ink-muted hover:text-ink"
             }`}
           >

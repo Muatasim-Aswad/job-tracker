@@ -25,7 +25,7 @@ export function FilterPopover({
   return (
     <div
       ref={ref}
-      className="shrink-0"
+      className="ml-auto shrink-0 sm:ml-0"
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.stopPropagation();

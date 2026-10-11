@@ -321,8 +321,8 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="relative z-20 flex shrink-0 flex-wrap items-center gap-4 border-b border-line px-4 py-3">
-        <h1 className="shrink-0 text-base font-semibold text-ink">Job Tracker</h1>
+      <header className="relative z-20 flex shrink-0 flex-wrap items-center gap-2 border-b border-line px-4 py-3 sm:gap-4">
+        <h1 className="shrink-0 text-sm font-semibold text-ink sm:text-base">Job Tracker</h1>
         <FormFillNav view={view} hasReview={reviewPresence.hasReview} onChange={changeView} />
         <div
           ref={view === "form-fill" ? setFormFillToolbarHost : undefined}

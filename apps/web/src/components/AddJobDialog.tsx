@@ -78,7 +78,7 @@ export function AddJobDialog({
         aria-label="Add a job"
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className="relative z-10 w-full max-w-md rounded-lg border border-line bg-canvas p-5 shadow-2xl outline-none"
+        className="relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-line bg-canvas p-5 shadow-2xl outline-none"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink">Add a job</h2>

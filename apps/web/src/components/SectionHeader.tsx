@@ -48,7 +48,7 @@ export function SectionHeader({
               aria-expanded={!collapse.collapsed}
               aria-controls={collapse.controlsId}
               onClick={collapse.onToggle}
-              className="flex min-h-6 items-center gap-1 rounded pr-1 text-left uppercase tracking-wide hover:bg-surface-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              className="flex min-h-6 items-center gap-1 rounded pr-1 text-left uppercase tracking-wide hover:bg-surface-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 pointer-coarse:min-h-9"
             >
               <ChevronRight
                 size={14}

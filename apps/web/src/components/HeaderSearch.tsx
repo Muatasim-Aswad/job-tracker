@@ -32,7 +32,7 @@ export function HeaderSearch({
 }: Props) {
   return (
     <div
-      className={`flex min-h-[38px] min-w-0 flex-1 flex-wrap items-stretch overflow-hidden rounded-lg border bg-surface ${active ? "border-accent ring-2 ring-accent/20" : "border-line"}`}
+      className={`flex min-h-[38px] min-w-0 basis-full flex-1 flex-wrap items-stretch sm:basis-0 overflow-hidden rounded-lg border bg-surface ${active ? "border-accent ring-2 ring-accent/20" : "border-line"}`}
     >
       <div className="flex h-9 min-w-0 basis-[180px] flex-1 items-stretch">
         <input
