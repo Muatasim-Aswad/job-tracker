@@ -59,13 +59,8 @@
   --color-accent: var(--accent);
 }
 
-/* Two dense steps below Tailwind's `text-xs`, in rem so they scale with the
-   browser's font-size setting — the 40 hardcoded `text-[Npx]` values they replace
-   did not, and pinned a user who had raised their default back down to 9–11px.
-   `prose` is the floor for anything a user READS (listing descriptions, document
-   bodies, note prose); `micro` is the deliberately smaller step for label-shaped
-   text only — chips, counts, timestamps. Nothing smaller exists; if a new size is
-   wanted, the answer is one of these two. */
+/* Use rem so browser font-size preferences scale dense text.
+   prose is the reading-text floor; micro is reserved for labels, counts, and times. */
 @theme {
   --text-micro: 0.6875rem; /* 11px @ default root — chips, counts, timestamps */
   --text-micro--line-height: 1rem;

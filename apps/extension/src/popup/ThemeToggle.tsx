@@ -3,10 +3,7 @@ import { ICON } from "../icons.js";
 import { cycleTheme, THEME_KEY, type Theme } from "./theme.js";
 import { ACTION_BUTTON, ICON as ICON_CLASS } from "./ui";
 
-// Theme control — the value side of the "Theme" row in the settings panel. Shows the
-// current choice as an icon + word (monitor / System, sun / Light, moon / Dark) and
-// cycles system → light → dark on click. `applyTheme` stamps <html> live;
-// chrome.storage persists it for the next open.
+// Cycle the persisted system/light/dark theme and apply it immediately.
 const FACE: Record<Theme, { icon: string; text: string }> = {
   system: { icon: ICON.monitor, text: "System" },
   light: { icon: ICON.sun, text: "Light" },
@@ -16,9 +13,7 @@ const FACE: Record<Theme, { icon: string; text: string }> = {
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("system");
 
-  // Read the stored choice, then track later changes through storage. That covers both
-  // our own click and the `t` shortcut cycling the theme while this panel is open, so
-  // the face never goes stale.
+  // Track storage changes from both this control and the popup's theme shortcut.
   useEffect(() => {
     chrome.storage.local.get(THEME_KEY, (data) => {
       setTheme((data[THEME_KEY] as Theme) || "system");

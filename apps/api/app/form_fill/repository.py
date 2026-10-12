@@ -14,8 +14,16 @@ _QUESTION_COLUMNS = (
     "autocomplete_token, option_set_hash, review_state, revision, capture_conflict, "
     "last_unresolved_reason, seen_count, last_seen_scan_id, first_seen_at, last_seen_at"
 )
+# Independently synchronized captures can arrive without updating the stored flag.
+_CURRENT_CAPTURE_CONFLICT = (
+    "EXISTS (SELECT 1 FROM form_captures c "
+    "WHERE c.question_id = q.id AND c.status = 'current' LIMIT 1 OFFSET 1)"
+)
 _QUALIFIED_QUESTION_COLUMNS = ", ".join(
-    f"q.{column.strip()}" for column in _QUESTION_COLUMNS.split(",")
+    f"{_CURRENT_CAPTURE_CONFLICT} AS capture_conflict"
+    if column.strip() == "capture_conflict"
+    else f"q.{column.strip()}"
+    for column in _QUESTION_COLUMNS.split(",")
 )
 
 
@@ -62,7 +70,7 @@ class FormFillRepository:
     def get_question(self, question_id: str) -> Question | None:
         row = query_one(
             self.conn,
-            f"SELECT {_QUESTION_COLUMNS} FROM form_questions WHERE id = ?",
+            f"SELECT {_QUALIFIED_QUESTION_COLUMNS} FROM form_questions q WHERE q.id = ?",
             (question_id,),
         )
         return _to_question(row) if row else None
@@ -70,7 +78,7 @@ class FormFillRepository:
     def get_question_by_signature(self, signature: str) -> Question | None:
         row = query_one(
             self.conn,
-            f"SELECT {_QUESTION_COLUMNS} FROM form_questions WHERE signature = ?",
+            f"SELECT {_QUALIFIED_QUESTION_COLUMNS} FROM form_questions q WHERE q.signature = ?",
             (signature,),
         )
         return _to_question(row) if row else None
@@ -281,13 +289,13 @@ class FormFillRepository:
         if needs_review is not None:
             actionable = (
                 "(q.review_state = 'open' AND "
-                "(q.capture_conflict = 1 OR m.id IS NULL OR m.status <> 'active'))"
+                f"({_CURRENT_CAPTURE_CONFLICT} OR m.id IS NULL OR m.status <> 'active'))"
             )
             conditions.append(actionable if needs_review else f"NOT {actionable}")
         if review_inbox is not None:
             inbox = (
                 "((q.review_state = 'open' AND "
-                "(q.capture_conflict = 1 OR m.id IS NULL OR m.status <> 'active')) "
+                f"({_CURRENT_CAPTURE_CONFLICT} OR m.id IS NULL OR m.status <> 'active')) "
                 "OR EXISTS (SELECT 1 FROM form_captures c "
                 "WHERE c.question_id = q.id AND c.status = 'current'))"
             )
@@ -708,7 +716,7 @@ class FormFillRepository:
             "SELECT id, capture_key, question_id, mapping_id, answer_revision_used, "
             "mapping_revision_used, application_context_id, job_id, listing_id, source, "
             "value_kind, value_json, status, superseded_by_id, revision, created_at, "
-            "updated_at, resolved_at FROM form_captures WHERE id = ?",
+            "updated_at, resolved_at, cleared FROM form_captures WHERE id = ?",
             (capture_id,),
         )
 
@@ -751,7 +759,7 @@ class FormFillRepository:
             self.conn,
             "SELECT c.id, c.capture_key, c.question_id, c.mapping_id, "
             "c.answer_revision_used, c.mapping_revision_used, c.application_context_id, "
-            "c.job_id, c.listing_id, c.source, c.value_kind, c.value_json, c.status, "
+            "c.job_id, c.listing_id, c.source, c.value_kind, c.status, "
             "c.superseded_by_id, c.revision, c.created_at, c.updated_at, c.resolved_at "
             "FROM form_captures c JOIN form_questions q ON q.id = c.question_id "
             f"{where} ORDER BY c.updated_at DESC, c.id DESC LIMIT ?",
@@ -775,13 +783,14 @@ class FormFillRepository:
         value_kind: str,
         value_json: str,
         now: str,
+        cleared: bool = False,
     ) -> None:
         execute(
             self.conn,
             "INSERT INTO form_captures (id, capture_key, question_id, mapping_id, "
             "answer_revision_used, mapping_revision_used, application_context_id, job_id, "
             "listing_id, source, value_kind, value_json, status, revision, created_at, "
-            "updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'current', 1, ?, ?)",
+            "updated_at, cleared) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'current', 1, ?, ?, ?)",
             (
                 capture_id,
                 capture_key,
@@ -797,6 +806,7 @@ class FormFillRepository:
                 value_json,
                 now,
                 now,
+                int(cleared),
             ),
         )
 

@@ -165,13 +165,27 @@ function fieldHandle(container: HTMLElement, control: HTMLElement, index: number
   return container.getAttribute("data-test-form-element") || `question-${index}`;
 }
 
+const SELECT_PLACEHOLDER =
+  /^(?:please )?(?:choose|select)(?: (?:an? )?option)?(?:\s*(?:\.\.\.|…))?$/i;
+
 export function isSelectPlaceholder(select: HTMLSelectElement, index: number): boolean {
   if (index !== 0) return false;
   const option = select.options[index];
-  return Boolean(
-    !!option &&
-    (option.disabled || option.hidden || (select.required && option.value.trim() === text(option))),
-  );
+  if (!option) return false;
+  const label = text(option);
+  // Real options often use their label as the value. Require native empty-option
+  // semantics or a known prompt instead of inferring absence from that equality.
+  const nativePlaceholder =
+    select.required &&
+    !select.multiple &&
+    select.size <= 1 &&
+    option.parentElement === select &&
+    option.value === "";
+  const blankPlaceholder = !label && (option.value === "" || option.disabled || !!option.hidden);
+  const promptPlaceholder =
+    SELECT_PLACEHOLDER.test(label) &&
+    ((select.required && option.value.trim() === label) || option.disabled || !!option.hidden);
+  return nativePlaceholder || blankPlaceholder || promptPlaceholder;
 }
 
 function hasValue(control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): boolean {
@@ -302,9 +316,33 @@ function classifyQuestion(
   let optionTargets: SupportedOptionTarget[] = [];
 
   if (first instanceof HTMLSelectElement) {
+    if (first.multiple) {
+      return manual(
+        container,
+        handle,
+        prompt,
+        "Multiple-selection controls must be reviewed manually.",
+      );
+    }
     controlKind = "select";
     options = selectOptions(first, clientFieldId);
     optionTargets = selectTargets(first, clientFieldId);
+    if (
+      first.selectedIndex >= 0 &&
+      !isSelectPlaceholder(first, first.selectedIndex) &&
+      !optionTargets.some(
+        (target) =>
+          target.element instanceof HTMLOptionElement &&
+          target.element.index === first.selectedIndex,
+      )
+    ) {
+      return manual(
+        container,
+        handle,
+        prompt,
+        "The selected option could not be identified safely.",
+      );
+    }
     if (options.length === 0) {
       return manual(container, handle, prompt, "No selectable options are available yet.");
     }

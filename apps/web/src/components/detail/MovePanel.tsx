@@ -4,15 +4,12 @@ import { type FunnelEvent } from "@job-tracker/shared/funnel";
 import { StatusBadge } from "../StatusBadge";
 
 interface Props {
-  // The organic forward targets from the current status (pickableMoves).
   moves: FunnelEvent[];
   onMove: (to: FunnelEvent, note: string) => void;
   onCancel: () => void;
 }
 
-// Move — the everyday forward transition, carrying an optional note as event meta.
-// Self-contained state so it resets each time it opens; the single `submit` closure
-// is shared by the Move button and formKeys' Cmd+Enter (no twin handlers).
+// Panel mount resets drafts; button and Cmd+Enter share one forward-event handler.
 export function MovePanel({ moves, onMove, onCancel }: Props) {
   const [moveTo, setMoveTo] = useState<FunnelEvent | "">("");
   const [note, setNote] = useState("");
@@ -30,10 +27,7 @@ export function MovePanel({ moves, onMove, onCancel }: Props) {
       <h3 className="text-xs uppercase tracking-wide text-violet-700 dark:text-violet-300/80">
         Move forward
       </h3>
-      {/* Forward targets spread as one-tap pills — the panel is already open. Each
-          target is a real StatusBadge, so a status looks the same here as it does on
-          the card and in the drawer headline; selection is a ring around the badge
-          rather than a second colour scheme competing with the status' own accent. */}
+      {/* Reuse status badges; a ring marks selection without replacing status color. */}
       <div className="flex flex-wrap gap-1.5">
         {moves.map((s) => (
           <button

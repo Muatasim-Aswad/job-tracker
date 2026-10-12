@@ -1,9 +1,7 @@
 interface Props {
-  // One sentence, stating what is absent in the user's words — "No documents yet."
-  // Not a diagnosis ("query returned 0 rows") and not a paragraph.
+  // Describe the absence in user terms.
   message: string;
-  // The one thing to do about it. Optional: some sections are empty because
-  // nothing has happened yet, and there is nothing to offer.
+  // Offer an action only when one is useful.
   action?: { label: string; onClick: () => void };
   className?: string;
 }

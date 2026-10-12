@@ -3,12 +3,10 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-// Proxy the API and FastAPI documentation during dashboard development.
 const BACKEND = process.env.VITE_SERVER_URL ?? "http://localhost:3456";
 
 export default defineConfig({
-  // Exclude tsc's build metadata from task fingerprints to avoid self-invalidation.
-  // Build and typecheck stay separate so each result is cached independently.
+  // Exclude tsc metadata to avoid self-invalidating independent build/typecheck caches.
   run: {
     tasks: {
       typecheck: {
@@ -45,7 +43,7 @@ export default defineConfig({
       },
     }),
   ],
-  // Must match Settings.web_dist_path.
+  // Match the server dashboard resource path.
   build: {
     outDir: "dist",
   },

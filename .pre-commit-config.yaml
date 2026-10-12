@@ -1,36 +1,14 @@
-# Local gate for the FastAPI backend (apps/api/) and the TS workspace
-# (apps/, packages/). Python hooks run the uv-pinned tools, so versions come
-# from uv.lock; TS hooks run through `vp`, so versions come from
-# pnpm-lock.yaml — no separate hook envs to drift either side.
-#
-# Two stages, split by what they cost when something actually changed:
-#   pre-commit — formatters, linters, typecheck. Sub-second warm.
-#   pre-push   — the full suite: tests, builds, mypy, pytest.
-#
-# Every hook states its stages explicitly. An omitted `stages` means *all* of
-# them, which would let the fixers below rewrite files during a push: the fix
-# would land in the working tree, outside the commits being pushed.
-#
-# The expensive hooks run through `vp run <task>`, whose results are cached in
-# node_modules/.vite/task-cache and keyed on the files each command actually
-# reads. Re-gating untouched code is a replay, not a rerun, so pre-push stays
-# near-instant unless you changed something it covers. Note that only `vp run`
-# uses that cache — a direct `vp check` or `vp build` always executes in full.
-#
-# Install once:  uv run --directory apps/api pre-commit install
-# (installs both hook types via default_install_hook_types below)
+# Use workspace-pinned tools; no separate hook environments.
+# Fix only at pre-commit, before the commit is assembled; pre-push reports failures.
+# Explicit stages prevent fixers from modifying the working tree during a push.
+# vp run caches report-only tasks; direct fixers must execute on every change.
+# Install both hook stages: uv run --directory apps/api pre-commit install
 default_install_hook_types: [pre-commit, pre-push]
 
 repos:
   - repo: local
     hooks:
-      # ---- commit only: fixes what it can ----------------------------------
-      # ruff and oxfmt are milliseconds on this tree, and they rewrite files
-      # rather than just reporting, so they run directly instead of as cached
-      # tasks — a replayed fix would be a no-op that leaves the tree unfixed.
-      # Writing is only safe while the commit is still being assembled, so these
-      # stop at pre-commit; the push stage re-checks the same ground in
-      # check-only form (py:format, py:lint, fmt:check).
+      # Run fixers directly at pre-commit; cached replays cannot repair new changes.
       - id: ruff-format
         name: ruff format
         entry: uv run --directory apps/api ruff format
@@ -63,8 +41,7 @@ repos:
         stages: [pre-commit]
         types: [markdown]
 
-      # ---- both stages: report only, so they are safe to repeat ------------
-      # The push stage has no lint or typecheck of its own; these are it.
+      # Report-only lint/typecheck run at both stages.
       - id: vp-lint
         name: vp lint (cached)
         entry: ./node_modules/.bin/vp run lint
@@ -81,11 +58,8 @@ repos:
         files: ^(apps/(extension|web)|packages)/
         pass_filenames: false
 
-      # ---- pre-push: everything, cached ------------------------------------
-      # These always_run regardless of which paths changed — a TS-only commit
-      # can still break the contract fixtures the API asserts, and vice
-      # versa. The cache is what makes running the full matrix every push
-      # affordable, so don't add `files:` filters here to speed it up.
+      # Run the whole matrix regardless of changed paths; cross-language contracts can break
+      # from either stack. Task caching avoids repeating unaffected work.
       - id: fmt-check
         name: oxfmt --check (cached)
         entry: ./node_modules/.bin/vp run fmt:check
@@ -142,10 +116,8 @@ repos:
         always_run: true
         pass_filenames: false
 
-      # CI fails a push whose committed API types no longer match the FastAPI
-      # schema, so catch it here instead. The manifest host allowlist is the one
-      # CI check with no counterpart here; apps/extension/scripts/
-      # assert-manifest-hosts.mjs explains why a developer checkout cannot run it.
+      # Check generated API drift locally. Manifest-host checks require a public-only build
+      # and remain CI-only; see apps/extension/scripts/assert-manifest-hosts.mjs.
       - id: api-drift
         name: API types drift (cached)
         entry: ./node_modules/.bin/vp run api:check
@@ -154,8 +126,7 @@ repos:
         always_run: true
         pass_filenames: false
 
-      # Runs after vp-build, which produces the manifest it reads. Local-only in
-      # effect for the tag rules: a CI checkout fetches no tags.
+      # Run after the extension build; tag checks matter only when tags are fetched.
       - id: version-consistency
         name: product version consistency
         entry: bash scripts/check-version.sh

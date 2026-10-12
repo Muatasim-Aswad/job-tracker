@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Statically hold the C2 release boundary without creating a tag or contacting GitHub.
+# Check release boundaries without creating tags or contacting GitHub.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

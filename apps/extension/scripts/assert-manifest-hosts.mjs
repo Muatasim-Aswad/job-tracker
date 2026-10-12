@@ -1,11 +1,6 @@
 #!/usr/bin/env node
-// CI-only guard: fails if a built public extension manifest requests any host
-// beyond the configured API origin plus the shipped LinkedIn/Gmail adapters.
-// Run this only against a build made from a checkout with no private adapter
-// overlay installed (any real CI checkout qualifies — the overlay lives
-// exclusively in the gitignored apps/extension/src/adapters/local/, which
-// git never restores). Running it against a developer's own overlay-enabled
-// build is expected to fail; that is not a bug in this script.
+// Public-build guard: allow only the API origin and shipped LinkedIn/Gmail hosts.
+// Run against a checkout without the private adapter overlay; local hosts intentionally fail.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 

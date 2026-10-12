@@ -8,8 +8,7 @@ interface Props {
   onCancel: () => void;
 }
 
-// Inline editor for a manual listing's own fields (URL + JD). Self-contained state
-// so it resets each time it opens; Esc cancels / Cmd+Enter saves via formKeys.
+// Mount resets the manual-listing draft; Esc cancels and Cmd+Enter saves.
 export function ListingEditForm({ initialUrl, initialDescription, onSave, onCancel }: Props) {
   const [url, setUrl] = useState(initialUrl);
   const [description, setDescription] = useState(initialDescription);

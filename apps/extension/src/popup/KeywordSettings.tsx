@@ -3,17 +3,9 @@ import { type KeywordPolicy, SIGNAL_CATALOG } from "../engine/keywords.js";
 import { loadKeywordPolicy, resetKeywordPolicy, saveKeywordPolicy } from "../engine/settings.js";
 import { BUTTON, FOCUS } from "./ui";
 
-// The collapsible "Keyword actions" section: opt-in title/description rules the
-// user can enable and whose words they can edit. The content script reads the same
-// chrome.storage key live and repaints on change.
-//
-// The section splits by scope — "In descriptions" (banner signals) and "On titles"
-// (outline / auto-hide) — mirroring where each rule looks. An enabled signal's words
-// render as removable chips plus an inline add field: Enter, comma, or blur commits
-// the typed word(s), and Backspace in the empty field removes the last chip. Those
-// keys are safe here because settings is its own popup mode, outside Popup.tsx's
-// list-mode shortcuts. Persistence and matching live in engine/{settings,keywords};
-// this is only the form. Reset wipes custom words too, so it asks for a second click.
+// Edit opt-in rules by description/title scope; engine settings and matchers own persistence.
+// Enter, comma, and blur add words; empty-field Backspace removes the last chip.
+// Settings mode isolates those keys from search shortcuts. Reset requires a second click.
 
 export function KeywordSettings() {
   const [policy, setPolicy] = useState<KeywordPolicy>([]);

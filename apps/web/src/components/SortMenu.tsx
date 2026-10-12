@@ -32,8 +32,7 @@ function SortMenuDropdown<T extends string>({
   const menuRef = useRef<HTMLDivElement>(null);
   useFocusTrap(menuRef, onClose);
 
-  // Open on the current choice. This makes repeat visits predictable and still
-  // leaves Arrow/Home/End to rove through all six radio items.
+  // Focus the selected choice on open; arrow/Home/End navigation remains available.
   useEffect(() => {
     menuRef.current
       ?.querySelector<HTMLElement>(`[role="menuitemradio"][data-value="${value}"]`)

@@ -8,9 +8,7 @@ interface State {
   error: Error | null;
 }
 
-// Catches render-time exceptions anywhere below it so a single bad component can't
-// blank the whole app. The board's async/mutation failures surface as toasts; this
-// is the last resort for a synchronous render throw.
+// Render failures reach this boundary; asynchronous mutation failures use toasts.
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 

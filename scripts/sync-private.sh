@@ -1,20 +1,7 @@
 #!/usr/bin/env bash
-# sync-private.sh — install/update the private overlay from a private repo.
-#
-# Copies overlay files from a private sibling repository into the three
-# gitignored local/ destinations of this public checkout. Deterministic and
-# idempotent: destination state after a run depends only on the source tree.
-#
-# Usage:
-#   bash scripts/sync-private.sh            # sync (add/update/remove, then report)
-#   bash scripts/sync-private.sh --check    # report drift only; exit 1 if any
-#
-# Source location: $JOB_TRACKER_PRIVATE_DIR if set, else ../job-tracker-private
-# relative to the public repo root. The source must contain an overlay/
-# directory mirroring the destinations below.
-#
-# The public project works without the private overlay; this script is only
-# needed on private development machines.
+# Install the private source into allowlisted ignored destinations; absent overlays are valid.
+# Use --check for report-only drift; source defaults to the sibling private repository
+# or JOB_TRACKER_PRIVATE_DIR and must mirror destinations beneath overlay/.
 
 set -euo pipefail
 
@@ -44,7 +31,6 @@ elif [[ $# -gt 0 ]]; then
   exit 2
 fi
 
-# Resolve and validate roots.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ ! -f "$ROOT/docs/PRIVATE.md" || ! -d "$ROOT/apps/extension" ]]; then
   echo "error: $ROOT does not look like the job-tracker repo root" >&2
@@ -81,7 +67,6 @@ for rel_dir in "${ALLOWED_DIRS[@]}"; do
   src_dir="$OVERLAY/$rel_dir"
   dst_dir="$ROOT/$rel_dir"
 
-  # Files present in the source overlay: add or update.
   if [[ -d "$src_dir" ]]; then
     while IFS= read -r -d '' src_file; do
       rel="${src_file#"$src_dir"/}"
@@ -102,8 +87,7 @@ for rel_dir in "${ALLOWED_DIRS[@]}"; do
     done < <(find "$src_dir" -type f -print0 | sort -z)
   fi
 
-  # Files present only in the destination: stale, remove. Confined to the
-  # exact allowlisted directory; excluded patterns are never touched.
+  # Remove stale files only within allowlisted destinations; never touch excluded patterns.
   if [[ -d "$dst_dir" ]]; then
     while IFS= read -r -d '' dst_file; do
       rel="${dst_file#"$dst_dir"/}"

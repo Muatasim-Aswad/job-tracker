@@ -115,10 +115,7 @@ class JobRepository:
         execute(self.conn, "DELETE FROM jobs WHERE id = ?", (job_id,))
 
     def states_by_listings(self, platform: str, platform_ids: list[str]) -> dict[str, Job]:
-        """Resolve many listings on one platform to their jobs in a single query,
-        keyed by platform_id. Untracked ids are simply absent from the map (the
-        caller fills them as `untracked`). Empty input short-circuits — SQLite
-        rejects an empty `IN ()`."""
+        """Batch listing-state lookup keyed by platform_id. Missing IDs are absent for the caller to project as untracked; empty input avoids a query."""
         if not platform_ids:
             return {}
         placeholders = ", ".join("?" for _ in platform_ids)
@@ -137,13 +134,7 @@ class JobRepository:
         return out
 
     def match_candidates(self, company_key: str) -> list[Row]:
-        """Jobs sharing the normalized company key, newest-first, with their
-        `title_key` so the caller can apply the title-or-apply-URL rule. Rolls in a
-        listing count and the latest `closed_at` across each job's postings (MAX
-        ignores the NULLs of still-open listings), so the popover can show whether a
-        candidate's posting has since closed. Caller filters out the current job + its
-        `false_matches`; kept out of SQL because that exclude set is a handful of ids,
-        not worth threading through a variable-length IN clause."""
+        """Jobs sharing company_key, newest first, with title_key, listing count, and latest closed_at. MAX ignores open listings; callers apply title/destination rules and exclude the current job and false matches."""
         return query_all(
             self.conn,
             "SELECT j.id AS job_id, j.title, j.company, j.title_key, j.status, j.created_at, "

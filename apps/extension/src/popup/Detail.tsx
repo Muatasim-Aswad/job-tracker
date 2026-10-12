@@ -27,10 +27,7 @@ function lastStatusEvent(events: PopupEvent[]): PopupEvent | undefined {
     .pop();
 }
 
-// The full server-legal forwardMoves set, not the board dropdown's narrow SETTABLE:
-// recording in_process / offered from the immediate off-platform context is the whole
-// point of this popup. `seen` is dropped as automatic and monotonic, never a manual
-// pick, and `skipped` once applied-or-beyond, being a pre-application decision.
+// Allow all server-legal forward moves. seen is automatic; skipped is pre-application only.
 function statusChoices(job: PopupJob): string[] {
   return JobFunnel.forwardMoves(job.status).filter(
     (s) => s !== "seen" && !(s === "skipped" && JobFunnel.APPLIED.has(job.status)),
@@ -122,10 +119,8 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
   }
 
   // ── Status comment ─────────────────────────────────────────────────────────────
-  // Annotation for the job's most recent status event, available on any status,
-  // terminal included. It patches that event's meta.note in place rather than
-  // spawning a standalone `note`, so the comment stays welded to the transition it
-  // describes. Opening fetches the event and prefills any existing comment.
+  // Attach status comments to the latest transition, including terminal states,
+  // by patching meta.note. Opening loads that event and its existing comment.
   async function toggleComment() {
     if (commentOpen) {
       setCommentOpen(false);
@@ -169,11 +164,8 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
   }
 
   // ── Note ───────────────────────────────────────────────────────────────────────
-  // A standalone `note` event: activity that moves no funnel state, with an optional
-  // title from the same suggestion pool the dashboard uses. Always recorded at now,
-  // since a note is a jot made in the moment and anything tied to a status change
-  // belongs on that event as a "status comment". Back-date one by editing its ts in
-  // the dashboard.
+  // Notes record activity at server time without changing status.
+  // Status comments belong on transitions; backdate notes in the dashboard.
   async function saveNote() {
     const meta: { title?: string; note?: string } = {};
     if (noteTitle.trim()) meta.title = noteTitle.trim();
@@ -228,9 +220,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
 
   const openApp = () => {
     if (!pl) return;
-    // The dashboard SPA lives at the bare origin (SERVER_URL), NOT under /api — the
-    // engine opens it the same way (engine/bars.ts). Reconstruct the deep link from
-    // the primary listing's natural key.
+    // Dashboard deep links use the bare server origin and the listing natural key.
     const qs = new URLSearchParams({ platform: pl.platform, platform_id: pl.platform_id });
     void chrome.tabs.create({ url: `${SERVER_URL}/?${qs}` });
   };
@@ -259,9 +249,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
         Back
       </button>
 
-      {/* Title → open in the tracker app; company → open the first listing. Only
-          linked when the target exists (app needs a listing key, the listing link
-          needs a captured url); otherwise the text stays plain. */}
+      {/* Link titles to the dashboard only with a listing key, and companies only with a captured URL. */}
       <div
         className={
           pl
@@ -294,17 +282,8 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
         </span>
       </div>
 
-      {/* The status control. The dropdown IS the action — picking a target applies the
-          move immediately, so its placeholder is a call to action ("Advance status…"),
-          NOT a repeat of the current status (that already sits in the header line, the
-          one place it shows for a terminal job too). Beside it rides the date chip: a
-          quiet calendar icon while the move dates to now (most cases), expanding to
-          "as of <date>" when back-dated — opened over a Gmail message it defaults to
-          the email's day so a status logged here lands when it happened. Click either
-          face to pick a day; "now" resets. Only a status change carries this date —
-          notes and status comments record at now. The whole row is dropped for a
-          terminal status (no move to offer); the "Comment" button stays
-          either way — any status can be annotated. */}
+      {/* Selecting a forward status applies immediately. The date picker affects only
+          that transition; comments remain available on terminal states. */}
       <div className="mt-3">
         {choices.length > 0 && (
           <div className="flex items-center gap-2">

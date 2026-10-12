@@ -1,10 +1,4 @@
-"""Request-scoped dependencies: the DB connection, the service-factory builder,
-and the optional API-key gate.
-
-`get_conn` yields the shared connection under the database lock and commits at
-the end of a successful request (rolling back on error), so services and
-repositories never manage transactions themselves.
-"""
+"""Request dependencies serialize database access, commit successful requests, roll back failures, and enforce the optional API key. Services may use savepoints inside that request transaction."""
 
 import asyncio
 import logging
@@ -82,9 +76,7 @@ class _Service(Protocol):
 
 
 def service_factory[S: _Service](service_cls: type[S]) -> Callable[[Conn], S]:
-    """Build a router's `get_service` dependency. Every feature module's is
-    identical but for which `<Domain>Service(conn)` it constructs, so routers call
-    `service_factory(XService)` instead of hand-writing the same one-liner."""
+    """Construct a feature service from the request-scoped connection."""
 
     def get_service(conn: Conn = Depends(get_conn)) -> S:
         return service_cls(conn)
@@ -95,10 +87,7 @@ def service_factory[S: _Service](service_cls: type[S]) -> Callable[[Conn], S]:
 def require_api_key(
     x_api_key: str | None = Header(default=None), settings: Settings = Depends(get_settings)
 ) -> None:
-    """Gate every /api route behind `Settings.api_key` when one is configured, and
-    no-op while it's unset, matching a purely-localhost personal tool. `settings`
-    comes through `Depends` rather than a bare `get_settings()` call so tests can
-    override it via `app.dependency_overrides`, same as `get_conn`."""
+    """Enforce a configured API key. Inject settings through Depends so tests can override them."""
     if settings.api_key is None:
         return
     if x_api_key != settings.api_key:

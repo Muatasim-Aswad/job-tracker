@@ -30,10 +30,7 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
   const correctStatus = useCorrectStatus();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: job.id });
 
-  // Close the ⋯ menu (restoring the card's dim/stacking) on any click outside it
-  // or on Escape — the conventional dropdown behavior, and less twitchy than a
-  // mouse-out that would snap shut while you're reading the options. Escape also
-  // returns focus to the trigger so keyboard users aren't dropped at the top.
+  // Outside click closes the menu; Escape also restores trigger focus.
   useEffect(() => {
     if (!menuOpen) return;
     const onPointerDown = (e: PointerEvent) => {
@@ -53,13 +50,11 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
     };
   }, [menuOpen]);
 
-  // On open, move focus into the menu so it's operable from the keyboard.
   useEffect(() => {
     if (!menuOpen) return;
     menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, [menuOpen]);
 
-  // Roving arrow-key navigation between the menu's items (Home/End jump to ends).
   const onMenuKeyDown = (e: React.KeyboardEvent) => {
     const items = Array.from(
       menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
@@ -84,22 +79,16 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
   const untitled = !job.title?.trim();
   const primary = job.primary_listing;
   const openUrl = primary ? postingUrl(primary.platform, primary.platform_id, primary.url) : null;
-  // Jobs waiting to be applied to link straight to an off-platform application.
+  // To apply links directly to an external application when available.
   const applyUrl =
     job.status === "to_apply" && primary?.apply_url && primary.apply_url !== openUrl
       ? primary.apply_url
       : null;
 
-  // Only surface an apply-method badge when it says something useful. `external`
-  // and `unknown` are the default/uninformative cases — they'd just be noise on
-  // every card, so drop them and keep the badges for signals like `easy_apply`.
+  // External and unknown are uninformative defaults; badge only specific apply methods.
   const applyBadges = job.apply_types.filter((a) => a !== "external" && a !== "unknown");
 
-  // The same guarded forward moves the drawer offers, split into advancing the
-  // active funnel vs. setting a terminal outcome. Surfacing them on the card lets
-  // the funnel be driven from the keyboard without opening the drawer or dragging.
-  // Backward/revival moves stay a correction (the drawer), except reopening a
-  // terminal, offered below as the one correction worth reaching from the board.
+  // Card actions preserve forward guards; backward/revival moves require correction.
   const moves = pickableMoves(job.status);
   const advanceMoves = moves.filter((s) => !isTerminal(s));
   const outcomeMoves = moves.filter((s) => isTerminal(s));
@@ -108,19 +97,14 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
 
-  // Differentiate the cards that are only visible because a "show …" toggle is
-  // on, so they stand out from the normal working set: hidden ones are dimmed
-  // with a dashed border; untitled (stub) ones get an amber left accent.
+  // Distinguish hidden and titleless jobs revealed by view preferences.
   const borderStyle = job.hidden
     ? "border-dashed border-line-strong"
     : untitled
       ? "border-line border-l-2 border-l-amber-500/70"
       : "border-line hover:border-line-strong";
 
-  // Opacity creates a stacking context, which would trap the ⋯ menu inside the
-  // card and let sibling cards paint over it. So while the menu is open, drop the
-  // dim (full opacity, clear + clickable) and lift the whole card above its
-  // siblings with z-index. A dragged card keeps its drag dim.
+  // Opacity traps menu stacking; lift the open card and remove its dim, except while dragging.
   const dim = isDragging ? "opacity-40" : job.hidden && !menuOpen ? "opacity-60" : "";
 
   return (
@@ -132,13 +116,9 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
       {...attributes}
       aria-label={`${job.title ?? "Untitled"}${job.company ? `, ${job.company}` : ""}`}
       onKeyDown={(e) => {
-        // Keyboard control of the focused card. Gated to the card itself — a key
-        // pressed on a child control (star, hide, ⋯) does its own thing and must
-        // not bubble up into these. Arrows walk the board; s/h/m are the inline
-        // actions so you never have to Tab into the card's buttons.
+        // Card shortcuts require card focus; child controls retain their own keys.
         if (e.target !== e.currentTarget) {
-          // From a control inside the card, Escape backs focus out to the card so
-          // arrow navigation resumes. (An open ⋯ menu owns Escape itself.)
+          // Escape from a child returns focus to the card; open menus own Escape.
           if (e.key === "Escape" && !menuOpen) {
             e.stopPropagation();
             e.currentTarget.focus();
@@ -249,8 +229,7 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
           title={`No recorded activity since ${fmtDate(job.attention.since)} — open to review`}
           className="mt-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-micro font-medium text-amber-700 dark:text-amber-300"
         >
-          {/* The stage name is a noun, so "Stalled in {stage}" read "Stalled in In
-              process". Lead with the duration and name the stage after the dot. */}
+          {/* Separate noun-phrase stage labels to avoid "in In process". */}
           Stalled {job.attention.days} {job.attention.days === 1 ? "day" : "days"} ·{" "}
           {STATUS_LABEL[job.attention.stage]}
         </div>
@@ -373,11 +352,7 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
                   </>
                 )}
                 {isTerminal(job.status) && (
-                  // A terminal job has no forward moves; the only status change worth
-                  // reaching from the board is reopening it — a correction (the guard
-                  // refuses any organic move out of a terminal), so it routes through
-                  // correct, straight to To apply: reopening means "back on, I want
-                  // to apply". Landing anywhere else is the Correct panel's job.
+                  // Reopening requires correction to To apply; other targets stay in the drawer.
                   <button
                     role="menuitem"
                     onClick={() => {
@@ -398,8 +373,5 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
   );
 }
 
-// A card only re-renders when its own job (or a callback) changes. The board holds
-// every job and re-renders on every mutation, so without this each write would
-// re-render every card; the callbacks are kept referentially stable (App's onEvent,
-// Board's navigate) so this memo actually bites.
+// Memoized cards require stable App and Board callbacks to isolate mutation rerenders.
 export const JobCard = memo(JobCardImpl);

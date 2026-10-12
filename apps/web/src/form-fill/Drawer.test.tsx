@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
+import { CollapsibleSection } from "../components/CollapsibleSection";
 import { Drawer } from "./Drawer";
 import { canLeaveFormFill } from "./draftGuard";
 
@@ -67,4 +68,64 @@ describe("Form Fill drawer", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
+  it.each([true, false])(
+    "uses the current boundaries when a section is collapsed=%s",
+    (collapsed) => {
+      render(
+        <Drawer label="Section details" onClose={vi.fn()}>
+          <CollapsibleSection title="Extra" disclosure={{ collapsed, onToggle: vi.fn() }}>
+            <input aria-label="Section input" />
+          </CollapsibleSection>
+          <div style={{ display: "none" }}>
+            <button>CSS hidden</button>
+          </div>
+          <div hidden>
+            <button>Hidden attribute</button>
+          </div>
+          <div style={{ visibility: "hidden" }}>
+            <button>Invisible control</button>
+          </div>
+          <div inert>
+            <button>Inert control</button>
+          </div>
+          <fieldset disabled>
+            <input aria-label="Disabled group" />
+          </fieldset>
+          <button tabIndex={-2}>Negative tab index</button>
+        </Drawer>,
+      );
+      const first = screen.getByRole("button", { name: "Close" });
+      const last = collapsed
+        ? screen.getByRole("button", { name: /Extra/ })
+        : screen.getByLabelText("Section input");
+      first.focus();
+      fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+      expect(document.activeElement).toBe(last);
+      fireEvent.keyDown(last, { key: "Tab" });
+      expect(document.activeElement).toBe(first);
+    },
+  );
+
+  it.each([false, true])(
+    "keeps native details body controls outside the Tab boundary when open=%s",
+    (open) => {
+      render(
+        <Drawer label="Native details" onClose={vi.fn()}>
+          <details open={open}>
+            <summary>More options</summary>
+            <input aria-label="Native section input" />
+          </details>
+        </Drawer>,
+      );
+      const first = screen.getByRole("button", { name: "Close" });
+      const last = open
+        ? screen.getByLabelText("Native section input")
+        : screen.getByText("More options");
+      first.focus();
+      fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+      expect(document.activeElement).toBe(last);
+      fireEvent.keyDown(last, { key: "Tab" });
+      expect(document.activeElement).toBe(first);
+    },
+  );
 });

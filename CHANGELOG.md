@@ -4,57 +4,52 @@ All notable user-facing changes to Job Tracker are documented here. Format follo
 
 One version covers the whole product. The extension, the dashboard, and the server ship from the same commit and share the version in the repository root [`VERSION`](VERSION) file, so any user-visible change in any of them determines the next bump: patch for fixes, minor for a new capability, major for a breaking change. Individual commits do not bump it — the bump happens once while preparing a release, and the matching whole-repository commit is tagged `vX.Y.Z`. See the [development guide](docs/DEVELOPMENT.md#releases-and-versions) for the full rule.
 
-## [Unreleased]
+## [1.2.0] - 2026-10-13
 
 ### Added
 
-- A prospective, API-only application-workflow analytics record for explicitly submitted applications, with typed workflow facts, measured human time, canonical artifact references, revision-checked idempotent upserts, and merge/relink/revert lifecycle integrity.
-- LinkedIn job-alert, Viewed Jobs reminder, and profile-match recommendation emails in Gmail now provide an **Open new jobs (N)** action for opening every unaffected posting in background tabs while skipping already-open listings; bulk-opened tabs close automatically after a detected listing closure is saved.
-- `Alt+H` and `Alt+T` shortcuts on LinkedIn job-detail views to hide or unhide the current job or move it forward to **To apply**.
-- User-controlled LinkedIn Easy Apply form filling for supported text, numeric, select, and Yes/No questions, backed by revision-checked Answers, exact Question Matches, remembered-value review, and a Form Fill dashboard. Existing values are preserved by default; unsupported controls, application navigation, review, consent, profile changes, résumés, and submission remain manual.
-- LinkedIn's **Location (city)** Easy Apply question can be remembered and filled as text without selecting a typeahead suggestion; other typeaheads remain manual.
-- LinkedIn listings that apply on a company website now retain the external application destination as a clickable listing field.
-- **To apply** dashboard cards link to the external application destination when it differs from the posting link.
-- The extension popup seeds its search with the company from an open LinkedIn job page's title.
-- LinkedIn listings record their location and workplace type (Remote, Hybrid, or On-site) from job pages, search and recommendation cards, the Applied tracker, and Gmail job emails. The dashboard shows the job page's fuller location and falls back to the card's.
-- Repost suggestions also include jobs from the same company with the same external application destination under a reworded title. Each suggestion shows whether its application destination, company page, poster, location, workplace, salary, and apply type agree, plus the days between the earlier posting's closure and the new one, in the extension's duplicate popover and in the dashboard's relink view.
+- User-controlled LinkedIn Easy Apply form filling for supported text, numeric, select, and single-choice radio questions, backed by revision-checked Answers, exact Question Matches, remembered-value review, and a Form Fill dashboard. Existing values are preserved; unsupported controls, navigation, review, consent, profile changes, résumés, and submission remain manual.
+- An installable dashboard PWA with an offline static shell. Reading and saving jobs or answers still requires the server; API responses and navigation query strings are not cached.
+- Dashboard filters for Easy Apply and blocked companies alongside attention, starred, and hidden jobs; persistent workspace/filter/order choices; and collapsible job-drawer sections that preserve drafts.
+- Prospective, API-only application-workflow records for explicitly confirmed submissions, with typed workflow facts, measured human time, canonical artifact references, revision-checked idempotent upserts, and merge/relink/revert lifecycle integrity.
+- **Open new jobs (N)** in LinkedIn job-alert, Viewed Jobs reminder, and profile-match recommendation emails in Gmail. It opens unaffected postings in background tabs, skips already-open listings, and closes only bulk-opened tabs after a detected closure is saved.
+- `Alt+H` and `Alt+T` shortcuts on LinkedIn job-detail views to toggle hiding or move forward to **To apply**. The popup can seed search from the company in a LinkedIn job page title.
+- LinkedIn listing location and workplace type from detail pages, discovery cards, the Applied tracker, and Gmail messages. The dashboard prefers the detail page's fuller location.
+- External application destinations on LinkedIn listings and direct destination links on **To apply** dashboard cards.
+- Repost suggestions for same-company jobs sharing an external application destination under a changed title, with field-level match evidence and closure-to-repost timing in the extension and dashboard.
 
 ### Changed
 
-- Relinking a listing on the dashboard opens a full-drawer view, with a back button, that leads with likely duplicates and their description similarity, status, listing count, dates, and evidence.
-- Form Fill now uses one question-centered review inbox, active-first saved Answers, searchable paginated Answer selection with value previews, before/after review, editable choice suggestions, dismissed-item recovery, and pinned save-and-next actions. Technical identifiers and history move behind optional disclosures.
-
-- Easy Apply treats a question as numeric only when its input declares it, so LinkedIn's years-of-experience questions are text questions in both modals and share one answer.
-- Jobs selected as **To apply** now follow the extension's existing **Dimmed / Removed** treatment on discovery lists without changing their independent hidden flag.
-- Discovery cards now use one **Skip job** action in place of separate hide and site-dismiss controls. Expanded job views retain **Hide** and add **Skip job** until the job is applied or otherwise resolved.
+- Form Fill uses a question-centered review inbox, active-first saved Answers, searchable paginated Answer selection with private previews, before/after review, editable choice bindings, dismissed-item recovery, and save-and-next actions. Technical details and history sit behind disclosures; drafts are protected and review resets when they change.
+- Jobs and Form Fill share responsive search, filter, and order controls. Form Fill scrolls beneath the application header, avoids duplicate headings, and presents general help on hover or focus.
+- Relinking opens a full-drawer view with likely duplicates, description similarity, status, listing counts, dates, and match evidence.
+- **To apply** discovery cards follow the extension's **Dimmed / Removed** preference without changing the hidden flag. Discovery cards offer one **Skip job** action; expanded job views retain **Hide** and offer **Skip job** before application.
+- Public GHCR installation needs only the versioned Compose file and matching image/extension; no clone or local build is required. Documentation clarifies version pinning, Linux/amd64 support, named-volume persistence, offline backups, and source builds.
 
 ### Fixed
 
-- Equivalent Easy Apply radio and dropdown questions now share new single-choice identity and reuse verified or remembered answers across layouts. The change is forward-only: existing choice Questions and their knowledge remain untouched, and existing verified Answers can be explicitly linked to the new Questions. Other control identities are unchanged.
-
-- Easy Apply summary counts distinguish extension fills from user values just remembered, remembered-value clears, deliberately kept values, and reverted fills; only actual agreement counts as **already match**.
-
-- Form Fill now scrolls beneath the fixed application header with its scrollbar at the viewport edge, removes headings duplicated from navigation, and shows general explanations as hover/focus tooltips on the relevant tabs and controls, without separate help icons or changes to click actions.
-
-- Form Fill renders choice labels instead of internal IDs, keeps automatic Answer keys in sync while typing, protects unsaved drafts, and invalidates review when fill policy or other draft fields change.
-
-- Automatic listing captures now merge observed metadata for every adapter, preserve missing or empty facts and known application types, and keep exact posting dates when later captures only provide estimates. Explicit edits can still clear stored fields.
-- LinkedIn detail captures read location independently of posting age, skip promotion badges, and recognize prefixed or combined age text. Recaptures preserve known location, workplace, and posting-date evidence when the page omits it.
-- Easy Apply form filling works again in the redesigned application modal LinkedIn opens from full job pages.
-- Easy Apply suggestion fields, such as the redesigned modal's location, are filled by selecting the suggestion that exactly matches the remembered value; only a suggestion you pick is remembered.
-- Bursts of database requests no longer deadlock the API worker pool. Busy requests time out with retry guidance and thread diagnostics; standard launchers bound Uvicorn request draining before sync cleanup.
-
-- LinkedIn's “Unable to load the page” response now closes an already-recorded listing without deleting its job, changing an applied-or-later status, recording a false view, or creating a stub for an arbitrary invalid ID.
-- Local-first pyturso HTTP operations now have a bounded socket-progress timeout, and scheduler cleanup abandons a blocked daemon sync for process exit while retaining local data for retry.
-- Merged job IDs now remain valid aliases of the surviving job for reads and ordinary writes, including chained merges. Merge and deletion flows also preserve or clear form-capture context explicitly instead of failing a foreign-key check; destructive deletion through an alias is refused until the canonical ID is used.
-- Easy Apply review queues now refresh while the dashboard remains open, omit Questions already handled by an active Match, and open the queue that actually contains work. Later-rendered supported Questions stabilize into normal observation, pending answers flush before a step change, and transient capture failures can be retried. Résumé selectors and CV upload inputs no longer create manual-status rows. The dashboard entry document also revalidates after a rebuild instead of silently retaining an obsolete bundle.
-- Long legitimate Easy Apply dropdowns such as phone-country-code lists now retain their complete choice identity and can remember the selected value. Lists above the bounded 512-option vocabulary stay manual without preventing the remaining questions on the step from being checked normally.
-- The Easy Apply summary now remembers its expanded or collapsed state in device-local browser storage. LinkedIn follow-company and top-choice prompts are ignored entirely instead of appearing as manual application Questions.
-- LinkedIn years-of-experience text inputs marked numeric by the form now resolve as integer questions when no decimal signal is present, while decimal values remain blocked from integer-only fields.
-- Easy Apply steps in the redesigned modal no longer show “Could not check this field” when several questions share LinkedIn's step-level validation key.
-- Radio answers filled by Easy Apply form filling are now accepted by LinkedIn instead of failing as “This field is required”, and a radio choice you pick is remembered even when LinkedIn redraws the options. Radio fills into an empty group no longer offer Revert, since LinkedIn cannot clear a radio group.
-- LinkedIn's preselected follow-company checkbox is now actually cleared; previously it only looked cleared while LinkedIn would still follow the company on submit.
-- Easy Apply form filling now keeps its scanner active when a job is opened through standalone job pages or alternate LinkedIn search routes, including application preload frames whose field handles do not repeat the job ID and LinkedIn's open interop Shadow DOM.
+- Easy Apply capture saves run in Question order across field handles and disable/re-enable. Older responses cannot remove newer edits, replace newer status, or refill a pending clear; failed saves remain retryable, and disabling cancels unsent work.
+- Valid first dropdown selections remain intact until explicit replacement, including options whose value matches their label. Ambiguous unnamed selections and multiple-selection controls remain manual.
+- Capture retries distinguish saved values from clears; reusing a key for a different operation is rejected without retaining historical values.
+- Competing remembered values appear consistently in Question lists and details, expose explicit winner selection, and cannot be applied before the conflict is resolved.
+- Delayed Easy Apply suggestion selection and rollback require the same enabled scanner, root, step, control identity, and write ownership. LinkedIn's redesigned Location field selects only an exact matching suggestion; the legacy Location field remains text-fillable, and only trusted selections are remembered.
+- Capture collections, Question-embedded Captures, apply/conflict summaries, and stale-write summaries omit retained values. Explicit details, resolution actions, and candidate previews remain private review/fill responses.
+- Private API routes retain `Cache-Control: no-store` on framework and security errors; workflow merge/relink conflicts carry the same policy even on listing routes.
+- Equivalent new radio and dropdown Questions share single-choice identity across LinkedIn modal layouts. Existing Questions and their knowledge remain intact and can be explicitly matched to verified Answers.
+- Easy Apply scanning supports redesigned modals, standalone job pages, alternate search routes, same-origin preload frames, and open shadow roots. Shared step-level validation keys no longer cause field-check failures; later-rendered Questions stabilize before observation.
+- Numeric classification follows explicit input type or input mode; years-of-experience fields without that evidence remain text. Integer fields reject decimal values. Choice controls retain complete identity up to 512 options; larger lists stay manual without blocking other fields.
+- LinkedIn accepts filled radio answers and remembers trusted picks across option redraws. Empty radio groups offer no unusable Revert action. Résumé, file, and top-choice controls are omitted; the preselected follow-company checkbox is actually cleared once.
+- Easy Apply summary counts distinguish fills, matching values, remembered values, clears, kept values, and reverts; its expanded/collapsed preference survives reloads. Pending eligible captures flush before step changes.
+- Form Fill review queues refresh while open and select the queue containing work. Choice labels replace internal IDs, automatic Answer keys follow their names, and changed drafts or revisions invalidate review.
+- Saved Answer drafts retain their original revision across background refreshes, preventing stale edits from overwriting newer values. Question Match and remembered-value reviews require renewed approval when their Answer, Match, or Capture context changes and wait for coherent summaries and details.
+- Automatic listing captures merge observed metadata without erasing missing facts, known application types, or stronger posting-date evidence. LinkedIn location parsing is independent of posting age and handles promotion badges and prefixed or combined age text.
+- Non-text application URL metadata no longer breaks the jobs collection.
+- Concurrent Gmail bulk-open actions avoid duplicate tabs and preserve ownership markers for automatic closure.
+- LinkedIn's unavailable-page response closes only an already-recorded listing, preserving applied-or-later job status without a false view or an invalid-ID stub.
+- Merged job IDs remain aliases for reads and ordinary writes, including chained merges. Merge/deletion flows maintain form-capture context; destructive deletion through an alias requires the canonical ID.
+- Database request bursts no longer deadlock the API worker pool. Busy waits return retry guidance and bounded thread diagnostics; launchers limit request draining, local-first HTTP operations have a socket-progress timeout, and shutdown preserves active connection ownership and local data for retry.
+- Dashboard entry documents revalidate after rebuilds so new sessions load the current bundle.
+- Dashboard menu and drawer keyboard navigation skips hidden, collapsed, and disabled controls while preserving Escape and return focus.
 
 ## [1.1.0] - 2026-08-12
 
@@ -100,6 +95,6 @@ Initial public release.
 - Verified per-connection foreign-key enforcement, an orphan pre-flight where supported by the database driver, atomic migrations, and collision-safe listing identifiers.
 - Localhost threat model with a CORS allowlist, a DNS-rebinding guard, and an optional API key; see [`SECURITY.md`](SECURITY.md).
 
-[Unreleased]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.1.0...HEAD
+[1.2.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Muatasim-Aswad/job-tracker/releases/tag/v1.0.0

@@ -17,9 +17,7 @@ export function persistPreference(key: string, value: string): void {
   }
 }
 
-// A boolean useState mirrored to localStorage, so a view preference like "hide
-// hidden" survives reloads. No SSR guard is needed in a client-only SPA, but reads
-// are wrapped so a blocked or disabled localStorage never throws.
+// Blocked storage must not break in-memory view preferences.
 export function usePersistentBoolean(
   key: string,
   initial: boolean,
@@ -39,10 +37,7 @@ export function usePersistentBoolean(
   return [value, setValue];
 }
 
-// A set of string ids mirrored to localStorage as a JSON array, with a toggle that
-// flips membership. Backs view preferences that are a collection of things turned
-// on/off rather than a single flag, like which board columns are collapsed. Empty by
-// default, so nothing is collapsed on first load.
+// Persist only preference IDs; empty defaults keep all sections expanded.
 export function usePersistentStringSet(key: string): [Set<string>, (value: string) => void] {
   const [set, setSet] = useState<Set<string>>(() => {
     try {

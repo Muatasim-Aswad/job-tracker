@@ -1,15 +1,4 @@
-"""The single state-write path. Every submission updates the projected
-state (`jobs.status`/`hidden`/`starred`) and *conditionally* logs an event row:
-
-- funnel status change → always logged on a real transition (meta enriches);
-- flag (hide/star) → logged only when it carries novel meta;
-- anything that neither changes state nor adds novel info → a no-op.
-
-Funnel events move forward for dashboard and automatic submissions alike:
-`seen` is monotonic, terminal outcomes cannot be revived, and active stages
-cannot move backward. Correction and revert are the explicit override paths.
-Listing-addressed submissions also create a stub on first contact.
-"""
+"""State writes obey forward-only funnel guards. Real transitions are logged; flags log only novel metadata; manual notes always log. Correction/revert provide explicit overrides. Listing-addressed submissions materialize a stub on first contact."""
 
 from app.application_workflows.repository import ApplicationWorkflowRepository
 from app.core.db import Conn

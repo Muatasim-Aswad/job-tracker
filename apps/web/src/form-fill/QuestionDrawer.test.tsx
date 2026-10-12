@@ -1,11 +1,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CaptureDetail } from "./model";
+import type { AnswerDetail, CaptureDetail, QuestionDetail } from "./model";
 import { testAnswer, testCapture, testQuestion } from "./testFixtures";
 
 const mocks = vi.hoisted(() => {
   const mutation = () => ({ error: null, isPending: false, mutateAsync: vi.fn(), reset: vi.fn() });
   return {
+    answersById: {} as Record<string, AnswerDetail>,
+    answer: undefined as AnswerDetail | undefined,
+    question: undefined as QuestionDetail | undefined,
     captures: [] as { data: CaptureDetail; isLoading: boolean; isError: boolean }[],
     put: mutation(),
     update: mutation(),
@@ -27,16 +30,25 @@ const question = {
 };
 vi.mock("../hooks", () => ({
   useFormFillQuestion: () => ({
-    data: question,
+    data: mocks.question ?? question,
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
   }),
   useFormFillAnswerCandidates: () => ({
-    data: { pages: [{ items: [{ ...testAnswer, mapping_count: 1 }] }] },
+    data: {
+      pages: [
+        {
+          items: (Object.keys(mocks.answersById).length
+            ? Object.values(mocks.answersById)
+            : [testAnswer]
+          ).map((answer) => ({ ...answer, mapping_count: 1 })),
+        },
+      ],
+    },
   }),
   useFormFillAnswer: (id: string | null) => ({
-    data: id ? testAnswer : undefined,
+    data: id ? (mocks.answersById[id] ?? mocks.answer ?? testAnswer) : undefined,
     refetch: vi.fn(),
   }),
   useFormFillConflictCaptures: () => mocks.captures,
@@ -51,6 +63,9 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   mocks.captures = [];
+  mocks.answer = undefined;
+  mocks.answersById = {};
+  mocks.question = undefined;
   question.capture_conflict = false;
 });
 
@@ -69,8 +84,180 @@ describe("QuestionDrawer", () => {
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
   });
 
-  it("keeps conflict resolution explicit and sends every capture revision", async () => {
-    question.capture_conflict = true;
+  it.each([
+    ["text", "answer"],
+    ["text", "question"],
+    ["text", "mapping"],
+    ["text", "capture"],
+    ["radio", "answer"],
+    ["radio", "question"],
+    ["radio", "mapping"],
+    ["radio", "capture"],
+  ] as const)(
+    "requires a new %s review after the %s revision changes",
+    async (controlKind, changed) => {
+      const choices: AnswerDetail["choices"] = [
+        { id: "choice-yes", choice_key: "yes", display_label: "Yes", status: "active" },
+        { id: "choice-no", choice_key: "no", display_label: "No", status: "active" },
+      ];
+      mocks.answer =
+        controlKind === "text"
+          ? testAnswer
+          : {
+              ...testAnswer,
+              value_kind: "single_choice",
+              choices,
+              value: { kind: "single_choice", choice_key: "yes" },
+            };
+      mocks.question = {
+        ...question,
+        control_kind: controlKind,
+        answer: mocks.answer,
+        options:
+          controlKind === "text"
+            ? []
+            : choices.map((choice) => ({
+                id: `option-${choice.choice_key}`,
+                raw_label: choice.display_label,
+                normalized_label: choice.choice_key,
+                stable_option_key: null,
+                status: "active",
+              })),
+        mapping: {
+          ...question.mapping,
+          bindings:
+            controlKind === "text"
+              ? []
+              : choices.map((choice) => ({
+                  question_option_id: `option-${choice.choice_key}`,
+                  answer_choice_id: choice.id,
+                })),
+        },
+      };
+      mocks.captures = [
+        { data: { ...testCapture, question: mocks.question }, isLoading: false, isError: false },
+      ];
+      const props = { questionId: question.id, onClose: vi.fn(), onCreateAnswer: vi.fn() };
+      const view = render(<QuestionDrawer {...props} />);
+      fireEvent.click(screen.getByRole("button", { name: "Review match" }));
+      expect(screen.getByRole("button", { name: "Save match" })).toBeTruthy();
+      if (changed === "answer")
+        mocks.answer = {
+          ...mocks.answer,
+          revision: 2,
+          fill_policy: "never",
+          value:
+            controlKind === "text"
+              ? { kind: "text", value: "New value" }
+              : { kind: "single_choice", choice_key: "no" },
+        };
+      if (changed === "question")
+        mocks.question = { ...mocks.question, revision: 2, raw_help: "New requirement" };
+      if (changed === "mapping")
+        mocks.question = {
+          ...mocks.question,
+          mapping: { ...mocks.question.mapping!, revision: 2 },
+        };
+      if (changed === "capture")
+        mocks.captures = [
+          {
+            ...mocks.captures[0],
+            data: {
+              ...mocks.captures[0].data,
+              revision: 2,
+              value: { kind: "text", value: "Changed remembered value" },
+            },
+          },
+        ];
+      view.rerender(<QuestionDrawer {...props} />);
+      expect(screen.getByRole("button", { name: "Review match" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Save match" })).toBeNull();
+      expect(mocks.put.mutateAsync).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Review match" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save match" }));
+      await waitFor(() => expect(mocks.put.mutateAsync).toHaveBeenCalledOnce());
+      expect(mocks.put.mutateAsync).toHaveBeenCalledWith({
+        questionId: question.id,
+        body: expect.objectContaining({
+          expected_answer_revision: changed === "answer" ? 2 : 1,
+          expected_question_revision: changed === "question" ? 2 : 1,
+          expected_mapping_revision: changed === "mapping" ? 2 : 1,
+        }),
+      });
+    },
+  );
+
+  it("waits for the refreshed Capture detail before reviewing its changed summary", () => {
+    mocks.question = { ...question, current_captures: [testCapture] };
+    mocks.captures = [
+      { data: { ...testCapture, question: mocks.question }, isLoading: false, isError: false },
+    ];
+    const props = { questionId: question.id, onClose: vi.fn(), onCreateAnswer: vi.fn() };
+    const view = render(<QuestionDrawer {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Review match" }));
+    mocks.question = { ...mocks.question, current_captures: [{ ...testCapture, revision: 2 }] };
+    view.rerender(<QuestionDrawer {...props} />);
+    expect(screen.queryByRole("button", { name: "Save match" })).toBeNull();
+    expect(screen.getByRole<HTMLButtonElement>("button", { name: "Review match" }).disabled).toBe(
+      true,
+    );
+    mocks.captures = [
+      {
+        ...mocks.captures[0],
+        data: {
+          ...mocks.captures[0].data,
+          revision: 2,
+          value: { kind: "text", value: "Updated remembered value" },
+        },
+      },
+    ];
+    view.rerender(<QuestionDrawer {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Review match" }));
+    expect(screen.getByRole("button", { name: "Save match" })).toBeTruthy();
+  });
+
+  it("invalidates review when the current Answer changes independently of the selected one", async () => {
+    const replacement: AnswerDetail = {
+      ...testAnswer,
+      id: "answer-2",
+      label: "Replacement answer",
+      value: { kind: "text", value: "Replacement value" },
+    };
+    mocks.answersById = { [testAnswer.id]: testAnswer, [replacement.id]: replacement };
+    const props = { questionId: question.id, onClose: vi.fn(), onCreateAnswer: vi.fn() };
+    const view = render(<QuestionDrawer {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel answer selection" }));
+    fireEvent.click(screen.getByRole("button", { name: /Replacement answer/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Review match" }));
+    expect(screen.getByRole("button", { name: "Save match" })).toBeTruthy();
+    mocks.answersById = {
+      ...mocks.answersById,
+      [testAnswer.id]: {
+        ...testAnswer,
+        revision: 2,
+        value: { kind: "text", value: "Changed current value" },
+      },
+    };
+    view.rerender(<QuestionDrawer {...props} />);
+    expect(screen.queryByRole("button", { name: "Save match" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Review match" }));
+    expect(screen.getByRole("region", { name: "What will change" }).textContent).toContain(
+      "Changed current value",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save match" }));
+    await waitFor(() =>
+      expect(mocks.put.mutateAsync).toHaveBeenCalledWith({
+        questionId: question.id,
+        body: expect.objectContaining({ answer_id: replacement.id, expected_answer_revision: 1 }),
+      }),
+    );
+  });
+
+  it("reveals a refreshed conflict and sends every capture revision only after explicit selection", async () => {
+    mocks.question = { ...question, capture_conflict: false };
+    const props = { questionId: "question-1", onClose: vi.fn(), onCreateAnswer: vi.fn() };
+    const view = render(<QuestionDrawer {...props} />);
+    expect(screen.queryByRole("button", { name: "Keep selected value" })).toBeNull();
     mocks.captures = ["First candidate", "Second candidate"].map((value, index) => ({
       data: {
         ...testCapture,
@@ -82,7 +269,15 @@ describe("QuestionDrawer", () => {
       isLoading: false,
       isError: false,
     }));
-    render(<QuestionDrawer questionId="question-1" onClose={vi.fn()} onCreateAnswer={vi.fn()} />);
+    mocks.question = {
+      ...question,
+      capture_conflict: true,
+      current_capture_count: 2,
+      current_captures: mocks.captures.map((capture) => capture.data),
+    };
+    view.rerender(<QuestionDrawer {...props} />);
+    expect(mocks.resolve.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("radio")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: "Review match" })).toBeNull();
     expect(
       (screen.getByRole("button", { name: "Keep selected value" }) as HTMLButtonElement).disabled,

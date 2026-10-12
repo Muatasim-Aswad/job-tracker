@@ -1,7 +1,5 @@
-// LinkedIn names a place two ways: cards write "City (Workplace)", while the detail
-// top card writes the fuller "City, Region, Country" and shows the workplace as its
-// own chip. The two wordings never overwrite each other: the detail page owns
-// `location`, cards only `card_location`, and readers prefer `location`.
+// Detail pages own location; abbreviated card text only patches card_location.
+// Readers prefer the detailed location, so neither wording overwrites the other.
 
 const WORKPLACES = ["Remote", "Hybrid", "On-site"] as const;
 export type Workplace = (typeof WORKPLACES)[number];

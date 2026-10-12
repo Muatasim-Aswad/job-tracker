@@ -34,17 +34,11 @@ export function Popup() {
   const [current, setCurrent] = useState<PopupJob | null>(null);
   const [msg, setMsg] = useState<{ text: string; error: boolean }>({ text: "", error: false });
   const [titles, setTitles] = useState<string[]>([]);
-  // Whether the background can reach the server. Seeded from a reachability query on
-  // open and kept live by the background's `reachabilityChanged` push, so the notice
-  // shows before and independently of any write the user attempts.
+  // Seed reachability on open and track worker pushes independently of write errors.
   const [offline, setOffline] = useState(false);
 
-  // Event date. Over a Gmail message the content script hands back that email's
-  // received date, so a status recorded here is dated when the mail arrived.
-  // `suggestedTs` is the full ISO, keeping the email's clock time; `eventDate` is the
-  // YYYY-MM-DD the picker shows, never blank — today by default, upgraded to the
-  // email's day once the content script answers. `dateTouched` gates that upgrade, so
-  // a day the user picked themselves is left alone.
+  // Keep the suggested email timestamp separate from its displayed date.
+  // Only an untouched picker may adopt the asynchronous email-date suggestion.
   const [eventDate, setEventDate] = useState(todayDay());
   const [suggestedTs, setSuggestedTs] = useState<string | null>(null);
   const dateTouched = useRef(false);
@@ -72,10 +66,8 @@ export function Popup() {
   );
 
   // ── Search diagnostics ───────────────────────────────────────────────────────
-  // Opt-in and off by default (engine/diagnostics.ts). A live snapshot of the stored
-  // settings lets the pagehide flush — which fires during teardown, too late to read
-  // storage — decide synchronously what to send. Seeded to the disabled default, so a
-  // flush before the async load resolves sends nothing.
+  // Keep a live diagnostic-settings snapshot: pagehide cannot await storage.
+  // Start disabled so teardown before loading settings sends nothing.
   const diag = useRef<DiagnosticsSettings>(DIAGNOSTICS_DEFAULT);
   useEffect(() => {
     loadDiagnostics((s) => (diag.current = s));
@@ -89,10 +81,7 @@ export function Popup() {
     return () => chrome.storage.onChanged.removeListener(onChanged);
   }, []);
 
-  // One row per popup session keeps both sides of a correction: the original seed,
-  // rule, and result count, plus the final query and result count after any
-  // replacement. Flushed once on a result click or popup close, and only while the
-  // selected diagnostic scope is active.
+  // Flush one opt-in row on click or close, retaining seed and final-query context.
   const session = useRef({
     host: "",
     seed: "",
@@ -333,10 +322,8 @@ export function Popup() {
   }, [flushSession]);
 
   // ── Reachability ─────────────────────────────────────────────────────────────
-  // Ask the background whether the server is reachable (a cached flag, no fetch),
-  // then listen for flips while the popup stays open. The standing #offline-note is
-  // orthogonal to the per-search failure message below: this catches "already down
-  // at open time", that catches the race where the background still thinks it's up.
+  // Seed the standing offline notice from worker reachability and track changes.
+  // Per-search failures still report a stale worker flag or request-level failure.
   useEffect(() => {
     chrome.runtime.sendMessage({ type: "reachability" }, (resp) => {
       if (chrome.runtime.lastError || !resp?.ok) return;
@@ -415,10 +402,7 @@ export function Popup() {
       </div>
 
       <div className="p-3.5">
-        {/* The search row (box + settings toggles) is the list/add surface; it's
-            dropped entirely while a job detail is open, where none of it applies —
-            the detail's own "← Back" is the way out. Keeping it mounted only in
-            those modes also means returning refocuses a freshly-mounted box. */}
+        {/* List/add modes mount search; returning from detail must refocus the newly mounted input. */}
         {mode !== "detail" && (
           <div className="flex items-center gap-1.5">
             <input

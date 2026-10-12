@@ -27,10 +27,8 @@ fail() {
 [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "release tag must be canonical vX.Y.Z."
 [[ "$TAG" == "v$VERSION" ]] || fail "release tag and VERSION disagree."
 
-# An archive of HEAD followed by a temporary index is the local equivalent of
-# Actions checkout. It contains tracked files only, so ignored overlays, .env
-# files, databases, and other checkout state are absent. Keeping all Git writes
-# under $WORK also works when the coordinator's real .git directory is read-only.
+# Stage tracked inputs through a temporary index; keep all Git writes under WORK.
+# Ignored overlays, environments, databases, and other checkout state stay excluded.
 mkdir "$SOURCE"
 git -C "$ROOT" archive --format=tar HEAD | tar -xf - -C "$SOURCE"
 git -C "$SOURCE" init -q
@@ -38,12 +36,10 @@ git -C "$SOURCE" add --all
 for path in node_modules apps/web/node_modules apps/extension/node_modules packages/shared/node_modules; do
   [[ -d "$ROOT/$path" ]] || fail "workspace dependencies are missing; run bash scripts/setup.sh first."
   mkdir -p "$SOURCE/$(dirname "$path")"
-  # Keep dependency mutations inside the disposable checkout. Reflinks make
-  # this copy cheap on supporting filesystems; --reflink=auto remains portable.
+  # Reflinks isolate dependency mutations cheaply; auto falls back to portable copies.
   cp -a --reflink=auto "$ROOT/$path" "$SOURCE/$path"
 done
-# Cached task outputs embed their original absolute checkout path. Drop only the
-# copied cache so it cannot restore outside the disposable source tree.
+# Copied task caches retain absolute paths; discard them to prevent outside writes.
 if [[ -d "$SOURCE/node_modules/.vite/task-cache" ]]; then
   find "$SOURCE/node_modules/.vite/task-cache" -depth -delete
 fi
@@ -68,15 +64,13 @@ mkdir -p "$WORK/home" "$WORK/data" "$WORK/config" "$WORK/state" "$WORK/uv-cache"
 
 (
   cd "$SOURCE"
-  # The workflow installs the frozen lockfile. The rehearsal starts from isolated
-  # copies of the prepared locked module trees and disables automatic installation,
-  # so the same gate runs without mutating the coordinator checkout.
+  # Use isolated prepared dependencies with automatic installation disabled;
+  # verification must not mutate the coordinator checkout.
   "${safe_env[@]}" bash scripts/check.sh
   "${safe_env[@]}" JOB_TRACKER_RELEASE_DIR="$RELEASE_DIR" bash scripts/build-release.sh
   "${safe_env[@]}" bash scripts/check-release-contents.sh "$RELEASE_DIR"
 
-  # Simulate the Actions artifact handoff and a fresh publication-job download
-  # using only temporary local directories. The smoke script owns port 34656.
+  # Simulate handoff/download locally; runtime smoke owns port 34656.
   mkdir "$PUBLISHED_DIR" "$DOWNLOADED_DIR"
   cp "$RELEASE_DIR"/* "$PUBLISHED_DIR/"
   cp "$PUBLISHED_DIR"/* "$DOWNLOADED_DIR/"

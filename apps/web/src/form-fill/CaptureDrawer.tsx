@@ -53,15 +53,12 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
   const [description, setDescription] = useState("");
   const [fillPolicy, setFillPolicy] = useState<"auto" | "confirm_each_time" | "never">("auto");
   const [bindings, setBindings] = useState<Record<string, string>>({});
-  const [reviewed, setReviewed] = useState(false);
+  const [reviewedContext, setReviewedContext] = useState<string | null>(null);
   const [baseline, setBaseline] = useState("");
   const [initialized, setInitialized] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const openedAnswerIds = useRef(new Set<string>());
   const reviewRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (reviewed) reviewRef.current?.scrollIntoView?.({ block: "start" });
-  }, [reviewed]);
   const capture = query.data;
   const question = questionQuery.data;
   const selectedAnswer = useFormFillAnswer(answerId || null);
@@ -163,6 +160,23 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
     return value;
   }
 
+  const draft = JSON.stringify({ action, answerId, label, key, description, fillPolicy, bindings });
+  const captureSummary = question?.current_captures?.find((item) => item.id === capture?.id);
+  const coherentContext =
+    !!capture &&
+    !!question &&
+    !query.isError &&
+    !questionQuery.isError &&
+    capture.id === captureId &&
+    question.id === capture.question_id &&
+    capture.question.id === question.id &&
+    capture.question.revision === question.revision &&
+    (capture.mapping?.id ?? null) === (question.mapping?.id ?? null) &&
+    (capture.mapping?.revision ?? null) === (question.mapping?.revision ?? null) &&
+    (capture.answer?.id ?? null) === (question.answer?.id ?? null) &&
+    !!captureSummary &&
+    capture.revision >= captureSummary.revision;
+
   const completeBindings =
     !choiceQuestion ||
     (action === "create_answer_and_map"
@@ -173,11 +187,18 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
         !!selectedAnswer.data &&
         bindingsComplete(question.options, selectedAnswer.data.choices, bindings));
   const actionValid =
+    coherentContext &&
     !!capture?.value &&
     capture.status === "current" &&
     !capture.question.capture_conflict &&
     !!question &&
-    (!capture.answer || (!!currentAnswer.data && !currentAnswer.isError)) &&
+    !question.capture_conflict &&
+    (!capture.answer ||
+      (!!currentAnswer.data &&
+        !currentAnswer.isError &&
+        currentAnswer.data.id === capture.answer.id &&
+        currentAnswer.data.revision >=
+          Math.max(capture.answer.revision, question.answer?.revision ?? 0))) &&
     !!action &&
     completeBindings &&
     (action === "create_answer_and_map"
@@ -186,6 +207,43 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
     (action === "retarget_mapping" || action === "replace_option_bindings"
       ? !!capture.mapping
       : true);
+
+  const reviewContext = JSON.stringify({
+    draft,
+    capture: [capture?.id, capture?.revision, capture?.status],
+    capturedQuestion: [capture?.question.id, capture?.question.revision],
+    question: [question?.id, question?.revision],
+    capturedMapping: [
+      capture?.mapping?.id,
+      capture?.mapping?.revision,
+      capture?.mapping?.status,
+      capture?.mapping?.answer_id,
+    ],
+    mapping: [
+      question?.mapping?.id,
+      question?.mapping?.revision,
+      question?.mapping?.status,
+      question?.mapping?.answer_id,
+    ],
+    selectedAnswer: [selectedAnswer.data?.id, selectedAnswer.data?.revision],
+    currentAnswer: [
+      capture?.answer?.id,
+      capture?.answer?.revision,
+      question?.answer?.id,
+      question?.answer?.revision,
+      currentAnswer.data?.id,
+      currentAnswer.data?.revision,
+    ],
+    captureSummaries: question?.current_captures?.map((item) => [
+      item.id,
+      item.revision,
+      item.status,
+    ]),
+  });
+  const reviewed = !!actionValid && reviewedContext === reviewContext;
+  useEffect(() => {
+    if (reviewed) reviewRef.current?.scrollIntoView?.({ block: "start" });
+  }, [reviewed]);
 
   async function apply(advance = false) {
     if (!capture || !question || !actionValid || !reviewed) return;
@@ -262,7 +320,7 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
       else close();
     } catch {
       setAnnouncement("The remembered value was not applied.");
-      setReviewed(false);
+      setReviewedContext(null);
     }
   }
 
@@ -287,7 +345,6 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
     }
   }
 
-  const draft = JSON.stringify({ action, answerId, label, key, description, fillPolicy, bindings });
   const busy = applyCapture.isPending || updateCapture.isPending;
   const retainedQuestionId = useRef<string | null>(null);
   retainedQuestionId.current = capture?.question_id ?? null;
@@ -299,9 +356,6 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
     },
     [removeDetail, captureId],
   );
-  useEffect(() => {
-    setReviewed(false);
-  }, [draft, question?.revision, selectedAnswer.data?.revision, capture?.revision]);
   useEffect(() => {
     if (!question || !selectedAnswer.data || !choiceQuestion) return;
     setBindings((current) =>
@@ -355,7 +409,7 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                   <button
                     type="button"
                     disabled={!actionValid || busy}
-                    onClick={() => setReviewed(true)}
+                    onClick={() => setReviewedContext(reviewContext)}
                     className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
                   >
                     Review changes
@@ -458,6 +512,13 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                 behavior={behavior}
                 affected={affected}
               >
+                {capture.mapping &&
+                  capture.mapping.status !== "active" &&
+                  action !== "update_answer" && (
+                    <p className="text-sm text-ink-muted">
+                      Saving reactivates this question’s match.
+                    </p>
+                  )}
                 {action === "update_answer" && (
                   <p className="text-sm text-ink-muted">
                     Every question using this saved answer will use the new value. No other answer
@@ -535,7 +596,7 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                           checked={action === value}
                           onChange={() => {
                             setAction(value);
-                            setReviewed(false);
+                            setReviewedContext(null);
                             if (value === "update_answer" || value === "replace_option_bindings") {
                               setAnswerId(capture.answer?.id ?? "");
                               setBindings(
@@ -570,9 +631,10 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                           <HelpTip text={fillExplanation(fillPolicy)} className="block">
                             <select
                               value={fillPolicy}
-                              onChange={(event) =>
-                                setFillPolicy(event.target.value as typeof fillPolicy)
-                              }
+                              onChange={(event) => {
+                                setFillPolicy(event.target.value as typeof fillPolicy);
+                                setReviewedContext(null);
+                              }}
                               className="mt-1 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
                             >
                               <option value="auto">Automatic</option>
@@ -587,6 +649,7 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                             value={label}
                             onChange={(event) => {
                               const next = event.target.value;
+                              setReviewedContext(null);
                               setLabel(next);
                               if (!key || key === answerKey(label)) setKey(answerKey(next));
                             }}
@@ -602,7 +665,10 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                           >
                             <input
                               value={key}
-                              onChange={(event) => setKey(answerKey(event.target.value))}
+                              onChange={(event) => {
+                                setKey(answerKey(event.target.value));
+                                setReviewedContext(null);
+                              }}
                               className="mt-1 w-full rounded border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
                             />
                           </HelpTip>
@@ -611,7 +677,10 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                           Description
                           <textarea
                             value={description}
-                            onChange={(event) => setDescription(event.target.value)}
+                            onChange={(event) => {
+                              setDescription(event.target.value);
+                              setReviewedContext(null);
+                            }}
                             rows={2}
                             className="mt-1 w-full rounded border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
                           />
@@ -631,6 +700,7 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                     onChange={(id) => {
                       setAnswerId(id);
                       setBindings({});
+                      setReviewedContext(null);
                     }}
                   />
                 ) : selectedAnswer.isLoading ? (
@@ -682,7 +752,10 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                       options={question.options}
                       choices={selectedAnswer.data.choices}
                       value={bindings}
-                      onChange={setBindings}
+                      onChange={(next) => {
+                        setBindings(next);
+                        setReviewedContext(null);
+                      }}
                     />
                   )}
               </section>
@@ -696,14 +769,15 @@ export function CaptureDrawer({ captureId, onClose, onOpenQuestion, onNext }: Pr
                 query.refetch(),
                 questionQuery.refetch(),
                 selectedAnswer.refetch(),
+                currentAnswer.refetch(),
               ]);
-              setReviewed(false);
+              setReviewedContext(null);
               applyCapture.reset();
               updateCapture.reset();
             }}
             onDiscard={() => {
               setInitialized(false);
-              setReviewed(false);
+              setReviewedContext(null);
               setDescription("");
               setFillPolicy("auto");
               applyCapture.reset();

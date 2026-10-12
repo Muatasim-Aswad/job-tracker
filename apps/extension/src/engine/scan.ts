@@ -1,7 +1,5 @@
-// ── Scan loop + lifecycle ────────────────────────────────────────────────────
-// Picks the active adapter, wires the message/storage listeners, and drives the
-// MutationObserver scan loop that processes cards, runs the adapter's detail/capture
-// hooks, and sweeps the "wall" surfaces. The only site-agnostic entry point.
+// Site-agnostic lifecycle: choose the adapter, observe mutations, process cards,
+// and invoke detail/capture hooks and wall sweeps.
 import type { Engine } from "./types.js";
 import type { Adapter } from "../adapters/types";
 import type { ReachabilityState } from "../messages.js";
@@ -19,10 +17,7 @@ export function createScan(engine: Engine) {
       if (adapter.isAppliedCard?.(card)) void engine.autoEmit(card.dataset.jhId!, "applied");
     });
 
-    // Keyword rules run over every tagged card, not only the ones this pass found:
-    // the policy is seeded from storage after the first cards are already on screen
-    // and can be edited in the popup at any time, and both must reach the cards in
-    // view without a page reload.
+    // Reapply rules to every tagged card: storage may load or change after discovery.
     const cards = [...document.querySelectorAll("[data-jh-id]")] as HTMLElement[];
     cards.forEach((card) => {
       engine.flagCard(card);
@@ -42,14 +37,9 @@ export function createScan(engine: Engine) {
     });
   }
 
-  // Auto-mark the cards findCards tagged `jhWall`, each of which is at one known
-  // status. That status comes from the card's own `jhWallStatus` when the adapter
-  // stamped one, else the surface-level `wallStatus()`. Only jhWall cards are swept,
-  // not every job on the page: a rejection email also lists "jobs you may be
-  // interested in", which are real jobs keeping their normal triage bar and must
-  // never be auto-rejected. Gated on `isForwardMove` so it fires only while that
-  // status is still ahead, and rides the same session dedup as other auto-emits.
-  // captureCardFromAction runs first so the event lands on a real listing, not a stub.
+  // Sweep only jhWall cards, preferring per-card status over wallStatus.
+  // Recommendations in outcome emails must never inherit the email's status.
+  // Capture first to avoid stubs; forward-move checks and session dedup guard events.
   function autoWallCards(adapter: Adapter) {
     const surfaceStatus = adapter.wallStatus?.();
     document.querySelectorAll("[data-jh-id][data-jh-wall]").forEach((card) => {
@@ -78,13 +68,8 @@ export function createScan(engine: Engine) {
       adapter.capture?.();
     };
 
-    // Two timers, because waiting for the DOM to settle is not on its own enough.
-    // `settleTimer` folds a burst of mutations into one scan; `ceilingTimer` is armed
-    // once per burst and never pushed back, guaranteeing a scan within CEILING_MS of
-    // the first request. A trailing debounce alone starves whenever mutations keep
-    // arriving faster than it: a hidden tab clamps timers to ~1s and host pages render
-    // on that same cadence, so each mutation cleared the pending scan before it ran and
-    // the page kept its bars only after a manual reload.
+    // Trailing debounce settles bursts; a fixed ceiling prevents starvation when
+    // host mutations and background-tab timer clamping share the same cadence.
     const SETTLE_MS = 200;
     const CEILING_MS = 1000;
     let settleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -101,11 +86,8 @@ export function createScan(engine: Engine) {
       scan();
     }
 
-    // A surface renders in stages — cards, top card, apply control and job description
-    // can land seconds apart — and a hook whose anchor is still missing does nothing
-    // until the next scan. So a route change starts a ladder of passes rather than one
-    // timed guess: the pane often finishes after the page has otherwise gone quiet,
-    // leaving no mutation to ride.
+    // Route changes start a scan ladder because lazy anchors may arrive after
+    // the page goes quiet, without another mutation to trigger a pass.
     const RESCAN_LADDER_MS = [0, 600, 1500, 3000, 6000];
     let ladderTimers: ReturnType<typeof setTimeout>[] = [];
     function rescanWhileRendering() {
@@ -128,10 +110,7 @@ export function createScan(engine: Engine) {
       // A reachability flip from the background, so the bars dim or recover without
       // waiting for this page's own next call.
       if (msg.type === "reachabilityChanged") engine.setOffline(!msg.reachable);
-      // A write landed in another tab or the popup, so this document's read-model is
-      // stale: drop it and rescan. The scan refetches only the ids currently in the
-      // DOM, so this is one batch call. Going through the debounce folds a burst of
-      // writes elsewhere into a single refetch here.
+      // Cross-tab writes invalidate cached state. Debounce refetches visible IDs in one batch.
       if (msg.type === "statesChanged") {
         engine.invalidateStates();
         scheduleScan(0);
@@ -181,9 +160,8 @@ export function createScan(engine: Engine) {
       }
     }, 300);
     window.addEventListener("popstate", rescanWhileRendering);
-    // A tab opened in the background — a job middle-clicked from a results list or a
-    // web search — can render and go quiet before it is ever looked at, and some panes
-    // render only once visible. Either way no mutation is left to trigger a scan.
+    // Visibility triggers a scan because background pages may finish rendering
+    // without leaving a mutation, or defer their panes until visible.
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) rescanWhileRendering();
     });

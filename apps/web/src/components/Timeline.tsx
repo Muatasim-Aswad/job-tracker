@@ -60,9 +60,7 @@ function titleText(meta: Record<string, unknown> | null): string {
   return meta && typeof meta.title === "string" ? meta.title : "";
 }
 
-// Rebuild an event's meta with an edited title + body, preserving any other
-// keys and dropping note synonyms so the body stays single-sourced. Empty → key
-// omitted; an all-empty bag becomes null.
+// Preserve unrelated metadata, normalize note synonyms, and omit blank fields.
 function buildNoteMeta(
   meta: Record<string, unknown> | null,
   title: string,
@@ -150,8 +148,7 @@ export function Timeline({ jobId, events, addNoteRequest = 0, disclosure }: Prop
   const saveEdit = (ev: JobEvent) => {
     // Only note events carry a title; for other events it stays empty (a no-op).
     const title = ev.event === "note" ? draftTitle : "";
-    // Correct the event's time when it changed; a local datetime-local value →
-    // UTC ISO. Sent only on a real change so an untouched time is left alone.
+    // Send UTC time only when the local datetime draft changes it.
     const nextTs = draftTs ? new Date(draftTs).toISOString() : undefined;
     const ts = nextTs && nextTs !== ev.ts ? nextTs : undefined;
     updateEvent.mutate(
@@ -239,8 +236,7 @@ export function Timeline({ jobId, events, addNoteRequest = 0, disclosure }: Prop
         </div>
       )}
 
-      {/* Also unreachable: every job is born with a `created` event. Defensive and
-          undesigned, like Listings — the `+` above is the only offer worth making. */}
+      {/* Defensive fallback for imported data without its birth event. */}
       {events.length === 0 ? (
         <EmptyBlock message="No events." />
       ) : (
@@ -266,9 +262,7 @@ export function Timeline({ jobId, events, addNoteRequest = 0, disclosure }: Prop
               >
                 <div className="flex items-baseline justify-between gap-2">
                   {isNote ? (
-                    // The icon signals "note" and the title stands in for the label —
-                    // but an untitled note would then be a bare icon with no accessible
-                    // name, so fall back to the event's own label.
+                    // Untitled notes need the event label as their accessible name.
                     <span className="inline-flex items-baseline gap-1.5">
                       <StickyNote size={12} className="shrink-0 self-center text-ink-faint" />
                       <span className="font-medium text-ink-soft">
@@ -316,8 +310,7 @@ export function Timeline({ jobId, events, addNoteRequest = 0, disclosure }: Prop
                       {fmtRelative(ev.ts)}
                     </span>,
                     duration && `held ${duration}`,
-                    // Provenance is only interesting for captured/automatic rows;
-                    // a note is always manual, so don't state the obvious.
+                    // Manual notes need no repeated provenance.
                     !isNote && (
                       <span key="src" title="How this event was recorded">
                         {provenance(ev.meta, captured)}

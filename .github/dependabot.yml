@@ -1,8 +1,6 @@
 version: 2
 
-# Cooldowns hold a freshly published release long enough for it to be yanked
-# before it is proposed here. Security updates ignore cooldown, so advisories
-# still arrive immediately.
+# Cooldowns allow withdrawal before upgrades; security updates bypass them.
 updates:
   - package-ecosystem: npm
     directory: "/"
@@ -16,12 +14,8 @@ updates:
       semver-minor-days: 14
       semver-patch-days: 7
     ignore:
-      # TypeScript 7 (the native port) breaks openapi-typescript, whose latest
-      # release (7.13.0) still declares `typescript: ^5.x` and dies with
-      # "Cannot read properties of undefined (reading 'createKeywordTypeNode')"
-      # on TS 7. That generator backs the API-types drift gate, so the whole
-      # toolchain stays on TS 6 until openapi-typescript supports 7. Drop this
-      # entry then; minor and patch TS updates still come through.
+      # openapi-typescript 7.13.0 fails on TypeScript 7. Keep major upgrades blocked
+      # until the generator supports them; minor/patch upgrades remain enabled.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
@@ -37,8 +31,7 @@ updates:
       semver-minor-days: 14
       semver-patch-days: 7
 
-  # Grouped, or this opens one pull request per action. SHA pins carry no semver,
-  # so only the flat cooldown applies here.
+  # Group action updates; SHA pins use the flat cooldown because they lack SemVer.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

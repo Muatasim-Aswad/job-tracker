@@ -1,10 +1,4 @@
-"""Listing upsert, relinking, and the shared job-linking primitive.
-
-`link_listing_to_job` is the *only* place link logic lives; both POST /listings
-and PATCH /listings/{id} route through it. Listing upsert, keyed by
-(platform, platform_id), and job linking stay fully independent: re-opening a
-listing refreshes its scraped fields and never touches job identity.
-"""
+"""Listing upsert and relinking. POST and PATCH share link_listing_to_job; natural-key capture refreshes listing observations independently of canonical job identity."""
 
 from app.application_workflows.repository import ApplicationWorkflowRepository
 from app.core.db import Conn

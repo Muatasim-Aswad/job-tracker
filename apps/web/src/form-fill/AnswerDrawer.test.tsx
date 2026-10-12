@@ -1,18 +1,20 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { FormFillApiError } from "../api/client";
 import type { AnswerDetail, QuestionDetail } from "./model";
 import { testAnswer } from "./testFixtures";
 
 const mocks = vi.hoisted(() => {
   const mutation = () => ({
-    error: null,
+    error: null as unknown,
     isPending: false,
     mutateAsync: vi.fn(),
     reset: vi.fn(),
   });
   return {
     answer: undefined as AnswerDetail | undefined,
+    answerRefetch: vi.fn(),
     create: mutation(),
     createForQuestion: mutation(),
     update: mutation(),
@@ -22,7 +24,7 @@ const mocks = vi.hoisted(() => {
 vi.mock("../hooks", () => ({
   useCreateFormFillAnswer: () => mocks.create,
   useCreateFormFillAnswerForQuestion: () => mocks.createForQuestion,
-  useFormFillAnswer: () => ({ data: mocks.answer, refetch: vi.fn() }),
+  useFormFillAnswer: () => ({ data: mocks.answer, refetch: mocks.answerRefetch }),
   useFormFillQuestion: () => ({ refetch: vi.fn() }),
   useRemoveFormFillDetail: () => vi.fn(),
   useUpdateFormFillAnswer: () => mocks.update,
@@ -65,6 +67,9 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   mocks.answer = undefined;
+  mocks.answerRefetch.mockReset();
+  mocks.update.error = null;
+  mocks.update.reset.mockReset();
 });
 
 describe("AnswerDrawer Question creation", () => {
@@ -84,6 +89,136 @@ describe("AnswerDrawer Question creation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save answer" }));
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
   });
+
+  it.each(["text", "single_choice"] as const)(
+    "keeps the %s draft precondition when a newer Answer arrives",
+    async (kind) => {
+      const original: AnswerDetail =
+        kind === "text"
+          ? testAnswer
+          : {
+              ...testAnswer,
+              value_kind: "single_choice",
+              value: { kind: "single_choice", choice_key: "yes" },
+              choices: [
+                { id: "choice-yes", choice_key: "yes", display_label: "Yes", status: "active" },
+                { id: "choice-no", choice_key: "no", display_label: "No", status: "active" },
+              ],
+            };
+      mocks.answer = original;
+      mocks.update.mutateAsync.mockRejectedValueOnce(new Error("stale revision"));
+      const props = {
+        answerId: original.id,
+        onClose: vi.fn(),
+        onCreated: vi.fn(),
+        onOpenQuestion: vi.fn(),
+      };
+      const view = render(<AnswerDrawer {...props} />);
+      fireEvent.click(screen.getByRole("button", { name: "Edit answer name" }));
+      fireEvent.change(screen.getByLabelText("Answer name"), { target: { value: "Local rename" } });
+      fireEvent.click(screen.getByRole("button", { name: "Done" }));
+      mocks.answer = {
+        ...original,
+        revision: 2,
+        fill_policy: "never",
+        value:
+          kind === "text"
+            ? { kind: "text", value: "New value saved elsewhere" }
+            : { kind: "single_choice", choice_key: "no" },
+        choices: original.choices.map((choice) => ({
+          ...choice,
+          display_label: `New ${choice.display_label}`,
+        })),
+      };
+      view.rerender(<AnswerDrawer {...props} />);
+      fireEvent.click(screen.getByRole("button", { name: "Save answer" }));
+      await waitFor(() => expect(mocks.update.mutateAsync).toHaveBeenCalledOnce());
+      expect(mocks.update.mutateAsync).toHaveBeenCalledWith({
+        answerId: original.id,
+        body: expect.objectContaining({
+          expected_revision: 1,
+          label: "Local rename",
+          value: original.value,
+          choices: original.choices.map(({ choice_key, display_label, status }) => ({
+            choice_key,
+            display_label,
+            status,
+          })),
+          fill_policy: "auto",
+        }),
+      });
+      expect(screen.getByRole("heading", { name: "Local rename" })).toBeTruthy();
+      expect(props.onClose).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["review", "discard"] as const)(
+    "only rebases a conflicted draft after explicit %s",
+    async (action) => {
+      mocks.answer = testAnswer;
+      const conflict = new FormFillApiError(409, "stale_revision", { revision: 2 });
+      mocks.update.mutateAsync.mockRejectedValueOnce(conflict);
+      const props = {
+        answerId: testAnswer.id,
+        onClose: vi.fn(),
+        onCreated: vi.fn(),
+        onOpenQuestion: vi.fn(),
+      };
+      const view = render(<AnswerDrawer {...props} />);
+      fireEvent.change(screen.getByLabelText("Value"), { target: { value: "Local draft value" } });
+      const current: AnswerDetail = {
+        ...testAnswer,
+        revision: 2,
+        value: { kind: "text", value: "Remote saved value" },
+        fill_policy: "never",
+      };
+      mocks.answer = current;
+      view.rerender(<AnswerDrawer {...props} />);
+      fireEvent.click(screen.getByRole("button", { name: "Save answer" }));
+      await waitFor(() => expect(mocks.update.mutateAsync).toHaveBeenCalledOnce());
+      mocks.update.error = conflict;
+      mocks.update.reset.mockImplementation(() => {
+        mocks.update.error = null;
+      });
+      view.rerender(<AnswerDrawer {...props} />);
+      expect(screen.getByRole("button", { name: "Copy my changes" })).toBeTruthy();
+      expect(screen.getByLabelText<HTMLInputElement>("Value").value).toBe("Local draft value");
+      expect(props.onClose).not.toHaveBeenCalled();
+      mocks.answerRefetch.mockResolvedValue({ data: current });
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: action === "review" ? "Review current version" : "Discard mine",
+        }),
+      );
+      await waitFor(() => expect(mocks.update.reset).toHaveBeenCalledOnce());
+      expect(mocks.update.mutateAsync).toHaveBeenCalledOnce();
+      if (action === "review") {
+        expect(screen.getByLabelText<HTMLInputElement>("Value").value).toBe("Local draft value");
+        expect(screen.getByRole("region", { name: "What will change" }).textContent).toContain(
+          "Remote saved value",
+        );
+      } else {
+        expect(screen.getByLabelText<HTMLInputElement>("Value").value).toBe("Remote saved value");
+        expect(screen.getByText("No changes")).toBeTruthy();
+        expect(
+          screen.getByRole<HTMLButtonElement>("button", { name: "Save answer" }).disabled,
+        ).toBe(true);
+        fireEvent.change(screen.getByLabelText("Value"), {
+          target: { value: "Local draft value" },
+        });
+      }
+      mocks.update.mutateAsync.mockResolvedValueOnce(current);
+      fireEvent.click(screen.getByRole("button", { name: "Save answer" }));
+      await waitFor(() => expect(props.onClose).toHaveBeenCalledOnce());
+      expect(mocks.update.mutateAsync).toHaveBeenLastCalledWith({
+        answerId: testAnswer.id,
+        body: expect.objectContaining({
+          expected_revision: 2,
+          value: { kind: "text", value: "Local draft value" },
+        }),
+      });
+    },
+  );
 
   it("keeps the current fill policy visible while its control starts in answer management", () => {
     mocks.answer = testAnswer;

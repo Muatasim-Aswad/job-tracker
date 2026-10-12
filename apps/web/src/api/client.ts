@@ -1,5 +1,4 @@
-// Dashboard endpoint methods. Relative `/api` calls use Vite's development proxy and
-// FastAPI's production origin unchanged.
+// Relative /api calls share the development proxy and production origin.
 
 import { ApiError, request as apiRequest, toQuery } from "@job-tracker/shared/api";
 import type {
@@ -26,13 +25,12 @@ export interface JobFilters {
   q?: string;
   hidden?: boolean;
   starred?: boolean;
-  // Omit title-less stub rows — jobs born from a bare seen/closed/auto-hide event
-  // that never got a listing capture. Undefined means don't filter.
+  // Exclude titleless event-created stubs; undefined leaves them visible.
   stubs?: boolean;
   apply_type?: string;
   limit?: number;
   offset?: number;
-  // Index signature so the filter object is a valid query-param record.
+  // The index signature permits use as a query-parameter record.
   [key: string]: string | number | boolean | undefined;
 }
 
@@ -116,8 +114,7 @@ export class FormFillApiError extends ApiError {
   }
 }
 
-// Form-fill bodies may contain private values. Keep them out of the global mutation
-// toast while retaining the server's value-free 409 summaries for the conflict UI.
+// Keep private form-fill bodies out of global toasts; preserve value-free 409 summaries.
 async function formFillRequest<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     return await request<T>(path, init);
@@ -154,10 +151,7 @@ export const api = {
 
   getJob: (jobId: string): Promise<JobDetail> => request(`/jobs/${jobId}`),
 
-  // Likely reposts of a listing with their evidence: sibling jobs sharing its
-  // server-normalized company and either its title or its application destination.
-  // Needs both title and company; anything less is too broad to suggest, so it
-  // returns [].
+  // Suggestions require company and title; absent evidence returns no candidates.
   jobMatches: (
     platform: string,
     platformId: string,
@@ -166,8 +160,7 @@ export const api = {
   ): Promise<JobMatch[]> =>
     request(`/jobs/matches${toQuery({ platform, platform_id: platformId, title, company })}`),
 
-  // Resolve a listing's natural key to its job — how an extension deep-link
-  // (?platform=&platform_id=) finds which job to open. 404s on an uncaptured posting.
+  // Resolve extension natural-key deep links; uncaptured listings return 404.
   lookupListing: (
     platform: string,
     platformId: string,
@@ -179,23 +172,18 @@ export const api = {
     body: { title?: string; company?: string; meta?: Record<string, unknown> },
   ): Promise<Job> => request(`/jobs/${jobId}`, { method: "PATCH", body: JSON.stringify(body) }),
 
-  // Create a listing, upserting by platform + platform_id. A manual add sends
-  // platform="manual", a client-minted platform_id, and via="manual"; the server
-  // auto-creates the owning job. Returns {job_id, listing_id}.
+  // Manual listings use a fresh client UUID; the upsert creates their owning job.
   createListing: (body: ListingCreate): Promise<{ job_id: string; listing_id: string }> =>
     request("/listings", { method: "POST", body: JSON.stringify(body) }),
 
-  // Partial edit of a captured listing. `job_id` relinks it through the shared link
-  // cascade, which may dissolve the source job if it loses its last listing. The
-  // returned job_id is the new owner.
+  // Relinking may dissolve the source job; the returned job_id names the new owner.
   updateListing: (
     listingId: string,
     body: ListingUpdate,
   ): Promise<{ job_id: string; listing_id: string }> =>
     request(`/listings/${listingId}`, { method: "PATCH", body: JSON.stringify(body) }),
 
-  // The single state-write verb, addressed by job_id from the dashboard. The batch is
-  // applied in order in one transaction, returning the canonical job_id and state.
+  // Events apply in order in one transaction and return canonical job state.
   postEvents: (jobId: string, events: EventItem[]): Promise<JobMutationState> =>
     request("/events", {
       method: "POST",
@@ -212,27 +200,23 @@ export const api = {
   revertStatus: (jobId: string): Promise<JobMutationState> =>
     request(`/jobs/${jobId}/status/revert`, { method: "POST" }),
 
-  // Only supplied fields are replaced; the event verb remains immutable.
+  // Only supplied fields change; the event verb is immutable.
   updateEvent: (
     eventId: number,
     body: { meta?: Record<string, unknown> | null; ts?: string },
   ): Promise<JobEvent> =>
     request(`/events/${eventId}`, { method: "PATCH", body: JSON.stringify(body) }),
 
-  // Record a `note` event: dated activity that doesn't move the funnel. Carries the
-  // body plus an optional `title`, shown in place of the "note" label. The returned
-  // state is unchanged by the note.
+  // Notes carry dated activity without changing funnel state.
   addNote: (jobId: string, meta: { title?: string; note?: string }): Promise<JobMutationState> =>
     request("/events", {
       method: "POST",
       body: JSON.stringify({ job_id: jobId, events: [{ event: "note", meta }] }),
     }),
 
-  // Titles already used on note events, most-used first — the suggestion pool for a
-  // new note's title.
   noteTitles: (): Promise<string[]> => request("/meta/note-titles"),
 
-  // Delete a manual note event (only `note` events are deletable server-side).
+  // Only manual note events are deletable.
   deleteEvent: (eventId: number): Promise<void> =>
     request(`/events/${eventId}`, { method: "DELETE" }),
 
@@ -242,12 +226,10 @@ export const api = {
   updateDocument: (documentId: number, body: DocumentUpdate): Promise<JobDocument> =>
     request(`/documents/${documentId}`, { method: "PATCH", body: JSON.stringify(body) }),
 
-  // The known vocabulary of an entity's `meta` bag, for fuzzy field suggestions.
   metaVocabulary: (entity = "jobs"): Promise<MetaVocabulary> =>
     request(`/meta/vocabulary${toQuery({ entity })}`),
 
-  // Dashboard-only hard deletes, all 204. deleteListing dissolves the job server-side
-  // if it was the last listing.
+  // Deleting the last listing also dissolves its job.
   deleteJob: (jobId: string): Promise<void> => request(`/jobs/${jobId}`, { method: "DELETE" }),
 
   deleteListing: (listingId: string): Promise<void> =>
@@ -256,8 +238,7 @@ export const api = {
   deleteDocument: (documentId: number): Promise<void> =>
     request(`/documents/${documentId}`, { method: "DELETE" }),
 
-  // The company blocklist: enforced in the extension, managed here. `block` sends a
-  // raw company name, which the server normalizes to the matched company_key.
+  // The extension enforces blocking; the server normalizes raw company names.
   listBlockedCompanies: (): Promise<BlockedCompany[]> => request("/blocked-companies"),
 
   blockCompany: (company: string, platform = "*"): Promise<BlockedCompany> =>

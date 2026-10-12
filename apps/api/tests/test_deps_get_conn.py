@@ -1,8 +1,4 @@
-"""app/core/deps.py::get_conn — the commit-on-success/rollback-on-error contract
-every route's DB access rides on, plus the push-scheduler nudge for writes.
-
-Driven directly as a generator (bypassing FastAPI's Depends plumbing) so the
-commit/rollback paths can be forced without a real request round-trip."""
+"""Request commit/rollback and sync-nudge contracts, driven directly through the dependency generator."""
 
 from __future__ import annotations
 

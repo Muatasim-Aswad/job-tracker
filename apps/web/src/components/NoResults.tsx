@@ -8,8 +8,7 @@ interface Props {
   onClear: () => void;
 }
 
-// Replaces the board when the current filters narrow the view to nothing —
-// distinct from an empty account (no jobs at all), which App never routes here.
+// Filtered-out jobs differ from an empty account, which App handles separately.
 export function NoResults({
   query,
   showStarred,

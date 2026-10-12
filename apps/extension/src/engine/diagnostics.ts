@@ -1,9 +1,5 @@
-// ── Search-diagnostics settings: the chrome.storage layer ────────────────────
-// Popup search diagnostics are disabled by default. When active they always send
-// a complete, actionable record; the user chooses whether capture lasts for one
-// 30-minute debugging window or remains on until explicitly disabled. A missing,
-// partial, corrupt, or legacy aggregate-only setting resolves to "never", so an
-// upgrade can never silently broaden what an existing opt-in sends.
+// Only an explicit full-context diagnostic scope authorizes capture.
+// Missing, corrupt, or legacy aggregate-only settings default to never.
 
 export const DIAGNOSTICS_KEY = "searchDiagnostics";
 
@@ -74,9 +70,7 @@ export function loadDiagnostics(cb: (s: DiagnosticsSettings) => void): void {
   );
 }
 
-// Persist settings (sanitised first). Writing the key trips
-// chrome.storage.onChanged in every other context, so an open popup's live
-// snapshot refreshes without an extra message.
+// Validated writes notify other contexts through chrome.storage.onChanged.
 export function saveDiagnostics(
   s: DiagnosticsSettings,
   cb?: (s: DiagnosticsSettings) => void,

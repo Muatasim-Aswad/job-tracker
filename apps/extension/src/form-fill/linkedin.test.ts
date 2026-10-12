@@ -132,6 +132,73 @@ describe("LinkedIn Easy Apply discovery", () => {
     expect(linkedInPlatformId(document, fields)).toBe("123456");
   });
 
+  it.each(['value="Netherlands"', "", 'value=""'])(
+    "keeps a real first selection with %s in identity and targets",
+    (attribute) => {
+      const form = root(
+        `<div data-test-form-element><label for="country">Country</label><select id="country" ${attribute === 'value=""' ? "" : "required"}><option ${attribute} selected>Netherlands</option><option value="Belgium">Belgium</option></select></div>`,
+      );
+      const [field] = discoverLinkedInFields(form) as SupportedField[];
+      expect(field.kind).toBe("supported");
+      expect(field.request.has_value).toBe(true);
+      expect(field.request.options?.map((option) => option.label)).toEqual([
+        "Netherlands",
+        "Belgium",
+      ]);
+      expect(field.optionTargets.map((target) => target.element.textContent)).toEqual([
+        "Netherlands",
+        "Belgium",
+      ]);
+    },
+  );
+
+  it.each(["disabled", "hidden"])(
+    "preserves a named first option marked %s instead of assuming it is empty",
+    (marker) => {
+      const form = root(
+        `<div data-test-form-element><label for="country">Country</label><select id="country" required><option value="Netherlands" ${marker} selected>Netherlands</option><option value="Belgium">Belgium</option></select></div>`,
+      );
+      const [field] = discoverLinkedInFields(form) as SupportedField[];
+      expect(field.request.has_value).toBe(true);
+      expect(field.request.options?.map((option) => option.label)).toEqual([
+        "Netherlands",
+        "Belgium",
+      ]);
+    },
+  );
+
+  it.each([
+    '<option value="Choose" selected>Choose</option>',
+    '<option value="Select an option" selected>Select an option</option>',
+    '<option value="" selected>Select an option</option>',
+    '<option value="" disabled selected></option>',
+    '<option value="" hidden selected></option>',
+  ])(
+    "recognizes a supported placeholder without including it in option identity: %s",
+    (placeholder) => {
+      const form = root(
+        `<div data-test-form-element><label for="country">Country</label><select id="country" required>${placeholder}<option value="Belgium">Belgium</option></select></div>`,
+      );
+      const [field] = discoverLinkedInFields(form) as SupportedField[];
+      expect(field.request.has_value).toBe(false);
+      expect(field.request.options?.map((option) => option.label)).toEqual(["Belgium"]);
+    },
+  );
+
+  it("keeps a multiple-selection control manual instead of collapsing its selected set", () => {
+    const form = root(
+      '<div data-test-form-element><label for="countries">Countries</label><select id="countries" multiple><option value="Netherlands" selected>Netherlands</option><option value="Belgium" selected>Belgium</option></select></div>',
+    );
+    expect(discoverLinkedInFields(form)[0]).toMatchObject({ kind: "manual" });
+  });
+
+  it("keeps an unidentified blank selected option manual", () => {
+    const form = root(
+      '<div data-test-form-element><label for="blank-choice">Country</label><select id="blank-choice" required><option value="opaque-default" selected></option><option value="Belgium">Belgium</option></select></div>',
+    );
+    expect(discoverLinkedInFields(form)[0]).toMatchObject({ kind: "manual" });
+  });
+
   it("derives iframe listing context from a request-local form handle", () => {
     history.replaceState({}, "", "/preload/?mode=application");
     const fields = discoverLinkedInFields(

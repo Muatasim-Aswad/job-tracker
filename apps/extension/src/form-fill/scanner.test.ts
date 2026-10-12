@@ -932,6 +932,57 @@ describe("generation-based safe form filling", () => {
       scanner.setEnabled(false);
     });
 
+    it.each(["disable", "re-enable", "step", "root", "replacement", "identity", "ownership"])(
+      "cancels a delayed suggestion after %s changes without clicking or rolling back",
+      async (change) => {
+        vi.useFakeTimers();
+        const { input, list, pressed } = typeahead([]);
+        const { scanner } = scannerWith(remembered);
+        await scanner.scan();
+        expect(input.value).toBe(remembered);
+
+        if (change === "disable") scanner.setEnabled(false);
+        if (change === "re-enable") {
+          scanner.setEnabled(false);
+          scanner.setEnabled(true);
+        }
+        if (change === "step") {
+          document
+            .querySelector("[data-sdui-screen]")!
+            .prepend(Object.assign(document.createElement("h3"), { textContent: "Next step" }));
+        }
+        if (change === "root")
+          document
+            .querySelector("dialog")!
+            .replaceWith(document.querySelector("dialog")!.cloneNode(true));
+        if (change === "replacement") input.replaceWith(input.cloneNode(true));
+        if (change === "identity") document.querySelector("p")!.textContent = "Different question";
+        if (change === "ownership") {
+          input.value = "User edit";
+          input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+          input.value = remembered;
+        }
+        list.innerHTML = `<div role="option">${remembered}</div>`;
+        await vi.advanceTimersByTimeAsync(SUGGESTION_WAIT_MS + 200);
+        expect(pressed).toEqual([]);
+        expect(input.value).toBe(remembered);
+        expect(document.body.textContent).not.toContain("No exact suggestion to select");
+        scanner.setEnabled(false);
+      },
+    );
+
+    it("keeps a delayed exact selection valid across suggestion-list rescan scheduling", async () => {
+      vi.useFakeTimers();
+      const { list, pressed } = typeahead([]);
+      const { scanner } = scannerWith(remembered);
+      await scanner.scan();
+      list.innerHTML = `<div role="option">${remembered}</div>`;
+      scanner.schedule();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(pressed).toEqual([remembered]);
+      scanner.setEnabled(false);
+    });
+
     it("remembers a picked suggestion but never typed search text", async () => {
       vi.useFakeTimers();
       const { input, list } = typeahead([remembered]);
@@ -953,6 +1004,88 @@ describe("generation-based safe form filling", () => {
       scanner.setEnabled(false);
     });
   });
+
+  it.each(
+    ['value="Netherlands"', "", 'value=""'].flatMap((attribute) =>
+      ["remember", "replace"].map((approval) => [attribute, approval] as const),
+    ),
+  )(
+    "preserves a real first select choice with %s until %s approval",
+    async (attribute, approval) => {
+      fixture(
+        `<div data-test-form-element><label for="country">Country</label><select id="country" ${attribute === 'value=""' ? "" : "required"}><option ${attribute} selected>Netherlands</option><option value="Belgium">Belgium</option></select></div>`,
+      );
+      const bridge = vi.fn(async (request: FormFillResolutionRequest) => {
+        const options = request.fields[0].options!;
+        return {
+          ok: true as const,
+          result: response(request, [
+            {
+              status: "approved",
+              client_field_id: request.fields[0].client_field_id,
+              question_id: "country-question",
+              answer_id: "country-answer",
+              answer_revision: 1,
+              mapping_id: "country-mapping",
+              mapping_revision: 1,
+              option_mappings: options.map((option) => ({
+                client_option_id: option.client_option_id,
+                question_option_id: `question-${option.label}`,
+              })),
+              action: {
+                kind: "set_single_choice",
+                client_option_id: options.find((option) => option.label === "Belgium")!
+                  .client_option_id,
+              },
+            },
+          ]),
+        };
+      });
+      const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+        ok: true as const,
+        result: { capture: {} } as FormFillCaptureResponse,
+      }));
+      const scanner = new EasyApplyScanner(document, {
+        id: ids(),
+        settleMs: 60_000,
+        bridge,
+        captureBridge,
+      });
+      scanner.setEnabled(true);
+      try {
+        await scanner.scan();
+        const select = document.querySelector<HTMLSelectElement>("select")!;
+        expect(select.selectedIndex).toBe(0);
+        expect(bridge.mock.calls[0][0].fields[0].has_value).toBe(true);
+        expect(bridge.mock.calls[0][0].fields[0].options?.map((option) => option.label)).toEqual([
+          "Netherlands",
+          "Belgium",
+        ]);
+        expect(captureBridge).not.toHaveBeenCalled();
+        const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+        const button = (label: string) =>
+          [...panel.querySelectorAll<HTMLButtonElement>("button")].find(
+            (item) => item.textContent === label,
+          )!;
+        if (approval === "remember") {
+          button("Remember existing").click();
+          await vi.waitFor(() => expect(captureBridge).toHaveBeenCalledOnce());
+          expect(captureBridge.mock.calls[0][0]).toMatchObject({
+            source: "confirmed_external",
+            value: { kind: "single_choice", question_option_id: "question-Netherlands" },
+          });
+          expect(select.selectedIndex).toBe(0);
+        } else {
+          button("Use my answer").click();
+          expect(select.selectedIndex).toBe(1);
+          button("Revert").click();
+          expect(select.selectedIndex).toBe(0);
+        }
+      } finally {
+        scanner.setEnabled(false);
+      }
+    },
+  );
 
   it("requires an explicit replacement and loses ownership after a later change", async () => {
     fixture(field(1, "Current answer", "host-value"));
@@ -1061,6 +1194,199 @@ describe("generation-based safe form filling", () => {
       "0 filled · 0 already match · 0 needs attention · 0 manual · 1 cleared",
     );
     scanner.setEnabled(false);
+  });
+
+  describe("in-flight capture ordering", () => {
+    function setup(rememberedValue?: string) {
+      vi.useFakeTimers();
+      fixture(field(1, "Remember me"));
+      const completions: ((ok: boolean) => void)[] = [];
+      const stored: string[] = [];
+      const captureBridge = vi.fn(
+        (request: FormFillCaptureRequest) =>
+          new Promise<{ ok: true; result: FormFillCaptureResponse } | { ok: false }>((resolve) => {
+            completions.push((ok) => {
+              if (ok) {
+                stored.push(request.cleared ? "clear" : (request.value as { value: string }).value);
+                resolve({ ok: true, result: { capture: {} } as FormFillCaptureResponse });
+              } else resolve({ ok: false });
+            });
+          }),
+      );
+      const scanner = new EasyApplyScanner(document, {
+        id: ids(),
+        isUserEvent: () => true,
+        settleMs: 60_000,
+        captureSettleMs: 20,
+        captureBridge,
+        bridge: async (request) => ({
+          ok: true,
+          result: response(request, [
+            rememberedValue
+              ? {
+                  status: "captured",
+                  client_field_id: "field-1",
+                  question_id: "question-field-1",
+                  capture_id: "old-capture",
+                  capture_revision: 1,
+                  source: "user_input",
+                  action: { kind: "set_text", value: rememberedValue },
+                  option_mappings: [],
+                }
+              : unresolved("field-1"),
+          ]),
+        }),
+      });
+      scanner.setEnabled(true);
+      const edit = (value: string) => {
+        const input = document.querySelector<HTMLInputElement>("input")!;
+        input.value = value;
+        input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      };
+      return { scanner, edit, captureBridge, completions, stored };
+    }
+
+    it.each([true, false])(
+      "preserves the newer debounce and status when old save succeeds=%s",
+      async (ok) => {
+        const { scanner, edit, captureBridge, completions } = setup();
+        await scanner.scan();
+        edit("A");
+        await vi.advanceTimersByTimeAsync(20);
+        edit("B");
+        completions[0](ok);
+        await vi.advanceTimersByTimeAsync(0);
+        await scanner.scan();
+        expect(summaryText()).not.toContain("remembered");
+        expect(document.body.textContent).not.toContain("Could not remember this value");
+        await vi.advanceTimersByTimeAsync(20);
+        expect(captureBridge).toHaveBeenCalledTimes(2);
+        expect(captureBridge.mock.calls[1][0].value).toEqual({ kind: "text", value: "B" });
+        completions[1](true);
+        await vi.advanceTimersByTimeAsync(0);
+        await scanner.scan();
+        expect(summaryText()).toContain("1 remembered");
+        scanner.setEnabled(false);
+      },
+    );
+
+    it.each(["B", ""])(
+      "serializes a newer settled edit or clear (%s) after the old save",
+      async (value) => {
+        const { scanner, edit, captureBridge, completions, stored } = setup();
+        await scanner.scan();
+        edit("A");
+        await vi.advanceTimersByTimeAsync(20);
+        edit(value);
+        await vi.advanceTimersByTimeAsync(20);
+        expect(captureBridge).toHaveBeenCalledOnce();
+        completions[0](true);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(captureBridge).toHaveBeenCalledTimes(2);
+        expect(captureBridge.mock.calls[1][0]).toMatchObject(
+          value
+            ? { cleared: false, value: { kind: "text", value } }
+            : { cleared: true, value: null },
+        );
+        completions[1](true);
+        await vi.advanceTimersByTimeAsync(0);
+        await scanner.scan();
+        expect(stored).toEqual(["A", value || "clear"]);
+        expect(summaryText()).toContain(value ? "1 remembered" : "1 cleared");
+        scanner.setEnabled(false);
+      },
+    );
+
+    it("saves a previously remembered value again when it follows an in-flight clear", async () => {
+      const { scanner, edit, captureBridge, completions, stored } = setup();
+      await scanner.scan();
+      edit("A");
+      await vi.advanceTimersByTimeAsync(20);
+      completions[0](true);
+      await vi.advanceTimersByTimeAsync(0);
+      edit("");
+      await vi.advanceTimersByTimeAsync(0);
+      edit("A");
+      await vi.advanceTimersByTimeAsync(20);
+      expect(captureBridge).toHaveBeenCalledTimes(2);
+      completions[1](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(captureBridge).toHaveBeenCalledTimes(3);
+      completions[2](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(stored).toEqual(["A", "clear", "A"]);
+      await scanner.scan();
+      expect(summaryText()).toContain("1 remembered");
+      scanner.setEnabled(false);
+    });
+
+    it("preserves a clear while resolution still returns older remembered knowledge", async () => {
+      const { scanner, edit, captureBridge, completions } = setup("A");
+      await scanner.scan();
+      edit("B");
+      await vi.advanceTimersByTimeAsync(20);
+      edit("");
+      await vi.advanceTimersByTimeAsync(0);
+      await scanner.scan();
+      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("");
+      expect(summaryText()).toContain("0 filled");
+      expect(summaryText()).toContain("0 already match");
+      completions[0](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(captureBridge.mock.calls[1][0]).toMatchObject({ cleared: true, value: null });
+      await scanner.scan();
+      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("");
+      completions[1](true);
+      await vi.advanceTimersByTimeAsync(0);
+      await scanner.scan();
+      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("");
+      expect(summaryText()).toContain("1 cleared");
+      scanner.setEnabled(false);
+    });
+
+    it("cancels an unsent queued save on disable even when immediately re-enabled", async () => {
+      const { scanner, edit, captureBridge, completions } = setup();
+      await scanner.scan();
+      edit("A");
+      await vi.advanceTimersByTimeAsync(20);
+      edit("B");
+      await vi.advanceTimersByTimeAsync(20);
+      scanner.setEnabled(false);
+      scanner.setEnabled(true);
+      completions[0](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(captureBridge).toHaveBeenCalledOnce();
+      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("B");
+      scanner.setEnabled(false);
+    });
+
+    it("retains ordering when a control is replaced during disable/re-enable", async () => {
+      const { scanner, edit, captureBridge, completions, stored } = setup();
+      await scanner.scan();
+      edit("A");
+      await vi.advanceTimersByTimeAsync(20);
+      scanner.setEnabled(false);
+      fixture(field(1, "Remember me"));
+      scanner.setEnabled(true);
+      await scanner.scan();
+      edit("");
+      // A non-empty edit first establishes trusted provenance for this new control.
+      edit("B");
+      await vi.advanceTimersByTimeAsync(20);
+      edit("");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(captureBridge).toHaveBeenCalledOnce();
+      completions[0](true);
+      await vi.advanceTimersByTimeAsync(0);
+      completions[1](true);
+      await vi.advanceTimersByTimeAsync(0);
+      completions[2](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(stored).toEqual(["A", "B", "clear"]);
+      await scanner.scan();
+      expect(summaryText()).toContain("1 cleared");
+      scanner.setEnabled(false);
+    });
   });
 
   it("flushes a pending text capture before the host advances the step", async () => {
@@ -1202,10 +1528,12 @@ describe("generation-based safe form filling", () => {
       source: "confirmed_external",
       value: { kind: "text", value: "external-value" },
     });
-    await scanner.scan();
-    expect(summaryText()).toBe(
-      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 remembered",
-    );
+    await vi.waitFor(async () => {
+      await scanner.scan();
+      expect(summaryText()).toBe(
+        "0 filled · 0 already match · 0 needs attention · 0 manual · 1 remembered",
+      );
+    });
     scanner.setEnabled(false);
   });
 

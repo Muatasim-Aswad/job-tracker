@@ -580,8 +580,7 @@ def test_relink_reprojects_receiver_and_surviving_donor(client: TestClient) -> N
 
 
 def test_relink_moves_events_without_dedup(client: TestClient) -> None:
-    # No more UNIQUE(job_id, event, day): relinking just reassigns events. If donor
-    # and target each hold the same event kind, both are retained (not collapsed).
+    # Relinking retains both jobs' same-kind events without deduplication.
     r1 = _post_listing(client, platform="exampleboard", platform_id="JR_1", title="A", company="X")
     r2 = _post_listing(client, platform="linkedin", platform_id="99", title="A", company="X")
     job_a = r1["job_id"]

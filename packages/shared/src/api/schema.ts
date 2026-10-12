@@ -1162,7 +1162,7 @@ export interface components {
         };
         /** CaptureCreateResponse */
         CaptureCreateResponse: {
-            capture: components["schemas"]["CaptureRecordSummary"];
+            capture: components["schemas"]["CaptureRecordDetail"];
             /** Superseded Capture Id */
             superseded_capture_id?: string | null;
             /** Superseded Capture Ids */
@@ -1271,8 +1271,8 @@ export interface components {
             /** Platform Id */
             platform_id: string;
         };
-        /** CaptureRecordSummary */
-        CaptureRecordSummary: {
+        /** CaptureRecordDetail */
+        CaptureRecordDetail: {
             /** Answer Revision Used */
             answer_revision_used?: number | null;
             /** Application Context Id */
@@ -1314,6 +1314,53 @@ export interface components {
             updated_at: string;
             /** Value */
             value?: (components["schemas"]["TextValue"] | components["schemas"]["LongTextValue"] | components["schemas"]["DecimalValue"] | components["schemas"]["BooleanValue"] | components["schemas"]["DateValue"] | components["schemas"]["CaptureSingleChoiceValue"] | components["schemas"]["CaptureMultiChoiceValue"]) | null;
+            /**
+             * Value Kind
+             * @enum {string}
+             */
+            value_kind: "text" | "long_text" | "decimal" | "boolean" | "date" | "single_choice" | "multi_choice";
+        };
+        /** CaptureRecordSummary */
+        CaptureRecordSummary: {
+            /** Answer Revision Used */
+            answer_revision_used?: number | null;
+            /** Application Context Id */
+            application_context_id: string;
+            /** Created At */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Job Id */
+            job_id?: string | null;
+            /** Listing Id */
+            listing_id?: string | null;
+            /** Mapping Id */
+            mapping_id?: string | null;
+            /** Mapping Revision Used */
+            mapping_revision_used?: number | null;
+            /** Question Id */
+            question_id: string;
+            /**
+             * Question Label
+             * @default
+             */
+            question_label: string;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Revision */
+            revision: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "user_input" | "confirmed_external" | "unattributed_change";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "current" | "superseded" | "applied" | "ignored";
+            /** Updated At */
+            updated_at: string;
             /**
              * Value Kind
              * @enum {string}

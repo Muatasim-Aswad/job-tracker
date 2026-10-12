@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Build the dashboard in an isolated Node stage. The runtime image contains only
-# the resulting static files, not Node, pnpm, or the workspace sources.
+# Ship only built static assets from the Node stage.
 FROM node:24.15.0-bookworm-slim AS web-build
 
 WORKDIR /build
@@ -19,8 +18,7 @@ RUN corepack enable \
     && pnpm install --frozen-lockfile \
     && pnpm exec vp run -F web build
 
-# Keep uv out of the final image while retaining the locked production virtual
-# environment it creates. The Python image is deliberately Linux/amd64-tested only.
+# Keep uv out of runtime while retaining its locked environment; tested on Linux/amd64.
 FROM ghcr.io/astral-sh/uv:0.11.28 AS uv
 
 FROM python:3.14.3-slim-bookworm AS api-build
@@ -63,6 +61,5 @@ USER jobtracker:jobtracker
 EXPOSE 3456
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=6 CMD ["python", "-c", "from urllib.request import urlopen; response = urlopen('http://127.0.0.1:3456/health', timeout=2); raise SystemExit(0 if response.status == 200 else 1)"]
 
-# The image ships the `job-tracker` CLI for maintenance. Uvicorn deliberately
-# binds all container interfaces so Compose can publish it to loopback only.
+# The maintenance CLI ships in the image; container-wide binding allows loopback forwarding.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3456"]

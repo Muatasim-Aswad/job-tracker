@@ -1,7 +1,5 @@
-// Invariant checks over the whole (small, finite) status domain — every status
-// crossed with every other, so this is exhaustive rather than sampled. Complements
-// funnel.contract.test.ts (which pins the tables to the server) by pinning the
-// *relationships between* the functions built on those tables instead.
+// Exhaust every status pair to check relationships between funnel helpers.
+// The separate contract suite pins their tables to the server.
 import { describe, expect, it } from "vitest";
 
 import {

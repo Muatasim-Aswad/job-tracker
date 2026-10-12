@@ -38,18 +38,12 @@ import { isStatusSettingEvent, type Status } from "@job-tracker/shared/funnel";
 const JOBS_KEY = ["jobs"] as const;
 const jobKey = (id: string) => ["job", id] as const;
 
-// The board loads every job once, at single-user scale, and derives search, hidden,
-// and column bucketing client-side, so toggling a filter never refetches or flickers.
-// stubs:false drops title-less rows — bare seen/closed/auto-hide events that never got
-// a listing capture, with nothing actionable to show. Backfill scripts still see them
-// through the unfiltered endpoint.
+// Load the complete single-user job set for client-side filtering; exclude titleless stubs.
 export function useJobs() {
   return useQuery({ queryKey: JOBS_KEY, queryFn: () => api.listJobs({ stubs: false }) });
 }
 
-// Manually add a job by creating a listing, which the server auto-creates the job
-// for. The new row can land in any board column, so refetch the whole list rather
-// than splice; the caller opens the returned job to fill in the rest.
+// Refetch after manual listing creation because the new job can affect any column.
 export function useCreateListing() {
   const qc = useQueryClient();
   return useMutation({
@@ -58,9 +52,7 @@ export function useCreateListing() {
   });
 }
 
-// Likely reposts of a listing — the duplicates the relink view leads with.
-// Keyed by the listing's natural key plus the owning job's title/company, and
-// disabled until both are known, since the server needs both to suggest anything.
+// Suggestions require known title/company and track their natural-key context.
 export function useJobMatches(
   platform: string,
   platformId: string,
@@ -74,10 +66,7 @@ export function useJobMatches(
   });
 }
 
-// The drawer's read. It renders an explicit error state with Retry, so a failure must
-// become observable quickly rather than hide behind react-query's default three
-// backed-off retries — that delay is what made a failed fetch look like a drawer stuck
-// on "Loading…". One retry absorbs a transient blip; anything worse surfaces.
+// One retry absorbs transient failures while keeping drawer errors promptly observable.
 export function useJob(jobId: string | null) {
   return useQuery({
     queryKey: jobKey(jobId ?? ""),
@@ -87,8 +76,7 @@ export function useJob(jobId: string | null) {
   });
 }
 
-// Replay the submitted events onto a state locally, the same projection the server
-// does, so drags and toggles reflect instantly before the round-trip lands.
+// Project optimistic events locally before the server response.
 function project(base: JobState, events: EventItem[]): JobState {
   let { status, hidden, starred } = base;
   for (const { event } of events) {
@@ -149,8 +137,7 @@ export function useJobEvents() {
   });
 }
 
-// Corrections return authoritative state and change the timeline, so update the
-// list from the response and refetch the detail.
+// Apply authoritative correction state and refetch the timeline.
 export function useCorrectStatus() {
   const qc = useQueryClient();
   return useMutation({
@@ -210,8 +197,7 @@ export function useUpdateJob() {
   });
 }
 
-// The `meta` vocabulary for fuzzy field suggestions. Cheap and rarely-changing, so a
-// long stale window keeps the drawer snappy.
+// Metadata vocabulary changes slowly, allowing a long stale window.
 export function useMetaVocabulary(entity = "jobs") {
   return useQuery({
     queryKey: ["meta-vocabulary", entity] as const,
@@ -242,8 +228,7 @@ export function useUpdateEvent() {
   });
 }
 
-// Record a manual note. It changes no funnel state but resets the attention
-// clock, so clear the summary projection immediately and reconcile both reads.
+// Notes reset attention without moving state; clear attention and reconcile both reads.
 export function useAddNote() {
   const qc = useQueryClient();
   return useMutation({
@@ -259,8 +244,7 @@ export function useAddNote() {
   });
 }
 
-// The note-title suggestion pool. Cheap and slow-changing, so a long stale window
-// keeps the note form snappy.
+// Note-title vocabulary changes slowly, allowing a long stale window.
 export function useNoteTitles() {
   return useQuery({
     queryKey: ["note-titles"] as const,
@@ -269,8 +253,7 @@ export function useNoteTitles() {
   });
 }
 
-// Delete a manual note event. Funnel state stays put, but removing the newest
-// activity can restore attention, so reconcile the timeline and summaries.
+// Deleting recent activity can restore attention; reconcile detail and summaries.
 export function useDeleteEvent() {
   const qc = useQueryClient();
   return useMutation({
@@ -315,9 +298,7 @@ export function useDeleteDocument() {
   });
 }
 
-// ── Company blocklist ────────────────────────────────────────────────────────
-// The list the extension enforces to skip capture and hide cards; this dashboard is
-// its management surface. Rarely changes, so a long stale window keeps it quiet.
+// The extension enforces this blocklist; cache its infrequently changed management view.
 const BLOCKED_KEY = ["blocked-companies"] as const;
 
 export function useBlockedCompanies() {
@@ -357,15 +338,11 @@ export function useDeleteJob() {
   });
 }
 
-// Relink a listing to a different job, through the shared link_listing_to_job
-// cascade. The source job may be dissolved server-side if this was its last listing,
-// and the target gains the listing plus its attributed events, so the board and both
-// job details are refetched. Returns the new owning job's id.
+// Relinking moves events and may dissolve the source; refresh the board and both jobs.
 export function useRelinkListing() {
   const qc = useQueryClient();
   return useMutation({
-    // sourceJobId is the job the listing is leaving, carried so its detail can be
-    // refreshed — or dropped, once dissolved — alongside the target's.
+    // Retain sourceJobId to refresh or remove the old detail after relinking.
     mutationFn: ({
       listingId,
       targetJobId,
@@ -382,10 +359,8 @@ export function useRelinkListing() {
   });
 }
 
-// ── Form Fill knowledge workspace ───────────────────────────────────────────
-// Knowledge is server-authoritative: none of these mutations has onMutate or writes
-// query data. A successful write invalidates the whole bounded workspace graph so
-// Answer, Question, Match, Capture, presence, and detail projections stay coherent.
+// Knowledge mutations remain server-authoritative, without optimistic query writes.
+// Invalidate the bounded workspace graph after success to keep projections coherent.
 
 const FORM_FILL_KEY = ["form-fill"] as const;
 const FORM_FILL_REFRESH_MS = 2_000;
@@ -596,9 +571,8 @@ export function useRemoveFormFillDetail() {
   );
 }
 
-// Edit a listing's own fields (url, JD in meta, …). Exposed only for manual listings:
-// captured ones are scraper-owned, and a re-capture would clobber the edit. Both the
-// board rollup, where a url change moves the card link, and the detail may shift.
+// Only manual listings are editable; recapture owns scraped fields.
+// Refresh board links and job details after editing.
 export function useUpdateListing() {
   const qc = useQueryClient();
   return useMutation({
@@ -614,8 +588,7 @@ export function useUpdateListing() {
 export function useDeleteListing() {
   const qc = useQueryClient();
   return useMutation({
-    // jobId is carried to refresh the right detail. The server may have dissolved the
-    // job if this was its last listing, so the board list is re-fetched regardless.
+    // The last listing may dissolve its job; refresh the board as well as detail.
     mutationFn: ({ listingId }: { listingId: string; jobId: string }) =>
       api.deleteListing(listingId),
     onSuccess: (_void, { jobId }) => {

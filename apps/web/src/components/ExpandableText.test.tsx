@@ -56,9 +56,7 @@ describe("ExpandableText", () => {
 });
 
 describe("ExpandableText — a preview that differs from the text", () => {
-  // Asserted on `textContent`, not `getByText`: the query normalises whitespace, so
-  // the flattened preview and the real text match the same string — which is the
-  // one difference this test exists to see.
+  // Use textContent because text queries normalize the whitespace under test.
   it("shows the preview collapsed and the real text expanded", () => {
     const restore = stubClamp({ scroll: 120, client: 60 });
     const { container } = render(
@@ -71,9 +69,7 @@ describe("ExpandableText — a preview that differs from the text", () => {
     restore();
   });
 
-  // The trap: a description short enough that its flattened preview fits two lines
-  // overflows nothing, so an overflow-only gate would offer no control — and the
-  // structure the preview dropped would be unreachable.
+  // A substituted preview must expose original structure even without overflow.
   it("offers the toggle even when the preview fits the clamp", () => {
     const restore = stubClamp({ scroll: 60, client: 60 });
     render(<ExpandableText text={"One.\n\nTwo."} previewText="One. Two." lines={2} />);

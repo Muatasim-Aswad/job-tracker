@@ -153,6 +153,7 @@ export class EasyApplyScanner {
   private readonly applicationContextId: string;
   private readonly rootFinder: EasyApplyRootFinder;
   private generation = 0;
+  private enableEpoch = 0;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private observer: MutationObserver | undefined;
   private observedTrees = new Set<SearchTree>();
@@ -163,6 +164,7 @@ export class EasyApplyScanner {
   private runtimeFields = new Map<string, RuntimeField>();
   private ownership = new Map<string, OwnershipRecord>();
   private pendingCaptures = new Map<string, PendingCapture>();
+  private captureFlights = new Map<string, ReturnType<CaptureBridge>>();
   private captureTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private conditionalIdentities = new Map<string, string>();
   private conditionalTimer: ReturnType<typeof setTimeout> | undefined;
@@ -240,9 +242,16 @@ export class EasyApplyScanner {
         (item.control === target || isSuggestionTarget(item.control, target)),
     );
     if (!picked) return;
+    const epoch = this.enableEpoch;
+    const step = stepIdentity(root);
     setTimeout(() => {
+      if (!this.enabled || epoch !== this.enableEpoch || stepIdentity(root) !== step) return;
       const live = this.easyApplyRoot() === root ? this.livePick(root, picked.handle) : null;
-      if (live && !isControlEmpty(live)) {
+      if (
+        live &&
+        fieldIdentityFingerprint(live) === fieldIdentityFingerprint(picked) &&
+        !isControlEmpty(live)
+      ) {
         this.ownership.delete(live.handle);
         this.notes.delete(live.handle);
         this.queueCapture(root, live, "user_input", true);
@@ -358,6 +367,7 @@ export class EasyApplyScanner {
     this.enabled = enabled;
     if (!enabled) {
       this.generation += 1;
+      this.enableEpoch += 1;
       if (this.timer) clearTimeout(this.timer);
       for (const timer of this.captureTimers.values()) clearTimeout(timer);
       this.captureTimers.clear();
@@ -615,10 +625,9 @@ export class EasyApplyScanner {
         detail: "Job Tracker will not retry this field.",
       };
     }
-    if (live.pickSuggestion) void this.pickSuggestion(runtime, live, before);
     runtime.field = live;
     runtime.expected = after;
-    this.ownership.set(live.handle, {
+    const ownership: OwnershipRecord = {
       control: live.control,
       before,
       after,
@@ -626,7 +635,9 @@ export class EasyApplyScanner {
       action: result.action,
       source: result.status,
       stepKey: runtime.stepKey,
-    });
+    };
+    this.ownership.set(live.handle, ownership);
+    if (live.pickSuggestion) void this.pickSuggestion(runtime, live, ownership);
     if (validationEvidence(live) === "error") {
       return {
         ...base,
@@ -650,12 +661,37 @@ export class EasyApplyScanner {
   private async pickSuggestion(
     runtime: RuntimeField,
     field: SupportedField,
-    before: ControlSnapshot,
+    ownership: OwnershipRecord,
   ): Promise<void> {
     const typed = snapshotControl(field);
-    const option = await waitForExactSuggestion(field.control, field.control.value);
-    if (!snapshotsEqual(snapshotControl(field), typed)) return;
-    if (option) {
+    const epoch = this.enableEpoch;
+    // Suggestion-list mutations may schedule a scan; only live identity and write
+    // ownership authorize the delayed click or rollback.
+    const isCurrent = () => {
+      if (
+        !this.enabled ||
+        epoch !== this.enableEpoch ||
+        this.easyApplyRoot() !== runtime.root ||
+        stepIdentity(runtime.root) !== runtime.stepKey ||
+        this.ownership.get(field.handle) !== ownership
+      )
+        return false;
+      const live = this.livePick(runtime.root, field.handle);
+      return (
+        !!live &&
+        live.control === field.control &&
+        fieldIdentityFingerprint(live) === runtime.identity &&
+        snapshotsEqual(snapshotControl(live), typed)
+      );
+    };
+    const option = await waitForExactSuggestion(
+      field.control,
+      field.control.value,
+      undefined,
+      isCurrent,
+    );
+    if (!isCurrent()) return;
+    if (option?.isConnected && isSuggestionTarget(field.control, option)) {
       this.writeDepth += 1;
       try {
         chooseSuggestion(option);
@@ -666,7 +702,8 @@ export class EasyApplyScanner {
     }
     this.writeDepth += 1;
     try {
-      restoreSnapshot(field, before);
+      if (!isCurrent()) return;
+      restoreSnapshot(field, ownership.before);
     } finally {
       this.writeDepth -= 1;
     }
@@ -685,6 +722,22 @@ export class EasyApplyScanner {
   private resultPresentation(runtime: RuntimeField): PresentedField {
     const base = this.basePresentation(runtime);
     const result = runtime.result;
+    const pending = this.pendingCaptures.get(runtime.field.handle);
+    if (
+      pending?.identity === runtime.identity &&
+      snapshotsEqual(snapshotControl(runtime.field), pending.snapshot)
+    ) {
+      const note = this.notes.get(runtime.field.handle);
+      return {
+        ...base,
+        state: note?.signature === snapshotKey(pending.snapshot) ? note.state : "attention",
+        label:
+          note?.signature === snapshotKey(pending.snapshot)
+            ? note.label
+            : "Waiting to remember this change",
+        detail: note?.signature === snapshotKey(pending.snapshot) ? note.detail : undefined,
+      };
+    }
     if (result.status === "approved" || result.status === "captured") {
       return this.presentationForAction(runtime);
     }
@@ -848,7 +901,11 @@ export class EasyApplyScanner {
     const snapshot = snapshotControl(field);
     const identity = fieldIdentityFingerprint(field);
     const signature = `${identity}\u0000${source}\u0000${snapshotKey(snapshot)}`;
-    if (signature === this.lastCaptureSignatures.get(field.handle)) return;
+    if (
+      signature === this.lastCaptureSignatures.get(field.handle) &&
+      !this.pendingCaptures.has(field.handle)
+    )
+      return;
     const numeric =
       field.request.control_kind === "integer" || field.request.control_kind === "decimal";
     const existing = this.pendingCaptures.get(field.handle);
@@ -978,11 +1035,48 @@ export class EasyApplyScanner {
       ...captureValue,
     };
     pending.attempted = true;
-    const response = await this.captureBridge(request);
+    // Serialize by server Question, including across DOM handles and disable/re-enable,
+    // so an older save cannot arrive after a newer edit or clear.
+    const previous = this.captureFlights.get(result.question_id);
+    const epoch = this.enableEpoch;
+    const flight = (async () => {
+      if (previous) await previous;
+      if (!this.enabled || epoch !== this.enableEpoch) return { ok: false as const };
+      try {
+        return await this.captureBridge(request);
+      } catch {
+        return { ok: false as const };
+      }
+    })();
+    this.captureFlights.set(result.question_id, flight);
+    const response = await flight;
+    if (this.captureFlights.get(result.question_id) === flight) {
+      this.captureFlights.delete(result.question_id);
+    }
+    // A completion owns only its own pending entry, never a later edit or timer.
+    if (this.pendingCaptures.get(handle) !== pending) return;
     this.pendingCaptures.delete(handle);
+    const timer = this.captureTimers.get(handle);
+    if (timer) clearTimeout(timer);
     this.captureTimers.delete(handle);
     if (response.ok) this.lastCaptureSignatures.set(handle, pending.signature);
     else this.lastCaptureSignatures.delete(handle);
+    const current = this.runtimeFields.get(handle);
+    const live =
+      current &&
+      this.enabled &&
+      this.easyApplyRoot() === current.root &&
+      stepIdentity(current.root) === current.stepKey
+        ? this.livePick(current.root, handle)
+        : null;
+    if (
+      !current ||
+      current.result.question_id !== result.question_id ||
+      !live ||
+      fieldIdentityFingerprint(live) !== pending.identity ||
+      !snapshotsEqual(snapshotControl(live), pending.snapshot)
+    )
+      return;
     const signature = snapshotKey(pending.snapshot);
     this.notes.set(
       handle,

@@ -136,6 +136,16 @@ async function getMatches(msg: {
 // listing can never dismiss a tab the user opened themselves.
 const BULK_JOB_TAB_IDS_KEY = "bulkJobTabIds";
 
+// Serialize creation, ownership writes, and removal so concurrent messages cannot
+// duplicate jobs or lose session markers. A failed operation releases the queue.
+let bulkTabOperations: Promise<unknown> = Promise.resolve();
+
+function queueBulkTabOperation<T>(operation: () => Promise<T>): Promise<T> {
+  const result = bulkTabOperations.then(operation);
+  bulkTabOperations = result.catch(() => {});
+  return result;
+}
+
 async function bulkJobTabIds() {
   const stored = await chrome.storage.session.get(BULK_JOB_TAB_IDS_KEY);
   const ids = stored[BULK_JOB_TAB_IDS_KEY];
@@ -246,9 +256,9 @@ function handle(msg: BridgeRequest, sender?: chrome.runtime.MessageSender) {
       // "reachable: true" self-corrects on the asker's own next call.
       return Promise.resolve({ reachable: serverReachable });
     case "open-job-tabs":
-      return openJobTabs(msg.urls);
+      return queueBulkTabOperation(() => openJobTabs(msg.urls));
     case "close-bulk-job-tab":
-      return closeBulkJobTab(sender?.tab?.id);
+      return queueBulkTabOperation(() => closeBulkJobTab(sender?.tab?.id));
     case "notify-change":
       // The write already happened on the caller's own origin. Membership in
       // MUTATING is the point — the broadcast below does the work.
@@ -337,5 +347,5 @@ chrome.runtime.onMessage.addListener((msg: BridgeRequest, sender, sendResponse) 
 
 // Manual closes and navigation races also retire the temporary ownership marker.
 chrome.tabs.onRemoved.addListener((tabId) => {
-  void forgetBulkJobTab(tabId);
+  void queueBulkTabOperation(() => forgetBulkJobTab(tabId)).catch(() => {});
 });

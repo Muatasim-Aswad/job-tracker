@@ -1,14 +1,6 @@
-// The Engine contract: the single object that owns mutable state. Each concern
-// (bridge, readModel, bars, statusSelect, matches, blocklist, capture, menu, scan) is
-// a `create<Concern>(engine)` factory keeping its own state closure-private and
-// contributing its slice of methods here, which engine/create.ts Object.assigns onto
-// one instance. Concerns reach each other through `engine.*`, late-bound at call
-// time, so they can be mutually recursive without an import cycle — and an Engine per
-// test gets fresh, isolated state.
-//
-// Members are function-typed properties rather than method signatures on purpose:
-// every slice is a `this`-less closure, so the barrel can re-export the references
-// directly.
+// One Engine owns a document. Concern factories keep closure-private state and
+// call each other through late-bound engine.* properties, avoiding import cycles.
+// Function properties are intentional: these closures need no this binding when re-exported.
 import type { Adapter } from "../adapters/types";
 import type { BridgeRequest, BridgeResponse, JobState, ListingRecord } from "../messages.js";
 

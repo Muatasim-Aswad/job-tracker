@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-// Light/dark theming. The resolved theme is a `.dark` class on <html>; a stored
-// preference overrides the system setting, and `system` follows it live. The
-// pre-paint script in index.html applies the same rule before React mounts, so
-// there's no flash — this module just keeps it in sync as the user toggles.
+// Explicit preferences override the system; keep the pre-paint index.html rule in sync.
 
 export type ThemePref = "system" | "light" | "dark";
 
@@ -39,7 +36,6 @@ function persist(pref: ThemePref): void {
   }
 }
 
-// The cycle order for the header toggle: System → Light → Dark → System.
 const NEXT: Record<ThemePref, ThemePref> = { system: "light", light: "dark", dark: "system" };
 
 export function useTheme(): { pref: ThemePref; cycle: () => void } {
@@ -50,7 +46,6 @@ export function useTheme(): { pref: ThemePref; cycle: () => void } {
     persist(pref);
   }, [pref]);
 
-  // While following the system, re-apply when the OS preference flips.
   useEffect(() => {
     if (pref !== "system") return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -59,8 +54,7 @@ export function useTheme(): { pref: ThemePref; cycle: () => void } {
     return () => mq.removeEventListener("change", onChange);
   }, [pref]);
 
-  // Stable identity so callers (the header toggle *and* the global `t` shortcut in
-  // App) can list it in an effect's deps without re-subscribing every render.
+  // Stable callbacks avoid repeated effect subscriptions.
   const cycle = useCallback(() => setPref((p) => NEXT[p]), []);
   return { pref, cycle };
 }

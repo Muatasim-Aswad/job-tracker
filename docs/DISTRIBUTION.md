@@ -231,16 +231,12 @@ A purge is a separate, explicitly confirmed procedure. It may remove the local p
 
 ## Current command surface
 
-The delayed-import `job-tracker` entry point now provides the shared command surface used by staged applications and later packaged artifacts:
+The delayed-import `job-tracker` entry point serves source, runtime-bundle, wheel, and container layouts. [CLI](CLI.md#commands) owns command syntax; the lifecycle guarantees remain here:
 
-- `job-tracker start [--port PORT]` runs the server in the foreground on `127.0.0.1`; Ctrl-C performs the normal FastAPI shutdown, including final sync and lock release.
-- `job-tracker status` reads advisory-lock ownership and performs a bounded loopback health check. It reports `stopped`, `healthy`, or `lock-held-but-unhealthy` and never opens or creates the database or lock.
-- `job-tracker paths` prints the selected application, data, configuration, state, database, dashboard, schema, and version paths without configuration values or credentials.
-- `job-tracker version` prints the selected application's canonical `VERSION` value.
-- `job-tracker doctor` reports redacted product/runtime, profile, database-mode, path, lock/health, integrity, and permission diagnostics. It skips database inspection while the lock is held and returns nonzero for a diagnostic failure.
-- `job-tracker backup OUTPUT.sqlite` creates a private, validated, atomic snapshot of the stopped profile's effective local store.
-- `job-tracker restore BACKUP.sqlite [--target TARGET.sqlite] [--replace]` validates and migrates a local candidate before installation. Turso profiles require a separate explicit recovery target and never reseed a primary.
-- `job-tracker migrate-checkout CHECKOUT` snapshots a stopped legacy checkout into an empty local packaged destination without copying configuration, credentials, or other checkout state.
+- Foreground startup binds loopback, acquires the profile lock, and releases it only after database cleanup.
+- Status and path inspection do not open the database or disclose credentials; diagnostics skip database inspection while the lock is held.
+- Backup and restore validate stopped-profile snapshots, with atomic installation and explicit replacement/recovery rules.
+- Checkout adoption copies only a verified database snapshot into an empty packaged destination.
 
 The command defaults to the packaged profile because it is the installed/staged entry point. Source-checkout use selects `--profile source` or uses the root launchers; direct `uvicorn app.main:app` from `apps/api/` remains the explicit direct-development compatibility profile.
 

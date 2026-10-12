@@ -28,6 +28,7 @@ import {
   isChoiceKind,
   POLICY_LABEL,
   valueText,
+  type AnswerDetail,
   type QuestionDetail,
 } from "./model";
 import { ChangeReview } from "./ChangeReview";
@@ -59,9 +60,7 @@ export function AnswerDrawer({
   const [draft, setDraft] = useState<AnswerDraft>(() =>
     questionContext ? draftForQuestion(questionContext) : emptyAnswerDraft(),
   );
-  const [initializedFor, setInitializedFor] = useState<string | null>(
-    answerId ? null : (questionContext?.id ?? "new"),
-  );
+  const [baseAnswer, setBaseAnswer] = useState<AnswerDetail | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [editingName, setEditingName] = useState(false);
   const [nameBeforeEdit, setNameBeforeEdit] = useState("");
@@ -72,7 +71,7 @@ export function AnswerDrawer({
   const answer = query.data;
   const dirty = JSON.stringify(draft) !== baseline;
   const mutation = answerId ? update : context ? createForQuestion : create;
-  const savedDraft = answer ? draftFromAnswer(answer) : null;
+  const savedDraft = baseAnswer ? draftFromAnswer(baseAnswer) : null;
   const fillChanged =
     savedDraft &&
     (["scalar", "selected", "choices", "fillPolicy", "status"] as const).some(
@@ -87,12 +86,12 @@ export function AnswerDrawer({
   );
 
   useEffect(() => {
-    if (answer && initializedFor !== answer.id) {
+    if (answer && baseAnswer?.id !== answer.id) {
       setDraft(draftFromAnswer(answer));
       setBaseline(JSON.stringify(draftFromAnswer(answer)));
-      setInitializedFor(answer.id);
+      setBaseAnswer(answer);
     }
-  }, [answer, initializedFor]);
+  }, [answer, baseAnswer]);
 
   function close() {
     if (answerId) removeDetail("answer", answerId);
@@ -110,13 +109,13 @@ export function AnswerDrawer({
         draft.choices.every((choice) => choice.choice_key && choice.display_label)));
 
   async function save(advance = false) {
-    if (!valid) return;
+    if (!valid || (answerId && baseAnswer?.id !== answerId)) return;
     try {
       if (answerId && answer) {
         const saved = await update.mutateAsync({
           answerId,
           body: {
-            expected_revision: answer.revision,
+            expected_revision: baseAnswer!.revision,
             answer_key: draft.answerKey,
             choices: draft.choices,
             description: draft.description || null,
@@ -126,6 +125,7 @@ export function AnswerDrawer({
             value: valueFromDraft(draft),
           },
         });
+        setBaseAnswer(saved);
         setDraft(draftFromAnswer(saved));
         setBaseline(JSON.stringify(draftFromAnswer(saved)));
         setEditingName(false);
@@ -177,9 +177,14 @@ export function AnswerDrawer({
 
   const discard = () => {
     setEditingName(false);
-    if (answer) setDraft(draftFromAnswer(answer));
-    else if (context) setDraft(draftForQuestion(context));
-    else setDraft(emptyAnswerDraft());
+    const next = answer
+      ? draftFromAnswer(answer)
+      : context
+        ? draftForQuestion(context)
+        : emptyAnswerDraft();
+    setBaseAnswer(answer ?? null);
+    setDraft(next);
+    setBaseline(JSON.stringify(next));
     mutation.reset();
   };
 
@@ -330,8 +335,8 @@ export function AnswerDrawer({
               (fillChanged || context) && (
                 <ChangeReview
                   before={
-                    answer
-                      ? valueText(answer.value, answer.choices)
+                    baseAnswer
+                      ? valueText(baseAnswer.value, baseAnswer.choices)
                       : "No saved answer for this question"
                   }
                   after={valueText(valueFromDraft(draft), draft.choices)}
@@ -390,7 +395,11 @@ export function AnswerDrawer({
                 const current = await questionQuery.refetch();
                 if (current.data) setContext(current.data);
               } else {
-                await query.refetch();
+                const current = await query.refetch();
+                if (current.data) {
+                  setBaseAnswer(current.data);
+                  setBaseline(JSON.stringify(draftFromAnswer(current.data)));
+                }
               }
               mutation.reset();
             }}

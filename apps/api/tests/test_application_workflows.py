@@ -307,6 +307,16 @@ def test_merge_and_relink_refuse_two_workflow_records(client: TestClient) -> Non
     relink = client.patch(f"/api/listings/{second['listing_id']}", json={"job_id": first["job_id"]})
     assert relink.status_code == 409
     assert relink.json()["detail"] == "application_workflow_conflict"
+    for conflict in (merge, relink):
+        assert conflict.headers.get("cache-control") == "no-store"
+        assert (
+            conflict.json()["current"]["source"]["references"]
+            == _payload(second_event)["references"]
+        )
+        assert (
+            conflict.json()["current"]["target"]["references"]
+            == _payload(first_event)["references"]
+        )
 
 
 def test_hard_deletion_removes_the_record_without_a_public_delete(client: TestClient) -> None:
@@ -314,7 +324,9 @@ def test_hard_deletion_removes_the_record_without_a_public_delete(client: TestCl
     event_id = _event(client, listing["job_id"], "applied")
     url = f"/api/jobs/{listing['job_id']}/application-workflow"
     assert client.put(url, json=_payload(event_id)).status_code == 201
-    assert client.delete(url).status_code == 405
+    refused = client.delete(url)
+    assert refused.status_code == 405
+    assert refused.headers.get("cache-control") == "no-store"
 
     assert client.delete(f"/api/jobs/{listing['job_id']}").status_code == 204
     assert client.get(url).status_code == 404

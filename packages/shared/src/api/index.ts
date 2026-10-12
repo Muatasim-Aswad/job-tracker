@@ -1,7 +1,5 @@
-// The one place API shapes are defined for TS: the generated OpenAPI types
-// (schema.ts, produced from the FastAPI app by scripts/gen-api-types.sh and never
-// hand-edited) surfaced as named entity types, plus the shared fetch client.
-// Regenerate with `pnpm --filter @job-tracker/shared gen:api`; CI fails on drift.
+// Named entities and fetch helpers over generated FastAPI types. Regenerate schema.ts
+// with pnpm --filter @job-tracker/shared gen:api; checks reject contract drift.
 import type { components } from "./schema";
 import type { Status } from "../funnel";
 
@@ -10,20 +8,12 @@ export type { components, paths } from "./schema";
 
 type Schemas = components["schemas"];
 
-// A response serializes EVERY field of its model, so a Python field with a default —
-// `title: str | None = None` — is always on the wire even though OpenAPI marks it
-// optional, a default making it non-required for *input* only. `Read<T>` restores that
-// for the read models: nothing is `?`/`undefined`, only the genuine `| null`s remain.
-// That's what lets consumers treat `job.title` as `string | null` and `job.meta` as
-// always-present without a hand-written shape.
+// FastAPI serializes defaulted response fields that OpenAPI marks optional.
+// Require their presence while preserving nullable values.
 type Read<T> = Required<T>;
 
-// The server types `status` as a bare string on its read models, since it's read back
-// from the DB, but every one of these responses carries a settled funnel status.
-// Narrowing to the Status union is what keeps the dashboard's STATUS_LABEL/
-// STATUS_ACCENT indexing and its optimistic `project()` replay exhaustively typed.
-// (The extension's read-model, which adds a synthetic "untracked" state, keeps its own
-// string-status type — see messages.ts.)
+// Stored jobs carry settled funnel statuses; narrow them for exhaustive client use.
+// ListingState also represents synthetic untracked results and keeps string status.
 export type Job = Omit<Read<Schemas["Job"]>, "status"> & { status: Status };
 export type JobSummary = Omit<Read<Schemas["JobSummary"]>, "status"> & { status: Status };
 export type JobDetail = Omit<

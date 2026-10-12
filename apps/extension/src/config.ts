@@ -1,8 +1,5 @@
-// The API and dashboard origin. Set VITE_SERVER_URL in `.env` and rebuild; keep
-// host_permissions in manifest.config.js in step with this value.
+// VITE_SERVER_URL feeds this origin and manifest host permissions at build time.
 export const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3456";
 
-// Every feature route lives under /api on SERVER_URL (app/main.py), and every API
-// call goes through this. The bare origin is only ever opened as the dashboard SPA
-// (DASHBOARD_URL in engine.ts), never fetched.
+// Feature requests use /api; dashboard navigation uses the bare origin.
 export const API_BASE_URL = `${SERVER_URL}/api`;

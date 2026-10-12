@@ -5,8 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-# Least-privilege default; jobs that need more (none currently do) declare it
-# themselves.
+# Jobs needing more access must override the read-only default.
 permissions:
   contents: read
 
@@ -27,8 +26,7 @@ jobs:
       - run: uv run ruff check
       - run: uv run mypy
       - run: uv run pytest -q -m "not turso and not wheel"
-      # Resolved-dependency vulnerability check (pip-audit via uv's own
-      # resolution, so it reflects exactly what uv sync installed).
+      # Audit the resolved Python environment, not only direct dependencies.
       - run: uv export --no-hashes -o "$RUNNER_TEMP/requirements-audit.txt"
       - run: uvx pip-audit -r "$RUNNER_TEMP/requirements-audit.txt"
 
@@ -45,24 +43,15 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --prod --audit-level=high
-      # Dev tooling runs with the app's privileges, so audit it too. Advisory
-      # only: these findings are usually transitive and unfixable here.
+      # Audit privileged development tooling too; transitive findings remain advisory.
       - run: pnpm audit --audit-level=moderate
         continue-on-error: true
       - run: pnpm exec vp check
       - run: pnpm exec vp run -r typecheck
       - run: pnpm exec vp run -r test
       - run: pnpm exec vp run -r build
-      # A fresh checkout never has the gitignored private adapter overlay
-      # (apps/extension/src/adapters/local/), so the build above is already
-      # the public build this assertion needs — no extra isolation required
-      # in CI. Verified locally in a scratch `git worktree add` (which also
-      # lacks the overlay, since it was never committed) against both a
-      # deliberately overlay-polluted build (correctly rejected) and a clean
-      # one (passed); see the E1 ledger entry for details.
+      # Fresh CI checkouts have no ignored overlays, so this checks the public build.
       - run: node apps/extension/scripts/assert-manifest-hosts.mjs
-      # Prose wrapping is mechanical, so a stale document fails here rather than
-      # in review. `pnpm run format:md` is the fix.
       - run: pnpm run check:md
 
   contracts:
@@ -82,15 +71,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: uv sync
         working-directory: apps/api
-      # The wheel bundles the dashboard, so exercise it in the job that has
-      # both the Python and Node workspaces installed.
+      # Wheel tests require both Python and dashboard toolchains.
       - run: uv run --directory apps/api pytest -q -m wheel
-      # Fails if the committed types drifted from an API change that wasn't
-      # regenerated. (The funnel/text cross-language fixtures are guarded the same way
-      # by the API pytest job, which writes-and-asserts them.)
+      # Require generated API types to match FastAPI; pytest guards other contracts.
       - run: bash packages/shared/scripts/gen-api-types.sh --check
-      # This job is the one with both toolchains, so it owns the check that the
-      # root VERSION, the built manifest, and the API metadata still agree.
+      # Version checks need both toolchains and a freshly built extension.
       - run: pnpm run build:ext
       - run: bash scripts/check-version.sh
 
@@ -102,13 +87,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The history scan needs both sides of the PR/push range. The
-          # snapshot scan below still checks the exact tree being merged.
+          # Fetch both sides of the commit range; separately scan the merged snapshot.
           fetch-depth: 0
           # Nothing after checkout needs repository credentials.
           persist-credentials: false
-      # Run the checksum-pinned CLI directly so scanning needs no PR API access
-      # and no third-party action receives GITHUB_TOKEN.
+      # Use a checksum-pinned CLI without granting a scan action PR API or token access.
       - name: Install gitleaks
         env:
           GITLEAKS_VERSION: "8.30.1"

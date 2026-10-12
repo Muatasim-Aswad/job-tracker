@@ -1,6 +1,6 @@
 # Job Tracker — browser extension
 
-Captures job listings from the sites you browse and lets you triage them (status / star / hide) straight from the page, against your Job Tracker server. It injects an action bar onto job cards and detail views, auto-detects signals like _applied_ / _rejected_, and captures the listing into the tracker.
+Captures listings into your Job Tracker server and adds status, star, hide, and skip controls to supported pages. Adapters also detect application and rejection signals.
 
 Each supported site is a small **adapter**. Built-in ones (LinkedIn, and LinkedIn job emails in Gmail) ship under `src/adapters/builtin/`; your own go in the gitignored `src/adapters/local/<board>/`, so private scrapers are never tracked by the public repo. [`docs/PRIVATE.md`](../../docs/PRIVATE.md) covers how that overlay is stored and installed.
 
@@ -27,13 +27,13 @@ For a versioned release ZIP, follow the root [extension loading procedure](../..
 
 ### Versioning
 
-The manifest's version is not set here. `manifest.config.ts` reads the repository root `VERSION` file, the one product version shared with the dashboard and the server, so the extension is never bumped on its own — a user-visible change anywhere in the product decides the next number. The rules are in the [development guide](../../docs/DEVELOPMENT.md#releases-and-versions); the notes are in [`CHANGELOG.md`](../../CHANGELOG.md).
+`manifest.config.ts` derives the manifest version from the root `VERSION`, shared by all components. See the [versioning rules](../../docs/DEVELOPMENT.md#releases-and-versions) and [release history](../../CHANGELOG.md).
 
 Run `pnpm build` and `pnpm typecheck` before calling a change done.
 
 ## Configure the server address
 
-The API/dashboard origin lives in **one** place. Copy the example env and edit it:
+Copy the example environment file, set `VITE_SERVER_URL`, and rebuild:
 
 ```bash
 cp .env.example .env      # then set VITE_SERVER_URL, e.g. https://tracker.example.com
@@ -44,9 +44,11 @@ pnpm build
 
 ## LinkedIn Easy Apply form fill
 
-The **Settings → Easy Apply form fill** switch is enabled by default. Turning it off immediately removes form-fill markers and the panel and stops further scans or captures. The switch and the user's expanded or collapsed summary choice are the only form-fill values saved in `chrome.storage`; both are device-local Booleans, and question and answer values are never stored there. The extension owns that summary choice across rerenders, and it omits the panel when the current step has no field status to show.
+The **Settings → Easy Apply form fill** switch defaults to on. Turning it off removes markers and the panel and cancels pending scans, unsent captures, and suggestion lookups; already-issued saves may finish. Only the switch and summary expanded/collapsed preference are saved in `chrome.storage`, as device-local Booleans. Question and answer values stay in runtime memory. The summary preference survives rerenders; steps without field status have no panel.
 
-The dedicated LinkedIn entry runs in the top document and matching same-origin frames. Within each document it follows open shadow roots, including LinkedIn's interop shell, so the same scanner observes an Easy Apply modal whether LinkedIn mounts it in light DOM or Shadow DOM. Only an open dialog (`<dialog open>`, `role="dialog"`, or `aria-modal="true"`) with form controls is scanned, and only when it either names the feature in an attribute (`easyApply`, `easy-apply`, `easy_apply`, case-insensitive) or first appears within five seconds of activating an Easy Apply button or link. Questions come from each control's accessible name: its label, `aria-labelledby`, or `aria-label`; radio groups use their legend, group label, or the question all radios share as `aria-label`, preferring identical visible text beside the group to keep a trailing required `*`. An unlabeled control inside LinkedIn's per-question wrapper takes the wrapper's leading text as its question. Live character counters (`8/100`) are never read as help text. LinkedIn's question wrappers only refine grouping, so the legacy modal and the server-driven modal on `/jobs/view/` pages share one reader. Steps are identified by their title and progress, including the "N/M pages" position. It waits for lazy fields to settle and re-establishes its safe baseline on forward, backward, and repeated steps. Supported controls are ordinary text and textarea inputs, LinkedIn's **Location (city)** typeahead as text, classified numeric inputs, selects, and ordinary single-choice radio groups whose request-local options can be bound to server-owned option IDs.
+The scanner runs in the top document, matching same-origin frames, and open shadow roots. It scans only an open dialog with controls that names Easy Apply in its attributes or first appeared within five seconds of an Easy Apply activation. Legacy and SDUI layouts share accessible-name discovery: labels, `aria-labelledby`, `aria-label`, radio legends/group labels, or LinkedIn's leading per-question text. Matching visible radio prompts retain required `*`; live character counters never become identity-bearing help text. Step title and progress identify forward, backward, and repeated steps. Scanning waits for lazy fields to settle.
+
+Supported controls are text inputs, textareas, classified numeric inputs, single-choice selects, ordinary single-choice radios, and LinkedIn's **Location (city)** typeahead. Request-local choice options map to server-owned option IDs.
 
 Equivalent single-choice radios and dropdowns share one Question after the API identity update, so a remembered or verified answer works across LinkedIn's two modal layouts when the remaining identity evidence and active options match. Existing choice Questions are retained separately; their verified Answers can be explicitly linked to the new Question. The extension continues reading and filling each control in its actual DOM form.
 
@@ -54,13 +56,19 @@ Existing values are preserved. An empty field can receive an eligible verified o
 
 The summary counts current extension-written values as **filled**, including fills from remembered values, and agreeing untouched values as **already match**. Successful user captures, remembered-value clears, **Keep existing**, and **Revert** have separate **remembered**, **cleared**, **kept**, and **reverted** counts, shown only when present. These are current-step field states, not cumulative activity totals.
 
-Only a trusted user change is remembered automatically after it settles. A value already present when scanning is remembered only through **Remember existing**, and a value written by the extension is never captured as user input. Clearing sends no old value and invalidates the current remembered value. Numeric capture waits for clean host-validation evidence or forward step progress. Eligible pending values flush before a step change, and a failed transport attempt may be retried by changing the field again.
+Only a trusted user change is remembered automatically after it settles. A value already present when scanning is remembered only through **Remember existing**, and a value written by the extension is never captured as user input. Clearing sends no old value and invalidates remembered knowledge. Saves for the same Question run in input order; an older response cannot discard a newer edit or clear, replace its status, or refill a pending clear. Numeric capture waits for clean host-validation evidence or forward step progress. Eligible values flush before a step change; changing the field again retries a transport failure.
 
-Supported controls that appear after a step's initial render enter resolution only after their identity remains stable across two scans. An input is numeric only when it declares so (`type="number"` or a `numeric`/`decimal` input mode); LinkedIn's years-of-experience inputs declare neither in either modal, so both modals present them as the same text question. A numeric input defaults to integer unless it supplies an explicit decimal signal; the write guard still rejects decimal values for an integer field. The legacy modal's **Location (city)** typeahead is filled as text without selecting a suggestion. A typeahead that links its suggestion list (`aria-controls` or `aria-owns`) is filled by typing the stored value and pressing only the suggestion whose text equals it exactly; without one within three seconds the typed text is reverted and the field is marked for manual completion. Typing into such a field is never remembered: its value is captured only after the user picks a suggestion by pointer or Enter, or clears it. Typeaheads without a linked suggestion list, malformed or unidentified radio groups, consent checkboxes, other unclassified utility controls, and repeatable profile sections stay local and manual and are omitted from resolution requests. Selects and radio groups with up to 512 options retain their complete option identity and can be remembered and mapped normally; select examples include phone-country-code lists. A larger choice control stays manual because the API validates a resolution request as one bounded model, so sending it would reject the whole scan and leave every sibling field unchecked. Résumé selectors, file inputs, and LinkedIn's top-choice preference are ignored entirely: they produce no request, marker, or status entry. LinkedIn's preselected follow-company preference is cleared once when the control appears, remains outside form-fill knowledge, and can still be selected deliberately afterward. The scanner never clicks or invokes Next, Continue, Review, Submit, consent, profile, file, résumé, follow-company, or top-choice actions, and it never navigates or submits an application.
+New controls enter resolution after their identity stays stable across two scans. Numeric identity requires `type="number"` or numeric/decimal input mode and defaults to integer without an explicit decimal signal. LinkedIn's years-of-experience controls declare neither, so both modal layouts treat them as text. Integer write guards still reject decimals.
+
+The legacy **Location (city)** typeahead fills as text. A typeahead linked through `aria-controls` or `aria-owns` types the stored value and presses only an exact-text suggestion. If none appears within three seconds, it restores the previous value and requests manual completion. Delayed selection and rollback require the same enabled scanner, root, step, control identity, and owned write. Suggestion-list rendering can reschedule scans without cancelling a valid selection. Typing search text is never captured; a trusted pointer/Enter pick or clear is required.
+
+A selected first option is an existing value even when its HTML value equals its label or is omitted. Only native empty-option semantics or recognized placeholder prompts make it empty; unnamed selected options and multiple-selection controls stay manual.
+
+Controls with up to 512 choices retain complete option identity; larger controls stay manual so one oversized field cannot reject the whole resolution batch. Unlinked typeaheads, malformed radio groups, consent and utility controls, and repeatable profile sections remain local/manual and are omitted from resolution. Résumé selectors, file inputs, and top-choice preferences have no request, marker, or status. The preselected follow-company preference is cleared once outside form-fill knowledge; users can select it afterward. The scanner never invokes application navigation, review, submission, consent, profile, file, résumé, follow-company, or top-choice actions.
 
 ## Keyboard
 
-Open the popup from any tab with **Alt+J** (rebind or clear it at `chrome://extensions/shortcuts`). Inside the popup the flow is keyboard-first — type to search, then:
+Open the popup with **Alt+J**; rebind or clear it at `chrome://extensions/shortcuts`. Type to search, then use the controls below.
 
 On an open LinkedIn job-detail view, press **Alt+H** to hide or unhide the current job, or **Alt+T** to move it forward to **To apply**. The shortcuts are inactive while an input, textarea, select, or editable region has focus. **Alt+H** changes only Job Tracker's hidden flag rather than invoking LinkedIn's dismiss action, while **Alt+T** does nothing when **To apply** is not a valid forward move.
 
@@ -106,13 +114,7 @@ An adapter is one object implementing the [`Adapter`](src/adapters/types.ts) con
 import type { Adapter } from "../../types";
 // Capture-capable adapters import shared engine helpers from ../../../engine.js.
 // DOM-only adapters (just findCards) need no imports.
-import {
-  captureCards,
-  injectDetailButtons,
-  autoEmit,
-  refreshStates,
-  renderJob,
-} from "../../../engine.js";
+import { captureCards } from "../../../engine.js";
 
 export const myBoardAdapter: Adapter = {
   matches: (host) => host === "jobs.myboard.com",
@@ -164,9 +166,9 @@ Then register the host so the content script is injected there. Add the match gl
 ["https://jobs.myboard.com/*"]
 ```
 
-Rebuild (`pnpm build`) and reload. That's the whole loop: **drop a file + a host line + rebuild.** No edits to the shared engine.
+Rebuild with `pnpm build` and reload the extension. Registration needs no engine edit.
 
-- `platform` is a free-form string on the server — a new adapter needs **zero server changes**.
+- `platform` is a free-form string on the server — adding an adapter needs no server change.
 - The engine asks every registered adapter's `naturalKey` in turn, so your prefix is owned entirely by your adapter.
 - See the exported helpers in [engine.ts](src/engine.ts) for what a capture-capable adapter can call (`captureListingOnce`, `injectDetailButtons`, `autoEmit`, the banner/detail helpers, `toNaturalKey`, `detailText`, …).
 

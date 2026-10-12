@@ -4,19 +4,15 @@ import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 
 interface Props {
-  // Section name, e.g. "Timeline". Rendered as the heading text; the count is
-  // appended, never baked into this string.
+  // Keep count out of the section title.
   title: string;
-  // Item count. Omitted (not `0`) when the section has nothing countable.
+  // Omit count only when nothing is countable; zero remains meaningful.
   count?: number;
-  // The `+` add toggle. `noun` builds both labels — "Add note" when closed,
-  // "Cancel adding note" when open — so no two sections can word them differently.
+  // The noun supplies consistent Add/Cancel accessible labels.
   add?: { noun: string; open: boolean; onToggle: () => void };
-  // One sentence explaining what the section is, behind a `?`. For sections whose
-  // meaning is not obvious from the title alone.
+  // Optional help for non-obvious sections.
   help?: string;
   collapse?: { collapsed: boolean; controlsId: string; onToggle: () => void };
-  // Extra controls, right of the add toggle.
   children?: ReactNode;
   className?: string;
 }

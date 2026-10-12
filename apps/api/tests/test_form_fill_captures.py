@@ -121,6 +121,12 @@ def test_capture_retry_is_idempotent_new_values_supersede_and_clear_stores_no_re
         "SELECT COUNT(*) FROM form_captures WHERE status = 'current' OR value_json IS NOT NULL"
     ).fetchone() == (0,)
 
+    later = service.create_capture(_capture(question_id, "after-clear", "LATER"))
+    assert service.create_capture(cleared_request).capture.id == cleared.capture.id
+    assert service.get_capture(later.capture.id).value.model_dump()["value"] == "LATER"
+    with pytest.raises(ConflictError, match="capture_key_reused"):
+        service.create_capture(_capture(question_id, "retry-clear", "CHANGED OPERATION"))
+
 
 def test_capture_key_reuse_with_different_body_conflicts_without_superseding(conn: Conn) -> None:
     service = FormFillService(conn)
@@ -134,6 +140,34 @@ def test_capture_key_reuse_with_different_body_conflicts_without_superseding(con
     current = service.get_capture(original.capture.id)
     assert current.status == "current"
     assert current.value and current.value.model_dump()["value"] == "ORIGINAL"
+
+
+@pytest.mark.parametrize("supersede", [False, True])
+def test_capture_key_cannot_change_from_value_to_clear(conn: Conn, supersede: bool) -> None:
+    service = FormFillService(conn)
+    question_id = service.resolve(_request(_field())).results[0].question_id
+    original = service.create_capture(_capture(question_id, "operation-key", "ORIGINAL"))
+    if supersede:
+        service.create_capture(_capture(question_id, "replacement-key", "REPLACEMENT"))
+    before = conn.execute("SELECT * FROM form_captures ORDER BY id").fetchall()
+    clear = CaptureCreate(
+        capture_key="operation-key",
+        question_id=question_id,
+        application_context_id="application-1",
+        page={"platform": "linkedin", "platform_id": "job-42"},
+        source="user_input",
+        cleared=True,
+    )
+
+    with pytest.raises(ConflictError, match="capture_key_reused"):
+        service.create_capture(clear)
+
+    assert conn.execute("SELECT * FROM form_captures ORDER BY id").fetchall() == before
+    current = service.resolve(_request(_field(), scan="after-rejected-clear")).results[0]
+    assert current.action.model_dump()["value"] == ("REPLACEMENT" if supersede else "ORIGINAL")
+    assert service.get_capture(original.capture.id).status == (
+        "superseded" if supersede else "current"
+    )
 
 
 def test_choice_capture_rejects_another_questions_option_and_preserves_current_value(
@@ -275,6 +309,105 @@ def test_capture_routes_are_no_store(client: TestClient) -> None:
     )
 
 
+def test_capture_collection_and_revision_errors_omit_retained_values(client: TestClient) -> None:
+    question_id = client.post(
+        "/api/form-fill/resolutions", json=_request(_field()).model_dump(mode="json")
+    ).json()["results"][0]["question_id"]
+    body = _capture(question_id, "private-summary", "SYNTHETIC RETAINED VALUE").model_dump(
+        mode="json"
+    )
+    created = client.post("/api/form-fill/captures", json=body)
+    capture = created.json()["capture"]
+    assert created.headers["cache-control"] == "no-store"
+    assert capture["value"] == body["value"]
+    retried = client.post("/api/form-fill/captures", json=body)
+    assert retried.json()["capture"] == capture
+    assert retried.headers["cache-control"] == "no-store"
+
+    for filters in ({}, {"status": "current", "limit": 1}, {"question_id": question_id}):
+        collection = client.get("/api/form-fill/captures", params=filters)
+        assert collection.status_code == 200
+        assert collection.headers["cache-control"] == "no-store"
+        assert [item["id"] for item in collection.json()["items"]] == [capture["id"]]
+        assert all("value" not in item for item in collection.json()["items"])
+        assert "SYNTHETIC RETAINED VALUE" not in collection.text
+
+    reused = client.post(
+        "/api/form-fill/captures", json={**body, "value": {"kind": "text", "value": "OTHER"}}
+    )
+    stale_update = client.patch(
+        f"/api/form-fill/captures/{capture['id']}",
+        json={"expected_revision": 99, "status": "ignored"},
+    )
+    stale_apply = client.post(
+        f"/api/form-fill/captures/{capture['id']}/apply",
+        json={
+            "action": "create_answer_and_map",
+            "expected_capture_revision": 99,
+            "expected_question_revision": 1,
+            "answer_key": "profile.synthetic",
+            "label": "Synthetic",
+            "value_kind": "text",
+            "value": body["value"],
+        },
+    )
+    for response, error in (
+        (reused, "capture_key_reused"),
+        (stale_update, "stale_revision"),
+        (stale_apply, "stale_revision"),
+    ):
+        assert response.status_code == 409
+        assert response.headers["cache-control"] == "no-store"
+        assert response.json()["detail"] == error
+        current = response.json()["current"]
+        summary = current.get("capture", current)
+        assert summary["id"] == capture["id"]
+        assert "value" not in summary
+        assert "SYNTHETIC RETAINED VALUE" not in response.text
+
+    detail = client.get(f"/api/form-fill/captures/{capture['id']}")
+    unchanged = client.patch(
+        f"/api/form-fill/captures/{capture['id']}",
+        json={"expected_revision": capture["revision"], "status": "current"},
+    )
+    for response in (detail, unchanged):
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-store"
+        assert response.json()["value"] == body["value"]
+        assert response.json()["revision"] == capture["revision"]
+    assert client.get("/api/form-fill/answers").json()["items"] == []
+    question = client.get(f"/api/form-fill/questions/{question_id}")
+    assert question.headers["cache-control"] == "no-store"
+    assert all("value" not in item for item in question.json()["current_captures"])
+    applied = client.post(
+        f"/api/form-fill/captures/{capture['id']}/apply",
+        json={
+            "action": "create_answer_and_map",
+            "expected_capture_revision": capture["revision"],
+            "expected_question_revision": question.json()["revision"],
+            "answer_key": "profile.synthetic",
+            "label": "Synthetic",
+            "value_kind": "text",
+            "value": body["value"],
+        },
+    )
+    assert applied.status_code == 200
+    assert applied.headers["cache-control"] == "no-store"
+    assert "value" not in applied.json()["capture"]
+    assert "SYNTHETIC RETAINED VALUE" not in applied.text
+    answer = client.get(f"/api/form-fill/answers/{applied.json()['answer']['id']}")
+    assert answer.json()["value"] == body["value"]
+    assert answer.headers["cache-control"] == "no-store"
+    resolution = client.post(
+        "/api/form-fill/resolutions", json=_request(_field(), scan="private-detail").model_dump()
+    )
+    assert resolution.headers["cache-control"] == "no-store"
+    assert resolution.json()["results"][0]["action"] == {
+        "kind": "set_text",
+        "value": "SYNTHETIC RETAINED VALUE",
+    }
+
+
 def test_capture_apply_create_answer_and_map_is_atomic_and_clears_applied_value(conn: Conn) -> None:
     service = FormFillService(conn)
     question_id = service.resolve(_request(_field())).results[0].question_id
@@ -309,7 +442,7 @@ def test_capture_apply_create_answer_and_map_is_atomic_and_clears_applied_value(
             reason="Verified from remembered value",
         ),
     )
-    assert applied.capture.status == "applied" and applied.capture.value is None
+    assert applied.capture.status == "applied" and "value" not in applied.capture.model_dump()
     assert applied.answer.answer_key == "profile.promoted_name"
     assert applied.mapping.answer_id == applied.answer.id and applied.mapping.status == "active"
     detail = service.get_answer(applied.answer.id)
@@ -386,7 +519,7 @@ def test_capture_apply_update_answer_checks_all_revisions_and_returns_current_su
             reason="Promote correction",
         ),
     )
-    assert applied.capture.revision == 2 and applied.capture.value is None
+    assert applied.capture.revision == 2 and "value" not in applied.capture.model_dump()
     assert applied.question.id == question_id
     assert applied.answer.revision == 2 and applied.answer.label == "Updated name"
     assert applied.mapping.revision == mapped.mapping.revision
@@ -463,7 +596,7 @@ def test_capture_apply_retarget_mapping_reuses_singleton_and_rolls_back_stale_de
     )
     assert applied.mapping.id == mapped.mapping.id
     assert applied.mapping.answer_id == destination.id and applied.mapping.revision == 2
-    assert applied.capture.status == "applied" and applied.capture.value is None
+    assert applied.capture.status == "applied" and "value" not in applied.capture.model_dump()
     assert {event.event for event in service.get_answer(destination.id).events} >= {
         "mapping_corrected",
         "capture_applied",

@@ -49,6 +49,7 @@ from app.form_fill.schemas import (
     CapturedResult,
     CaptureListResponse,
     CaptureMultiChoiceValue,
+    CaptureRecordDetail,
     CaptureRecordSummary,
     CaptureSingleChoiceValue,
     CaptureSummary,
@@ -1078,7 +1079,7 @@ class FormFillService:
         value_json = _json(create.value) if create.value is not None else None
         if existing is not None:
             if self._same_capture_request(existing, create, listing, value_json):
-                return CaptureCreateResponse(capture=self._capture_summary(existing))
+                return CaptureCreateResponse(capture=self._capture_record_detail(existing))
             raise ConflictError("capture_key_reused", self._capture_summary(existing).model_dump())
         if question.capture_conflict:
             raise ConflictError("capture_conflict", self._summary(question).model_dump())
@@ -1103,6 +1104,7 @@ class FormFillService:
                     value_kind=kind,
                     value_json="null",
                     now=now,
+                    cleared=True,
                 )
                 self.repo.transition_capture(
                     capture_id, expected_revision=1, status="superseded", now=now, clear_value=True
@@ -1136,7 +1138,7 @@ class FormFillService:
         row = self.repo.get_capture(capture_id)
         assert row is not None
         return CaptureCreateResponse(
-            capture=self._capture_summary(row),
+            capture=self._capture_record_detail(row),
             superseded_capture_id=current[0]["id"] if len(current) == 1 else None,
             superseded_capture_ids=[item["id"] for item in current],
         )
@@ -1190,7 +1192,7 @@ class FormFillService:
         if mapping and (answer_row := self.repo.get_answer_summary(mapping.answer_id)):
             answer = AnswerSummary(**answer_row)
         return CaptureDetail(
-            **self._capture_summary(row).model_dump(),
+            **self._capture_record_detail(row).model_dump(),
             question=self._summary(question),
             answer=answer,
             mapping=mapping,
@@ -1526,7 +1528,7 @@ class FormFillService:
             ignored_capture_count=ignored_capture_count,
             review_state=question.review_state,
             revision=question.revision,
-            capture_conflict=question.capture_conflict,
+            capture_conflict=capture_count > 1,
             last_unresolved_reason=question.last_unresolved_reason,
             seen_count=question.seen_count,
             first_seen_at=question.first_seen_at,
@@ -1571,12 +1573,17 @@ class FormFillService:
             mapping_revision_used=row["mapping_revision_used"],
             source=row["source"],
             value_kind=row["value_kind"],
-            value=_CAPTURE_VALUE.validate_json(row["value_json"]) if row["value_json"] else None,
             status=row["status"],
             revision=row["revision"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             resolved_at=row["resolved_at"],
+        )
+
+    def _capture_record_detail(self, row: Row) -> CaptureRecordDetail:
+        return CaptureRecordDetail(
+            **self._capture_summary(row).model_dump(),
+            value=_CAPTURE_VALUE.validate_json(row["value_json"]) if row["value_json"] else None,
         )
 
     def _require_question(self, question_id: str) -> Question:
@@ -1783,12 +1790,12 @@ class FormFillService:
     def _same_capture_request(
         self, row: Row, create: CaptureCreate, listing: Any, value_json: str | None
     ) -> bool:
-        expected_status = "superseded" if create.cleared else row["status"]
         return all(
             (
                 row["question_id"] == create.question_id,
                 row["application_context_id"] == create.application_context_id,
                 row["source"] == create.source,
+                row["cleared"] == int(create.cleared),
                 row["mapping_id"] == create.mapping_id,
                 row["answer_revision_used"] == create.answer_revision_used,
                 row["mapping_revision_used"] == create.mapping_revision_used,
@@ -1797,7 +1804,7 @@ class FormFillService:
                 (
                     row["value_json"] == value_json
                     if not create.cleared
-                    else expected_status == "superseded"
+                    else row["status"] == "superseded"
                 ),
             )
         )
@@ -1850,6 +1857,8 @@ class FormFillService:
                     capture=capture, question=question, answer=answer, mapping=mapping
                 ),
             )
+        if question.capture_conflict:
+            raise ConflictError("capture_conflict", self._summary(question).model_dump())
         if capture["status"] != "current" or capture["value_json"] is None:
             raise ConflictError(
                 "capture_not_current",

@@ -1,17 +1,8 @@
-"""Detect and merge duplicate jobs in the tracker.
+"""Detect duplicate jobs sharing company_key and title_key using core.similarity Jaccard overlap. gmail-manual/LinkedIn clusters use application provenance instead of descriptions.
 
-Covers ALL jobs with same company_key+title_key, not just a prior manual sweep's
-notes. Uses JD similarity (Jaccard on word sets, `app.core.similarity` — the same
-primitive the API's repost popover scores with) to confirm same role before
-merging.
-
-Special case: gmail-manual + linkedin clusters merge without JD check (a gmail
-rejection proves the application happened against that listing).
-
-Usage (from apps/api/, so the app package is importable — matches
-`scripts/dump_openapi.py`):
-  uv run python -m scripts.merge_duplicates            # dry run, writes output files
-  uv run python -m scripts.merge_duplicates --execute   # apply merges
+Run from apps/api/:
+  uv run python -m scripts.merge_duplicates            # dry run; writes reports
+  uv run python -m scripts.merge_duplicates --execute  # apply merges
 """
 
 from __future__ import annotations

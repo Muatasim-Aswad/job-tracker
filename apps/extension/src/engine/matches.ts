@@ -18,10 +18,8 @@ export function createMatches(engine: Engine) {
   const queryEpoch = new Map<string, number>(); // jobId -> most recently issued query
   let openPopoverJobId: string | null = null;
 
-  // Ask the server for this posting's candidates and adopt the answer, unless a newer
-  // query for the same job was issued while this one was in flight: the JD capture
-  // lands mid-flight and re-queries (refreshMatches), and its scored answer must not
-  // be overwritten by the earlier unscored one.
+  // Only the latest issued query may update a job's matches; capture can trigger
+  // a scored refresh while an earlier unscored request remains in flight.
   async function queryMatches(jobId: string): Promise<boolean> {
     const key = toNaturalKey(jobId);
     const identity = matchIdentity.get(jobId);
@@ -51,13 +49,8 @@ export function createMatches(engine: Engine) {
     renderMatchControl(jobId);
   }
 
-  // Re-ask for a posting whose own listing has changed underneath the cached answer.
-  // Both what the server can suggest and the "% description overlap" on each row are
-  // derived from the viewed posting's stored JD, which is captured a moment AFTER the
-  // detail view opens and the first check has already run — so without this the
-  // popover would keep showing "no description captured yet" for the whole visit, and
-  // only a reload would score it. No-ops until a check has established the identity;
-  // the next scan's checkMatches then queries with the JD already in place.
+  // Refresh after listing capture or merge changes candidate evidence.
+  // Before identity is established, the next ordinary scan performs the lookup.
   async function refreshMatches(jobId: string) {
     if (!matchIdentity.has(jobId)) return;
     if (!(await queryMatches(jobId))) return;
@@ -281,11 +274,8 @@ export function createMatches(engine: Engine) {
     return box;
   }
 
-  // "This IS the same job" — fuse the current posting's job with the candidate's. The
-  // server picks the survivor, keeping the more-advanced status and every listing on
-  // both sides, so it works however many listings either carries. The badge is NOT
-  // cleared: other candidates are still reposts of this same job, so reload the
-  // authoritative remaining set and keep the popover open.
+  // The server chooses the merge survivor. Refresh remaining candidates and keep
+  // the popover open because other suggestions may still apply.
   async function linkToMatch(jobId: string, m: JobMatch, btn: HTMLButtonElement) {
     const key = toNaturalKey(jobId);
     if (!key) return;

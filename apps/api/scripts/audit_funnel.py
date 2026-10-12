@@ -1,32 +1,8 @@
-"""Report event logs the API could not have produced, read-only.
+"""Read-only audit of organic events refused by core.enums.target_status. Replay in projection order and accept explicit corrected:<status> overrides. Imports or merged histories can produce findings; the user must decide whether an outcome needs correction. Repair through POST /api/jobs/{id}/corrections or POST /api/jobs/{id}/status/revert.
 
-`core/enums.py::target_status` is the one guard every submitted transition
-passes: it refuses to reclassify a terminal outcome, to step backward in the
-active funnel, or to ghost a job that was never applied to. So a log that
-*violates* it was never written as one submission: either a bulk import INSERTed
-rows directly, or a merge concatenated two jobs' logs. That is how a job rejected
-on 2025-07-30 ended up `closed` — the same import later appended a "no recorded
-outcome" `closed` whose newer timestamp won the projection and masked the
-rejection.
-
-A finding is not automatically wrong: a merge legitimately fuses two histories
-that disagree (a job you `skipped`, whose repost the scraper later saw `closed`),
-and only you can say which outcome is the honest one. It IS always a place where
-the projection is asserting one thing while the log records another.
-
-This replays each log in projection order and asks the real guard whether it
-would have accepted each organic event. `corrected:<status>` rows are the
-sanctioned override, so they are applied without complaint — an override that
-was recorded as one is exactly what we want to see.
-
-Never writes to the tracker. Repairs go through `POST /api/jobs/{id}/corrections`
-(a deliberate reclassification) or `POST /api/jobs/{id}/status/revert` (dropping
-a fabricated event outright).
-
-Usage (from apps/api/, so the app package is importable — matches
-`scripts/scan_event_order.py`):
+Run from apps/api/:
   uv run python -m scripts.audit_funnel
-  uv run python -m scripts.audit_funnel --source gmail-import  # blame one import
+  uv run python -m scripts.audit_funnel --source gmail-import
 """
 
 from __future__ import annotations

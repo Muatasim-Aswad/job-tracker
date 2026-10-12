@@ -2,13 +2,10 @@ name: Release
 
 on:
   push:
-    # GitHub's tag filters use its documented glob syntax: `+` requires one or
-    # more preceding characters, and `.` is literal. A second exact-tag check
-    # below keeps the release boundary explicit at the checked-out commit.
+    # The glob uses + for repeated digits; exact validation below enforces the release tag.
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
 
-# Verification needs only repository contents. The publication job is the sole
-# exception because GitHub Releases are repository contents.
+# Only publication may write repository contents.
 permissions:
   contents: read
 

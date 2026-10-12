@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Ban, Keyboard, Monitor, Moon, Menu, Plus, RefreshCw, Sun, Check } from "lucide-react";
 import { IconButton } from "./IconButton";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { focusableElements, useFocusTrap } from "../lib/useFocusTrap";
 import type { ThemePref } from "../lib/theme";
 
 const THEME_FACE: Record<ThemePref, { icon: ReactNode; label: string }> = {
@@ -27,10 +27,7 @@ interface DropdownProps {
   onRefresh?: () => void;
 }
 
-// The dropdown's own mount lifetime *is* the open state (rendered only while
-// `open`), so useFocusTrap's mount/unmount effects land exactly on open/close —
-// the same trick ShortcutsDialog and AddJobDialog rely on for Esc-close, Tab
-// cycling, and restoring focus to whatever was focused (the menu trigger) on close.
+// Mount lifetime equals open lifetime, allowing the focus trap to restore its trigger.
 function HeaderMenuDropdown({
   onClose,
   onOpenBlocked,
@@ -46,23 +43,15 @@ function HeaderMenuDropdown({
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, onClose);
 
-  // Land focus on the first item rather than the container — the ARIA menu
-  // pattern. Declared after useFocusTrap so its mount effect (which focuses the
-  // container) runs first and this one overrides it.
+  // Focus the first item after the trap's container-focus effect.
   const menuItems = () =>
-    Array.from(
-      ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [],
-    ).filter(
-      (item) =>
-        !item.closest("[data-mobile-navigation]") ||
-        !window.matchMedia("(min-width: 640px)").matches,
-    );
+    ref.current
+      ? focusableElements(ref.current).filter((item) => item.getAttribute("role") === "menuitem")
+      : [];
   useEffect(() => {
     menuItems()[0]?.focus();
   }, []);
 
-  // Roving arrow-key navigation between items, same pattern as JobCard's
-  // change-status menu.
   const onKeyDown = (e: React.KeyboardEvent) => {
     const items = menuItems();
     if (items.length === 0) return;
@@ -72,7 +61,7 @@ function HeaderMenuDropdown({
       items[(i + 1) % items.length]?.focus();
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      items[(i - 1 + items.length) % items.length]?.focus();
+      items[i < 0 ? items.length - 1 : (i - 1 + items.length) % items.length]?.focus();
     }
   };
 
@@ -182,9 +171,7 @@ export function HeaderMenu(props: Omit<DropdownProps, "onClose">) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
 
-  // Outside-click closes, same as JobCard's status menu. Scoped to the wrapper
-  // (trigger + dropdown together) so clicking the trigger to close never
-  // immediately reopens it.
+  // Include trigger and dropdown in the outside-click boundary to avoid reopening.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: PointerEvent) => {

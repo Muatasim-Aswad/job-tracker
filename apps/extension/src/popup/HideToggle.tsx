@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import { ICON } from "../icons.js";
 import { ACTION_BUTTON, ICON as ICON_CLASS } from "./ui";
 
-// List-display control. Shows the current choice as an icon + word (contrast /
-// Dimmed, eye-off / Removed) and flips it on click, with the affected card states
-// spelled out in the tooltip. Backed by the `hideMode` storage key and the
-// `modeChanged` content-script message.
+// Persist dim/remove mode and notify the active content script to repaint.
 type Mode = "dim" | "remove";
 
 const FACE: Record<Mode, { icon: string; text: string; label: string; title: string }> = {

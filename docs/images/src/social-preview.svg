@@ -1,9 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
-  <!--
-    v8 - v7's thumbnail-first copy with a subtle clockwise popup tilt to
-    balance the counter-clockwise dashboard. {{ASSETS}} is replaced by
-    render-job-tracker-social-previews.sh.
-  -->
+  <!-- {{ASSETS}} is supplied by render-social-preview.sh. -->
   <defs>
     <linearGradient id="paper" x1="0" y1="0" x2="1280" y2="640" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#fbfbfe"/>

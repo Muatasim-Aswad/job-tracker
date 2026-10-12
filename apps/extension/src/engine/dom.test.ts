@@ -1,7 +1,4 @@
-// Banner composition and cache invalidation: a policy edit — or more of a progressively
-// rendered pane arriving — must invalidate a rendered banner as surely as moving to
-// another job does, or the user's newly added words and the rest of the page's flags
-// stay unseen until a reload.
+// Policy changes and progressively loaded facts must invalidate the banner cache.
 import { afterEach, describe, expect, it } from "vitest";
 
 import { bannerCurrent, bannerFingerprint, elementToText, placeBanner } from "./dom";

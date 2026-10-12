@@ -1,7 +1,4 @@
-// Unit tests for the read-model concern in isolation: a fake Engine supplies just
-// the cross-concern hooks readModel calls out to (bridge/renderJob/flashError), so
-// these exercise emit/autoEmit/refreshStates' own logic — dedup, viewState
-// projection, failure handling — without the real bridge or a background worker.
+// Isolate event deduplication, state projection, and failures with fake Engine hooks.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createReadModel } from "./readModel";

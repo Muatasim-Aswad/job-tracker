@@ -26,8 +26,7 @@ import { api } from "../../api/client";
 
 const mockedApi = vi.mocked(api);
 
-// A promise the test resolves by hand, so "did it close on click or on success?"
-// is answerable: between `mutate` and `resolve` the write is in flight.
+// Control completion to distinguish click-time closure from settled-write closure.
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason: unknown) => void;
@@ -71,8 +70,7 @@ function makeJob(over: Partial<JobDetail> = {}): JobDetail {
         meta: {},
       },
     ],
-    // Only a `created` event: the timeline would otherwise render the status label
-    // too, and the doubling test below counts how often the status is named.
+    // Avoid a second timeline status label so the assertion counts the summary alone.
     events: [{ id: 1, job_id: "job-1", listing_id: "l1", event: "created", ts: TWO_DAYS_AGO }],
     documents: [],
     ...over,
@@ -123,8 +121,7 @@ afterEach(() => {
 });
 
 describe("DetailDrawer — leaving the drawer", () => {
-  // Esc and the backdrop both worked, and neither is visible; a touch user has no
-  // Esc key at all.
+  // Touch users need a visible close action.
   it("closes from a labelled Close button", async () => {
     const { onClose } = await show();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));

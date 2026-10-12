@@ -14,8 +14,7 @@ interface Props {
   onChoose: () => void;
 }
 
-// One likely duplicate with every piece of evidence the server returned, so the
-// relink decision can be made without opening the candidate job.
+// Show complete evidence before the relink decision.
 export function MatchCandidateCard({ match: m, onChoose }: Props) {
   const evidence = evidenceRows(m.insights);
   const timing = timingText(m.timing);

@@ -1,12 +1,5 @@
-<!-- Layout C's detail pane before its description arrives: the markup of
-     linkedin-search-results-detail.html with the AboutTheJob container still an empty
-     skeleton. It can hold this for minutes, so it is what a scan usually sees, not a
-     rare race.
-
-     The container still resolves as the description. Reporting none instead leaves
-     the job a bare stub — tracked by `seen`, with a listing carrying no title, url or
-     text. Both consumers wait: the head bails on empty text, capture holds out for a
-     description. -->
+<!-- Layout C with a resolved but empty AboutTheJob skeleton.
+     The head and capture must wait for text; seen may already have run. -->
 
 <div role="button" tabindex="0" componentkey="job-card-component-ref-100002">
   <button type="button" aria-label="More options" aria-expanded="false"></button>

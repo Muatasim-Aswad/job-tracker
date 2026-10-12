@@ -1,11 +1,4 @@
-"""Database connection lifecycle and a thin, driver-agnostic query layer.
-
-The app runs on the `libsql` client, tests on stdlib `sqlite3`. Both speak the
-same SQL and expose the same cursor API, but neither offers a row factory that
-survives across drivers, so `query_all`/`query_one` build plain dicts from
-`cursor.description`. Repositories depend only on these helpers and the `Conn`
-protocol, never on a concrete driver.
-"""
+"""Driver-neutral queries and connection lifecycle. Repositories use Conn and plain row dictionaries because row factories differ across libSQL and sqlite3."""
 
 import asyncio
 import json
@@ -25,8 +18,7 @@ from app.core.timeutil import utc_now
 Row = dict[str, Any]
 Params = Sequence[Any]
 
-# Kept as the public test/tool compatibility handle; it now follows the selected
-# application profile instead of assuming a repository parent layout.
+# Public test/tool handle follows the selected application profile.
 _SCHEMA_PATH = resolve_paths().schema_file
 
 logger = logging.getLogger("uvicorn.error")
@@ -100,17 +92,12 @@ def query_one(conn: Conn, sql: str, params: Params = ()) -> Row | None:
 
 
 def execute(conn: Conn, sql: str, params: Params = ()) -> Cursor:
-    """Run a write statement and return the cursor. To read back a generated id,
-    prefer `INSERT ... RETURNING` via `query_one`: `lastrowid` is unreliable on the
-    libSQL replica connection."""
+    """Run a write. Use INSERT ... RETURNING through query_one for generated IDs; libSQL replica lastrowid is unreliable."""
     return conn.execute(sql, params)
 
 
 def hydrate_json(row: Row, field: str = "meta", empty: Any = None) -> Row:
-    """Replace `row[field]`'s stored JSON text with the parsed value, so a
-    repository's `_to_<model>` mapper can hand the row straight to its pydantic
-    model. A NULL or empty column reads back as `empty` — `{}` for the
-    always-a-dict `meta` on jobs/listings, `None` for events' nullable one."""
+    """Return a row copy with parsed JSON for model hydration. NULL or empty text uses the supplied empty value."""
     data = dict(row)
     raw = data.pop(field, None)
     data[field] = json.loads(raw) if raw else empty
@@ -118,15 +105,7 @@ def hydrate_json(row: Row, field: str = "meta", empty: Any = None) -> Row:
 
 
 def connect(settings: Settings) -> Conn:
-    """Open the app connection. Three modes, by settings:
-
-    1. pyturso local-first (`turso_local_first`): reads and writes are local, a
-       startup `pull()` seeds from the primary, and writes are pushed in the
-       background (core.sync). Removes the network from the write path.
-    2. libSQL embedded replica (`turso_database_url` only): reads local, writes
-       write-through to the primary.
-    3. plain local file (no Turso vars): no sync at all.
-    """
+    """Open local SQLite, a libSQL write-through replica, or a pyturso local-first replica. Turso modes pull before serving; core.sync pushes local-first writes in the background."""
     # Preserve an existing replica before constructing a Turso driver: construction
     # itself may bootstrap or pull, so doing this later could lose unsynced local
     # writes left by a crashed process. A missing store is a first-run bootstrap and
@@ -158,7 +137,7 @@ def connect(settings: Settings) -> Conn:
             # not a long-lived listener that may hold the shared database lock.
             long_poll_timeout_ms=1_000,
         )
-        sync_conn.pull()  # pull the latest remote state on startup before serving
+        sync_conn.pull()
         out = cast(Conn, sync_conn)
         configure_connection(out)
         return out
@@ -170,7 +149,7 @@ def connect(settings: Settings) -> Conn:
             sync_interval=settings.turso_pull_interval_seconds,
             _check_same_thread=False,
         )
-        conn.sync()  # pull the latest remote state on startup before serving
+        conn.sync()
     else:
         conn = libsql.connect(settings.db_path, _check_same_thread=False)
     out = cast(Conn, conn)
@@ -179,12 +158,7 @@ def connect(settings: Settings) -> Conn:
 
 
 def configure_connection(conn: Conn) -> None:
-    """Enable and *verify* SQLite foreign-key enforcement on a freshly opened
-    connection. Enforcement is per-connection, defaults OFF, and the PRAGMA is a
-    no-op inside a transaction — hence running here, right after the connection
-    opens and before any schema init or request handling. The read-back guards
-    against a driver that silently ignores the PRAGMA: refuse to serve without
-    enforcement rather than assume it took."""
+    """Enable and verify foreign keys before transactions or schema initialization. The PRAGMA is ineffective inside a transaction; refuse drivers that silently ignore it."""
     conn.execute("PRAGMA foreign_keys = ON")
     row = conn.execute("PRAGMA foreign_keys").fetchone()
     if not row or not row[0]:
@@ -195,17 +169,7 @@ def configure_connection(conn: Conn) -> None:
 
 
 def check_foreign_keys(conn: Conn) -> None:
-    """Pre-flight an existing database against its foreign keys. Enabling
-    enforcement doesn't retro-validate rows already present, so a database written
-    while it was off can carry orphans — a child pointing at a missing parent.
-    `PRAGMA foreign_key_check` lists them, and any hit aborts startup with an
-    actionable error rather than deleting rows: the operator inspects and repairs,
-    or restores from a backup. A clean database reports nothing.
-
-    The pyturso driver (the `turso_local_first` path) doesn't yet implement this
-    pragma and rejects it as unknown. Enforcement itself still guards every new
-    write there, verified in `configure_connection`; only this legacy-orphan
-    pre-flight is unavailable, so log and skip rather than refuse to start."""
+    """Refuse existing orphaned rows without deleting them; repair or restore is an operator decision. pyturso lacks foreign_key_check, so skip that preflight when unsupported; configure_connection still verifies enforcement for new writes."""
     try:
         cur = conn.execute("PRAGMA foreign_key_check")
     except Exception as exc:  # noqa: BLE001 — driver-specific, matched by message
@@ -475,10 +439,19 @@ def _create_application_workflows(conn: Conn) -> None:
     )
 
 
+def _add_capture_clear_operation(conn: Conn) -> None:
+    conn.execute("BEGIN")
+    conn.execute(
+        "ALTER TABLE form_captures ADD COLUMN cleared INTEGER NOT NULL DEFAULT 0 "
+        "CHECK (cleared IN (0, 1))"
+    )
+
+
 _DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = (
     ("create_form_fill_foundation_v1", _create_form_fill_foundation),
     ("create_job_id_aliases_v1", _create_job_id_aliases),
     ("create_application_workflows_v1", _create_application_workflows),
+    ("capture_clear_operation_v1", _add_capture_clear_operation),
 )
 
 
@@ -545,10 +518,7 @@ def init_schema(conn: Conn, schema_path: Path | None = None) -> None:
 
 
 class Database:
-    """The single process-wide connection plus a lock serializing access. The tool
-    is single-user and low-concurrency, so one connection behind a lock is simpler
-    and safer than a pool, and removes any cross-thread worry from FastAPI's sync
-    threadpool."""
+    """One process-wide connection, serialized by a lock for request workers and background sync."""
 
     def __init__(self, conn: Conn) -> None:
         self.conn = conn
@@ -558,14 +528,11 @@ class Database:
 
     @property
     def syncable(self) -> bool:
-        """True in pyturso local-first mode, where the connection can `push()` local
-        writes to the primary. False for embedded-replica and plain-file ones."""
+        """Whether this local-first connection can push writes to the primary."""
         return hasattr(self.conn, "push")
 
     def push(self) -> None:
-        """Ship pending local writes to the remote primary (pyturso sync mode).
-        Held under the same lock as every other connection use; a no-op when the
-        connection isn't syncable."""
+        """Push local-first writes under the connection lock; a no-op in other modes."""
         push = getattr(self.conn, "push", None)
         if push is None:
             return
@@ -573,10 +540,7 @@ class Database:
             push()
 
     def pull(self) -> None:
-        """Refresh the local replica from the remote primary (pyturso sync mode).
-        Held under the same lock as every other connection use, so it never
-        interleaves with a mid-flight request transaction. A no-op when the
-        connection isn't syncable."""
+        """Pull remote changes under the connection lock, excluding request transactions; a no-op in other modes."""
         pull = getattr(self.conn, "pull", None)
         if pull is None:
             return

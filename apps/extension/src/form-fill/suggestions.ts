@@ -49,8 +49,10 @@ export async function waitForExactSuggestion(
   control: Element,
   value: string,
   timeoutMs = SUGGESTION_WAIT_MS,
+  isCurrent: () => boolean = () => true,
 ): Promise<HTMLElement | null> {
   for (let waited = 0; ; waited += SUGGESTION_POLL_MS) {
+    if (!isCurrent()) return null;
     const match = exactSuggestion(control, value);
     if (match || waited >= timeoutMs) return match;
     await new Promise((resolve) => setTimeout(resolve, SUGGESTION_POLL_MS));

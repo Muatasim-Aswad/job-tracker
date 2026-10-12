@@ -53,13 +53,9 @@ def test_normalize_title(raw: str | None, expected: str | None) -> None:
     assert normalize_title(raw) == expected
 
 
-# The shared TS package replays this same fixture (text.golden.test.ts) against its
-# normalizeCompany/normalizeTitle port and asserts identical output — so a drift
-# between the Python authority and the TS mirror (which the extension matches the
-# blocklist with) fails loudly instead of silently dropping a block match. Inputs are
-# curated for the seams the two implementations could disagree on: entity suffixes,
-# trailing qualifiers and their loop/never-empty guards, dotted abbreviations,
-# apostrophes, punctuation, non-ASCII, and the empty cases.
+# The TypeScript mirror replays this fixture to prevent blocklist-key drift.
+# Cases cover suffixes, qualifier loops, never-empty guards, dotted abbreviations,
+# apostrophes, punctuation, non-ASCII text, and empty input.
 GOLDEN_PATH = (
     Path(__file__).resolve().parents[3]
     / "packages"

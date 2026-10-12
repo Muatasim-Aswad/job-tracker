@@ -1,7 +1,4 @@
-// Unit tests for the scan loop's scheduling. A fake Engine and a stub adapter reduce
-// a "scan" to a counter, so these assert only WHEN the loop runs. The host page's
-// mutation cadence, a route change, and a tab becoming visible each decide whether the
-// injections land at all.
+// Count adapter passes to isolate mutation, navigation, and visibility scheduling.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createScan } from "./scan";
@@ -78,9 +75,7 @@ afterEach(() => {
 });
 
 describe("scan scheduling", () => {
-  // A hidden tab clamps timers to ~1s, the same cadence the host page renders on. If
-  // each mutation only cleared the pending scan, the settle delay would never elapse
-  // and the page would get its bars only after a manual reload.
+  // Continuous mutations under background-tab timer clamping must not starve scans.
   it("still scans while mutations keep arriving faster than the settle delay", async () => {
     const { scans, scan } = makeScan({ hideModeResolves: false });
     scan.start();

@@ -16,8 +16,7 @@ import { describeError, toast } from "../../lib/toast";
 import { NEUTRAL } from "./constants";
 import { ListingEditForm } from "./ListingEditForm";
 
-// Friendly labels for the raw snake_case detail keys the capture produces.
-// Anything not listed falls back to a title-cased version of the key.
+// Unknown detail keys fall back to title case.
 const LISTING_FIELD_LABELS: Record<string, string> = {
   apply_url: "Apply",
   company_url: "Company",
@@ -34,8 +33,7 @@ function fieldLabel(key: string): string {
   );
 }
 
-// Empty-ish detail values are noise (e.g. a `chips: []` with nothing in it) and
-// shouldn't render a blank row.
+// Empty detail values must not render blank rows.
 function isEmptyValue(v: unknown): boolean {
   if (v == null || v === "") return true;
   if (Array.isArray(v)) return v.length === 0;
@@ -43,8 +41,7 @@ function isEmptyValue(v: unknown): boolean {
   return false;
 }
 
-// Section headings the scraper picks up along with the body, because on the page
-// they sit inside the description container. Matched whole-line and case-insensitively.
+// Scraped container headings are matched by whole line, case-insensitively.
 const JD_HEADINGS = ["about the job", "about this job", "job description", "over de functie"];
 
 // Remove container headings and repeated titles while preserving authored prose.
@@ -207,9 +204,7 @@ export function ListingCard({
                 />
               ),
               companyUrl && <UrlLink key="company" href={companyUrl} label="Company" />,
-              // The date, and what it's worth. Focusable and tappable because the
-              // qualification ("accurate to the month") is the substance, and
-              // hover-only would hide it from half the people reading it.
+              // Expose date precision by focus and tap as well as hover.
               <Tooltip key="posted" label={posted.tooltip}>
                 <span tabIndex={0} className={posted.known ? "" : "text-ink-faint"}>
                   {posted.known ? `Posted ${posted.text}` : "Posting date unknown"}

@@ -1,18 +1,10 @@
-"""Shared enums and status/event rules.
-
-This module is the AUTHORITY for the funnel rules: the active order, the terminal
-set, and the forward-only guard `target_status`. Nothing is shared across the two
-runtimes, so the same rules are mirrored in the TypeScript package both frontends
-use and must be kept in lock-step with it:
-  • packages/shared/src/funnel/index.ts
-  • packages/shared/src/funnel/funnel.contract.json
-"""
+"""Authoritative funnel enums and forward-only guards. packages/shared/src/funnel/index.ts mirrors these rules; server-generated funnel.contract.json pins the TypeScript contract."""
 
 from enum import StrEnum
 
 
 class Status(StrEnum):
-    # Active funnel — genuinely sequential.
+    # Sequential active stages.
     NEW = "new"
     SEEN = "seen"
     TO_APPLY = "to_apply"
@@ -57,11 +49,8 @@ def active_rank(status: str) -> int | None:
     return _ACTIVE_ORDER.get(str(status))
 
 
-# Statuses implying an application was actually submitted: the post-apply active
-# stages plus the terminals that only exist once one does — a rejection answers an
-# application, a withdrawal retracts one. `skipped`/`closed` end a job *without* an
-# application, so they carry no evidence. Advisory, like the normalized keys: it drives
-# the "previous applications to this company" count, never a state transition.
+# Advisory application-count evidence: post-apply stages and outcomes, excluding
+# skipped/closed. This set never drives state transitions.
 APPLIED_EVIDENCE: frozenset[str] = frozenset(
     s.value
     for s in (
@@ -75,13 +64,8 @@ APPLIED_EVIDENCE: frozenset[str] = frozenset(
 )
 
 
-# How much funnel history a status represents, for picking which of two jobs survives
-# a repost merge. The load-bearing boundary: every applied-or-beyond outcome —
-# including the terminals that FOLLOW an application — outranks anything
-# pre-application, so merging a fresh repost into a job you already applied to never
-# discards the application record. Pre-application signals rank among themselves only
-# to make ties deterministic. Shared by listings/service.py's live merge and
-# scripts/merge_duplicates.py's bulk offline one, so the two can't disagree.
+# Live and offline merges share survivor ranks. Post-application stages and outcomes
+# outrank pre-application signals to preserve submitted history; earlier ranks break ties.
 MERGE_IMPORTANCE: dict[str, int] = {
     Status.NEW.value: 0,
     Status.SEEN.value: 1,
@@ -132,11 +116,7 @@ _EVENT_FLAG: dict[Event, tuple[str, bool]] = {
 
 
 def status_for_event(event: str) -> Status | None:
-    """A funnel event shares its name with the status it sets, so the mapping is
-    identity: `seen`→`seen`. Flag and `created` events aren't statuses, so
-    `Status(...)` raises and they resolve to None. `new` is the one status with no
-    event — a job is born there via `created`, never transitions to it.
-    """
+    """Resolve an event to its namesake status, or None for non-status verbs. Jobs are born new through created; new is not a client event."""
     try:
         return Status(event)
     except ValueError:
@@ -150,11 +130,8 @@ def flag_for_event(event: str) -> tuple[str, bool] | None:
         return None
 
 
-# A deliberate dashboard correction is logged as `corrected:<status>`. The prefix
-# keeps corrections a distinct, cheaply-filtered namespace in the indexed `event`
-# column, so analytics can exclude them, while the target status reuses the funnel
-# identity map. Only the *to* is encoded: the *from* is the job's current status,
-# always recoverable from the log, so it isn't denormalized here.
+# The indexed prefix distinguishes deliberate corrections from organic events.
+# Encode only the target status; the previous state is recoverable from history.
 CORRECTION_PREFIX = "corrected:"
 
 
@@ -164,20 +141,14 @@ def correction_event(status: Status) -> str:
 
 
 def parse_correction(event: str) -> Status | None:
-    """The status a `corrected:<status>` event sets, or None when `event` isn't a
-    correction verb or names an unknown status. Any real status is a valid target:
-    a correction is the explicit exception path, so `new` and the terminals are
-    reachable here even though the organic funnel never transitions to them."""
+    """Resolve a corrected:<status> verb, or None for an unknown status or other verb. Corrections are the explicit override path."""
     if not event.startswith(CORRECTION_PREFIX):
         return None
     return status_for_event(event[len(CORRECTION_PREFIX) :])
 
 
 def status_set_by(event: str) -> str | None:
-    """The status this event set, if it's a status-setting one — an organic funnel
-    transition *or* a correction. Flags and `created` set none and resolve to None.
-    State-undo replays over this projection, which treats corrections and organic
-    transitions uniformly, latest one winning."""
+    """Status set by an organic event or correction, or None for other verbs. Projection replays both kinds in timestamp/ID order."""
     organic = status_for_event(event)
     if organic is not None:
         return organic.value
@@ -186,16 +157,7 @@ def status_set_by(event: str) -> str | None:
 
 
 def target_status(event: str, current: str) -> str | None:
-    """The status this funnel event should set, or None if it must not change it.
-    Funnel events only move forward, for every submission alike. A downgrade —
-    reviving a terminal, or stepping the active funnel back — is never a plain
-    event; the only paths down are a correction or a revert.
-
-    Both the write path (events/service.py, deciding whether to log at all) and the
-    merge cascade (listings/service.py, deciding whether a merged log's winning
-    event may stand) run organic events through this. The projection itself stays
-    pure latest-ts-wins and never consults the guard.
-    """
+    """Return the organic event target or None when guards refuse it. Writes and merges share these forward-only rules; correction/revert provide overrides. Projection separately chooses the latest timestamp/ID without this guard."""
     target = status_for_event(event)
     assert target is not None
     if target == Status.GHOSTED and current not in {Status.APPLIED.value, Status.IN_PROCESS.value}:
@@ -205,11 +167,8 @@ def target_status(event: str, current: str) -> str | None:
     if target == Status.SEEN:
         return Status.SEEN.value if current == Status.NEW.value else None  # monotonic
     if is_terminal(current):
-        # A terminal outcome is an end state. No plain event moves it, neither
-        # reviving it to an active stage nor reclassifying it to another terminal
-        # (rejected→skipped); both are deliberate overrides, leaving only a
-        # correction or a revert. Re-firing the same terminal is a no-op the caller
-        # handles.
+        # Terminal revival or reclassification requires correction/revert.
+        # The caller handles repeating the same outcome as a no-op.
         return None if target.value != current else target.value
     # ...nor walk the active funnel backward: a re-detected `applied` on a job already
     # `in_process`, or a dashboard misclick, must not downgrade it.

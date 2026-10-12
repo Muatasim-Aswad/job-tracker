@@ -1,5 +1,4 @@
-"""FastAPI app: wires the feature routers, initializes the schema on startup,
-and (once the Turso env vars are set) opens the libSQL embedded replica."""
+"""FastAPI routing, profile-locked database lifecycle, and built-dashboard hosting."""
 
 import logging
 from collections.abc import AsyncIterator
@@ -12,8 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
 from starlette.responses import Response
-from starlette.types import Scope
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.application_workflows.router import router as application_workflows_router
 from app.blocked.router import router as blocked_router
@@ -50,12 +50,7 @@ class DashboardStaticFiles(StaticFiles):
 
 
 def _timestamp_uvicorn_logs() -> None:
-    """Prepend a timestamp to uvicorn's log lines. Its default formatter omits the
-    clock, making it impossible to correlate an access line, its in-request commit
-    log, and a later background-push warning. Runs in lifespan, once uvicorn has
-    installed its handlers, re-wrapping each formatter in the same class with an
-    `asctime` prefix. Reuses the existing format string rather than hardcoding
-    uvicorn's, so it survives version bumps."""
+    """Add timestamps to Uvicorn handlers after they are installed, preserving their format so requests, commits, and background sync can be correlated."""
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         for handler in logging.getLogger(name).handlers:
             fmt = handler.formatter
@@ -141,10 +136,36 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="Job Tracker API", version=PRODUCT_VERSION, lifespan=lifespan)
 
 
+def _private_path(path: str) -> bool:
+    path = path.rstrip("/")
+    return (
+        path == "/api/form-fill"
+        or path.startswith("/api/form-fill/")
+        or path.endswith("/application-workflow")
+    )
+
+
 def _private_headers(request: Request) -> dict[str, str]:
-    path = request.url.path
-    private = path.startswith("/api/form-fill/") or path.endswith("/application-workflow")
-    return {"Cache-Control": "no-store"} if private else {}
+    return {"Cache-Control": "no-store"} if _private_path(request.url.path) else {}
+
+
+class PrivateResponseHeaders:
+    """Apply the private policy to framework and security responses without buffering bodies."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or not _private_path(scope["path"]):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_private(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message)["Cache-Control"] = "no-store"
+            await send(message)
+
+        await self.app(scope, receive, send_private)
 
 
 settings = get_settings()
@@ -159,12 +180,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# DNS-rebinding guard: reject requests whose Host header isn't one of these. Added
-# last so it wraps outermost and runs before CORS gets a look. On a local-only personal
-# tool this, the CORS allowlist above, and the optional X-API-Key gate below are
-# proportionate hardening, not a substitute for real auth on a service that left
-# localhost.
+# Reject untrusted hosts before CORS; neither check replaces authentication.
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
+# Wrap security middleware too, since it can reject requests before routing.
+app.add_middleware(PrivateResponseHeaders)
 
 
 @app.get("/health", include_in_schema=False)
@@ -193,10 +212,11 @@ async def validation_handler(request: Request, exc: ValidationError) -> JSONResp
 
 @app.exception_handler(ConflictError)
 async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse:
+    # Conflicts carry current state, which may be private even on listing routes.
     return JSONResponse(
         status_code=409,
         content={"detail": exc.message, "current": exc.current},
-        headers=_private_headers(request),
+        headers={"Cache-Control": "no-store"},
     )
 
 
@@ -229,10 +249,7 @@ async def unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
-# Every feature router mounts under /api, the SPA taking / (see the StaticFiles mount
-# below). One parent router declares the optional X-API-Key gate once rather than per
-# router. /docs and /openapi.json are FastAPI's own routes, outside this router, so
-# they stay unprefixed and ungated.
+# The parent /api router owns the optional key gate; /docs and /openapi.json stay outside it.
 api_router = APIRouter(dependencies=[Depends(require_api_key)])
 for _router in (
     jobs_router,
@@ -249,10 +266,6 @@ for _router in (
     api_router.include_router(_router)
 app.include_router(api_router, prefix="/api")
 
-# Serve the built dashboard SPA at the root, *after* the API routers so their paths
-# win. Mounted only when `apps/web/dist` exists, so `uv run` works whether or not the
-# frontend has been built; frontend dev uses Vite's own server, which proxies the API
-# back here. `html=True` makes it a real SPA host, falling unknown paths back to
-# index.html for client routing.
+# Mount a built dashboard after API routes so they win; absent builds leave an API-only server.
 if paths.web_dist.is_dir():
     app.mount("/", DashboardStaticFiles(directory=paths.web_dist, html=True), name="dashboard")

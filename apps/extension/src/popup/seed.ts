@@ -84,9 +84,7 @@ const ATS_HOSTS = new Set([
   "pinpointhq",
 ]);
 
-// Hosts the content script already handles, read from the manifest's match patterns so
-// this can't drift. There the popup's off-platform premise doesn't hold — the injected
-// UI owns the job — so the domain itself is never a seed.
+// Derive supported hosts from the manifest; their domains cannot seed company search.
 const SUPPORTED_BASES = (() => {
   const bases = new Set<string>();
   for (const entry of chrome.runtime.getManifest().content_scripts || []) {
@@ -122,9 +120,7 @@ export function seedFromTab(tab: chrome.tabs.Tab | undefined): SeedResult {
   } catch {
     return NO_SEED;
   }
-  // Only real web pages carry a company signal. chrome://, about:, file: and friends
-  // yield single-label "hosts" like "extensions"/"newtab" that sail through every
-  // guard below and seed junk.
+  // Reject non-web schemes whose single-label hosts would otherwise seed junk.
   if (url.protocol !== "http:" && url.protocol !== "https:") return NO_SEED;
   const host = url.hostname.toLowerCase();
   if (host === "localhost" || /^[\d.]+$/.test(host)) return NO_SEED;

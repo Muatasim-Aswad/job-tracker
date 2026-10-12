@@ -1,17 +1,8 @@
-<!-- Layout C detail pane — the right-hand side of /jobs/search-results/, whose
-     cards are in linkedin-search-results-card.html. The column is a virtualizing
-     LazyColumn; `data-testid` is its only non-hashed hook. Its componentkey is a
-     bare uuid that changes per build, so the top card is reached by walking up
-     from "More options" to the column boundary — the walk standaloneTopCard()
-     already does for layout B.
-
-     Identity has no stable classes here, so it comes from document.title, as layout
-     B's does. The tests set that title themselves; it is not markup.
-
-     The nesting is load-bearing. The top card holds a content column, and that
-     column aligns every row LinkedIn renders; the top card itself provides no inset.
-     So the head goes INTO the column, not beside it — and the inset cannot be copied
-     from a neighbour either, those rows being `display: contents` and boxless. -->
+<!-- Layout C detail shares its document with cards, each with an overflow button.
+     LazyColumn has a stable data-testid but rotating keys/classes. Use its boundary
+     and the detail overflow button to find the top card; identity comes from the test title.
+     Preserve nesting: mount the head inside the content column because the top card
+     has no inset and display:contents rows expose no margin to copy. -->
 
 <!-- A stripped card, here only to keep the detail anchor honest: cards and detail
      share this document and every card has its own "More options", which a page-wide

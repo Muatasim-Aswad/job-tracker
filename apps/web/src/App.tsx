@@ -24,8 +24,7 @@ import { useTheme } from "./lib/theme";
 import { toast } from "./lib/toast";
 import type { EventItem } from "@job-tracker/shared/api";
 
-// True when a keystroke lands in an editable field, so global letter/`/` shortcuts
-// yield to typing instead of hijacking it.
+// Global shortcuts yield to editable controls.
 function isTypingTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
   if (!el) return false;
@@ -74,8 +73,7 @@ export default function App() {
   const [showAdd, setShowAdd] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
-  // The last card that held focus, so re-entering the board returns you there
-  // rather than always to the first card.
+  // Restore the last focused card when re-entering the board.
   const lastCardIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -123,17 +121,14 @@ export default function App() {
     window.history.pushState(null, "", url);
   }, []);
 
-  // Stable across renders, since `mutate` is referentially stable, so
-  // React.memo(JobCard) holds and a board mutation re-renders only the changed card.
+  // Stable callbacks preserve JobCard memoization.
   const { mutate: mutateEvent } = events;
   const onEvent = useCallback(
     (jobId: string, evts: EventItem[]) => mutateEvent({ jobId, events: evts }),
     [mutateEvent],
   );
 
-  // Deep-link on load: `?job=<id>` opens directly, while the extension's stable
-  // `?platform=&platform_id=` link resolves through the listings lookup first. A 404
-  // means the posting isn't captured yet.
+  // Resolve extension natural-key links to stored job IDs; 404 means uncaptured.
   useEffect(() => {
     if (view !== "jobs") return;
     const params = new URLSearchParams(window.location.search);
@@ -155,8 +150,7 @@ export default function App() {
     };
   }, [view]);
 
-  // Filter and sort toggles read from the URL on load, so a shared link overrides
-  // whatever was last persisted locally. Absent params leave the localStorage default.
+  // Explicit URL state overrides local preferences; absent parameters retain them.
   useEffect(() => {
     if (view !== "jobs") return;
     const params = new URLSearchParams(window.location.search);
@@ -176,9 +170,7 @@ export default function App() {
     }
   }, [view]);
 
-  // Reflect the open job, search, and active filters in the URL so a refresh,
-  // bookmark, or share keeps them, and the one-time natural-key params normalize to a
-  // clean `?job=<id>`.
+  // Normalize natural-key links to job IDs and retain job/filter/search state in the URL.
   useEffect(() => {
     if (view !== "jobs") return;
     const url = new URL(window.location.href);
@@ -213,10 +205,7 @@ export default function App() {
     sortOrder,
   ]);
 
-  // Global shortcuts: `/` jumps to search, `?` opens the help sheet. Suppressed while
-  // typing, so they don't eat input, and while a modal owns the screen — the drawer
-  // and help sheet handle their own keys, and `/` mustn't focus a search box hidden
-  // behind them.
+  // Modal-owned keys and editable controls suppress global shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (view !== "jobs") return;
@@ -251,10 +240,7 @@ export default function App() {
         e.preventDefault();
         setEasyApplyOnly(!easyApplyOnly);
       } else if (e.key.startsWith("Arrow")) {
-        // Enter the board: with nothing else focused, an arrow drops onto the last
-        // card you were on, or the first on a cold start, from where each card's own
-        // handler walks the grid. Gated on focus being truly idle (on <body>), so
-        // arrows are never stolen from another control.
+        // Enter the board only from idle body focus; preserve arrows in other controls.
         const active = document.activeElement;
         if (active && active !== document.body) return;
         const last =
@@ -285,7 +271,6 @@ export default function App() {
     view,
   ]);
 
-  // Remember which card last held focus, feeding the "return to the board" jump.
   useEffect(() => {
     const onFocusIn = (e: FocusEvent) => {
       const card = (e.target as HTMLElement | null)?.closest?.("[data-card-id]");
@@ -295,8 +280,7 @@ export default function App() {
     return () => document.removeEventListener("focusin", onFocusIn);
   }, []);
 
-  // Search and the hidden toggle apply client-side over the single loaded set, so
-  // flipping them is instant and never refetches (see useJobs).
+  // Filters operate on the complete loaded job set without refetching.
   const attentionCount = useMemo(() => countAttention(jobs ?? []), [jobs]);
 
   const filtered = useMemo(
@@ -318,11 +302,9 @@ export default function App() {
     ],
   );
 
-  // Ordering is a view preference over the already-filtered complete job set.
-  // Board's per-status filters preserve this order within every column.
+  // Column filters preserve the selected client-side order.
   const ordered = useMemo(() => sortJobs(filtered, sortOrder), [filtered, sortOrder]);
 
-  // Shared by the ViewBar's clear-all ✕ and the zero-results panel's button.
   const clearFilters = useCallback(() => {
     setSearch("");
     setShowStarred(false);

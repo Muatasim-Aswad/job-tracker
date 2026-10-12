@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Validate an installed private overlay with the public repository's toolchain.
-#
-# The private repository is only the editable source. Its files are copied into
-# the gitignored local/ directories before this runs, giving lint and type-aware
-# tools the same imports, configs, and dependencies as the application build.
+# Validate installed overlays in the application context, using public workspace tooling.
 
 set -euo pipefail
 
@@ -15,8 +11,7 @@ if [[ ! -d "$PRIVATE_ROOT/overlay" ]]; then
   exit 0
 fi
 
-# Refuse to check stale installed files. sync-private.sh owns the allowlist and
-# also verifies that the source is outside this public checkout.
+# Drift must fail before checking the installed copy; sync owns the destination allowlist.
 JOB_TRACKER_PRIVATE_DIR="$PRIVATE_ROOT" bash "$ROOT/scripts/sync-private.sh" --check
 
 ts_paths=(
@@ -24,10 +19,8 @@ ts_paths=(
   "$ROOT/apps/web/src/platforms/local"
 )
 
-# These directories are deliberately gitignored, so explicitly opt them back
-# into the format/lint gates. Enumerate files to avoid ignored-directory traversal.
-# Keep formatter paths relative for fixture exclusions and Oxlint paths absolute
-# to avoid its type-aware path-resolution panic on ignored relative inputs.
+# Opt ignored overlays into lint/format explicitly. Relative formatter paths preserve
+# fixture exclusions; absolute Oxlint paths avoid ignored-path resolution failures.
 (
   cd "$ROOT"
   fmt_paths=()

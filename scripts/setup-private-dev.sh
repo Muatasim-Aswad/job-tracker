@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Set up live TypeScript resolution while editing the private overlay.
-#
-# The private source tree mirrors parts of this public checkout. TypeScript's
-# rootDirs merges those trees for relative imports; these generated links expose
-# the public checkout and each app's pnpm dependencies at the mirrored paths.
+# Expose public dependencies through generated links; rootDirs merges mirrored sources.
 
 set -euo pipefail
 

@@ -68,4 +68,67 @@ describe("mobile header actions", () => {
     expect(screen.queryByRole("menuitem", { name: "New answer" })).toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Refresh data" })).toBeNull();
   });
+  it.each(["desktop", "mobile"])(
+    "wraps Tab among visible %s items and restores the opener",
+    (layout) => {
+      vi.stubGlobal("matchMedia", () => ({ matches: layout === "desktop" }));
+      const style = document.createElement("style");
+      style.textContent = layout === "desktop" ? "[data-mobile-navigation] { display: none; }" : "";
+      document.head.append(style);
+      try {
+        render(<HeaderMenu {...props} onAdd={vi.fn()} onRefresh={vi.fn()} />);
+        const trigger = screen.getByRole("button", { name: "Navigation and settings" });
+        trigger.focus();
+        fireEvent.click(trigger);
+        const items = screen
+          .getAllByRole("menuitem")
+          .filter((item) => !(item as HTMLButtonElement).disabled);
+        expect(document.activeElement).toBe(items[0]);
+        const backwards = new KeyboardEvent("keydown", {
+          key: "Tab",
+          shiftKey: true,
+          bubbles: true,
+          cancelable: true,
+        });
+        items[0].dispatchEvent(backwards);
+        expect(backwards.defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(items.at(-1));
+        const forwards = new KeyboardEvent("keydown", {
+          key: "Tab",
+          bubbles: true,
+          cancelable: true,
+        });
+        items.at(-1)!.dispatchEvent(forwards);
+        expect(forwards.defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(items[0]);
+        fireEvent.keyDown(items[0], { key: "ArrowUp" });
+        expect(document.activeElement).toBe(items.at(-1));
+        fireEvent.keyDown(window, { key: "Escape" });
+        expect(screen.queryByRole("menu")).toBeNull();
+        expect(document.activeElement).toBe(trigger);
+      } finally {
+        style.remove();
+      }
+    },
+  );
+  it("recomputes navigation when the focused mobile item becomes hidden", () => {
+    const style = document.createElement("style");
+    document.head.append(style);
+    try {
+      render(<HeaderMenu {...props} />);
+      fireEvent.click(screen.getByRole("button", { name: "Navigation and settings" }));
+      const mobile = screen.getByRole("menuitem", { name: "Form Fill" });
+      expect(document.activeElement).toBe(mobile);
+      style.textContent = "[data-mobile-navigation] { display: none; }";
+      fireEvent.keyDown(mobile, { key: "ArrowUp" });
+      expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: /Theme: System/ }));
+      mobile.focus();
+      fireEvent.keyDown(mobile, { key: "Tab" });
+      expect(document.activeElement).toBe(
+        screen.getByRole("menuitem", { name: "Blocked companies…" }),
+      );
+    } finally {
+      style.remove();
+    }
+  });
 });

@@ -60,10 +60,29 @@ Every path needs a Chromium browser — Chrome, Edge, or Brave — that can load
 | Path | Get the files | Platforms | Host tools |
 | --- | --- | --- | --- |
 | [Source checkout](#install-from-source) | Clone the repository | Linux, macOS | Git, [Node.js](https://nodejs.org/en/download) as pinned in `.node-version`, [pnpm through Corepack](https://pnpm.io/installation#using-corepack), [uv](https://docs.astral.sh/uv/getting-started/installation/) |
-| [Docker Compose](#run-with-docker-compose) | Clone the repository or download the source archive; pull the [published image](https://github.com/Muatasim-Aswad/job-tracker/pkgs/container/job-tracker) | Linux/amd64 | Docker Engine with Compose |
+| [Docker Compose](#run-with-docker-compose) | Download one Compose file and pull the [public GHCR image](https://github.com/Muatasim-Aswad/job-tracker/pkgs/container/job-tracker); no clone or build | Linux/amd64 | Docker Engine with Compose, `curl` |
 | [Linux release](#install-a-linux-x86_64-release) | Download the [latest release](https://github.com/Muatasim-Aswad/job-tracker/releases/latest) | Linux x86_64, including Windows 11 [WSL2](docs/WSL2.md) x86_64 | [uv](https://docs.astral.sh/uv/getting-started/installation/) |
 
 Neither the runtime bundle nor the wheel is a native executable, and neither contains Python: `uv` provisions the pinned Python runtime and dependencies. Native Windows and Git Bash are unsupported, and there is no packaged macOS artifact — on macOS, install from source.
+
+## Run with Docker Compose
+
+Download the canonical Compose file for a published release and pull its public GHCR image. No Git, source checkout, Node, Python, or image build is needed. For the `1.2.0` release, use the following commands after publication; choose the same version for the Compose file, image, and extension ZIP.
+
+```bash
+mkdir -p job-tracker
+cd job-tracker
+export JOB_TRACKER_VERSION=1.2.0
+curl -fL "https://raw.githubusercontent.com/Muatasim-Aswad/job-tracker/v${JOB_TRACKER_VERSION}/compose.yaml" -o compose.yaml
+export JOB_TRACKER_IMAGE="ghcr.io/muatasim-aswad/job-tracker:v${JOB_TRACKER_VERSION}"
+docker compose config -q
+docker compose pull
+docker compose up -d --no-build
+```
+
+Open <http://localhost:3456>. Download `job-tracker-extension-${JOB_TRACKER_VERSION}.zip` from the [matching release](https://github.com/Muatasim-Aswad/job-tracker/releases) and follow [Load the extension](#load-the-extension). The image supports Linux/amd64 only. Compose binds the host port to loopback and keeps data in named volumes; [Containers](docs/CONTAINERS.md) covers stop/start, backups, upgrades, and removal.
+
+To build from a source checkout instead, use `docker compose up -d --build` there.
 
 ## Install from source
 
@@ -75,17 +94,6 @@ bash scripts/start.sh
 ```
 
 Setup installs the locked dependencies and builds the dashboard and extension. It prints the absolute extension path needed below. The [development guide](docs/DEVELOPMENT.md) covers the contributor launcher, quality gate, and per-component commands.
-
-## Run with Docker Compose
-
-From the cloned repository or extracted source archive:
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-This runs the [current stable image](https://github.com/Muatasim-Aswad/job-tracker/pkgs/container/job-tracker) through its `latest` tag. Use `docker compose up -d --build` instead to build the checked-out source. The container serves the API and dashboard; use the matching extension ZIP from the [latest release](https://github.com/Muatasim-Aswad/job-tracker/releases/latest) in the shared step below. [Containers](docs/CONTAINERS.md) covers configuration, volumes, backups, and updates.
 
 ## Install a Linux x86_64 release
 

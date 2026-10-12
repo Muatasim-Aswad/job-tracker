@@ -1,7 +1,4 @@
-// The single source of truth for the keyboard help sheet. The handlers live next
-// to the UI they drive (App for globals, JobCard for the board, the dialogs for
-// their own traps); this list only describes them, so the cheat-sheet in
-// ShortcutsDialog can never drift from what's documented here — edit both together.
+// Help text lives here; update it with handlers in App, JobCard, and dialogs.
 
 export interface Shortcut {
   keys: string[];

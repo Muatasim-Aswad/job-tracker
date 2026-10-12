@@ -5,10 +5,18 @@ from __future__ import annotations
 import json
 
 import pytest
+from fastapi.testclient import TestClient
 
 from app.core.db import Conn
 from app.core.errors import ConflictError
-from app.form_fill.schemas import CaptureConflictResolve, CaptureCreate, ResolutionRequest
+from app.form_fill.schemas import (
+    AnswerCreate,
+    CaptureConflictResolve,
+    CaptureCreate,
+    CreateAnswerAndMapApply,
+    MappingPut,
+    ResolutionRequest,
+)
 from app.form_fill.service import FormFillService
 
 
@@ -62,11 +70,6 @@ def _seed_conflict(service: FormFillService, conn: Conn) -> tuple[str, str, str]
         "'decimal', ?, 'current', 1, '2026-08-13T20:00:00+00:00', "
         "'2026-08-13T20:00:00+00:00')",
         (question_id, json.dumps({"kind": "decimal", "value": "200"})),
-    )
-    conn.execute(
-        "UPDATE form_questions SET capture_conflict = 1, last_unresolved_reason = "
-        "'capture_conflict' WHERE id = ?",
-        (question_id,),
     )
     return question_id, first.id, "capture-b"
 
@@ -129,6 +132,134 @@ def test_conflict_resolution_requires_question_winner_and_complete_current_revis
     assert next_resolution.action.model_dump()["value"] == "200"
 
 
+@pytest.mark.parametrize("matched", [False, True])
+def test_conflict_is_projected_before_and_after_resolution_without_mutating_question(
+    conn: Conn, client: TestClient, matched: bool
+) -> None:
+    service = FormFillService(conn)
+    question_id, first_id, second_id = _seed_conflict(service, conn)
+    if matched:
+        answer = service.create_answer(
+            AnswerCreate(
+                answer_key="verified_salary",
+                label="Salary",
+                value_kind="decimal",
+                value={"kind": "decimal", "value": "300"},
+            )
+        )
+        service.put_mapping(
+            question_id,
+            MappingPut(
+                answer_id=answer.id,
+                expected_answer_revision=1,
+                expected_question_revision=1,
+                expected_mapping_revision=None,
+                bindings=[],
+            ),
+        )
+    conn.commit()
+    before = conn.execute("SELECT * FROM form_questions WHERE id = ?", (question_id,)).fetchone()
+
+    def projections() -> None:
+        for params in [
+            {},
+            {"needs_review": True},
+            {"review_inbox": True},
+            {"has_current_capture": True},
+        ]:
+            response = client.get("/api/form-fill/questions", params=params)
+            assert response.status_code == 200
+            item = next(row for row in response.json()["items"] if row["id"] == question_id)
+            assert item["capture_conflict"] is True
+            assert item["current_capture_count"] == 2
+            assert "value" not in item
+        detail = client.get(f"/api/form-fill/questions/{question_id}").json()
+        assert detail["capture_conflict"] is True
+        assert all("value" not in capture for capture in detail["current_captures"])
+        assert (
+            client.get(f"/api/form-fill/captures/{first_id}").json()["question"]["capture_conflict"]
+            is True
+        )
+
+    projections()
+    assert (
+        conn.execute("SELECT * FROM form_questions WHERE id = ?", (question_id,)).fetchone()
+        == before
+    )
+    result = service.resolve(_request("detected-conflict")).results[0]
+    assert result.status == ("approved" if matched else "conflict")
+    projections()
+    assert service.get_question(question_id).revision == 1
+
+    resolved = client.post(
+        f"/api/form-fill/questions/{question_id}/capture-conflicts/resolve",
+        json={
+            "expected_question_revision": 1,
+            "winner_capture_id": second_id,
+            "captures": [
+                {"capture_id": first_id, "expected_revision": 1},
+                {"capture_id": second_id, "expected_revision": 1},
+            ],
+        },
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["question"]["capture_conflict"] is False
+    assert resolved.json()["question"]["revision"] == 2
+    for params in [{}, {"review_inbox": True}, {"needs_review": not matched}]:
+        response = client.get("/api/form-fill/questions", params=params)
+        item = next(row for row in response.json()["items"] if row["id"] == question_id)
+        assert item["capture_conflict"] is False
+        assert item["current_capture_count"] == 1
+    assert client.get(f"/api/form-fill/captures/{first_id}").json()["value"] is None
+    assert (
+        client.get(f"/api/form-fill/captures/{second_id}").json()["question"]["capture_conflict"]
+        is False
+    )
+    conn.execute("UPDATE form_questions SET capture_conflict = 1 WHERE id = ?", (question_id,))
+    assert service.get_question(question_id).capture_conflict is False
+    assert service.resolve(_request("stale-stored-flag")).results[0].status == (
+        "approved" if matched else "captured"
+    )
+
+
+def test_conflicted_capture_apply_requires_explicit_complete_set_resolution(conn: Conn) -> None:
+    service = FormFillService(conn)
+    question_id, first_id, _second_id = _seed_conflict(service, conn)
+    before = conn.execute("SELECT * FROM form_captures ORDER BY id").fetchall()
+    for cleared in (False, True):
+        with pytest.raises(ConflictError, match="capture_conflict"):
+            service.create_capture(
+                CaptureCreate(
+                    capture_key=f"replacement-{cleared}",
+                    question_id=question_id,
+                    application_context_id="new-application",
+                    page={"platform": "linkedin", "platform_id": "job-42"},
+                    source="user_input",
+                    cleared=cleared,
+                    value=None if cleared else {"kind": "decimal", "value": "400"},
+                )
+            )
+    with pytest.raises(ConflictError, match="capture_conflict"):
+        service.apply_capture(
+            first_id,
+            CreateAnswerAndMapApply(
+                action="create_answer_and_map",
+                expected_capture_revision=1,
+                expected_question_revision=1,
+                expected_mapping_revision=None,
+                answer_key="salary",
+                label="Salary",
+                value_kind="decimal",
+                value={"kind": "decimal", "value": "100"},
+                choices=[],
+                bindings=[],
+                fill_policy="auto",
+            ),
+        )
+    assert conn.execute("SELECT * FROM form_captures ORDER BY id").fetchall() == before
+    assert conn.execute("SELECT COUNT(*) FROM form_answers").fetchone() == (0,)
+
+
 def test_stale_question_revision_rolls_back_every_capture_transition(conn: Conn) -> None:
     service = FormFillService(conn)
     question_id, first_id, second_id = _seed_conflict(service, conn)
@@ -155,3 +286,56 @@ def test_stale_question_revision_rolls_back_every_capture_transition(conn: Conn)
         (second_id, "current", 1),
     }
     assert all(row[3] is not None for row in rows)
+
+
+@pytest.mark.parametrize("stale_part", ["question", "capture", "set"])
+def test_conflict_routes_return_value_free_summaries_and_keep_private_winner_detail(
+    conn: Conn, client: TestClient, stale_part: str
+) -> None:
+    service = FormFillService(conn)
+    question_id, first_id, second_id = _seed_conflict(service, conn)
+    conn.commit()
+    body = {
+        "expected_question_revision": 99 if stale_part == "question" else 1,
+        "winner_capture_id": first_id,
+        "captures": [
+            {"capture_id": first_id, "expected_revision": 99 if stale_part == "capture" else 1},
+            {
+                "capture_id": "absent-capture" if stale_part == "set" else second_id,
+                "expected_revision": 1,
+            },
+        ],
+    }
+    endpoint = f"/api/form-fill/questions/{question_id}/capture-conflicts/resolve"
+    stale = client.post(endpoint, json=body)
+    assert stale.status_code == 409
+    assert stale.headers["cache-control"] == "no-store"
+    assert stale.json()["detail"] == "stale_conflict_set"
+    summaries = stale.json()["current"]["captures"]
+    assert {item["id"] for item in summaries} == {first_id, second_id}
+    assert all("value" not in item and item["status"] == "current" for item in summaries)
+    assert service.get_capture(first_id).value is not None
+    assert service.get_capture(second_id).value is not None
+    assert service.get_question(question_id).revision == 1
+
+    resolved = client.post(
+        endpoint,
+        json={
+            "expected_question_revision": 1,
+            "winner_capture_id": first_id,
+            "captures": [
+                {"capture_id": first_id, "expected_revision": 1},
+                {"capture_id": second_id, "expected_revision": 1},
+            ],
+        },
+    )
+    assert resolved.status_code == 200
+    assert resolved.headers["cache-control"] == "no-store"
+    assert resolved.json()["winner"]["id"] == first_id
+    assert "value" not in resolved.json()["winner"]
+    assert all("value" not in item for item in resolved.json()["superseded"])
+    winner = client.get(f"/api/form-fill/captures/{first_id}")
+    assert winner.status_code == 200
+    assert winner.headers["cache-control"] == "no-store"
+    assert winner.json()["value"] == {"kind": "decimal", "value": "100"}
+    assert client.get(f"/api/form-fill/captures/{second_id}").json()["value"] is None

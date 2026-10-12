@@ -24,9 +24,7 @@ export function isEasyApply(job: JobSummary): boolean {
   return job.apply_types.includes("easy_apply");
 }
 
-// Attention is a narrowing filter over the complete client-side job set, with
-// AND semantics alongside the other filters. Hidden jobs never participate in the
-// attention view even when the general hide-hidden preference is off.
+// Combine filters with AND; attention always excludes hidden jobs.
 export function filterJobs(
   jobs: JobSummary[],
   filters: JobViewFilters,

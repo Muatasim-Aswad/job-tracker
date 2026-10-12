@@ -1,12 +1,4 @@
-"""Background sync scheduler for pyturso local-first mode (core.db mode 1).
-
-Writes land in the local DB instantly; this coalesces bursts of them and pushes to
-the remote primary once activity settles, keeping the network off the request path
-entirely. It also **pulls** the primary periodically, so writes made on another
-laptop show up without a restart. One daemon thread drives both rather than the
-event loop, so endpoints running in FastAPI's worker threadpool can signal a write
-with a plain method call and never block.
-"""
+"""Daemon scheduler for local-first sync. Coalesce writes into a push after a quiet window and periodically pull remote changes without blocking request workers."""
 
 import logging
 import threading
@@ -39,8 +31,7 @@ class PushScheduler:
         self._thread.start()
 
     def notify_write(self) -> None:
-        """Called after a write commit (from a worker thread). Marks the DB dirty
-        and (re)arms the debounce window."""
+        """Mark local state dirty and restart the debounce window after a committed write."""
         with self._clock:
             self._last_write = time.monotonic()
         self._dirty.set()

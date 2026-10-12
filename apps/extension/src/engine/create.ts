@@ -1,10 +1,5 @@
-// ── Engine factory ───────────────────────────────────────────────────────────
-// Assembles one Engine instance from the concern modules. Each create<Concern>()
-// keeps its own state as closure-private variables and returns the slice of methods
-// it contributes; Object.assign fuses them onto a single object so cross-concern
-// calls (engine.renderJob, engine.bridge, …) resolve at call time — mutual recursion
-// without an import cycle. A fresh createEngine() yields fresh, isolated state, which
-// is what makes the read-model and its collaborators testable in isolation.
+// Concern factories keep state in closures and contribute methods to one Engine.
+// Late-bound engine.* calls allow mutual recursion without import cycles; each instance is isolated.
 import type { Engine } from "./types.js";
 import { createBridge } from "./bridge.js";
 import { createReadModel } from "./readModel.js";

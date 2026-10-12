@@ -1,10 +1,4 @@
-"""app/core/db.py: connect()'s three-way mode selection (plain file / embedded
-replica / pyturso local-first) and the migration helpers init_schema() drives.
-
-Mode selection is unit-tested against mocked `libsql`/`turso.sync` drivers — the
-real Turso round-trip belongs to the `turso`-marked integration suite
-(test_turso_integration.py) instead. The migration helpers run against plain
-in-memory sqlite, same as every other test in this suite (conftest's `conn`)."""
+"""Database mode selection with mocked drivers and migration/foreign-key guards on in-memory SQLite. Real sync behavior belongs to test_turso_integration.py."""
 
 from __future__ import annotations
 
@@ -221,6 +215,47 @@ def test_job_alias_migration_upgrades_old_shape_once(conn: sqlite3.Connection) -
         conn.execute("INSERT INTO job_id_aliases VALUES ('old', 'missing', '2026-01-01T00:00:00Z')")
 
 
+def test_capture_clear_marker_migration_preserves_old_rows_and_runs_once(
+    conn: sqlite3.Connection,
+) -> None:
+    conn.execute("ALTER TABLE form_captures DROP COLUMN cleared")
+    conn.execute("DELETE FROM schema_migrations WHERE key = 'capture_clear_operation_v1'")
+    conn.execute(
+        "INSERT INTO form_questions (id, signature, identity_kind, site_scope, adapter_id, "
+        "adapter_version, stable_field_key, normalizer_version, control_kind, "
+        "normalized_question, raw_question, normalized_section, normalized_help, "
+        "autocomplete_token, option_set_hash, review_state, last_seen_scan_id, "
+        "first_seen_at, last_seen_at) VALUES ('q', 'sig', 'semantic', 'synthetic', 'test', "
+        "'1', '', 2, 'text', 'name', 'Name', '', '', '', '', 'open', 'scan', 't', 't')"
+    )
+    conn.execute(
+        "INSERT INTO form_captures (id, capture_key, question_id, application_context_id, source, value_kind, value_json, status, created_at, updated_at) VALUES ('c', 'k', 'q', 'ctx', 'user_input', 'text', NULL, 'superseded', 't', 't')"
+    )
+    before = conn.execute("SELECT id, value_json, status, revision FROM form_captures").fetchall()
+    conn.commit()
+
+    conn.execute(
+        "CREATE TRIGGER reject_clear_marker BEFORE INSERT ON schema_migrations WHEN NEW.key = 'capture_clear_operation_v1' BEGIN SELECT RAISE(ABORT, 'synthetic ledger failure'); END"
+    )
+    conn.commit()
+    with pytest.raises(sqlite3.IntegrityError, match="synthetic ledger failure"):
+        init_schema(conn)
+    assert "cleared" not in {row[1] for row in conn.execute("PRAGMA table_info(form_captures)")}
+    conn.execute("DROP TRIGGER reject_clear_marker")
+    conn.commit()
+    init_schema(conn)
+    init_schema(conn)
+
+    assert (
+        conn.execute("SELECT id, value_json, status, revision FROM form_captures").fetchall()
+        == before
+    )
+    assert conn.execute("SELECT cleared FROM form_captures").fetchone() == (0,)
+    assert conn.execute(
+        "SELECT COUNT(*) FROM schema_migrations WHERE key = 'capture_clear_operation_v1'"
+    ).fetchone() == (1,)
+
+
 def test_init_schema_pushes_a_local_first_connection() -> None:
     sqlite = sqlite3.connect(":memory:")
     conn = MagicMock(wraps=sqlite)
@@ -240,9 +275,7 @@ def test_init_schema_enables_foreign_keys(conn: sqlite3.Connection) -> None:
 
 
 def test_foreign_keys_enforced_on_libsql_connection(tmp_path: Path) -> None:
-    # The app runs on libsql, not stdlib sqlite3 — prove the real driver both
-    # accepts the PRAGMA and reports it enabled (the acceptance criterion names
-    # local libSQL explicitly).
+    # Verify foreign-key enforcement on the production libSQL driver.
     conn = libsql.connect(str(tmp_path / "fk.db"))
     configure_connection(cast(Conn, conn))
     assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
@@ -355,12 +388,14 @@ def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
         "create_form_fill_foundation_v1",
         "create_job_id_aliases_v1",
         "create_application_workflows_v1",
+        "capture_clear_operation_v1",
     )
 
 
 def test_fresh_database_records_append_only_migration_keys(conn: sqlite3.Connection) -> None:
     # conftest's conn is a fresh database that already went through init_schema().
     assert conn.execute("SELECT key FROM schema_migrations ORDER BY key").fetchall() == [
+        ("capture_clear_operation_v1",),
         ("create_application_workflows_v1",),
         ("create_form_fill_foundation_v1",),
         ("create_job_id_aliases_v1",),
@@ -405,6 +440,7 @@ def test_legacy_database_opens_under_the_baseline_without_data_loss(
     assert conn.execute("SELECT id, event, ts, meta FROM events ORDER BY id").fetchall() == before
     # The already-recorded pre-release keys stay alongside the form-fill key.
     assert [row[0] for row in conn.execute("SELECT key FROM schema_migrations ORDER BY key")] == [
+        "capture_clear_operation_v1",
         "classify_legacy_automatic_closures",
         "create_application_workflows_v1",
         "create_form_fill_foundation_v1",

@@ -5,9 +5,7 @@ import { registerPlatform } from "@job-tracker/shared/platforms";
 import { dismissToast, getToasts } from "../../lib/toast";
 import { ListingCard } from "./ListingCard";
 
-// Synthetic private-board stand-ins. Real boards' registry entries live in a
-// private overlay the public build/test never loads, so register the shapes this
-// suite needs by hand rather than name any real board.
+// Register synthetic platform shapes; never load or name real private boards.
 registerPlatform("example-board", { label: "Example Board" });
 registerPlatform("untrusted-board", { label: "Untrusted Board", untrustedExactDate: true });
 
@@ -17,8 +15,7 @@ afterEach(() => {
   for (const t of getToasts()) dismissToast(t.id);
 });
 
-// A capture as the tracker stores it. `captured_at` matters: every relative-age
-// estimate is anchored to it.
+// Anchor relative ages to captured_at.
 function listing(over: Partial<Listing> = {}): Listing {
   return {
     id: "l1",
@@ -51,8 +48,7 @@ function show(over: Partial<Listing> = {}) {
   );
 }
 
-// The tooltip is portal-rendered on hover/focus/tap; open it the way a keyboard
-// user would, through the wrapper that owns the focus handlers.
+// Open the portal tooltip through keyboard focus on its wrapper.
 function tooltipOf(el: HTMLElement): string {
   fireEvent.focus(el.parentElement!);
   return screen.getByRole("tooltip").textContent ?? "";
@@ -110,8 +106,7 @@ describe("ListingCard — posting date", () => {
     expect(screen.getByText("Posting date unknown")).toBeTruthy();
   });
 
-  // On an `untrustedExactDate` board, `posted_date` is the capture date wearing a
-  // posting date's name. It must neither be read nor displayed.
+  // Untrusted posted_date is capture time, not posting evidence.
   it("never reads or shows an untrusted board's capture-date posted_date", () => {
     show({ platform: "untrusted-board", meta: { posted_date: "2026-07-03" } });
     expect(screen.getByText("Posting date unknown")).toBeTruthy();
@@ -152,8 +147,7 @@ describe("ListingCard — labels", () => {
     show({ apply_type: "easy_apply" });
     expect(screen.getByText("Easy apply")).toBeTruthy();
     cleanup();
-    // The posting-date line owns the only other "unknown" on the card, so pin a
-    // date down first — what must vanish is the apply type.
+    // Give posting date a known value so the assertion isolates unknown apply type.
     show({
       apply_type: "unknown",
       meta: { posted_at: "2026-05-03T09:30:00Z", posted_precision: "exact" },
@@ -198,8 +192,7 @@ describe("ListingCard — labels", () => {
   });
 });
 
-// The copy control's accessible name, and the self-contained block it copies: the
-// default fixture's "Title — Company" and canonical link ahead of the given JD.
+// Copied descriptions include title/company and canonical link as a self-contained block.
 const COPY_LABEL = "Copy job description";
 const copied = (description: string) =>
   `Backend Engineer — Sample Company\nhttps://www.linkedin.com/jobs/view/4442715389/\n\n${description}`;
@@ -264,8 +257,7 @@ describe("ListingCard — job description preamble", () => {
     expect(screen.getByText(/^We are hiring\./)).toBeTruthy();
   });
 
-  // Same text in the card and on the clipboard: a copied JD that still opened with
-  // a stray heading would contradict what the card shows.
+  // Rendered and copied descriptions must apply the same preamble cleanup.
   it("copies the cleaned description, not the raw one", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { clipboard: { writeText } });
@@ -276,9 +268,7 @@ describe("ListingCard — job description preamble", () => {
     vi.unstubAllGlobals();
   });
 
-  // The preview is flattened to buy back the lines a JD's blank lines would eat at
-  // a two-line clamp; the copy keeps the author's structure, because a JD pasted
-  // elsewhere with its paragraphs run together is worse than one with a stray line.
+  // Flatten only the preview; copied prose retains paragraph structure.
   it("flattens the preview but never the clipboard", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal("navigator", { clipboard: { writeText } });
@@ -286,8 +276,7 @@ describe("ListingCard — job description preamble", () => {
       meta: { description: "We are hiring.\n\nRequirements\n\nFive years." },
     });
 
-    // `textContent`, because the text queries normalise whitespace away — the very
-    // difference between the preview and the stored description.
+    // Use textContent because text queries normalize the whitespace under test.
     const preview = [...container.querySelectorAll("p")].at(-1)!;
     expect(preview.textContent).toBe("We are hiring. Requirements Five years.");
 

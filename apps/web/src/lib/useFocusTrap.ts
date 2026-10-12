@@ -1,11 +1,34 @@
 import { useEffect, type RefObject } from "react";
 
-// Modal focus management, shared by every dialog (the detail drawer, the
-// shortcuts sheet): move focus into the container on open, keep Tab cycling
-// inside it, close on Escape, and hand focus back to whatever opened it on close.
+const FOCUSABLE =
+  "a[href], button, input, textarea, select, details > summary:first-of-type, [tabindex]";
+
+export function focusableElements(root: HTMLElement): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((element) => {
+    if (
+      element.tabIndex < 0 ||
+      element.matches(':disabled, input[type="hidden"]') ||
+      element.closest("[hidden], [inert]")
+    )
+      return false;
+    const view = element.ownerDocument.defaultView;
+    if (!view) return false;
+    const visibility = view.getComputedStyle(element).visibility;
+    if (visibility === "hidden" || visibility === "collapse") return false;
+    for (let ancestor: HTMLElement | null = element; ancestor; ancestor = ancestor.parentElement) {
+      if (view.getComputedStyle(ancestor).display === "none") return false;
+      if (ancestor.tagName === "DETAILS" && !ancestor.hasAttribute("open")) {
+        const summary = [...ancestor.children].find((child) => child.tagName === "SUMMARY");
+        if (!summary?.contains(element)) return false;
+      }
+    }
+    return true;
+  });
+}
+
+// Trap modal focus and restore its opener on close.
 export function useFocusTrap(ref: RefObject<HTMLElement | null>, onClose: () => void) {
-  // Initial + restore focus. Runs once per mount so the "restore" target is the
-  // element that was focused when the dialog opened (typically the trigger).
+  // Capture restore focus once per mount.
   useEffect(() => {
     const restoreTo = document.activeElement as HTMLElement | null;
     ref.current?.focus();
@@ -21,14 +44,19 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, onClose: () => 
       if (e.key !== "Tab") return;
       const root = ref.current;
       if (!root) return;
-      const focusable = root.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable.length === 0) return;
+      const focusable = focusableElements(root);
+      if (focusable.length === 0) {
+        e.preventDefault();
+        root.focus();
+        return;
+      }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       const active = document.activeElement;
-      if (e.shiftKey && (active === first || active === root)) {
+      if (!focusable.includes(active as HTMLElement)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+      } else if (e.shiftKey && active === first) {
         e.preventDefault();
         last.focus();
       } else if (!e.shiftKey && active === last) {
@@ -41,15 +69,8 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, onClose: () => 
   }, [ref, onClose]);
 }
 
-// The other half of "modal": while a dialog is open, the page behind it must not
-// scroll. Without this, a wheel gesture aimed at the drawer's own scroller falls
-// through to the board once the drawer hits its end, moving the background under a
-// surface that claims to own the screen.
-//
-// The class goes on BOTH <html> and <body>. The board is `h-full` with no scroller of
-// its own, so which element actually scrolls depends on how far the columns overflow,
-// and locking one is a silent no-op if you guess wrong. Restoring removes only what
-// this hook added, so nested or consecutive dialogs can't strand the page.
+// Lock both html and body because either can own page scrolling.
+// Remove only classes this hook added so nested dialogs preserve existing locks.
 export function useScrollLock(active = true) {
   useEffect(() => {
     if (!active) return;

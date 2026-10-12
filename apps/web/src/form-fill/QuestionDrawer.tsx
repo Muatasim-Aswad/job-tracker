@@ -53,14 +53,11 @@ export function QuestionDrawer({
   const [bindings, setBindings] = useState<Record<string, string>>({});
   const [baseline, setBaseline] = useState("");
   const [winnerId, setWinnerId] = useState("");
-  const [reviewed, setReviewed] = useState(false);
+  const [reviewedContext, setReviewedContext] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const openedAnswerIds = useRef(new Set<string>());
   const reviewRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (reviewed) reviewRef.current?.scrollIntoView?.({ block: "start" });
-  }, [reviewed]);
   const retainedCaptureIds = useRef<string[]>([]);
   const question = query.data;
   const selectedAnswer = useFormFillAnswer(answerId || null);
@@ -82,6 +79,42 @@ export function QuestionDrawer({
     updateMapping.isPending ||
     updateQuestion.isPending ||
     resolveConflict.isPending;
+
+  const canReview =
+    !!question &&
+    !query.isError &&
+    !!selectedAnswer.data &&
+    !selectedAnswer.isError &&
+    complete &&
+    captures.every((capture) => !!capture.data && !capture.isError) &&
+    (question.current_captures ?? []).every((summary) =>
+      captures.some(
+        (capture) => capture.data?.id === summary.id && capture.data.revision >= summary.revision,
+      ),
+    ) &&
+    !question.capture_conflict &&
+    (!question.answer ||
+      (!!currentAnswer.data &&
+        !currentAnswer.isError &&
+        currentAnswer.data.revision >= question.answer.revision));
+  const reviewContext = JSON.stringify({
+    draft,
+    question: [question?.id, question?.revision],
+    mapping: [question?.mapping?.id, question?.mapping?.revision],
+    answer: [selectedAnswer.data?.id, selectedAnswer.data?.revision],
+    currentAnswer: [
+      question?.answer?.id,
+      question?.answer?.revision,
+      currentAnswer.data?.id,
+      currentAnswer.data?.revision,
+    ],
+    captureSummaries: question?.current_captures?.map((capture) => [capture.id, capture.revision]),
+    captures: captures.map((capture) => [capture.data?.id, capture.data?.revision]),
+  });
+  const reviewed = canReview && reviewedContext === reviewContext;
+  useEffect(() => {
+    if (reviewed) reviewRef.current?.scrollIntoView?.({ block: "start" });
+  }, [reviewed]);
 
   useEffect(() => {
     if (!question || initialized) return;
@@ -114,7 +147,6 @@ export function QuestionDrawer({
     setBindings((current) =>
       suggestBindings(question.options, selectedAnswer.data!.choices, current),
     );
-    setReviewed(false);
   }, [answerId, selectedAnswer.data, question, choiceQuestion]);
 
   async function saveMapping(advance = false) {
@@ -138,14 +170,14 @@ export function QuestionDrawer({
         },
       });
       setBaseline(draft);
-      setReviewed(false);
+      setReviewedContext(null);
       setAnnouncement("Answer matched to question.");
       toast.info("Answer matched to question.");
       if (advance && onNext) onNext();
       else onClose();
     } catch {
       setAnnouncement("The match was not saved.");
-      setReviewed(false);
+      setReviewedContext(null);
     }
   }
   async function changeMapping(status: "active" | "disabled" | "retired") {
@@ -202,12 +234,6 @@ export function QuestionDrawer({
   }
   const conflictError =
     putMapping.error ?? updateMapping.error ?? updateQuestion.error ?? resolveConflict.error;
-  const canReview =
-    !!selectedAnswer.data &&
-    !selectedAnswer.isError &&
-    complete &&
-    !question?.capture_conflict &&
-    (!question?.answer || (!!currentAnswer.data && !currentAnswer.isError));
   const before = currentAnswer.data
     ? `${currentAnswer.data.label}: ${valueText(currentAnswer.data.value, currentAnswer.data.choices)}`
     : "No saved answer matched";
@@ -242,7 +268,7 @@ export function QuestionDrawer({
                     <button
                       type="button"
                       disabled={!canReview || busy}
-                      onClick={() => setReviewed(true)}
+                      onClick={() => setReviewedContext(reviewContext)}
                       className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
                     >
                       Review match
@@ -417,7 +443,7 @@ export function QuestionDrawer({
                 onChange={(id) => {
                   setAnswerId(id);
                   setBindings({});
-                  setReviewed(false);
+                  setReviewedContext(null);
                 }}
               />
               {choiceQuestion && selectedAnswer.data && (
@@ -427,7 +453,7 @@ export function QuestionDrawer({
                   value={bindings}
                   onChange={(next) => {
                     setBindings(next);
-                    setReviewed(false);
+                    setReviewedContext(null);
                   }}
                 />
               )}
@@ -568,7 +594,7 @@ export function QuestionDrawer({
                 selectedAnswer.refetch(),
                 currentAnswer.refetch(),
               ]);
-              setReviewed(false);
+              setReviewedContext(null);
               putMapping.reset();
               updateMapping.reset();
               updateQuestion.reset();
@@ -586,7 +612,7 @@ export function QuestionDrawer({
               setBindings(next);
               setBaseline(JSON.stringify({ answerId: id, bindings: next }));
               setWinnerId("");
-              setReviewed(false);
+              setReviewedContext(null);
               putMapping.reset();
               updateMapping.reset();
               updateQuestion.reset();

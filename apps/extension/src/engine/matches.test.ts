@@ -1,6 +1,4 @@
-// Unit tests for the duplicate-suggestion concern's server round-trips. A fake
-// Engine supplies only `bridge`; with no detail bar in the document the render path
-// is a no-op, leaving these focused on which query wins and when one is issued.
+// Isolate duplicate lookup ordering; without a detail bar, rendering is a no-op.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMatches } from "./matches";
@@ -92,9 +90,7 @@ describe("refreshMatches", () => {
     expect(bridge).toHaveBeenCalledTimes(2);
   });
 
-  // The capture that triggers the refresh lands while the first check is still in
-  // flight, so the unscored answer can arrive last. Ordering by issue time, not by
-  // arrival, is what keeps the popover from falling back to "no description yet".
+  // A scored refresh must supersede an older in-flight unscored lookup.
   it("keeps the newest query's answer when an earlier one resolves after it", async () => {
     document.body.innerHTML = `<div class="jh-detail-actions" data-jh-job-id="LI-1"></div>`;
     const first = deferred<BridgeResponse>();

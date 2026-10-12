@@ -81,8 +81,7 @@ done
 docker compose --project-name "$PROJECT" exec -T job-tracker test -s /data/jobtracker.db
 docker compose --project-name "$PROJECT" exec -T job-tracker test -f /state/server.lock
 
-# This stops and restarts only the disposable project. `docker compose run` has no
-# published service port, so it cannot contend with a user's :3456 development server.
+# Only this disposable project stops/restarts; maintenance runs publish no service ports.
 COMPOSE_PROJECT_NAME="$PROJECT" JOB_TRACKER_HOST_PORT="$PORT" \
   bash "$ROOT/scripts/container-backup.sh" "$BACKUP_NAME"
 docker compose --project-name "$PROJECT" run --rm --no-deps --entrypoint /bin/sh job-tracker \

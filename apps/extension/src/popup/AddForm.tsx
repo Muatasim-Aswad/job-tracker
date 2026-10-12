@@ -3,10 +3,7 @@ import { createListing } from "./api.js";
 import type { PopupJob } from "./types";
 import { BUTTON, FOCUS, INPUT, PRIMARY_BUTTON } from "./ui";
 
-// Fast add — the popup's third function. A compact form for a job no content script
-// saw (a referral, an HR email, an ATS with no scraper). Posts one manual listing and
-// lands on the new job's detail, so status and notes are one click away, exactly as
-// when picking a job out of search.
+// Create a manual listing and open its detail for status and notes.
 
 export interface AddFormHandle {
   submit: () => void;
@@ -52,9 +49,7 @@ export const AddForm = forwardRef<AddFormHandle, AddFormProps>(function AddForm(
         title: t || undefined,
         company: c || undefined,
         url: url.trim() || undefined,
-        // Always external: a hand-added job is an off-platform application, never the
-        // in-app easy_apply a capture detects. The board only badges non-external
-        // types, so this correctly stays silent.
+        // Manual listings are off-platform; only captured applications can be easy_apply.
         apply_type: "external",
         // meta.description is the JD, rendered as prose in the app like a capture.
         meta: desc.trim() ? { description: desc.trim() } : undefined,

@@ -38,31 +38,22 @@ interface Props {
   attention: Attention | null;
   onClose: () => void;
   onEvent: (jobId: string, events: EventItem[]) => void;
-  // Open a different job in the drawer — used after relinking a listing, to follow
-  // it to (and confirm the merge into) its new home.
+  // Follow a relinked listing when its original job is dissolved.
   onNavigate: (jobId: string) => void;
 }
 
-// How long the job has been in its current stage. `fmtSpan` says "just now" under
-// a minute, which doesn't compose with a trailing "in this stage".
+// Use a stage-compatible label for durations below one minute.
 function stageSpan(since: string): string {
   const span = fmtSpan(since);
   return span === "just now" ? "<1m" : span;
 }
 
-// A status action that doesn't apply to *this* job stays in the toolbar, greyed,
-// with the reason appended to its label — hiding it made the toolbar reflow between
-// jobs, so the same control sat under a different pixel on every job.
-//
-// `aria-disabled` rather than `disabled` on purpose: a `disabled` button leaves the
-// tab order AND stops firing pointer events, so neither the keyboard nor the hover
-// tooltip could reach the reason — the one thing the state exists to communicate.
-// The click is inert instead, guarded at the handler.
+// Keep unavailable actions in place and explain them through aria-disabled.
+// Native disabled would remove focus/hover access; guard clicks instead.
 function unavailable(reason: string | null, tone: string) {
   return {
     "aria-disabled": !!reason,
-    // An unavailable control also drops its tone: an amber "correct" or red "undo"
-    // reads as armed, and nothing that can't be used should look armed.
+    // Unavailable actions must not look armed.
     className: reason ? `${NEUTRAL} cursor-not-allowed opacity-50` : tone,
   };
 }
@@ -86,23 +77,18 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
     onToggle: () => toggleSection(section),
   });
 
-  // Which status action owns the panel below the toolbar. At most one is open, so
-  // opening one closes the others (see the toolbar handlers). Move/Correct keep
-  // their own field state inside their panels; only "which is open" lives here.
+  // Only one action panel can be open; each mounted panel owns its draft.
   const [moving, setMoving] = useState(false);
   const [correcting, setCorrecting] = useState(false);
-  // Undo is armed on first click, applied on the second — a status change is not
-  // something to fire on a stray click.
+  // Undo requires a second deliberate click.
   const [undoArming, setUndoArming] = useState(false);
   const [addNoteRequest, setAddNoteRequest] = useState<{ jobId: string; token: number } | null>(
     null,
   );
 
-  // The dialog surface — the root of the focus trap and initial focus target.
   const asideRef = useRef<HTMLElement>(null);
 
-  // The listing being relinked owns the whole drawer until the user goes back. The
-  // job view's scroll position is kept so going back lands where the user left.
+  // Preserve job scroll position while relinking takes over the drawer.
   const [relinkListingId, setRelinkListingId] = useState<string | null>(null);
   const jobScrollTop = useRef(0);
   const relinkListing = job?.listings.find((l) => l.id === relinkListingId) ?? null;
@@ -119,15 +105,12 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
     if (asideRef.current) asideRef.current.scrollTop = relinking ? 0 : jobScrollTop.current;
   }, [relinking]);
 
-  // Persist the header title/company edit — shared by the Save button and
-  // formKeys' Cmd+Enter so the write lives in one place.
   function saveHeader() {
     updateJob.mutate({ jobId, body: { title, company } });
     setEditing(false);
   }
 
-  // Clipboard writes can fail because of permissions or an insecure origin, so
-  // report their settled result rather than acknowledging the click.
+  // Report settled clipboard results, including permission/origin failures.
   async function copyJson() {
     if (!job) return;
     try {
@@ -145,25 +128,19 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
     }
   }, [job]);
 
-  // Modal dialog behavior: focus into the drawer on open, trap Tab inside it,
-  // close on Escape, and hand focus back to the card that opened it on close.
   useFocusTrap(asideRef, relinkListing ? () => setRelinkListingId(null) : onClose);
-  // …and freeze the board behind it, so the drawer is the only thing that scrolls.
+  // Freeze background scrolling while the drawer owns the screen.
   useScrollLock();
 
-  // The organic forward moves available from the current status (advancing the
-  // funnel or reaching a terminal). Backward moves are corrections, not here.
+  // Backward moves require correction.
   const moves = job ? pickableMoves(job.status) : [];
   const canUndo = !!job && job.events.some((e) => isStatusSettingEvent(e.event));
 
-  // Why a status action can't be used on this job. `null` means it can. The string
-  // replaces the button's label wholesale, so the reason is the accessible name and
-  // the hover text both — see `unavailable`.
+  // Unavailable reasons supply both accessible names and hover text.
   const moveReason = moves.length === 0 ? "Move forward — this job is at a terminal outcome" : null;
   const undoReason = canUndo ? null : "Undo the last status change — there hasn’t been one yet";
 
-  // When the job entered its current stage: the newest status-setting event, or
-  // its birth if it's never moved. Drives the "in stage for Nd" read.
+  // The newest status event or birth anchors current-stage duration.
   const stageSince = job
     ? (job.events
         .filter((e) => isStatusSettingEvent(e.event))
@@ -172,9 +149,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
         .at(-1) ?? job.created_at)
     : undefined;
 
-  // The explicit way out. Esc and the backdrop still work, but neither is visible,
-  // and a touch user has no Esc at all. Present in every branch — the error state
-  // is where being unable to leave is worst.
+  // Every branch needs a visible close action, including errors and touch use.
   const closeButton = (
     <IconButton label="Close" onClick={onClose} className={NEUTRAL}>
       <X size={ICON_SIZE} />
@@ -225,9 +200,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
                 sourceJobId: jobId,
                 targetJobId,
               });
-              // If this was the job's only listing the source dissolves, so follow
-              // the listing to its new home; otherwise the source survives and we
-              // stay put (more listings may need relinking).
+              // Follow the new owner only when relinking dissolves this job.
               if (job.listings.length === 1) onNavigate(targetJobId);
             }}
           />
@@ -272,11 +245,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
                       </div>
                     </div>
                   ) : (
-                    // The drawer IS the detail view: a title clipped here was
-                    // readable nowhere else short of opening the edit form. Two
-                    // lines rather than unbounded wrap, because the header is
-                    // sticky and a five-line title would eat the viewport; the
-                    // `title` attribute carries whatever the second line can't.
+                    // Bound the sticky title to two lines; title exposes any remaining text.
                     <h2
                       title={job.title ?? undefined}
                       className="line-clamp-2 text-lg font-semibold text-ink"
@@ -333,8 +302,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
               </div>
             </header>
 
-            {/* Status — current state plus its actions (move / undo / correct) as a
-                compact icon toolbar; each action that needs input opens a panel below. */}
+            {/* Each status action owns one input panel. */}
             <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface/40 p-4">
               <div className="flex items-center gap-2">
                 <StatusBadge status={job.status} size="md" />
@@ -537,8 +505,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
               <InlineConfirm
                 trigger="Delete job"
                 confirmLabel="Delete job and all its data?"
-                // Close only once the delete lands; a failed delete must leave the
-                // drawer open on the job that still exists.
+                // A failed delete must leave the still-existing job open.
                 onConfirm={() => deleteJob.mutate(jobId, { onSuccess: onClose })}
               />
             </section>

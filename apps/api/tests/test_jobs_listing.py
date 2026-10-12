@@ -2,9 +2,13 @@
 board-facing filters (free-text `q`, `hidden`/`starred`, pagination). The
 identity/dedup params (`company`/`title`) are covered in test_listings_and_identity."""
 
+import json
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
+
+from app.core.db import Conn
 
 
 def _listing(client: TestClient, platform: str, platform_id: str, **extra: Any) -> dict[str, Any]:
@@ -79,6 +83,37 @@ def test_primary_listing_carries_captured_apply_url(client: TestClient) -> None:
 
     (job,) = client.get("/api/jobs").json()
     assert job["primary_listing"]["apply_url"] == apply_url
+
+
+@pytest.mark.parametrize(
+    "apply_url", [123, True, {"url": "https://example.com"}, ["https://example.com"], None]
+)
+@pytest.mark.parametrize("origin", ["capture", "patch", "stored"])
+def test_primary_listing_ignores_non_text_apply_urls(
+    client: TestClient, conn: Conn, apply_url: Any, origin: str
+) -> None:
+    created = _listing(
+        client,
+        platform="manual",
+        platform_id="non-text-url",
+        title="Synthetic role",
+        meta={"apply_url": apply_url if origin == "capture" else "https://example.com/apply"},
+    )
+    if origin == "patch":
+        patched = client.patch(
+            f"/api/listings/{created['listing_id']}", json={"meta": {"apply_url": apply_url}}
+        )
+        assert patched.status_code == 200
+    elif origin == "stored":
+        conn.execute(
+            "UPDATE listings SET meta = ? WHERE id = ?",
+            (json.dumps({"apply_url": apply_url}), created["listing_id"]),
+        )
+        conn.commit()
+    response = client.get("/api/jobs")
+    assert response.status_code == 200
+    job = next(row for row in response.json() if row["id"] == created["job_id"])
+    assert job["primary_listing"]["apply_url"] is None
 
 
 def test_summary_empty_rollup_for_stub_job(client: TestClient) -> None:

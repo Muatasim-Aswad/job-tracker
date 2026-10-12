@@ -42,14 +42,7 @@ def client(conn: sqlite3.Connection) -> Iterator[TestClient]:
 
 @pytest.fixture
 def turso_conn(tmp_path: Path) -> Iterator[Conn]:
-    """A real libSQL/pyturso connection to the throwaway test DB, for the handful of
-    behaviours in-memory sqlite can't stand in for (sync push/pull, embedded-replica
-    write-through, driver quirks). Skips unless TURSO_TEST_DATABASE_URL is set, so it
-    stays inert without credentials even under `pytest -m turso`.
-
-    It drives the production `connect()` via a real `APP_ENV=test` Settings (the test
-    remote is picked up from the env), but relocates the local replica into pytest's
-    `tmp_path` so runs never share on-disk state. Mark tests using it `@pytest.mark.turso`."""
+    """Real driver fixture for turso-marked tests. Requires TURSO_TEST_DATABASE_URL, selects APP_ENV=test, and isolates replica files under tmp_path."""
     if not os.getenv("TURSO_TEST_DATABASE_URL"):
         pytest.skip("set TURSO_TEST_DATABASE_URL to run turso integration tests")
     settings = Settings(

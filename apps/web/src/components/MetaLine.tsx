@@ -1,10 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 
-// One uniform, muted, dot-separated line of metadata attributes — the single place
-// the drawer decides how an attribute looks, so timeline events and documents present
-// theirs identically instead of drifting into a mix of pills, chips, and colored
-// text. Falsy items are dropped, so callers can pass conditionals inline. Semantic
-// color lives on the item node itself, never on the line.
+// Drop falsy metadata items; semantic color belongs to each item, not the shared line.
 export function MetaLine({ items, className = "" }: { items: ReactNode[]; className?: string }) {
   const shown = items.filter(Boolean);
   if (shown.length === 0) return null;

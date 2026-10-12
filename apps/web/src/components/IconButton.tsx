@@ -1,15 +1,10 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
-  // Doubles as the tooltip and the accessible name — every icon button needs one.
+  // The tooltip also supplies the accessible name.
   label: string;
-  // Highlighted state (e.g. an open panel, or an active flag like starred).
   active?: boolean;
-  // What `active` MEANS to assistive tech. `pressed` (the default) is a sticky on/off
-  // state like hidden or starred; `expanded` is a disclosure opening a panel below —
-  // Move, Correct, Undo, the listing edit/relink toggles. Without one of these,
-  // `active` is a background colour and nothing more, leaving a screen-reader user
-  // with no state at all.
+  // Use pressed for toggles and expanded for disclosures so active state is accessible.
   activeMeans?: "pressed" | "expanded";
   // `field` matches 38px inputs; `md` fits toolbars and `sm` fits dense headers.
   size?: "sm" | "md" | "field";
@@ -23,12 +18,7 @@ const SIZE: Record<"sm" | "md" | "field", string> = {
   field: "h-[38px] w-[38px]",
 };
 
-// The one icon-button primitive: a square hit area with a centered icon, a shared
-// focus ring, and a hover/active background. It deliberately sets no text color —
-// the caller passes the tone via className, so a colored state (starred amber,
-// copied green…) can never lose a Tailwind class-order fight with a base color.
-// Using this everywhere keeps size, padding, alignment, focus, and the required
-// tooltip identical across the UI.
+// Callers own text color to avoid competing Tailwind tone classes.
 export function IconButton({
   label,
   active,

@@ -588,13 +588,16 @@ class CaptureRecordSummary(CaptureSummary):
     mapping_id: str | None = None
     answer_revision_used: int | None = None
     mapping_revision_used: int | None = None
-    value: CaptureValue | None = None
     updated_at: str
     resolved_at: str | None = None
 
 
+class CaptureRecordDetail(CaptureRecordSummary):
+    value: CaptureValue | None = None
+
+
 class CaptureCreateResponse(BaseModel):
-    capture: CaptureRecordSummary
+    capture: CaptureRecordDetail
     superseded_capture_id: str | None = None
     superseded_capture_ids: list[str] = Field(default_factory=list)
 
@@ -605,7 +608,7 @@ class CaptureUpdate(BaseModel):
     reason: str | None = Field(default=None, max_length=1000)
 
 
-class CaptureDetail(CaptureRecordSummary):
+class CaptureDetail(CaptureRecordDetail):
     question: QuestionSummary
     answer: AnswerSummary | None = None
     mapping: MappingSummary | None = None

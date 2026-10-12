@@ -29,35 +29,24 @@ import { ICON } from "../../../icons.js";
 import { LINKEDIN_PREFIX, linkedinJobId, linkedinRenderKey } from "./identity.js";
 import { type Workplace, parseWorkplace, subtitlePlace, tagCardLocation } from "./location.js";
 
-// The render-key prefix is owned by this integration (identity.ts, shared with the
-// Gmail surface). The canonical posting URL comes from the shared platform registry
-// so the dashboard rebuilds the very same link; `linkedin` is a registry default, so
-// the lookup always resolves. This adapter owns only LinkedIn's DOM/scraping.
+// This adapter owns LinkedIn DOM knowledge. identity.ts owns render keys shared with
+// Gmail; the shared platform registry owns canonical posting URLs.
 const LINKEDIN = platformMeta("linkedin")!;
 const PREFIX = LINKEDIN_PREFIX; // "LI-"
 const postingUrl = (platformId: string) => LINKEDIN.buildUrl!(platformId)!;
 
-// LinkedIn — the primary source: search list, the SDUI jobs-tracker, and job detail
-// views. Full capture. All LinkedIn DOM knowledge lives HERE; the engine it drives
-// is site-agnostic.
+// Full capture for LinkedIn search, jobs-tracker, and detail views.
 
 // Layout C names each card `job-card-component-ref-<id>`. One constant, because the
 // selector that finds the card and the slice that reads its id must agree.
 const RESULTS_CARD_KEY = "job-card-component-ref-";
 const RESULTS_CARD_SEL = `[componentkey^="${RESULTS_CARD_KEY}"]`;
 
-// LinkedIn's DOM contract — every selector the adapter keys on, grouped by surface,
-// and the single map to update when LinkedIn reshuffles its markup. Layout A = the
-// list/search side panel (stable BEM-ish classes); layouts B and C are SDUI, with
-// hashed classes addressable only via ids / aria / componentkey — B the standalone
-// /jobs/view page, C the /jobs/search-results/ search page. `jobDetailsId` and
-// `applyButtonId` are bare element ids; the rest are query selectors.
+// Selectors by layout: A is the classic search side panel, B standalone SDUI,
+// and C SDUI search-results. jobDetailsId/applyButtonId are IDs; the rest are selectors.
 const SEL = {
-  // Detail top card / anchor. Both block classes are listed because LinkedIn renamed
-  // the top card to `__container--two-pane` and runs its rollouts concurrently; the
-  // element classes below survived the rename. The bar anchors to the top-buttons
-  // cluster rather than a control inside it, the overflow button there having no
-  // aria-label — its accessible name is its "Show more options" text.
+  // Support both concurrent classic top-card classes. Anchor to the button cluster;
+  // its overflow button is named by visible text rather than aria-label.
   topCard:
     ".job-details-jobs-unified-top-card, .job-details-jobs-unified-top-card__container--two-pane",
   topButtons: ".job-details-jobs-unified-top-card__top-buttons",
@@ -101,10 +90,8 @@ const SEL = {
   lockupCaption: ".artdeco-entity-lockup__caption",
   cardFooterState: ".job-card-container__footer-job-state",
   dismiss: '[aria-label^="Dismiss"]',
-  // Where a card's action bar mounts. Layout C's card is a flex ROW, so a bar
-  // appended to it lands beside the content and halves the width the title gets; its
-  // inner wrapper is the column the bar belongs in. The alternatives cannot collide,
-  // only layout C's cards carrying a componentkey.
+  // Layout C cards are flex rows; mount the bar in their inner column.
+  // Only C carries componentkey, keeping the two selector alternatives disjoint.
   cardBody: `[class*="job-card-container"] > div:first-child, ${RESULTS_CARD_SEL} > div`,
   // jobs-tracker wall cards
   trackerJobLink: 'a[href*="/jobs/view/"]',
@@ -144,16 +131,11 @@ function currentShortcutJobId(): string | null {
 }
 
 // ── Detail DOM resolution (three layouts) ────────────────────────────────────
-// The layout is decided once, from markers only one layout has, and every resolver
-// keys off that decision. Resolvers that each feature-detected their own way through
-// the layouts is what let C hide: it carries the same AboutTheJob componentkey that
-// identifies B's description, so B's branch claimed it and the mismatch surfaced far
-// downstream, as empty content rather than an unrecognized page.
+// Choose one layout from exclusive markers. B and C share AboutTheJob, so
+// independent resolver detection would let B incorrectly claim C.
 type Layout = "A" | "B" | "C";
 
-// Order matters: `#job-details` is layout A's own description container and neither
-// SDUI layout renders one, so testing it first keeps a classic search page — which
-// also shows a card list — from being read as C.
+// Classic #job-details takes priority over card-list markers shared with SDUI search.
 function detectLayout(): Layout {
   if (document.getElementById(SEL.jobDetailsId)) return "A";
   if (document.querySelector(SEL.resultsCard)) return "C";
@@ -166,10 +148,7 @@ interface DetailIdentity {
   companyUrl: string | null;
 }
 
-// What a layout must answer about the open detail pane. Everything downstream —
-// capture, the head, the auto-detects, the copy button — consumes these four results
-// and never queries the detail DOM itself, which is what keeps a new layout confined
-// to one entry in the table below.
+// All detail consumers use this contract, keeping layout-specific DOM reads in one place.
 interface DetailLayout {
   /** Where the detail action bar mounts; null when the layout offers no anchor. */
   anchor(): Element | null;
@@ -181,9 +160,7 @@ interface DetailLayout {
   placeHead(head: HTMLElement, detail: HTMLElement): void;
 }
 
-// A page-wide "More options" query grabs a *list card's* button and misplaces the
-// bar wherever cards and detail share a document, so only a layout that has no cards
-// may fall back to it — which the standalone /jobs/view/ path is the proof of.
+// Only standalone views may use a page-wide overflow query; search pages also contain card buttons.
 function pathScopedAnchor(): Element | null {
   return linkedinJobId(location.pathname) ? document.querySelector(SEL.moreOptions) : null;
 }
@@ -201,12 +178,8 @@ function titleIdentity(): DetailIdentity {
   return { title, company, companyUrl: companyA?.href || null };
 }
 
-// The job description, for both SDUI layouts. It renders lazily and can sit empty for
-// minutes, so it is returned unfilled: both consumers retry, the head bailing on empty
-// text and captureListingOnce holding out for a description rather than storing a
-// title-only record. The expandable-text-box span is a legacy last resort — it wraps
-// the description as <span><p>…</p></span>, which every HTML parser auto-closes at the
-// first block <p>, leaving it empty.
+// SDUI descriptions render lazily; return the container even while empty so capture
+// and the head retry. expandable-text-box is a fallback because span/p parsing can empty it.
 function sduiJd(): HTMLElement | null {
   return (
     (document.querySelector(SEL.aboutJob) as HTMLElement | null) ||
@@ -214,13 +187,8 @@ function sduiJd(): HTMLElement | null {
   );
 }
 
-// Head placement for both SDUI layouts: inside the top card's content column, which
-// aligns the company, title and meta rows. The top card itself provides no inset, so
-// a head appended beside the column sits flush against the pane's edge; the inset
-// cannot be copied either, its rows being `display: contents` and boxless. The column
-// is the overflow button's grandparent — that button is the only hook here that is
-// neither hashed nor a per-build uuid — bounded by the top card so an unexpected tree
-// falls back instead of walking out into the page.
+// Mount inside the top card's content column; display:contents rows expose no inset to copy.
+// Use the stable overflow button's grandparent, bounded by the card, or fall back.
 function sduiPlaceHead(head: HTMLElement, detail: HTMLElement) {
   const topCard = standaloneTopCard();
   if (!topCard) {
@@ -231,9 +199,7 @@ function sduiPlaceHead(head: HTMLElement, detail: HTMLElement) {
   (column && topCard.contains(column) ? column : topCard).appendChild(head);
 }
 
-// Last-resort head placement: right before the description container. Shared, because
-// every layout's preferred slot is optional and this one only needs the JD, which
-// renderDetailHead has already resolved before it places anything.
+// Every layout can fall back to placement immediately before the resolved description.
 function jdAdjacent(head: HTMLElement, detail: HTMLElement) {
   const anchor = (detail.id ? detail : detail.parentElement) || detail;
   anchor.parentNode!.insertBefore(head, anchor);
@@ -279,10 +245,7 @@ const LAYOUTS: Record<Layout, DetailLayout> = {
     placeHead: sduiPlaceHead,
   },
 
-  // C — the /jobs/search-results/ SDUI search page. Identical to B but for the
-  // anchor: cards and detail share this document and every card has its own "More
-  // options", so the detail one is the only such button outside a card — which holds
-  // however LinkedIn nests the columns around it, all hashed or per-build uuids.
+  // C shares B's description layout but must select the overflow button outside every card.
   C: {
     anchor: () =>
       [...document.querySelectorAll(SEL.moreOptions)].find((b) => !b.closest(SEL.resultsCard)) ??
@@ -424,9 +387,7 @@ const DAY_MS = 86_400_000;
 // Where LinkedIn stops counting and renders "100+" instead of a number.
 const APPLY_CLICK_CAP = 100;
 
-// Posting age as one compact chip, tinted by distance from fresh. Resolved through the
-// shared parser so the UNIT counts: "16 hours ago" is not sixteen days old. Unparseable
-// wording still shows, untinted.
+// Use the shared age parser so hours cannot read as days. Unparseable text stays untinted.
 function ageChip(postedAge: string): BannerChip {
   const title = "Posted " + postedAge;
   const { at } = postedFromRelative(postedAge, new Date().toISOString());
@@ -437,11 +398,8 @@ function ageChip(postedAge: string): BannerChip {
 }
 
 // ── Detail head (warnings banner + copy button) ──────────────────────────────
-// A strip at the top card carrying two independent things, both gated on the JD
-// being present: the ⚠ keyword/analytics banner (only when there's something to
-// flag) and, always, a "Copy Job Description" button. They share one placement and
-// one dedup because both want the top-card slot, the JD itself sitting far down the
-// standalone page. A clean posting shows just the button.
+// The top-card head shares placement and deduplication for warnings and Copy Job Description.
+// Both wait for the description; a clean posting shows only the copy button.
 function renderDetailHead(detail: HTMLElement) {
   // elementToText, not raw textContent, so block boundaries are newlined — the banner
   // clips each keyword's context to its own line and can't run into the next paragraph.
@@ -459,15 +417,12 @@ function renderDetailHead(detail: HTMLElement) {
   // Explain why a blocked listing is not captured.
   const { company } = detailIdentity();
   if (isCompanyBlocked(company, "linkedin")) alerts.push("blocked company");
-  // Analytics from the page header (never inside the JD element). Both show whenever
-  // the page states them: a threshold would make their absence ambiguous, unable to
-  // separate a fresh posting from one LinkedIn simply did not date.
+  // Always show stated header analytics; omission must mean missing evidence, not a threshold.
   const { applicants, applyClicksShown, postedAge } = scanJobSignals(detail);
   if (postedAge) chips.push(ageChip(postedAge));
   if (applyClicksShown) {
-    // "clicks", one word, because the strip is scanned rather than read; the title
-    // carries the full wording. Clicks, not applications: LinkedIn counts who opened the
-    // apply flow. Tinted only at the cap, where the count stops being role-dependent.
+    // LinkedIn counts openings of the apply flow, not submitted applications.
+    // Tint only at the counting cap; the tooltip carries the full label.
     const saturated = applicants == null || applicants >= APPLY_CLICK_CAP;
     const count = applicants ?? APPLY_CLICK_CAP + "+";
     chips.push({
@@ -479,10 +434,8 @@ function renderDetailHead(detail: HTMLElement) {
     });
   }
 
-  // Rebuild only when what the head would show changes. Scraping first and keying on
-  // the result is what lets the applicant count, the posting age and the JD arrive in
-  // different scans and still reach the banner; an unchanged scrape means no rebuild,
-  // so a transient "Copied ✓" label survives the next scan tick.
+  // Include scraped content in deduplication because analytics and descriptions arrive separately.
+  // Preserve transient Copied feedback when the scrape is unchanged.
   const content = { chips, findings, alerts };
   const signature = bannerSignature(content);
   const existing = document.querySelector(".jh-detail-head") as HTMLElement | null;
@@ -497,17 +450,12 @@ function renderDetailHead(detail: HTMLElement) {
 
   head.appendChild(makeCopyButton());
 
-  // The head lands in a quick-scan slot at the top card, not down by the JD, which on
-  // the standalone page sits below the Premium / Application-status / hiring-team
-  // sections. Each layout owns where that is; all fall back to the JD itself.
+  // Each layout supplies a top-card slot, with the description as fallback.
   detailLayout().placeHead(head, detail);
 }
 
-// The "Copy Job Description" button: puts the posting on the clipboard as one block —
-// title, company, canonical URL, then the JD. The JD is re-read from the DOM at click
-// time, not at render, so a click copies what's on screen even after LinkedIn's SPA
-// mutates the pane. Success and failure get distinct labels, so a refused clipboard
-// write never reads as a silent success.
+// Re-read the live detail at click time so SPA updates reach the clipboard.
+// Report clipboard failure distinctly from success.
 const COPY_LABEL = "Copy Job Description";
 function makeCopyButton(): HTMLElement {
   const btn = document.createElement("button");
@@ -517,9 +465,7 @@ function makeCopyButton(): HTMLElement {
   btn.innerHTML = `${ICON.copy}<span class="jh-banner-copy-label">${COPY_LABEL}</span>`;
   const label = btn.querySelector(".jh-banner-copy-label") as HTMLElement;
   let resetTimer: number | undefined;
-  // Force the label open for the ~1.5s confirmation so it lands even if the cursor
-  // has left or the click came from the keyboard. Otherwise the button is icon-only
-  // and CSS reveals the label on hover/focus.
+  // Keep confirmation visible for keyboard clicks and after hover ends; the resting button is icon-only.
   const flash = (msg: string) => {
     label.textContent = msg;
     btn.classList.add("jh-copy-flashing");
@@ -557,11 +503,8 @@ function buildCopyText(): string | null {
   return [...(header ? [header] : []), url, "", jd].join("\n");
 }
 
-// The standalone SDUI job view has no stable top-card class — every class is a
-// rotating hash — but the "More options" button is stable and lives in the top card.
-// The details panel is that button's nearest componentkey ancestor, and the top card
-// is the panel's direct child holding it, so walk up to the panel boundary. Null off
-// that layout, or if LinkedIn reshuffles the tree, so the caller falls back.
+// SDUI classes are unstable. Find the top card via its stable overflow button,
+// bounded by the nearest componentkey panel; unexpected trees return null for fallback.
 function standaloneTopCard(): Element | null {
   const mo = detailAnchor();
   const panel = mo?.closest(SEL.componentKey) ?? null;
@@ -591,9 +534,7 @@ function detectApplied(jobId: string) {
   if (hasLegacyStatus || hasAppliedLink || hasAppliedFeedback) void autoEmit(jobId, "applied");
 }
 
-// LinkedIn's own closed sign. One definition, two readers: this drives the automatic
-// closure, and the head raises it as an alert — they must not disagree about what
-// "closed" means on screen.
+// Closure detection and the head alert share this predicate so their states agree.
 function listingClosed() {
   return [...document.querySelectorAll("p")].some(
     (el) => el.textContent!.trim() === "No longer accepting applications",
@@ -673,9 +614,7 @@ function detectApplyUrl(): string | null {
   }
 }
 
-// Scrape one LinkedIn job detail into a `listings` record. The stable core (platform
-// key, url, title, company, apply_type) are real columns; everything uncertain lives
-// in `meta`, null-safe and often absent.
+// Uncertain or absent platform facts belong in metadata; natural identity stays in core columns.
 function captureDetail(jobId: string): ListingRecord | null {
   const key = toNaturalKey(jobId);
   if (!key) return null;
@@ -719,11 +658,8 @@ function captureDetail(jobId: string): ListingRecord | null {
   };
 }
 
-// The jobs-tracker Applied wall dates each row only as a relative age ("Applied 2d
-// ago", "3mo ago") — no absolute timestamp in the DOM. Turn that into an approximate
-// UTC ISO (now − offset) so the auto-`applied` sweep dates each application near when
-// it happened rather than clustering them at import time. Day granularity is the best
-// the surface offers. Null when the span is absent or doesn't parse.
+// Applied-wall dates have only relative ages. Anchor them to now at day precision
+// so imports retain approximate event timing; missing or unusable evidence returns null.
 const AGE_MS: Record<string, number> = {
   s: 1e3,
   m: 6e4,
@@ -753,9 +689,7 @@ export const linkedinAdapter: Adapter = {
   // so this resolves those too (Gmail has no natural key of its own).
   naturalKey: (id) =>
     id.startsWith(PREFIX) ? { platform: "linkedin", platform_id: id.slice(PREFIX.length) } : null,
-  // The whole site is injected so the script is already there when an in-app
-  // transition (feed → jobs) carries the user in without reloading the document.
-  // `activeOn` then limits actual work to the job surfaces.
+  // Whole-site injection supports feed-to-jobs SPA transitions; activeOn limits actual scans.
   activeOn: (path) => path.startsWith("/jobs") || path.startsWith("/comm/jobs"),
   onKeyDown(event) {
     const key = event.key.toLowerCase();
@@ -810,8 +744,7 @@ export const linkedinAdapter: Adapter = {
       void checkMatches(jobId, title, company);
     }
 
-    // The head needs the description content, so it waits on detailElement()
-    // resolving whichever of the two JD layouts is present.
+    // The head waits for a resolved description across all three layouts.
     const detail = detailElement();
     if (!detail) return;
     renderDetailHead(detail);
@@ -896,9 +829,7 @@ export const linkedinAdapter: Adapter = {
       const cards: HTMLElement[] = [];
       doc.querySelectorAll(SEL.resultsCard).forEach((el) => {
         const card = el as HTMLElement;
-        // Each card renders twice under one key, an outer interactive wrapper around
-        // an inner copy; only the outer carries role=button, and tagging both would
-        // give every job two bars.
+        // Only the outer duplicate wrapper has role=button; tagging both would inject two bars.
         if (card.getAttribute("role") !== "button" || card.dataset.jhId) return;
         const id = card.getAttribute("componentkey")!.slice(RESULTS_CARD_KEY.length);
         if (!id) return;
@@ -929,9 +860,7 @@ export const linkedinAdapter: Adapter = {
       el.dataset.jobTitle = a.getAttribute("aria-label") || "";
       el.dataset.jobCompany = el.querySelector(SEL.lockupSubtitle)?.textContent?.trim() || "";
       tagCardLocation(el, el.querySelector(SEL.lockupCaption)?.textContent);
-      // The search list is the one genuinely tight surface, so mark it and let the
-      // action bar fold the less-used Open into the ⋯ menu. The roomier jobs-tracker
-      // wall and detail bar stay unfolded.
+      // Compact search cards fold Open into the overflow menu; wall and detail bars keep it inline.
       el.dataset.jhCompact = "1";
       cards.push(el);
     });

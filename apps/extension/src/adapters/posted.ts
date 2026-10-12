@@ -1,11 +1,5 @@
-// Normalize posting dates at capture time so relative source text cannot drift:
-//
-//   meta.posted_at        UTC ISO instant, or null when the page has no evidence
-//   meta.posted_precision "exact"     — a machine-readable date shipped by the page
-//                         "estimated" — derived from a relative age
-//                         null        — no posting date at all (never a guess)
-//
-// Adapters retain raw relative evidence separately. Shared time logic owns parsing.
+// Anchor relative dates at capture time; exact dates come from machine-readable evidence.
+// Missing evidence stays null, and adapters retain raw age separately. Shared time logic owns parsing.
 import { parseRelativeAge, type PostedPrecision } from "@job-tracker/shared/time";
 
 export interface PostedFields {
@@ -13,7 +7,6 @@ export interface PostedFields {
   precision: PostedPrecision | null;
 }
 
-/** Represent absent or unusable posting-date evidence. */
 function unknown(): PostedFields {
   return { at: null, precision: null };
 }

@@ -6,17 +6,11 @@ import { subtitlePlace, tagCardLocation } from "./location.js";
 const LINKEDIN = platformMeta("linkedin")!;
 let emailGroupSequence = 0;
 
-// Gmail's job links ARE LinkedIn postings, so its render keys come from the shared
-// identity module — same prefix, same URL parsing — and the web adapter's naturalKey
-// resolves them.
+// Gmail job links reuse LinkedIn render keys, resolved by the web adapter.
 
-// Gmail's DOM contract — the selectors that drift when Gmail reshapes its message
-// markup. `body` is the rendered email body; `messageScope` bounds the climb to a
-// single message; `dateCarriers` may hold the absolute received date; `jobLink`
-// matches classic 16px title links and profile-match whole-card links via href or
-// Gmail's data-saferedirecturl wrapper; `cardBody` is the message-table cell the
-// action bar appends to. Profile-match cards use a one-cell linked layout, tagged
-// during discovery.
+// Gmail selectors: messageScope bounds each email; dateCarriers hold received dates.
+// jobLink covers title links and profile-match cards, including saferedirecturl wrappers.
+// cardBody is the action-bar cell; discovery tags one-cell profile-match cards.
 const SEL = {
   body: ".a3s",
   messageScope: '.gs, [data-message-id], [role="listitem"]',
@@ -30,11 +24,8 @@ const SEL = {
   logo: "img[alt]",
 } as const;
 
-// The received time of an open Gmail message, as a UTC ISO string. Gmail's header
-// carries the absolute date in a title/aria-label/data-tooltip, so climb from the
-// body to its container and take the first attribute that parses as a date — guarded
-// on a 4-digit year or H:MM clock time so a stray tooltip isn't mistaken for one.
-// Shared by the rejection-wall sweep and the popup's openEventDate suggestion.
+// Read received time from header attributes, requiring a year or H:MM to reject
+// unrelated tooltips. Shared by rejection sweeps and popup date suggestions.
 function messageDate(body: HTMLElement): string | null {
   let scope: HTMLElement = body;
   let node: HTMLElement | null = body;
@@ -57,15 +48,9 @@ function messageDate(body: HTMLElement): string | null {
   return null;
 }
 
-// LinkedIn stamps its email template name into every tracking URL of a message (the
-// lipi and trk/trkEmail params) — a rejection carries
-// `email_jobs_application_rejected_01`, a digest `email_job_alert_digest_01`. Being
-// LinkedIn's own classification embedded in the links, it identifies a rejection
-// from content alone: no user-maintained label or filter, any inbox view, and
-// language-independent since the token lives in URLs, not translated body copy.
-// The trailing `_NN` is a template version, so match the stem only, and match
-// `rejected` rather than any `jobs_application_*` so a "viewed"/"sent" update mail
-// is never taken for a rejection. Null when it isn't a recognised outcome mail.
+// Provider tracking URLs classify messages without translated body text or user labels.
+// Match the rejection template stem, ignoring its numeric version; other application
+// updates must never count as rejections.
 function emailWallStatus(body: HTMLElement): string | null {
   if (/email_jobs_application_rejected(?:_\d+)?\b/i.test(body.innerHTML)) return "rejected";
   return null;
@@ -140,9 +125,7 @@ function injectAlertButton(body: HTMLElement, group: string) {
 export const gmailAdapter: Adapter = {
   matches: (h) => h === "mail.google.com",
   cardBodySelector: SEL.cardBody,
-  // The open email's received date, suggested by the popup when it manually records
-  // a company/ATS rejection Gmail can't auto-capture, so the state is dated when the
-  // mail arrived. Null when no message is open — the list view has no `.a3s` body.
+  // Suggest the open message's received time for manual status recording; list views return null.
   openEventDate() {
     const body = document.querySelector(SEL.body) as HTMLElement | null;
     return body ? messageDate(body) : null;
@@ -225,14 +208,8 @@ export const gmailAdapter: Adapter = {
           ? subtitle.split("·")[0].trim()
           : card.querySelector(SEL.logo)?.getAttribute("alt")?.trim() || "";
         tagCardLocation(card, subtitlePlace(subtitle));
-        // A rejection email is about ONE job — the one you applied to — but also
-        // lists "jobs you may be interested in". Two signals must agree before a card
-        // is swept: the email's own type is a rejection (`wallStatus`), and the `trk`
-        // param marks THIS link as the applied job (`…-applied_job`) rather than a
-        // recommendation (`…-similar_job`). Everything else keeps its normal triage
-        // bar. The swept card is force-dimmed so it stays visible while you read the
-        // rejection; the recommendations follow the global dim/remove toggle, so
-        // hidden or blocked ones can still be removed.
+        // Reject only cards whose email template and applied_job link both identify a rejection.
+        // Recommendation cards keep normal triage; force dim only on the rejected job so it stays readable.
         if (wallStatus && /applied_job/.test(src)) {
           card.dataset.jhWall = "1";
           card.dataset.jhWallStatus = wallStatus;

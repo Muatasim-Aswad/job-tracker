@@ -1,10 +1,6 @@
-// ── Event-date logic for the popup's status "as of <date>" chip ──────────────
-// Pure helpers, split out of the React tree so the day/ts choices are unit-testable.
-// The date is never blank: it defaults to the suggested email day, else today, and
-// "now" resets to today rather than clearing. What reaches the server still
-// distinguishes today — no override, let it stamp exact now — from a back-dated day,
-// an explicit noon-local ts since the picker offers no clock time. Only a status
-// change carries this date; notes and comments record at server-stamped now.
+// Status dates default to the suggested email day or today; reset means today.
+// Preserve exact email time, let the server timestamp today, and use noon-local
+// for other days. Notes and comments do not use this picker.
 import { localDay } from "@job-tracker/shared/time";
 
 // Today as the picker's YYYY-MM-DD (its non-blank default and "now" reset value).

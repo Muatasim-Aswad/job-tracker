@@ -1,8 +1,5 @@
-// The TS half of the funnel contract. funnel.contract.json is written by the server
-// pytest suite (apps/api/tests/test_funnel_contract.py) from the real API guard; this
-// asserts the tables in ./index equal it. So a server rule change trips both sides:
-// pytest regenerates the fixture and fails; this then fails until the TS mirror is
-// brought back in step. Run with `vp test`.
+// Compare the TypeScript mirror with the server-generated funnel contract.
+// A server rule change regenerates the fixture; both suites require reviewing drift.
 import { describe, expect, it } from "vitest";
 
 import contract from "./funnel.contract.json";

@@ -1,20 +1,7 @@
-"""Recompute the stored `company_key` / `title_key` after a normalizer change.
+"""Recompute advisory company/title keys from stored names without changing names or updated_at. Re-key blocked companies from their labels and drop collisions already covered by a block.
 
-Both keys are derived at write time, so a change to `app.core.text` only reaches
-rows saved afterwards — existing jobs keep the keys their old normalizer produced
-and go on missing each other. This re-derives them in place from the `company` and
-`title` already on the row; no name is rewritten, only its lookup key. `updated_at`
-is deliberately left alone — repairing a derived key is not activity on the job, and
-touching it would reshuffle the dashboard's newest-updated-first order wholesale.
-
-`blocked_companies` is keyed BY `company_key` (it is half the primary key), so its
-rows are rewritten too, from the human `label` the block was created with. A rewrite
-that would collide with an existing block is dropped instead: the two names now
-normalize to one company, and one row already blocks it.
-
-Usage (from apps/api/, so the app package is importable — matches
-`scripts/merge_duplicates.py`):
-  uv run python -m scripts.backfill_company_keys            # dry run, prints changes
+Run from apps/api/:
+  uv run python -m scripts.backfill_company_keys            # dry run
   uv run python -m scripts.backfill_company_keys --execute  # apply
 """
 

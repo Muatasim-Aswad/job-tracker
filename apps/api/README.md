@@ -1,6 +1,6 @@
 # Job Tracker API
 
-Local FastAPI backend for the personal job tracker (see [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)). Runs on **port 3456**, against a libSQL/SQLite file by default, with optional Turso sync for cross-device state.
+Local FastAPI backend on **port 3456**, using SQLite by default with optional Turso synchronization. See [architecture](../../docs/ARCHITECTURE.md) for domain boundaries.
 
 ## Run the API directly
 
@@ -36,14 +36,12 @@ The CLI and source launchers give Uvicorn 15 seconds to drain active requests be
 
 ## Dashboard (web UI)
 
-A React + TS + Vite Kanban dashboard lives in [`../web/`](../web). It talks to this API over relative `/api/...` paths, so it runs the same in dev and prod.
+The [dashboard](../web/README.md) uses relative `/api/...` paths in development and production.
 
 - **Dev** (hot reload): `cd ../web && pnpm install && pnpm dev` → <http://localhost:5173>. Vite proxies `/api` (plus `/docs`/`/openapi.json`) to this server on :3456, so run `uvicorn` too.
 - **Prod / one process**: from the repository root, `pnpm run build:web` produces `apps/web/dist`, which FastAPI serves at the root on startup ([main.py](app/main.py)) via `Settings.web_dist_path`. Then the whole thing is just <http://localhost:3456>. The mount is skipped when that directory is absent, so the API still runs without a build.
 
-The board is the active funnel (`new → … → offered`); drag a card to transition it (`POST /events`), or use the card menu / detail drawer for terminal outcomes, flags, identity edits, and documents. Each column can be ordered by activity, creation date, or title; ordering is a browser-local dashboard preference.
-
-When two jobs merge, the losing `job_id` becomes a permanent alias of the survivor. Job reads and ordinary writes accept either ID and return the canonical ID; job-addressed responses set `Content-Location` to its canonical `/api/jobs/{id}` URL. Deleting through an alias returns `409 job_merged` with both IDs so destructive intent must be repeated against the survivor explicitly. A later merge flattens every earlier alias directly to the latest survivor.
+Job-addressed reads and ordinary writes accept merged aliases, return canonical IDs, and set `Content-Location`. Deletion through an alias returns `409 job_merged` and requires repeating the request against the survivor. See [identity](../../docs/ARCHITECTURE.md#identity) for merge invariants.
 
 ### Application-workflow analytics
 
@@ -71,15 +69,19 @@ Attention is read-only derived state, so no read or background process ever writ
 
 `GET /questions?review_inbox=true` returns the union of actionable Questions and Questions with current Captures, once per Question. `include_matched=true` and `include_dismissed=true` independently extend that inbox with active Matches on open Questions and ignored Questions. These options require `review_inbox=true`; all filters participate in cursor identity. Summaries include section/help context and active-option, current-Capture, and ignored-Capture counts without Answer values. `review_state=ignored` and `GET /captures?status=ignored` provide dismissed-item history; Capture summaries include their Question label. Dismissed Capture values are cleared and cannot be reopened without a retained value.
 
-Radio and single-choice dropdown observations now share normalizer-version-2 Question identity, stored as `control_kind=radio` (single choice). Request controls still report their actual DOM kind; the returned action selects the request-local option. Other identity evidence is unchanged, including section/help and the complete active option vocabulary. Other control signatures stay at version 1. Existing version-1 choice Questions and their knowledge remain untouched and are not automatically adopted; an existing verified Answer can be explicitly linked to a newly observed Question through the normal revision-checked Match API. No database migration or new public model field is required.
+Radio and single-choice dropdown observations share normalizer-version-2 Question identity, stored as `control_kind=radio`. Requests retain their DOM kind and actions select request-local options. Existing version-1 choice knowledge requires explicit matching; see [form-fill identity](../../docs/ARCHITECTURE.md#form-fill-knowledge).
 
 Answer collections accept `sort=updated_at` (default, descending), `label` (case-insensitive ascending), or `mapping_count` (descending, counting all Matches). Question collections accept `sort=last_seen` (default), `seen_count`, or `prompt` (ascending normalized prompt). Stable ID tie-breakers keep pagination deterministic; cursors are bound to the filters and order. These collection reads never include retained values.
+
+`GET /captures`, Question-embedded Capture summaries, apply/conflict summaries, and all revision-conflict responses omit retained Capture values, including the `value` field. The dashboard presence poll uses this value-free collection. `GET /captures/{id}`, Capture creation/retry responses, and successful Capture review updates retain the detail value where available. Explicit resolution actions and Question-scoped Answer candidate previews also return private values for filling or review.
 
 `GET /questions/{id}/answer-candidates` returns active Answers compatible with that Question before pagination: scalar write compatibility (including integer constraints), equal active choice counts, and, for default suggestions, an unambiguous normalized label set or complete previously verified bindings. Default suggestions require meaningful prompt-word overlap with the Answer label/description or an active verified Question match; generic words such as years and experience do not qualify alone. Verified matches rank first, followed by label and description overlap, with normalized label and ID tie-breakers. Explicit `q` searches stable key, label, and description and relaxes relevance and option-label matching while retaining type, numeric, active-choice, and count checks for manual binding review. Candidate rows return ID, label, revision, and a readable value preview capped at 160 characters. Cursors bind the Question revision, search, and ranked Answer revisions; changed results require restarting pagination. Existing Match writes recheck revisions, scalar compatibility, and complete one-to-one bindings. The broader Match API continues to support extra Answer choices; candidate selection is deliberately stricter.
 
 Choice Questions, Answer vocabularies, and complete Match bindings share a 512-item bound. This covers legitimate long controls such as phone-country-code lists while keeping page-derived request and mutation payloads bounded.
 
-Answer, Question, Match, and Capture writes use expected revisions; a stale write rolls back atomically and returns a current value-free summary. Question-context Answer creation derives compatible type and choice bindings from the Question and installs the Answer and Match in the same transaction. Competing current Captures resolve to no action. Superseding, clearing, ignoring, applying, or losing a conflict removes a Capture's retained value, while lifecycle events never copy Answer or Capture values. Every successful or error response under `/api/form-fill/` carries `Cache-Control: no-store`.
+A Capture key identifies its original operation: an identical clear can be retried, while changing a value capture into a clear requires a new key even after its retained value has been removed. Legacy rows without an operation marker conservatively reject clear retries with the old key. Dashboard listing rollups project only text-valued `meta.apply_url`; other JSON types remain in listing metadata and produce a null application URL.
+
+Answer, Question, Match, and Capture writes use expected revisions; a stale write rolls back atomically and returns a current value-free summary. Question-context Answer creation derives compatible type and choice bindings from the Question and installs the Answer and Match in the same transaction. Without an eligible active Match, competing current Captures resolve to no action. Question detail and collection projections derive that conflict from the current set, and Capture apply refuses it until complete-set winner selection; reads preserve revisions. Superseding, clearing, ignoring, applying, or losing a conflict removes a Capture's retained value, while lifecycle events never copy Answer or Capture values. Every successful or error response under `/api/form-fill/` carries `Cache-Control: no-store`.
 
 ## Test & type-check
 
@@ -136,7 +138,7 @@ This is not a supported public-internet authentication model. If the service is 
 
 ## Database
 
-One env-var picks the mode; no new variables are needed. The schema is created automatically on first boot, so any mode works against an empty file.
+Turso settings select the database mode. Startup creates the schema for an empty file.
 
 | Mode | `.env` | Behaviour |
 | --- | --- | --- |
@@ -148,7 +150,7 @@ Local-first pyturso HTTP operations use `TURSO_HTTP_TIMEOUT_SECONDS` (default `1
 
 ### Local file — setup
 
-Nothing to do: `uv run uvicorn app.main:app --port 3456` creates `jobtracker.db` and starts serving. Point elsewhere with `DB_PATH=/path/to/jobtracker.db`.
+The [direct startup command](#run-the-api-directly) creates `jobtracker.db`. Override the path with `DB_PATH=/path/to/jobtracker.db`.
 
 ### Cross-device sync (Turso) — setup
 

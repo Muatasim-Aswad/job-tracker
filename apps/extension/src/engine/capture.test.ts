@@ -1,6 +1,4 @@
-// Unit tests for the capture concern's follow-up work. A fake Engine supplies the
-// hooks capture calls out to, so these exercise when a captured listing is sent and
-// what it triggers, without a background worker.
+// Isolate capture follow-up hooks with a fake Engine.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createCapture } from "./capture";
@@ -58,8 +56,7 @@ describe("captureListingOnce", () => {
     expect(bridge).not.toHaveBeenCalled();
   });
 
-  // The duplicate check runs before the JD exists server-side, so its rows can only
-  // say "no description captured yet" until the capture lands and it re-asks.
+  // Refresh duplicate evidence after the description capture lands.
   it("re-asks for duplicates once the captured JD has landed", async () => {
     const { refreshMatches, capture } = makeCapture();
     capture.captureListingOnce("LI-1", () => record());

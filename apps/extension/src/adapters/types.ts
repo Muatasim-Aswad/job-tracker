@@ -1,15 +1,5 @@
-// The contribution contract for a site adapter. One object per supported site;
-// engine.ts `start()` picks the first whose `matches(hostname)` is true, then
-// drives it. Only `matches` + `findCards` are required; the rest are called via
-// `?.` when present.
-//
-//   import type { Adapter } from '../types'
-//   export const myAdapter: Adapter = { … }
-//
-// Capture-capable adapters import shared helpers (injectDetailButtons,
-// captureListingOnce, autoEmit, refreshStates, renderJob, …) from ../engine.js;
-// DOM-only ones need no imports. See builtin/linkedin/web.ts (full capture) and
-// gmail.ts (DOM-only).
+// One adapter owns each supported host. Only matches and findCards are required.
+// Capture helpers come from engine.js; see README.md for registration and examples.
 /** The API's identity for a job: a platform name plus its bare, un-prefixed id. */
 export interface NaturalKey {
   platform: string;

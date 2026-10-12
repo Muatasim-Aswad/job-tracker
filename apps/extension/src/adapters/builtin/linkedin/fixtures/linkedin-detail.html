@@ -1,19 +1,7 @@
-<!-- Search-side-panel detail layout. The top card is outside #job-details, and
-     the relative age is the only posting-date evidence in this fixture.
-
-     The top card's own block class is `__container--two-pane`. The bare
-     `job-details-jobs-unified-top-card` this fixture used to carry is no longer
-     served, and its disappearance silently removed the detail action bar from the
-     whole layout, because the bar's anchor was scoped to it. The element classes
-     (`__job-title`, `__company-name`, `__top-buttons`) survived that change.
-
-     The action bar anchors to the `__top-buttons` cluster, not to a button inside
-     it: the overflow control there carries no aria-label — its accessible name is
-     the "Show more options" text — so nothing in the cluster is addressable by
-     attribute.
-
-     The tertiary line nests the age two spans below the element holding the
-     "Location · age · applicants" separators, as LinkedIn serves it. -->
+<!-- Classic detail: the top card sits outside #job-details; posting age is relative.
+     Both top-card class variants retain title/company/button descendants. Anchor to
+     the button cluster because overflow has visible text but no aria-label.
+     Age remains nested two spans below its separator row. -->
 <div class="relative job-details-jobs-unified-top-card__container--two-pane">
   <h1 class="job-details-jobs-unified-top-card__job-title">Example Backend Engineer</h1>
   <div class="job-details-jobs-unified-top-card__company-name">

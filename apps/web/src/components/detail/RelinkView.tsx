@@ -35,10 +35,7 @@ function matchesQuery(needle: string, title: string | null, company: string | nu
   );
 }
 
-// The relink target chooser, owning the whole drawer: likely duplicates with their
-// evidence first, then a capped search over the rest of the board. Relinking moves
-// the listing's events and can dissolve the source job, so a pick is confirmed
-// before it fires, never on a single click.
+// Relinking moves attributed events and may dissolve the source job; require confirmation.
 export function RelinkView({
   listing,
   jobTitle,

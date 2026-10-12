@@ -4,11 +4,7 @@ import { useBlockCompany, useBlockedCompanies, useUnblockCompany } from "../hook
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { IconButton } from "./IconButton";
 
-// Manage the company blocklist. Blocking usually happens in the extension (the ⋯
-// menu on a feed card); this is the durable list + the place to undo one, plus a
-// manual add for a company the extension never surfaced. Enforcement is entirely
-// extension-side — the server never filters the board — so nothing here touches
-// the jobs you've already captured.
+// The extension enforces blocking; this editor preserves existing jobs.
 function scopeLabel(platform: string): string {
   return platform === "*" ? "everywhere" : platform;
 }
@@ -25,8 +21,7 @@ export function BlockedCompaniesDialog({ onClose }: { onClose: () => void }) {
   const canAdd = name.trim() !== "" && !block.isPending;
   const add = () => {
     if (!canAdd) return;
-    // Block globally ('*') — the common intent. Server normalizes the raw name to
-    // the key it matches by; refetch reflects the canonical row (and any dedup).
+    // Global blocks use the server-normalized company key.
     block.mutate({ company: name.trim(), platform: "*" }, { onSuccess: () => setName("") });
   };
 

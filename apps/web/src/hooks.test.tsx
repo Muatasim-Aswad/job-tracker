@@ -69,9 +69,7 @@ function makeJob(overrides: Partial<JobSummary> = {}): JobSummary {
   };
 }
 
-// One QueryClient shared by both hooks for the lifetime of a test, so the
-// mutation's cache writes land where useJobs reads from — a fresh client per
-// render (as a wrapper prop default would give) would reset the cache instead.
+// Share one client per test so mutation writes reach the observed query cache.
 function setup(seed: JobSummary[]) {
   mockedApi.listJobs.mockResolvedValue(seed);
   const qc = new QueryClient({
@@ -121,8 +119,7 @@ describe("useJobEvents optimistic replay", () => {
     const { result } = setup([makeJob()]);
     await waitFor(() => expect(result.current.jobs.data).toEqual([makeJob()]));
 
-    // Never resolves during this test — proves the projection is applied
-    // synchronously with the mutation, not after a round-trip.
+    // An unresolved request proves projection occurs before the response.
     mockedApi.postEvents.mockReturnValue(new Promise(() => {}));
 
     act(() => {
@@ -191,8 +188,7 @@ describe("useJobEvents rollback", () => {
       hidden: false,
       starred: true,
     });
-    // The successful mutation invalidates the summaries so server-derived fields
-    // such as attention reconcile too; model that follow-up GET as authoritative.
+    // Model refetch as authoritative for server-derived fields such as attention.
     mockedApi.listJobs.mockResolvedValue([
       makeJob({ status: "applied", hidden: false, starred: true, attention: null }),
     ]);

@@ -72,8 +72,7 @@ cp "$ROOT/apps/api/pyproject.toml" "$STAGE/pyproject.toml"
 cp "$ROOT/apps/api/README.md" "$STAGE/README.md"
 cp "$ROOT/LICENSE" "$STAGE/LICENSE"
 
-# The checkout metadata remains deliberately non-release metadata. Only this
-# isolated staging copy receives the canonical distribution name and VERSION.
+# Only the temporary staging copy receives canonical release metadata.
 sed -i 's/^name = "job-tracker-api"$/name = "job-tracker"/' "$STAGE/pyproject.toml"
 sed -i "s/^version = \"0.1.0\"$/version = \"$VERSION\"/" "$STAGE/pyproject.toml"
 sed -i '/^description = /a readme = "README.md"\nlicense = "MIT"\nlicense-files = ["LICENSE"]' "$STAGE/pyproject.toml"

@@ -50,10 +50,7 @@ describe("linkedin adapter — detail head", () => {
   const chipTexts = () =>
     [...document.querySelectorAll(".jh-detail-head .jh-banner-chip")].map((c) => c.textContent);
 
-  // The top card's analytics render independently of the job description, so a scan
-  // can reach the head before the applicant count is on the page. The head has to
-  // pick it up on a later pass; keying the rebuild on the URL alone left the count
-  // missing for the whole visit.
+  // Analytics can arrive after the description; later scans must refresh the head.
   it("adds a chip whose signal renders after the first pass", () => {
     document.body.innerHTML = loadFixture("linkedin-detail.html");
     window.history.pushState({}, "", "/jobs/view/100001/");
@@ -420,10 +417,7 @@ describe("linkedin adapter — detail capture", () => {
   });
 });
 
-// The three job layouts must stay disjoint. Layout C carries the very componentkey
-// that identifies layout B's job description, so a resolver that feature-detects its
-// own way through the layouts reads C as B and fails downstream, on empty content,
-// instead of at the point the page is recognized.
+// B and C share AboutTheJob, so exclusive layout markers must prevent B from claiming C.
 describe("linkedin adapter — layout resolution", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -608,9 +602,7 @@ describe("linkedin adapter — layout resolution", () => {
     expect(bar!.closest('[data-testid="lazy-column"]')).not.toBeNull();
   });
 
-  // The pane serves an empty skeleton for a long time before its description lands.
-  // Capture must wait for it rather than store a title-only stub — a stub is what
-  // every job on this surface became while the layout reported no description at all.
+  // Wait for lazy descriptions instead of capturing a title-only stub.
   it("stores nothing until the search-results description arrives", () => {
     document.body.innerHTML = loadFixture("linkedin-search-results-detail-loading.html");
     document.title = "Example Senior Backend Engineer | Example Labs | LinkedIn";
@@ -731,8 +723,7 @@ describe("linkedin adapter — card bar anchor", () => {
   });
 });
 
-// The side panel's detail bar had no test, and LinkedIn's rename of the top card
-// removed it from the layout without any check noticing.
+// Classic detail bars must support concurrent top-card class variants.
 describe("linkedin adapter — side-panel detail bar", () => {
   it("anchors the detail bar in the top card", () => {
     document.body.innerHTML = loadFixture("linkedin-detail.html");

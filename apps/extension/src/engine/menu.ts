@@ -1,9 +1,5 @@
-// ── Overflow menu (⋯) — rare, low-frequency card actions ─────────────────────
-// Blocking a company is a once-per-company, permanent act, so it doesn't earn a
-// permanent button next to the per-job toggles (status/star/hide). Instead a
-// single quiet ⋯ opens a small menu housing it — a plain left-click affordance
-// (no right-click, trackpad-friendly) and the natural home for future rare
-// actions. Reuses the same outside-click / Escape dismissal as the match popover.
+// Keep rare company-block and compact Open actions in the overflow menu.
+// Outside clicks and Escape dismiss it, as with the match popover.
 import type { Engine } from "./types.js";
 import { ICON } from "../icons.js";
 
@@ -67,9 +63,7 @@ export function createMenu(engine: Engine) {
     menu.appendChild(block);
 
     document.body.appendChild(menu);
-    // Fixed, clamped under the ⋯ and right-aligned to it (it sits at the end of the
-    // bar), floating on the body like the match popover — the host's layout is
-    // untrustworthy to nest inside.
+    // Float on body and clamp to the viewport to avoid host layout clipping.
     const r = btn.getBoundingClientRect();
     const width = 240;
     menu.style.top = `${Math.round(r.bottom + 6)}px`;

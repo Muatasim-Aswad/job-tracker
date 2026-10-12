@@ -34,12 +34,7 @@ class InvalidCursorError(Exception):
 
 
 class DataIntegrityError(Exception):
-    """A startup-time database-integrity failure: the driver refused foreign-key
-    enforcement, or an existing database carries rows whose foreign keys point at
-    missing parents. Raised before the app serves, so the problem surfaces loudly
-    and orphaned data is never silently deleted; the operator repairs the rows or
-    restores from a backup, then restarts. Not an HTTP error — it aborts
-    initialization rather than mapping to a response."""
+    """Abort startup when foreign-key enforcement fails or stored rows reference missing parents. Preserve the rows for operator repair or backup restoration."""
 
     def __init__(self, message: str) -> None:
         self.message = message

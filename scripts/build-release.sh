@@ -42,15 +42,12 @@ BUILD_SOURCE="$WORK/public-source"
 RUNTIME="$WORK/runtime"
 mkdir -p "$BUILD_SOURCE" "$RUNTIME"
 
-# This copy is deliberately limited to tracked public files. In particular, ignored
-# overlays and local .env files cannot affect either frontend build or artifact.
+# Tracked public files alone can influence artifacts; ignored overlays and .env stay excluded.
 copy_tracked "$BUILD_SOURCE" \
   VERSION package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json vite.config.ts \
   apps/web apps/extension packages
 
-# A prepared checkout already owns the pinned frontend toolchain. Reuse it read-only
-# through this temporary source tree instead of invoking an install that could write
-# a package-store database under the user's home.
+# Reuse the prepared toolchain read-only to avoid user package-store writes.
 [[ -d "$ROOT/node_modules" ]] || fail "workspace dependencies are missing; run bash scripts/setup.sh first."
 ln -s "$ROOT/node_modules" "$BUILD_SOURCE/node_modules"
 for package_dir in apps/web apps/extension packages/shared; do
@@ -68,9 +65,7 @@ done
   node "$ROOT/node_modules/vite-plus/bin/vp" build
 )
 
-# The runtime carries only what the packaged CLI needs: public API source, the
-# production dependency metadata/lock, a prebuilt dashboard, the canonical version
-# and notice, and the top-level launcher below.
+# Stage only packaged CLI sources, production metadata, dashboard, version, license, and launcher.
 copy_tracked "$RUNTIME" VERSION LICENSE apps/api/app apps/api/pyproject.toml apps/api/uv.lock
 mkdir -p "$RUNTIME/apps/web/dist"
 cp -a "$BUILD_SOURCE/apps/web/dist/." "$RUNTIME/apps/web/dist/"
@@ -90,8 +85,7 @@ exec uv run --frozen --no-dev --directory "$APP_DIR/apps/api" python -m app.cli 
 WRAPPER
 chmod 0755 "$RUNTIME/job-tracker"
 
-# Normalize archive metadata after all generators have run. The frontend build is
-# content-addressed; this makes repeated archives byte-for-byte comparable as well.
+# Normalize metadata after generation for byte-identical archives.
 find "$RUNTIME" -exec touch -h -d "@$EPOCH" {} +
 
 rm -rf -- "$RELEASE_DIR"

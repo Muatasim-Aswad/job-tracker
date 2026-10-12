@@ -10,8 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-// Serialize a flat param bag to a query string (leading "?"), dropping undefined and
-// empty-string values. Booleans/numbers are stringified.
+// Omit absent and empty-string filters; preserve false and zero.
 export function toQuery(params: Record<string, string | number | boolean | undefined>): string {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
@@ -22,8 +21,7 @@ export function toQuery(params: Record<string, string | number | boolean | undef
 }
 
 export async function request<T>(path: string, init?: RequestInit, baseUrl = ""): Promise<T> {
-  // Every caller passes headers as a plain record or none, so merging the default
-  // Content-Type over them is a plain spread.
+  // Callers supply headers as plain records.
   const headers = init?.headers as Record<string, string> | undefined;
   const res = await fetch(`${baseUrl}${path}`, {
     ...init,

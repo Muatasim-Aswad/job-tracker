@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
-# Render the Job Tracker social preview variants (1280x640, GitHub's size).
-#
-#   ./render-job-tracker-social-previews.sh            # render v3 v4 v5 v6 v7 v8
-#   ./render-job-tracker-social-previews.sh v4         # render one variant
-#   IMAGES_DIR=... OUTPUT_DIR=... ./render-...sh       # override locations
-#
-# Each variant is job-tracker-social-preview-<name>.svg in the svg directory
-# beside this script. Screenshot crops are pre-scaled with ImageMagick
-# (Lanczos) and injected through {{ASSETS}}, so the SVGs stay path-free.
+# Render supplied preview variants at 1280x640. SVG_DIR must contain
+# job-tracker-social-preview-<variant>.svg templates (v3 through v8).
+# ImageMagick scales crops; {{ASSETS}} is injected as a temporary asset directory.
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,8 +24,7 @@ for required_command in rsvg-convert magick; do
   fi
 done
 
-# The crop rectangles below are expressed in source pixels, so a screenshot of a
-# different size would silently crop the wrong region.
+# Crop rectangles require the declared screenshot dimensions.
 require_source() {
   local file="$1" expected="$2" actual
   if [[ ! -f "${file}" ]]; then
