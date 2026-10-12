@@ -11,6 +11,7 @@ import {
   canApplyAction,
   controlMatchesAction,
   isControlEmpty,
+  isRestorable,
   numericValueSafe,
   restoreSnapshot,
   snapshotControl,
@@ -40,6 +41,7 @@ import {
 import type {
   FillAction,
   ManualField,
+  PresentedAction,
   PresentedField,
   ResolutionResult,
   SupportedField,
@@ -213,6 +215,11 @@ export class EasyApplyScanner {
     if (!(event.target instanceof Element)) return;
     this.rootFinder.noteActivation(event.target);
     this.noteSuggestionPick(event);
+    // LinkedIn may remount a radio group while handling the click, so its input and
+    // change events fire on detached inputs that never reach this listener.
+    if (event.target instanceof HTMLInputElement && event.target.type === "radio") {
+      this.onControlEvent(event);
+    }
   };
 
   private readonly onKeydown = (event: Event) => {
@@ -447,6 +454,7 @@ export class EasyApplyScanner {
       const live = runtime ? this.liveField(runtime) : null;
       return (
         !!live &&
+        isRestorable(owned.before) &&
         owned.control === live.control &&
         owned.identity === fieldIdentityFingerprint(live) &&
         snapshotsEqual(snapshotControl(live), owned.after)
@@ -489,7 +497,7 @@ export class EasyApplyScanner {
           state: "failed",
           label: "Filled value needs attention",
           detail: "The host reported a validation error. Job Tracker will not retry it.",
-          actions: [{ label: "Revert", run: () => this.revert(live.handle) }],
+          actions: this.revertActions(live.handle, owned.before),
         };
       }
       return {
@@ -499,7 +507,7 @@ export class EasyApplyScanner {
           owned.source === "captured"
             ? "Filled from a remembered value"
             : "Filled from verified answer",
-        actions: [{ label: "Revert", run: () => this.revert(live.handle) }],
+        actions: this.revertActions(live.handle, owned.before),
       };
     }
     if (note && note.signature === snapshotKey(current)) {
@@ -625,7 +633,7 @@ export class EasyApplyScanner {
         state: "failed",
         label: "Filled value needs attention",
         detail: "The host reported a validation error. Job Tracker will not retry it.",
-        actions: [{ label: "Revert", run: () => this.revert(live.handle) }],
+        actions: this.revertActions(live.handle, before),
       };
     }
     return {
@@ -635,7 +643,7 @@ export class EasyApplyScanner {
         result.status === "captured"
           ? "Filled from a remembered value"
           : "Filled from verified answer",
-      actions: [{ label: "Revert", run: () => this.revert(live.handle) }],
+      actions: this.revertActions(live.handle, before),
     };
   }
 
@@ -780,10 +788,14 @@ export class EasyApplyScanner {
     this.updatePresentation(live.container, this.resultPresentation(confirmed));
   }
 
+  private revertActions(handle: string, before: ControlSnapshot): PresentedAction[] | undefined {
+    return isRestorable(before) ? [{ label: "Revert", run: () => this.revert(handle) }] : undefined;
+  }
+
   private revert(handle: string, schedule = true): void {
     const runtime = this.runtimeFields.get(handle);
     const owned = this.ownership.get(handle);
-    if (!runtime || !owned) return;
+    if (!runtime || !owned || !isRestorable(owned.before)) return;
     const live = this.liveField(runtime);
     if (
       !live ||

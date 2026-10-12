@@ -34,6 +34,13 @@ function dispatch(control: HTMLElement, type: "input" | "change"): void {
   control.dispatchEvent(new EventConstructor(type, { bubbles: true }));
 }
 
+// React-controlled radios commit a choice from the click event, not from input or
+// change. A dispatched click on an already checked radio keeps it checked.
+function dispatchRadioClick(radio: HTMLInputElement): void {
+  const MouseEventConstructor = radio.ownerDocument.defaultView?.MouseEvent ?? MouseEvent;
+  radio.dispatchEvent(new MouseEventConstructor("click", { bubbles: true, cancelable: true }));
+}
+
 function setNativeValue(
   control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
   value: string,
@@ -60,6 +67,11 @@ export function snapshotControl(field: SupportedField): ControlSnapshot {
     return { kind: "radio", clientOptionId: checkedTarget(field)?.clientOptionId ?? null };
   }
   return { kind: "text", value: control.value };
+}
+
+// A host cannot clear a radio group, so a fill into an empty group has no faithful undo.
+export function isRestorable(snapshot: ControlSnapshot): boolean {
+  return snapshot.kind !== "radio" || snapshot.clientOptionId !== null;
 }
 
 export function snapshotsEqual(left: ControlSnapshot, right: ControlSnapshot): boolean {
@@ -171,6 +183,7 @@ export function applyAction(field: SupportedField, action: FillAction): boolean 
   }
   if (!(target.element instanceof HTMLInputElement)) return false;
   if (!setNativeChecked(target.element, true)) return false;
+  dispatchRadioClick(target.element);
   dispatch(target.element, "input");
   dispatch(target.element, "change");
   return controlMatchesAction(field, action);
@@ -199,6 +212,9 @@ export function restoreSnapshot(field: SupportedField, snapshot: ControlSnapshot
       field.optionTargets.find((option) => option.clientOptionId === snapshot.clientOptionId)
         ?.element ?? field.control;
     if (!(target instanceof HTMLElement)) return false;
+    if (snapshot.clientOptionId !== null && target instanceof HTMLInputElement) {
+      dispatchRadioClick(target);
+    }
     dispatch(target, "input");
     dispatch(target, "change");
   }

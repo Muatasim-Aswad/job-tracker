@@ -101,19 +101,6 @@ function isFollowCompanyCheckbox(input: HTMLInputElement): boolean {
   return FOLLOW_COMPANY_PROMPT.test(questionText(label) || controlName(input));
 }
 
-function setNativeChecked(input: HTMLInputElement, checked: boolean): boolean {
-  let prototype: object | null = Object.getPrototypeOf(input);
-  while (prototype) {
-    const descriptor = Object.getOwnPropertyDescriptor(prototype, "checked");
-    if (descriptor?.set) {
-      descriptor.set.call(input, checked);
-      return true;
-    }
-    prototype = Object.getPrototypeOf(prototype);
-  }
-  return false;
-}
-
 export function clearLinkedInFollowCompanyDefault(
   root: HTMLElement,
   handled: WeakSet<HTMLInputElement>,
@@ -125,12 +112,12 @@ export function clearLinkedInFollowCompanyDefault(
       handled.add(input);
       continue;
     }
-    if (!setNativeChecked(input, false)) continue;
+    // React-controlled checkboxes commit from the click event; setting `checked`
+    // alone would leave LinkedIn submitting the follow while showing it cleared.
+    const MouseEventConstructor = input.ownerDocument.defaultView?.MouseEvent ?? MouseEvent;
+    input.dispatchEvent(new MouseEventConstructor("click", { bubbles: true, cancelable: true }));
     handled.add(input);
-    const EventConstructor = input.ownerDocument.defaultView?.Event ?? Event;
-    input.dispatchEvent(new EventConstructor("input", { bubbles: true }));
-    input.dispatchEvent(new EventConstructor("change", { bubbles: true }));
-    cleared += 1;
+    if (!input.checked) cleared += 1;
   }
   return cleared;
 }
@@ -165,8 +152,15 @@ function helpFor(container: HTMLElement, control: HTMLElement, prompt: string): 
   return local && local !== prompt ? local : null;
 }
 
+// LinkedIn can reuse one SDUI validation key for every question on a step, so the
+// key alone does not identify a field. A selected SDUI radio is remounted with a
+// new ID while its group name survives.
 function fieldHandle(container: HTMLElement, control: HTMLElement, index: number): string {
-  if (container.matches(SDUI_FIELD_KEY)) return container.getAttribute("componentkey")!;
+  if (container.matches(SDUI_FIELD_KEY)) {
+    const radioGroup = control instanceof HTMLInputElement && control.type === "radio";
+    const controlKey = (radioGroup && control.name) || control.id || `question-${index}`;
+    return `${container.getAttribute("componentkey")}#${controlKey}`;
+  }
   if (control.id) return control.id.replace(/-\d+$/, "");
   return container.getAttribute("data-test-form-element") || `question-${index}`;
 }

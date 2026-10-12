@@ -301,15 +301,16 @@ describe("LinkedIn Easy Apply discovery", () => {
     )!;
     const ordinary = form.querySelector<HTMLInputElement>("#ordinary-checkbox")!;
     const events: string[] = [];
-    follow.addEventListener("input", () => events.push("input"));
-    follow.addEventListener("change", () => events.push("change"));
+    for (const type of ["click", "input", "change"]) {
+      follow.addEventListener(type, () => events.push(type));
+    }
     const handled = new WeakSet<HTMLInputElement>();
 
     expect(clearLinkedInFollowCompanyDefault(form, handled)).toBe(1);
     expect(follow.checked).toBe(false);
     expect(topChoice.checked).toBe(true);
     expect(ordinary.checked).toBe(true);
-    expect(events).toEqual(["input", "change"]);
+    expect(events).toEqual(["click", "input", "change"]);
 
     follow.checked = true;
     expect(clearLinkedInFollowCompanyDefault(form, handled)).toBe(0);
@@ -475,7 +476,7 @@ describe("LinkedIn SDUI Easy Apply discovery", () => {
       "Belgium (+32)",
     ]);
     expect(fields[2].handle).toBe(
-      "easyApplyFieldFocus_ea.q::111::PHONE_MOBILE::phoneNumber.validation",
+      "easyApplyFieldFocus_ea.q::111::PHONE_MOBILE::phoneNumber.validation#_r_i_",
     );
     expect(linkedInPlatformId(document, fields)).toBe("123456");
   });
@@ -510,6 +511,24 @@ describe("LinkedIn SDUI Easy Apply discovery", () => {
       "None",
       "Professional",
     ]);
+  });
+
+  it("keeps distinct, remount-stable handles for questions sharing one SDUI key", () => {
+    const form = sduiRoot(
+      sduiStep(
+        "3/4",
+        "Additional questions",
+        `
+        ${sduiRadio("444", "_r_n_", "Completed a degree?*", ["Yes", "No"])}
+        ${sduiRadio("444", "_r_s_", "Need sponsorship?*", ["Yes", "No"])}`,
+      ),
+    );
+    const handles = () => discoverLinkedInFields(form).map((field) => field.handle);
+    const before = handles();
+    expect(new Set(before).size).toBe(2);
+
+    form.querySelector<HTMLInputElement>("#_r_n_-0")!.id = "_r_q_";
+    expect(handles()).toEqual(before);
   });
 
   it("ignores the résumé choice", () => {

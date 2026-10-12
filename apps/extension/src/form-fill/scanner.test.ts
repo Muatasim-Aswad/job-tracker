@@ -534,6 +534,55 @@ describe("generation-based safe form filling", () => {
     scanner.setEnabled(false);
   });
 
+  it("keeps SDUI questions that share one validation key independent", async () => {
+    history.replaceState({}, "", "/jobs/view/123456/");
+    const question = (id: string, prompt: string) => `
+      <div componentkey="easyApplyFieldFocus_ea_validation_p2_0_123456">
+        <label for="${id}"><div>${prompt}*</div></label>
+        <div><input id="${id}" type="text" required></div>
+      </div>`;
+    document.body.innerHTML = `
+      <dialog data-testid="dialog" open>
+        <div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+          <div><p>3/4 pages</p></div>
+          <div data-testid="lazy-column"><div><p>Additional questions</p><div>
+            ${question("_r_t_", "First question")}
+            ${question("_r_v_", "Second question")}
+          </div></div></div>
+        </div>
+      </dialog>`;
+    const approved = (clientFieldId: string, value: string) => ({
+      status: "approved" as const,
+      client_field_id: clientFieldId,
+      question_id: `question-${clientFieldId}`,
+      answer_id: `answer-${clientFieldId}`,
+      answer_revision: 1,
+      mapping_id: `mapping-${clientFieldId}`,
+      mapping_revision: 1,
+      action: { kind: "set_text" as const, value },
+      option_mappings: [],
+    });
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [approved("field-1", "first"), approved("field-2", "second")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    const inputs = [...document.querySelectorAll<HTMLInputElement>("dialog input")];
+    expect(inputs.map((input) => input.value)).toEqual(["first", "second"]);
+    expect(
+      [...document.querySelectorAll<HTMLElement>("[data-jh-ff-marker]")].map(
+        (marker) => marker.dataset.state,
+      ),
+    ).toEqual(["filled", "filled"]);
+    scanner.setEnabled(false);
+  });
+
   it("scans an unmarked dialog only when it opens after an Easy Apply launch", async () => {
     history.replaceState({}, "", "/jobs/view/123456/");
     document.body.innerHTML = `
@@ -1256,6 +1305,11 @@ describe("generation-based safe form filling", () => {
         (marker) => marker.dataset.state,
       ),
     ).toEqual(["filled", "filled"]);
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    const reverts = [...panel.querySelectorAll<HTMLButtonElement>("button")].filter(
+      (button) => button.textContent === "Revert",
+    );
+    expect(reverts).toHaveLength(1);
     scanner.setEnabled(false);
   });
 
@@ -1357,6 +1411,67 @@ describe("generation-based safe form filling", () => {
     expect(captureBridge.mock.calls[0][0]).toMatchObject({
       question_id: "question-select",
       value: { kind: "single_choice", question_option_id: "option-beta" },
+    });
+    scanner.setEnabled(false);
+  });
+
+  it("captures an SDUI radio choice whose group remounts during the click", async () => {
+    history.replaceState({}, "", "/jobs/view/123456/");
+    const radios = (prefix: string, checked: number | null) =>
+      ["Yes", "No"]
+        .map(
+          (label, index) => `
+          <div><input id="${prefix}-${index}" aria-label="Completed a degree?" type="radio"
+            name="radio-group-_r_n_" ${checked === index ? "checked" : ""}><p>${label}</p></div>`,
+        )
+        .join("");
+    document.body.innerHTML = `
+      <dialog data-testid="dialog" open>
+        <div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+          <div data-testid="lazy-column"><div><p>Additional questions</p><div>
+            <div componentkey="easyApplyFieldFocus_ea_validation_p2_0_123456">
+              <p>Completed a degree?*</p>
+              <fieldset role="radiogroup">${radios("_r_o_", null)}</fieldset>
+            </div>
+          </div></div></div>
+        </div>
+      </dialog>`;
+    const group = document.querySelector("fieldset")!;
+    group.addEventListener("click", (event) => {
+      const index = Number((event.target as HTMLInputElement).id.split("-").pop());
+      group.innerHTML = radios("_r_q_", index);
+    });
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            ...unresolved("field-1"),
+            question_id: "question-degree",
+            option_mappings: [
+              { client_option_id: "field-1-option-1", question_option_id: "option-yes" },
+              { client_option_id: "field-1-option-2", question_option_id: "option-no" },
+            ],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    document.querySelector<HTMLInputElement>("#_r_o_-0")!.click();
+    await vi.waitFor(() => expect(captureBridge).toHaveBeenCalledOnce());
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      question_id: "question-degree",
+      value: { kind: "single_choice", question_option_id: "option-yes" },
     });
     scanner.setEnabled(false);
   });

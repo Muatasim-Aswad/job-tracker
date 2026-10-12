@@ -95,6 +95,10 @@ describe("native Easy Apply controls", () => {
         </fieldset>
       </div>`);
     const click = vi.spyOn(HTMLElement.prototype, "click");
+    const events: string[] = [];
+    for (const type of ["click", "input", "change"]) {
+      field.optionTargets[2].element.addEventListener(type, () => events.push(type));
+    }
     const action = {
       kind: "set_single_choice" as const,
       client_option_id: "field-1-option-3",
@@ -104,6 +108,7 @@ describe("native Easy Apply controls", () => {
     expect((field.optionTargets[2].element as HTMLInputElement).checked).toBe(true);
     expect(controlMatchesAction(field, action)).toBe(true);
     expect(click).not.toHaveBeenCalled();
+    expect(events).toEqual(["click", "input", "change"]);
   });
 
   it("rejects decimals for inputs declared as integers", () => {

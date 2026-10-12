@@ -47,6 +47,9 @@ One version covers the whole product. The extension, the dashboard, and the serv
 - Long legitimate Easy Apply dropdowns such as phone-country-code lists now retain their complete choice identity and can remember the selected value. Lists above the bounded 512-option vocabulary stay manual without preventing the remaining questions on the step from being checked normally.
 - The Easy Apply summary now remembers its expanded or collapsed state in device-local browser storage. LinkedIn follow-company and top-choice prompts are ignored entirely instead of appearing as manual application Questions.
 - LinkedIn years-of-experience text inputs marked numeric by the form now resolve as integer questions when no decimal signal is present, while decimal values remain blocked from integer-only fields.
+- Easy Apply steps in the redesigned modal no longer show “Could not check this field” when several questions share LinkedIn's step-level validation key.
+- Radio answers filled by Easy Apply form filling are now accepted by LinkedIn instead of failing as “This field is required”, and a radio choice you pick is remembered even when LinkedIn redraws the options. Radio fills into an empty group no longer offer Revert, since LinkedIn cannot clear a radio group.
+- LinkedIn's preselected follow-company checkbox is now actually cleared; previously it only looked cleared while LinkedIn would still follow the company on submit.
 - Easy Apply form filling now keeps its scanner active when a job is opened through standalone job pages or alternate LinkedIn search routes, including application preload frames whose field handles do not repeat the job ID and LinkedIn's open interop Shadow DOM.
 
 ## [1.1.0] - 2026-08-12
