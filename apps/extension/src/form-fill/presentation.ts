@@ -10,6 +10,9 @@ const SYMBOL: Record<FieldState, string> = {
   filled: "✓",
   already: "✓",
   remembered: "◷",
+  cleared: "–",
+  kept: "–",
+  reverted: "↶",
   confirmation: "?",
   differs: "!",
   attention: "!",
@@ -22,8 +25,11 @@ const SYMBOL: Record<FieldState, string> = {
 
 function counts(fields: PresentedField[]) {
   return {
-    filled: fields.filter((field) => field.state === "filled" || field.state === "remembered")
-      .length,
+    filled: fields.filter((field) => field.state === "filled").length,
+    remembered: fields.filter((field) => field.state === "remembered").length,
+    cleared: fields.filter((field) => field.state === "cleared").length,
+    kept: fields.filter((field) => field.state === "kept").length,
+    reverted: fields.filter((field) => field.state === "reverted").length,
     matching: fields.filter((field) => field.state === "already").length,
     attention: fields.filter((field) =>
       ["confirmation", "differs", "attention", "unresolved", "failed", "error"].includes(
@@ -168,6 +174,9 @@ export function renderPresentation(
   tally.className = "summary";
   tally.setAttribute("aria-live", "polite");
   tally.textContent = `${summary.filled} filled · ${summary.matching} already match · ${summary.attention} needs attention · ${summary.manual} manual`;
+  for (const state of ["remembered", "cleared", "kept", "reverted"] as const) {
+    if (summary[state] > 0) tally.textContent += ` · ${summary[state]} ${state}`;
+  }
   heading.append(tally);
   details.append(heading);
   const promise = root.ownerDocument.createElement("p");
@@ -193,6 +202,9 @@ export function renderPresentation(
     manual: 2,
     ignored: 2,
     remembered: 3,
+    cleared: 3,
+    kept: 3,
+    reverted: 3,
     filled: 3,
     already: 3,
   };

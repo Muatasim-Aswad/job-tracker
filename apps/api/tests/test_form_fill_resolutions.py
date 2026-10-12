@@ -12,7 +12,13 @@ from pydantic import ValidationError as PydanticValidationError
 
 from app.core.db import Conn, query_one
 from app.form_fill.router import resolve_questions
-from app.form_fill.schemas import ResolutionRequest
+from app.form_fill.schemas import (
+    CaptureCreate,
+    MappingUpdate,
+    QuestionAnswerCreate,
+    QuestionReviewUpdate,
+    ResolutionRequest,
+)
 from app.form_fill.service import FormFillService
 from app.main import app
 
@@ -311,3 +317,209 @@ def test_value_bearing_route_is_no_store_and_request_bodies_are_not_logged(
     assert response.headers["cache-control"] == "no-store"
     assert sentinel not in caplog.text
     assert "application-1" not in caplog.text
+
+
+@pytest.mark.parametrize("source_kind,target_kind", [("radio", "select"), ("select", "radio")])
+@pytest.mark.parametrize("stable_key", [None, "eligibility.authorization"])
+@pytest.mark.parametrize("knowledge", ["capture", "verified"])
+def test_single_choice_knowledge_is_shared_across_layouts(
+    conn: Conn, source_kind: str, target_kind: str, stable_key: str | None, knowledge: str
+) -> None:
+    service = FormFillService(conn)
+    first = _resolve(
+        service, _request(_choice_field(control_kind=source_kind, stable_field_key=stable_key))
+    )["results"][0]
+    question = service.get_question(first["question_id"])
+    yes = next(o.id for o in question.options if o.raw_label == "Yes")
+    if knowledge == "capture":
+        service.create_capture(
+            CaptureCreate(
+                capture_key="shared-choice",
+                question_id=question.id,
+                application_context_id="application-1",
+                page={"platform": "linkedin", "platform_id": "job-42"},
+                source="user_input",
+                value={"kind": "single_choice", "question_option_id": yes},
+            )
+        )
+    else:
+        service.create_answer_for_question(
+            question.id,
+            QuestionAnswerCreate(
+                expected_question_revision=question.revision,
+                answer_key="eligibility.authorization",
+                label="Work authorization",
+                value={"kind": "single_choice", "choice_key": "yes"},
+                choices=[
+                    {"choice_key": "yes", "display_label": "Yes"},
+                    {"choice_key": "no", "display_label": "No"},
+                ],
+                bindings=[
+                    {"question_option_id": o.id, "answer_choice_key": o.raw_label.lower()}
+                    for o in question.options
+                ],
+            ),
+        )
+    target = _choice_field(control_kind=target_kind, stable_field_key=stable_key)
+    target["options"] = [
+        dict(o, client_option_id=f"target-{o['label'].lower()}")
+        for o in reversed(target["options"])
+    ]
+    result = _resolve(service, _request(target, scan_id="scan-other-layout"))["results"][0]
+    assert result["question_id"] == question.id
+    assert result["status"] == ("captured" if knowledge == "capture" else "approved")
+    assert result["action"] == {"kind": "set_single_choice", "client_option_id": "target-yes"}
+    shared = service.get_question(question.id)
+    assert shared.normalizer_version == 2
+    assert shared.control_kind == "radio"
+    assert shared.revision == question.revision
+    assert conn.execute("SELECT COUNT(*) FROM form_questions").fetchone() == (1,)
+    if knowledge == "verified":
+        assert shared.mapping is not None
+        service.update_mapping(
+            shared.id,
+            MappingUpdate(
+                expected_question_revision=shared.revision,
+                expected_revision=shared.mapping.revision,
+                status="disabled",
+            ),
+        )
+        blocked = _resolve(service, _request(target, scan_id="scan-disabled"))["results"][0]
+        assert blocked["status"] == "blocked"
+        assert blocked["reason"] == "mapping_disabled"
+    else:
+        service.update_question(
+            shared.id,
+            QuestionReviewUpdate(expected_revision=shared.revision, review_state="ignored"),
+        )
+        assert (
+            _resolve(service, _request(target, scan_id="scan-muted"))["results"][0]["status"]
+            == "ignored"
+        )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"prompt": "Are you authorized to work in another country?"},
+        {"section": "Reference contact"},
+        {"help": "Including future authorization"},
+        {"autocomplete_token": "country"},
+        {"stable_field_key": "another-question"},
+        {"control_kind": "multi_select"},
+        {
+            "options": [
+                {"client_option_id": "yes", "label": "Yes"},
+                {"client_option_id": "no", "label": "Never"},
+            ]
+        },
+        {
+            "options": [
+                {"client_option_id": "yes", "label": "Yes", "stable_option_key": "other"},
+                {"client_option_id": "no", "label": "No"},
+            ]
+        },
+        {
+            "options": [
+                {"client_option_id": "yes", "label": "Yes", "disabled": True},
+                {"client_option_id": "no", "label": "No"},
+            ]
+        },
+    ],
+)
+def test_shared_single_choice_identity_keeps_other_evidence_exact(
+    conn: Conn, change: dict[str, Any]
+) -> None:
+    service = FormFillService(conn)
+    first = _resolve(service, _request(_choice_field()))["results"][0]
+    changed = _resolve(
+        service,
+        _request(_choice_field(**{"control_kind": "select", **change}), scan_id="scan-changed"),
+    )["results"][0]
+    assert changed["question_id"] != first["question_id"]
+    scoped = _request(_choice_field(control_kind="select"), scan_id="scan-other-site")
+    scoped["page"]["site_scope"] = "other:application"
+    assert _resolve(service, scoped)["results"][0]["question_id"] != first["question_id"]
+
+
+def test_old_radio_and_select_knowledge_is_untouched_and_not_adopted(conn: Conn) -> None:
+    service = FormFillService(conn)
+    legacy_signatures = {
+        "radio": "0c1fb8a7663243d2427fd030080df6d7c2b62eeecc216f7222c496670d2efee6",
+        "select": "682d7caa7a120c49056bf14ea232da5cce78cddfec0004195179663fc19efbbc",
+    }
+    old_ids = []
+    for kind, signature in legacy_signatures.items():
+        result = _resolve(
+            service, _request(_choice_field(control_kind=kind), scan_id=f"old-{kind}")
+        )["results"][0]
+        old_ids.append(result["question_id"])
+        conn.execute(
+            "UPDATE form_questions SET signature = ?, normalizer_version = 1, control_kind = ? WHERE id = ?",
+            (signature, kind, result["question_id"]),
+        )
+    old_radio = service.get_question(old_ids[0])
+    service.create_capture(
+        CaptureCreate(
+            capture_key="old-radio-choice",
+            question_id=old_radio.id,
+            application_context_id="application-1",
+            page={"platform": "linkedin", "platform_id": "job-42"},
+            source="user_input",
+            value={"kind": "single_choice", "question_option_id": old_radio.options[0].id},
+        )
+    )
+    old_select = service.get_question(old_ids[1])
+    service.create_answer_for_question(
+        old_select.id,
+        QuestionAnswerCreate(
+            expected_question_revision=old_select.revision,
+            answer_key="legacy.authorization",
+            label="Work authorization",
+            value={"kind": "single_choice", "choice_key": "no"},
+            choices=[
+                {"choice_key": "yes", "display_label": "Yes"},
+                {"choice_key": "no", "display_label": "No"},
+            ],
+            bindings=[
+                {"question_option_id": o.id, "answer_choice_key": o.raw_label.lower()}
+                for o in old_select.options
+            ],
+        ),
+    )
+    before = [service.get_question(q).model_dump() for q in old_ids]
+    captures = service.repo.list_current_capture_records(old_radio.id)
+    radio = _resolve(service, _request(_choice_field(), scan_id="new-radio"))["results"][0]
+    select = _resolve(
+        service, _request(_choice_field(control_kind="select"), scan_id="new-select")
+    )["results"][0]
+    assert radio["question_id"] == select["question_id"]
+    assert radio["question_id"] not in old_ids
+    assert radio["status"] == select["status"] == "unresolved"
+    assert before == [service.get_question(q).model_dump() for q in old_ids]
+    assert captures == service.repo.list_current_capture_records(old_radio.id)
+    assert conn.execute("SELECT COUNT(*) FROM form_questions").fetchone() == (3,)
+
+
+@pytest.mark.parametrize(
+    "field,signature",
+    [
+        (_field(), "5217c61c9250066631d5ad768f8877f7e1a72cee8c3bbe9554074d62f0339aba"),
+        (
+            _choice_field(control_kind="checkbox_group"),
+            "7023c3e7be94d8e3b3ed07a1dec76f0ac85ee0d8b52d257ab3e28dbc4cb85e7c",
+        ),
+        (
+            _choice_field(control_kind="multi_select"),
+            "f87f74168d3fb91216bc693beead7210831abad18051c824fc3ef410cf2c4a2d",
+        ),
+    ],
+)
+def test_other_control_identities_retain_v1_signatures(
+    conn: Conn, field: dict[str, Any], signature: str
+) -> None:
+    service = FormFillService(conn)
+    result = _resolve(service, _request(field))["results"][0]
+    question = service.get_question(result["question_id"])
+    assert question.normalizer_version == 1
+    assert service.repo.get_question_by_signature(signature).id == question.id

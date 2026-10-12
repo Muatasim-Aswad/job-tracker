@@ -107,12 +107,16 @@ When the extension detects that a posting no longer accepts applications, or Lin
 
 Form filling uses durable semantic identities rather than page-local selectors:
 
-- A **Question** is the exact normalized prompt, section, help, control kind, stable field evidence, and active option vocabulary within a site scope. DOM handles and client option IDs exist only for one resolution request.
+- A **Question** is the exact normalized prompt, section, help, semantic control kind, stable field evidence, and active option vocabulary within a site scope. Radio groups and single-choice dropdowns share one semantic kind; their physical DOM controls remain request-local. DOM handles and client option IDs exist only for one resolution request.
 - An **Answer** is a reusable typed value with an explicit fill policy and revision. Choice Answers own their reusable vocabulary.
 - A **Match** is the singleton relationship for one Question. It points to one Answer and, for choice controls, binds every active Question option to an Answer choice.
 - A **Capture** is a provisional value attributed to trusted user input or the explicit **Remember existing** action. It remains reviewable until cleared, superseded, ignored, applied, or selected as a conflict winner.
 
+Single-choice identity uses normalizer version 2 and the existing `radio` control kind as its canonical representation. Both generic signatures and versioned adapter keys share that representation; their other identity evidence and active option vocabulary retain the existing rules. Other controls retain their version-1 signatures. This is forward-only: version-1 radio and select Questions, Matches, and Captures are retained without automatic fallback, merge, or migration. Existing verified Answers can be explicitly matched to newly observed Questions.
+
 Mutations compare expected revisions inside the same transaction. Stale Answer, Question, Match, Capture, and conflict-resolution writes have no effect and return current value-free summaries for review. Resolution gives an eligible active Match priority, then an unambiguous current Capture, and otherwise returns a typed non-fill result. Muted Questions, disabled or retired Matches, disabled Answers, `never` policies, incomplete option bindings, and competing Captures cannot produce an automatic action.
+
+Extension presentation separates writes from knowledge capture: **filled** means a currently owned extension write, and **already match** means an untouched value agrees with the resolved action. User capture, capture clearing, deliberate preservation, and reversion have separate current-step states; none contributes to fills or agreement.
 
 Question-context Answer creation derives the Answer value kind from the Question control and uses the active Question options as the complete choice vocabulary and binding set. Creating the Answer and installing or retargeting the singleton Match is one revision-checked transaction, so neither resource can persist without a compatible relationship.
 

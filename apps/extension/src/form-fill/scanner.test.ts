@@ -57,6 +57,12 @@ function unresolved(clientFieldId: string): FormFillResolutionResponse["results"
   };
 }
 
+function summaryText(): string | null {
+  return document
+    .querySelector<HTMLElement>("[data-jh-ff-panel]")!
+    .shadowRoot!.querySelector(".summary")!.textContent;
+}
+
 const ids = () => {
   let count = 0;
   return () => `runtime-${++count}`;
@@ -759,6 +765,10 @@ describe("generation-based safe form filling", () => {
     )!;
     revert.click();
     expect(input.value).toBe("");
+    await scanner.scan();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 reverted",
+    );
     expect(hostAction).not.toHaveBeenCalled();
     scanner.setEnabled(false);
   });
@@ -1021,6 +1031,10 @@ describe("generation-based safe form filling", () => {
       cleared: false,
       value: { kind: "text", value: "user-entered-value" },
     });
+    await scanner.scan();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 remembered",
+    );
     const stableKey = captureBridge.mock.calls[0][0].capture_key;
 
     input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
@@ -1042,6 +1056,10 @@ describe("generation-based safe form filling", () => {
       value: null,
     });
     expect(JSON.stringify(captureBridge.mock.calls[1][0])).not.toContain("user-entered-value");
+    await scanner.scan();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 cleared",
+    );
     scanner.setEnabled(false);
   });
 
@@ -1184,6 +1202,49 @@ describe("generation-based safe form filling", () => {
       source: "confirmed_external",
       value: { kind: "text", value: "external-value" },
     });
+    await scanner.scan();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 remembered",
+    );
+    scanner.setEnabled(false);
+  });
+
+  it("counts a deliberately kept value separately from agreement", async () => {
+    fixture(field(1, "Keep host answer", "host-value"));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            status: "approved",
+            client_field_id: "field-1",
+            question_id: "question-kept",
+            answer_id: "answer-kept",
+            answer_revision: 1,
+            mapping_id: "mapping-kept",
+            mapping_revision: 1,
+            action: { kind: "set_text", value: "verified-value" },
+            option_mappings: [],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    [...panel.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Keep existing")!
+      .click();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 kept",
+    );
+    await scanner.scan();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 kept",
+    );
+    expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("host-value");
     scanner.setEnabled(false);
   });
 
@@ -1356,10 +1417,12 @@ describe("generation-based safe form filling", () => {
       [...document.querySelectorAll<HTMLElement>(".jh-ff-marker")].map(
         (marker) => marker.dataset.state,
       ),
-    ).toEqual(["already", "remembered"]);
+    ).toEqual(["already", "filled"]);
     expect(
       document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!.textContent,
     ).toContain("1 filled · 1 already match · 0 needs attention · 0 manual");
+    await scanner.scan();
+    expect(summaryText()).toBe("1 filled · 1 already match · 0 needs attention · 0 manual");
     scanner.setEnabled(false);
   });
 

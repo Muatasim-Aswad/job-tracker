@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from app.core.db import Conn, Row, execute, query_all, query_one
-from app.form_fill.identity import NORMALIZER_VERSION, QuestionIdentity
+from app.form_fill.identity import QuestionIdentity
 from app.form_fill.models import Question, QuestionOption, QuestionPage
 from app.form_fill.schemas import AnswerSort
 
@@ -96,7 +96,7 @@ class FormFillRepository:
                 identity.adapter_id,
                 identity.adapter_version,
                 identity.stable_field_key,
-                NORMALIZER_VERSION,
+                identity.normalizer_version,
                 identity.control_kind,
                 identity.normalized_question,
                 identity.raw_question,

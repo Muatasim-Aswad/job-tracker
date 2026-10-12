@@ -30,6 +30,10 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Fixed
 
+- Equivalent Easy Apply radio and dropdown questions now share new single-choice identity and reuse verified or remembered answers across layouts. The change is forward-only: existing choice Questions and their knowledge remain untouched, and existing verified Answers can be explicitly linked to the new Questions. Other control identities are unchanged.
+
+- Easy Apply summary counts distinguish extension fills from user values just remembered, remembered-value clears, deliberately kept values, and reverted fills; only actual agreement counts as **already match**.
+
 - Form Fill now scrolls beneath the fixed application header with its scrollbar at the viewport edge, removes headings duplicated from navigation, and shows general explanations as hover/focus tooltips on the relevant tabs and controls, without separate help icons or changes to click actions.
 
 - Form Fill renders choice labels instead of internal IDs, keeps automatic Answer keys in sync while typing, protects unsaved drafts, and invalidates review when fill policy or other draft fields change.

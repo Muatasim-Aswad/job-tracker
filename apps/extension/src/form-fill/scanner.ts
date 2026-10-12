@@ -112,7 +112,7 @@ interface OwnershipRecord {
 }
 
 interface FieldNote {
-  state: "remembered" | "failed" | "already" | "attention";
+  state: "remembered" | "cleared" | "kept" | "reverted" | "failed" | "attention";
   label: string;
   detail?: string;
   signature: string;
@@ -502,7 +502,7 @@ export class EasyApplyScanner {
       }
       return {
         ...base,
-        state: owned.source === "captured" ? "remembered" : "filled",
+        state: "filled",
         label:
           owned.source === "captured"
             ? "Filled from a remembered value"
@@ -530,7 +530,7 @@ export class EasyApplyScanner {
     }
     const suppressed = this.writeSuppressionKey(runtime, current);
     if (this.suppressedWrites.has(suppressed)) {
-      return { ...base, state: "already", label: "Existing value kept" };
+      return { ...base, state: "kept", label: "Existing value kept" };
     }
     if (isControlEmpty(live)) {
       return this.applyRuntime(runtime, false);
@@ -552,7 +552,7 @@ export class EasyApplyScanner {
             this.suppressedWrites.add(this.writeSuppressionKey(runtime, snapshotControl(live)));
             this.updatePresentation(live.container, {
               ...base,
-              state: "already",
+              state: "kept",
               label: "Existing value kept",
             });
           },
@@ -638,7 +638,7 @@ export class EasyApplyScanner {
     }
     return {
       ...base,
-      state: result.status === "captured" ? "remembered" : "filled",
+      state: "filled",
       label:
         result.status === "captured"
           ? "Filled from a remembered value"
@@ -819,7 +819,7 @@ export class EasyApplyScanner {
     runtime.expected = snapshotControl(live);
     this.suppressedWrites.add(this.writeSuppressionKey(runtime, runtime.expected));
     this.notes.set(handle, {
-      state: "already",
+      state: "reverted",
       label: "Job Tracker fill reverted",
       signature: snapshotKey(runtime.expected),
     });
@@ -988,7 +988,7 @@ export class EasyApplyScanner {
       handle,
       response.ok
         ? {
-            state: "remembered",
+            state: captureValue.cleared ? "cleared" : "remembered",
             label: captureValue.cleared
               ? "Remembered value cleared"
               : "Remembered for this exact question",

@@ -12,6 +12,7 @@ from typing import Literal
 from app.form_fill.schemas import ResolutionField
 
 NORMALIZER_VERSION = 1
+_SINGLE_CHOICE_NORMALIZER_VERSION = 2
 
 _WHITESPACE = re.compile(r"\s+")
 _TRAILING_REQUIRED = re.compile(r"(?:\s*\*|\s*\(\s*required\s*\))+$", re.IGNORECASE)
@@ -65,6 +66,7 @@ class OptionIdentity:
 
 @dataclass(frozen=True)
 class QuestionIdentity:
+    normalizer_version: int
     signature: str
     identity_kind: str
     site_scope: str
@@ -86,6 +88,10 @@ class QuestionIdentity:
 def build_identity(
     *, site_scope: str, adapter_id: str, adapter_version: str, field: ResolutionField
 ) -> QuestionIdentity:
+    control_kind = "radio" if field.control_kind == "select" else field.control_kind
+    normalizer_version = (
+        _SINGLE_CHOICE_NORMALIZER_VERSION if control_kind == "radio" else NORMALIZER_VERSION
+    )
     normalized_question = normalize_evidence(field.prompt)
     normalized_section = normalize_evidence(field.section)
     normalized_help = normalize_evidence(field.help)
@@ -113,20 +119,20 @@ def build_identity(
     if stable_field_key:
         identity_kind = "adapter_key"
         signature_parts: object = {
-            "normalizer_version": NORMALIZER_VERSION,
+            "normalizer_version": normalizer_version,
             "site_scope": canonical_scope,
             "adapter_id": canonical_adapter,
             "adapter_version": canonical_adapter_version,
             "stable_field_key": stable_field_key,
-            "control_kind": field.control_kind,
+            "control_kind": control_kind,
             "option_set_hash": option_set_hash,
         }
     else:
         identity_kind = "generic_signature"
         signature_parts = {
-            "normalizer_version": NORMALIZER_VERSION,
+            "normalizer_version": normalizer_version,
             "site_scope": canonical_scope,
-            "control_kind": field.control_kind,
+            "control_kind": control_kind,
             "normalized_question": normalized_question,
             "normalized_section": normalized_section,
             "normalized_help": normalized_help,
@@ -134,13 +140,14 @@ def build_identity(
             "option_set_hash": option_set_hash,
         }
     return QuestionIdentity(
+        normalizer_version=normalizer_version,
         signature=_digest(signature_parts),
         identity_kind=identity_kind,
         site_scope=canonical_scope,
         adapter_id=canonical_adapter,
         adapter_version=canonical_adapter_version,
         stable_field_key=stable_field_key,
-        control_kind=field.control_kind,
+        control_kind=control_kind,
         normalized_question=normalized_question,
         raw_question=field.prompt,
         normalized_section=normalized_section,

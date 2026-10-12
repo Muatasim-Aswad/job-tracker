@@ -333,7 +333,7 @@ class FormFillService:
         observed_base = (
             identity.identity_kind,
             identity.site_scope,
-            1,
+            identity.normalizer_version,
             identity.control_kind,
             identity.option_set_hash,
         )
