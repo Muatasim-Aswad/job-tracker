@@ -115,3 +115,48 @@ describe("refreshMatches", () => {
     expect(badge.dataset.jhCount).toBe("1");
   });
 });
+
+describe("match popover", () => {
+  it("shows a reworded title, timing, and each candidate's evidence", async () => {
+    document.body.innerHTML = `<div class="jh-detail-actions" data-jh-job-id="LI-1"></div>`;
+    const candidate: JobMatch = {
+      ...match("job-1", 0.82),
+      title: "Backend Engineer II",
+      closed_at: "2026-07-10T00:00:00Z",
+      insights: {
+        apply_url: { is_same: true },
+        company_url: { is_same: true },
+        location: { is_same: false, current: "Amsterdam", candidate: "Utrecht" },
+      },
+      timing: { overlapping: false, gap_days: 14 },
+    };
+    const { matches } = makeMatches(async () => ({ ok: true, result: [candidate] }));
+    await matches.checkMatches("LI-1", "Backend Engineer", "Example Labs");
+
+    (document.querySelector(".jh-btn-match") as HTMLElement).click();
+
+    const pop = document.querySelector(".jh-match-popover")!;
+    expect(pop.querySelector(".jh-match-pct")?.textContent).toBe("82%");
+    expect(pop.querySelector(".jh-match-title")?.textContent).toBe("Backend Engineer II");
+    expect(pop.querySelector(".jh-match-sub")?.textContent).toContain(
+      "reposted 14 days after it closed",
+    );
+    expect(pop.querySelector(".jh-match-same")?.textContent).toBe(
+      "✓ Same Apply link · Company page",
+    );
+    expect(pop.querySelector(".jh-match-diff")?.textContent).toBe(
+      "✗ Location: Amsterdam vs Utrecht",
+    );
+  });
+
+  it("omits the title when it matches the posting on screen", async () => {
+    document.body.innerHTML = `<div class="jh-detail-actions" data-jh-job-id="LI-1"></div>`;
+    const { matches } = makeMatches(async () => ({ ok: true, result: [match("job-1", null)] }));
+    await matches.checkMatches("LI-1", "Backend  engineer", "Example Labs");
+
+    (document.querySelector(".jh-btn-match") as HTMLElement).click();
+
+    expect(document.querySelector(".jh-match-title")).toBeNull();
+    expect(document.querySelector(".jh-match-evidence")).toBeNull();
+  });
+});

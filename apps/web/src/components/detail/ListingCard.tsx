@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Copy, Link2, Pencil, Trash2 } from "lucide-react";
 import type { Listing, ListingUpdate } from "@job-tracker/shared/api";
 import { postingUrl } from "@job-tracker/shared/links";
+import { APPLY_TYPE_LABELS } from "@job-tracker/shared/matches";
 import { platformLabel } from "@job-tracker/shared/platforms";
 import { fmtDate, POSTED_META_KEYS, readPosted } from "@job-tracker/shared/time";
 import { ExpandableText } from "../ExpandableText";
@@ -14,7 +15,6 @@ import { UrlLink } from "../UrlLink";
 import { describeError, toast } from "../../lib/toast";
 import { NEUTRAL } from "./constants";
 import { ListingEditForm } from "./ListingEditForm";
-import { RelinkPicker } from "./RelinkPicker";
 
 // Friendly labels for the raw snake_case detail keys the capture produces.
 // Anything not listed falls back to a title-cased version of the key.
@@ -26,12 +26,6 @@ const LISTING_FIELD_LABELS: Record<string, string> = {
   salary: "Salary",
   workplace: "Workplace",
   employment_type: "Type",
-};
-
-// Unknown apply types add no useful information and are omitted.
-const APPLY_TYPE_LABELS: Record<string, string> = {
-  easy_apply: "Easy apply",
-  external: "External apply",
 };
 
 function fieldLabel(key: string): string {
@@ -89,7 +83,7 @@ interface Props {
   jobCompany: string | null;
   isOnly: boolean;
   onDelete: () => void;
-  onRelink: (targetJobId: string) => void;
+  onRelink: () => void;
   onUpdate: (body: ListingUpdate) => void;
 }
 
@@ -102,7 +96,6 @@ export function ListingCard({
   onRelink,
   onUpdate,
 }: Props) {
-  const [relinking, setRelinking] = useState(false);
   const [editing, setEditing] = useState(false);
 
   // Captured listings remain scraper-owned; manual listings have no other editor.
@@ -170,10 +163,8 @@ export function ListingCard({
           <IconButton
             size="sm"
             label="Relink to another job"
-            active={relinking}
-            activeMeans="expanded"
-            onClick={() => setRelinking((v) => !v)}
-            className={relinking ? "text-violet-600 dark:text-violet-300" : NEUTRAL}
+            onClick={onRelink}
+            className={NEUTRAL}
           >
             <Link2 size={14} />
           </IconButton>
@@ -185,22 +176,6 @@ export function ListingCard({
           />
         </span>
       </div>
-
-      {relinking && (
-        <RelinkPicker
-          currentJobId={l.job_id}
-          platform={l.platform}
-          platformId={l.platform_id}
-          matchTitle={jobTitle ?? l.title ?? ""}
-          matchCompany={jobCompany ?? l.company ?? ""}
-          dissolvesSource={isOnly}
-          onPick={(targetJobId) => {
-            setRelinking(false);
-            onRelink(targetJobId);
-          }}
-          onCancel={() => setRelinking(false)}
-        />
-      )}
 
       {editing && (
         <ListingEditForm

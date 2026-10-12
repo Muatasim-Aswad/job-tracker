@@ -17,10 +17,11 @@ One version covers the whole product. The extension, the dashboard, and the serv
 - **To apply** dashboard cards link to the external application destination when it differs from the posting link.
 - The extension popup seeds its search with the company from an open LinkedIn job page's title.
 - LinkedIn listings record their location and workplace type (Remote, Hybrid, or On-site) from job pages, search and recommendation cards, the Applied tracker, and Gmail job emails. The dashboard shows the job page's fuller location and falls back to the card's.
-- Repost suggestions also include jobs from the same company with the same external application destination under a reworded title, and `GET /api/jobs/matches` reports for each suggestion whether its application destination, company page, poster, location, workplace, salary, and apply type agree, plus the days between the earlier posting's closure and the new one.
+- Repost suggestions also include jobs from the same company with the same external application destination under a reworded title. Each suggestion shows whether its application destination, company page, poster, location, workplace, salary, and apply type agree, plus the days between the earlier posting's closure and the new one, in the extension's duplicate popover and in the dashboard's relink view.
 
 ### Changed
 
+- Relinking a listing on the dashboard opens a full-drawer view, with a back button, that leads with likely duplicates and their description similarity, status, listing count, dates, and evidence.
 - Form Fill now uses one question-centered review inbox, active-first saved Answers, searchable paginated Answer selection with value previews, before/after review, editable choice suggestions, dismissed-item recovery, and pinned save-and-next actions. Technical identifiers and history move behind optional disclosures.
 
 - Easy Apply treats a question as numeric only when its input declares it, so LinkedIn's years-of-experience questions are text questions in both modals and share one answer.

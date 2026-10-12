@@ -1,8 +1,11 @@
-// Detail-view duplicate suggestions. The server filters normalized title/company
-// candidates using existing mutual exclusions.
+// Detail-view duplicate suggestions. The server picks same-company candidates by
+// normalized title or application destination, drops mutual exclusions, and attaches
+// the evidence each row shows.
 import type { Engine } from "./types.js";
 import type { JobMatch } from "@job-tracker/shared/api";
 import { JobFunnel } from "@job-tracker/shared/funnel";
+import { evidenceRows, similarityPercent, timingText } from "@job-tracker/shared/matches";
+import { normalizeTitle } from "@job-tracker/shared/text";
 import { SERVER_URL } from "../config.js";
 import { toNaturalKey } from "../registry.js";
 import { ICON } from "../icons.js";
@@ -161,8 +164,8 @@ export function createMatches(engine: Engine) {
     // Lead with description overlap, the strongest signal beyond title and company.
     const pct = document.createElement("div");
     pct.className = "jh-match-pct";
-    if (m.similarity != null) {
-      const p = Math.round(m.similarity * 100);
+    const p = similarityPercent(m.similarity);
+    if (p !== null) {
       pct.textContent = `${p}%`;
       pct.classList.add(
         p >= 70 ? "jh-match-pct--high" : p >= 40 ? "jh-match-pct--mid" : "jh-match-pct--low",
@@ -174,19 +177,29 @@ export function createMatches(engine: Engine) {
       pct.title = "No description captured yet to compare";
     }
 
-    // No title: the server keys candidates on both normalized company AND title, so
-    // every row's title equals the one on screen. What tells the rows apart is each
-    // job's status, dates, and %, so status and posting count lead instead.
+    // Status and posting count lead: a title-matched row's title equals the one on
+    // screen, so it appears only when an application-destination match reworded it.
     const info = document.createElement("div");
     info.className = "jh-match-info";
     const primary = document.createElement("div");
     primary.className = "jh-match-primary";
     primary.textContent =
       JobFunnel.labelOf(m.status) + (m.listing_count > 1 ? ` · ${m.listing_count} postings` : "");
+    info.appendChild(primary);
+    const viewedTitle = matchIdentity.get(jobId)?.title;
+    if (m.title && normalizeTitle(m.title) !== normalizeTitle(viewedTitle)) {
+      const title = document.createElement("div");
+      title.className = "jh-match-title";
+      title.textContent = m.title;
+      title.title = m.title;
+      info.appendChild(title);
+    }
     const sub = document.createElement("div");
     sub.className = "jh-match-sub";
     sub.textContent = matchSubtitle(m);
-    info.append(primary, sub);
+    info.appendChild(sub);
+    const evidence = evidenceBlock(m);
+    if (evidence) info.appendChild(evidence);
 
     // The top line gives the chip and subtitle the row's full width, so the action
     // buttons can't crush them to "Softwa…"; actions get their own line.
@@ -236,12 +249,36 @@ export function createMatches(engine: Engine) {
   }
 
   function matchSubtitle(m: JobMatch): string {
-    // Dates only — everything else about a candidate either matches the posting on
-    // screen or already leads the row.
     const parts: string[] = [];
     if (m.created_at) parts.push("seen " + m.created_at.slice(0, 10));
     if (m.closed_at) parts.push("closed " + m.closed_at.slice(0, 10));
+    const timing = timingText(m.timing);
+    if (timing) parts.push(timing.toLowerCase());
     return parts.join(" · ");
+  }
+
+  // Agreeing checks share one line; each differing check gets its own with both values.
+  function evidenceBlock(m: JobMatch): HTMLElement | null {
+    const rows = evidenceRows(m.insights);
+    if (!rows.length) return null;
+    const box = document.createElement("div");
+    box.className = "jh-match-evidence";
+    const same = rows.filter((r) => r.same).map((r) => r.label);
+    if (same.length) {
+      const line = document.createElement("div");
+      line.className = "jh-match-same";
+      line.textContent = `✓ Same ${same.join(" · ")}`;
+      box.appendChild(line);
+    }
+    for (const r of rows) {
+      if (r.same) continue;
+      const line = document.createElement("div");
+      line.className = "jh-match-diff";
+      line.textContent = `✗ ${r.label}: ${r.current} vs ${r.candidate}`;
+      line.title = `${r.label}\nThis posting: ${r.current}\nCandidate: ${r.candidate}`;
+      box.appendChild(line);
+    }
+    return box;
   }
 
   // "This IS the same job" — fuse the current posting's job with the candidate's. The

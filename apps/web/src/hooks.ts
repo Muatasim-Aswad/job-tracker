@@ -58,7 +58,7 @@ export function useCreateListing() {
   });
 }
 
-// Likely reposts of a listing — the duplicates the relink picker floats to the top.
+// Likely reposts of a listing — the duplicates the relink view leads with.
 // Keyed by the listing's natural key plus the owning job's title/company, and
 // disabled until both are known, since the server needs both to suggest anything.
 export function useJobMatches(

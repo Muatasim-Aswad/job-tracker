@@ -10,6 +10,7 @@
     "./text": "./src/text/index.ts",
     "./time": "./src/time/index.ts",
     "./links": "./src/links/index.ts",
+    "./matches": "./src/matches/index.ts",
     "./platforms": "./src/platforms/index.ts"
   },
   "scripts": {

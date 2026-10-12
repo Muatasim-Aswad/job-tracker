@@ -600,7 +600,7 @@ button.jh-btn svg,
   flex: 1;
 }
 /* Primary line: the status (+ posting count) — what distinguishes one tracked
-   candidate from another now that the (always-identical) title is gone. */
+   candidate from another when titles match. */
 .jh-match-primary {
   font-weight: 600;
   white-space: nowrap;
@@ -614,6 +614,29 @@ button.jh-btn svg,
 }
 .jh-match-sub:empty {
   display: none;
+}
+.jh-match-title {
+  font-size: 12px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jh-match-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 11px;
+}
+.jh-match-same {
+  color: #1a7f5a;
+}
+.jh-match-diff {
+  color: #664d03;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .jh-match-actions {

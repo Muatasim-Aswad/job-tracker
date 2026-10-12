@@ -154,9 +154,10 @@ export const api = {
 
   getJob: (jobId: string): Promise<JobDetail> => request(`/jobs/${jobId}`),
 
-  // Likely reposts of a listing: sibling jobs sharing its server-normalized
-  // company+title, used to surface duplicates first when relinking. Needs both title
-  // and company; anything less is too broad to suggest, so it returns [].
+  // Likely reposts of a listing with their evidence: sibling jobs sharing its
+  // server-normalized company and either its title or its application destination.
+  // Needs both title and company; anything less is too broad to suggest, so it
+  // returns [].
   jobMatches: (
     platform: string,
     platformId: string,

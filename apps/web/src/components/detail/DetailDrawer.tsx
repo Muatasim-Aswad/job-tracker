@@ -31,6 +31,7 @@ import { AttentionPanel } from "./AttentionPanel";
 import { ICON_SIZE, NEUTRAL } from "./constants";
 import { ListingCard } from "./ListingCard";
 import { MovePanel } from "./MovePanel";
+import { RelinkView } from "./RelinkView";
 
 interface Props {
   jobId: string;
@@ -71,7 +72,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
   const updateJob = useUpdateJob();
   const deleteJob = useDeleteJob();
   const deleteListing = useDeleteListing();
-  const relinkListing = useRelinkListing();
+  const relinkListingMutation = useRelinkListing();
   const updateListing = useUpdateListing();
   const correctStatus = useCorrectStatus();
   const revertStatus = useRevertStatus();
@@ -99,6 +100,24 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
 
   // The dialog surface — the root of the focus trap and initial focus target.
   const asideRef = useRef<HTMLElement>(null);
+
+  // The listing being relinked owns the whole drawer until the user goes back. The
+  // job view's scroll position is kept so going back lands where the user left.
+  const [relinkListingId, setRelinkListingId] = useState<string | null>(null);
+  const jobScrollTop = useRef(0);
+  const relinkListing = job?.listings.find((l) => l.id === relinkListingId) ?? null;
+
+  function openRelink(listingId: string) {
+    jobScrollTop.current = asideRef.current?.scrollTop ?? 0;
+    setRelinkListingId(listingId);
+  }
+
+  useEffect(() => setRelinkListingId(null), [jobId]);
+
+  const relinking = relinkListing !== null;
+  useEffect(() => {
+    if (asideRef.current) asideRef.current.scrollTop = relinking ? 0 : jobScrollTop.current;
+  }, [relinking]);
 
   // Persist the header title/company edit — shared by the Save button and
   // formKeys' Cmd+Enter so the write lives in one place.
@@ -128,7 +147,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
 
   // Modal dialog behavior: focus into the drawer on open, trap Tab inside it,
   // close on Escape, and hand focus back to the card that opened it on close.
-  useFocusTrap(asideRef, onClose);
+  useFocusTrap(asideRef, relinkListing ? () => setRelinkListingId(null) : onClose);
   // …and freeze the board behind it, so the drawer is the only thing that scrolls.
   useScrollLock();
 
@@ -192,6 +211,26 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
             <span>Loading…</span>
             {closeButton}
           </div>
+        ) : relinkListing ? (
+          <RelinkView
+            listing={relinkListing}
+            jobTitle={job.title}
+            jobCompany={job.company}
+            dissolvesSource={job.listings.length === 1}
+            onBack={() => setRelinkListingId(null)}
+            onPick={(targetJobId) => {
+              setRelinkListingId(null);
+              relinkListingMutation.mutate({
+                listingId: relinkListing.id,
+                sourceJobId: jobId,
+                targetJobId,
+              });
+              // If this was the job's only listing the source dissolves, so follow
+              // the listing to its new home; otherwise the source survives and we
+              // stay put (more listings may need relinking).
+              if (job.listings.length === 1) onNavigate(targetJobId);
+            }}
+          />
         ) : (
           <div className="flex flex-col gap-6 p-6">
             <header className="sticky top-0 z-20 -mx-6 -mt-6 flex flex-col gap-1 border-b border-line bg-canvas px-6 pb-3 pt-6">
@@ -469,13 +508,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
                         { onSuccess: () => lastOne && onClose() },
                       );
                     }}
-                    onRelink={(targetJobId) => {
-                      relinkListing.mutate({ listingId: l.id, sourceJobId: jobId, targetJobId });
-                      // If this was the job's only listing the source dissolves,
-                      // so follow the listing to its new home; otherwise the source
-                      // survives and we stay put (more listings may need relinking).
-                      if (job.listings.length === 1) onNavigate(targetJobId);
-                    }}
+                    onRelink={() => openRelink(l.id)}
                     onUpdate={(body) => updateListing.mutate({ listingId: l.id, jobId, body })}
                   />
                 ))}

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Attention, JobDetail } from "@job-tracker/shared/api";
+import type { Attention, JobDetail, JobMatch, JobSummary } from "@job-tracker/shared/api";
 import { dismissToast, getToasts } from "../../lib/toast";
 import { DetailDrawer } from "./DetailDrawer";
 
@@ -17,6 +17,8 @@ vi.mock("../../api/client", () => ({
     revertStatus: vi.fn(() => new Promise(() => {})),
     metaVocabulary: vi.fn(() => Promise.resolve({ keys: [] })),
     noteTitles: vi.fn(() => Promise.resolve([])),
+    listJobs: vi.fn(() => Promise.resolve([])),
+    jobMatches: vi.fn(() => Promise.resolve([])),
   },
 }));
 
@@ -351,5 +353,72 @@ describe("DetailDrawer — the status line names the stage once", () => {
     const { container } = await show();
     expect(screen.getByText(/^Added /)).toBeTruthy();
     expect(container.textContent).not.toContain("· Added ·");
+  });
+});
+
+describe("DetailDrawer — relinking a listing", () => {
+  const candidate: JobMatch = {
+    job_id: "job-2",
+    title: "Backend Engineer",
+    company: "Sample Company",
+    status: "applied",
+    created_at: "2026-09-01T00:00:00Z",
+    closed_at: "2026-09-10T00:00:00Z",
+    listing_count: 2,
+    similarity: 0.83,
+    insights: {
+      apply_url: { is_same: true },
+      location: { is_same: false, current: "Amsterdam", candidate: "Utrecht" },
+    },
+    timing: { overlapping: false, gap_days: 14 },
+  };
+
+  async function openRelink() {
+    mockedApi.jobMatches.mockResolvedValue([candidate]);
+    mockedApi.listJobs.mockResolvedValue([
+      { id: "job-3", title: "Data Analyst", company: "Other Co", status: "seen" },
+    ] as unknown as JobSummary[]);
+    const view = await show();
+    fireEvent.click(screen.getByRole("button", { name: "Relink to another job" }));
+    await screen.findByRole("heading", { name: "Relink listing" });
+    return view;
+  }
+
+  it("takes over the drawer with each candidate's evidence", async () => {
+    await openRelink();
+
+    expect(screen.queryByRole("heading", { name: "Backend Engineer" })).toBeNull();
+    const card = (await screen.findByText("83%")).closest("article")!;
+    expect(within(card).getByText(/2 listings/)).toBeTruthy();
+    expect(within(card).getByText("Reposted 14 days after it closed")).toBeTruthy();
+    expect(within(card).getByText("Apply link")).toBeTruthy();
+    expect(within(card).getByText("This: Amsterdam")).toBeTruthy();
+    expect(within(card).getByText("Theirs: Utrecht")).toBeTruthy();
+    expect(await screen.findByText("Data Analyst")).toBeTruthy();
+  });
+
+  it("returns to the job from Back and from Escape without closing the drawer", async () => {
+    const { onClose } = await openRelink();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to job" }));
+    expect(await screen.findByRole("heading", { name: "Backend Engineer" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Relink to another job" }));
+    await screen.findByRole("heading", { name: "Relink listing" });
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(await screen.findByRole("heading", { name: "Backend Engineer" })).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("confirms before relinking to a candidate", async () => {
+    await openRelink();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Relink here" }));
+    expect(mockedApi.updateListing).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Relink" }));
+
+    await waitFor(() =>
+      expect(mockedApi.updateListing).toHaveBeenCalledWith("l1", { job_id: "job-2" }),
+    );
   });
 });
