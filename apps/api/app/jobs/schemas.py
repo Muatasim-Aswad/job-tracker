@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.documents.models import Document
 from app.events.models import Event
@@ -76,6 +76,40 @@ class CompanyAppliedCount(BaseModel):
     count: int = 0
 
 
+class SameValue(BaseModel):
+    is_same: Literal[True]
+
+
+class DifferentValues(BaseModel):
+    is_same: Literal[False]
+    current: str
+    candidate: str
+
+
+type MatchInsight = SameValue | DifferentValues
+
+
+class MatchInsights(BaseModel):
+    """Field checks between the viewed listing and a candidate job. A check is null
+    unless both sides captured the field."""
+
+    apply_url: MatchInsight | None = None
+    company_url: MatchInsight | None = None
+    poster: MatchInsight | None = None
+    location: MatchInsight | None = None
+    workplace: MatchInsight | None = None
+    salary: MatchInsight | None = None
+    apply_type: MatchInsight | None = None
+
+
+class MatchTiming(BaseModel):
+    """`overlapping` means a candidate listing is not known closed before the viewed
+    posting appeared; otherwise `gap_days` counts the days between them."""
+
+    overlapping: bool
+    gap_days: int | None = None
+
+
 class JobMatch(BaseModel):
     """Duplicate-suggestion candidate after false-match filtering."""
 
@@ -90,3 +124,6 @@ class JobMatch(BaseModel):
     # None when either side has no captured JD yet, so the popover degrades to a
     # plain candidate list rather than a misleading 0%.
     similarity: float | None = None
+    insights: MatchInsights = Field(default_factory=MatchInsights)
+    # None when either side has no stored listing to compare.
+    timing: MatchTiming | None = None

@@ -122,29 +122,22 @@ class ListingRepository:
         row = query_one(self.conn, "SELECT 1 FROM listings WHERE job_id = ? LIMIT 1", (job_id,))
         return row is not None
 
-    def descriptions_for_jobs(self, job_ids: list[str]) -> dict[str, str]:
-        """Best JD text per job — the earliest-captured listing that carries a
-        non-null `meta.description` — for the duplicate-similarity score.
-        Jobs with no captured JD are simply absent. One query (no N+1); `meta` JSON
-        is parsed in Python rather than via `json_extract` so it stays portable
-        across sqlite/libSQL. Empty input short-circuits — SQLite rejects `IN ()`."""
+    def list_for_jobs(self, job_ids: list[str]) -> dict[str, list[Listing]]:
+        """Each job's listings by capture time, in one query. Jobs without listings
+        are absent. Empty input short-circuits — SQLite rejects `IN ()`."""
         if not job_ids:
             return {}
         placeholders = ", ".join("?" for _ in job_ids)
         rows = query_all(
             self.conn,
-            f"SELECT job_id, meta FROM listings WHERE job_id IN ({placeholders}) "
+            f"SELECT {_COLUMNS} FROM listings WHERE job_id IN ({placeholders}) "
             "ORDER BY captured_at",
             tuple(job_ids),
         )
-        out: dict[str, str] = {}
+        out: dict[str, list[Listing]] = {}
         for row in rows:
-            if row["job_id"] in out:
-                continue  # earliest-captured wins (rows are captured_at-ordered)
-            meta = json.loads(row["meta"]) if row["meta"] else {}
-            desc = meta.get("description")
-            if desc:
-                out[row["job_id"]] = desc
+            listing = _to_listing(row)
+            out.setdefault(listing.job_id, []).append(listing)
         return out
 
     def summaries_for_jobs(self, job_ids: list[str]) -> dict[str, ListingSummary]:

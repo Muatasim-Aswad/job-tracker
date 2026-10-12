@@ -1497,6 +1497,18 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** DifferentValues */
+        DifferentValues: {
+            /** Candidate */
+            candidate: string;
+            /** Current */
+            current: string;
+            /**
+             * Is Same
+             * @constant
+             */
+            is_same: false;
+        };
         /** Document */
         Document: {
             /** Content */
@@ -1723,6 +1735,7 @@ export interface components {
             company?: string | null;
             /** Created At */
             created_at: string;
+            insights?: components["schemas"]["MatchInsights"];
             /** Job Id */
             job_id: string;
             /**
@@ -1734,6 +1747,7 @@ export interface components {
             similarity?: number | null;
             /** Status */
             status: string;
+            timing?: components["schemas"]["MatchTiming"] | null;
             /** Title */
             title?: string | null;
         };
@@ -2022,6 +2036,32 @@ export interface components {
              * @enum {string}
              */
             status: "active" | "disabled" | "retired";
+        };
+        MatchInsight: components["schemas"]["SameValue"] | components["schemas"]["DifferentValues"];
+        /**
+         * MatchInsights
+         * @description Field checks between the viewed listing and a candidate job. A check is null
+         *     unless both sides captured the field.
+         */
+        MatchInsights: {
+            apply_type?: components["schemas"]["MatchInsight"] | null;
+            apply_url?: components["schemas"]["MatchInsight"] | null;
+            company_url?: components["schemas"]["MatchInsight"] | null;
+            location?: components["schemas"]["MatchInsight"] | null;
+            poster?: components["schemas"]["MatchInsight"] | null;
+            salary?: components["schemas"]["MatchInsight"] | null;
+            workplace?: components["schemas"]["MatchInsight"] | null;
+        };
+        /**
+         * MatchTiming
+         * @description `overlapping` means a candidate listing is not known closed before the viewed
+         *     posting appeared; otherwise `gap_days` counts the days between them.
+         */
+        MatchTiming: {
+            /** Gap Days */
+            gap_days?: number | null;
+            /** Overlapping */
+            overlapping: boolean;
         };
         /**
          * MetaKey
@@ -2439,6 +2479,14 @@ export interface components {
             clicks: number;
             /** Rule */
             rule: string;
+        };
+        /** SameValue */
+        SameValue: {
+            /**
+             * Is Same
+             * @constant
+             */
+            is_same: true;
         };
         /**
          * SearchLogCreate

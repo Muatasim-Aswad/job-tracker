@@ -17,6 +17,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 - **To apply** dashboard cards link to the external application destination when it differs from the posting link.
 - The extension popup seeds its search with the company from an open LinkedIn job page's title.
 - LinkedIn listings record their location and workplace type (Remote, Hybrid, or On-site) from job pages, search and recommendation cards, the Applied tracker, and Gmail job emails. The dashboard shows the job page's fuller location and falls back to the card's.
+- Repost suggestions also include jobs from the same company with the same external application destination under a reworded title, and `GET /api/jobs/matches` reports for each suggestion whether its application destination, company page, poster, location, workplace, salary, and apply type agree, plus the days between the earlier posting's closure and the new one.
 
 ### Changed
 

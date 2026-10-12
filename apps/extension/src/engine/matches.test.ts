@@ -27,6 +27,8 @@ const match = (job_id: string, similarity: number | null): JobMatch => ({
   created_at: "2026-07-01T00:00:00Z",
   closed_at: null,
   similarity,
+  insights: {},
+  timing: null,
 });
 
 function makeMatches(bridgeImpl?: (msg: unknown) => Promise<BridgeResponse>) {

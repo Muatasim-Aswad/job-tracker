@@ -10,7 +10,7 @@ from typing import Literal
 
 from app.application_workflows.repository import ApplicationWorkflowRepository
 from app.core.config import Settings
-from app.core.db import Conn
+from app.core.db import Conn, Row
 from app.core.errors import ConflictError, NotFoundError
 from app.core.similarity import jaccard, tokenize
 from app.core.text import normalize_company, normalize_title
@@ -18,6 +18,7 @@ from app.core.timeutil import utc_now
 from app.documents.repository import DocumentRepository
 from app.events.repository import EventRepository
 from app.form_fill.repository import FormFillRepository
+from app.jobs.match_evidence import match_insights, match_timing, shares_apply_url
 from app.jobs.models import Job, JobFilters
 from app.jobs.repository import JobRepository
 from app.jobs.schemas import (
@@ -31,6 +32,7 @@ from app.jobs.schemas import (
     ListingState,
     PrimaryListing,
 )
+from app.listings.models import Listing
 from app.listings.repository import ListingRepository
 
 
@@ -134,23 +136,22 @@ class JobService:
         self, platform: str, platform_id: str, title: str | None, company: str | None
     ) -> list[JobMatch]:
         """Sibling jobs a repost of `(platform, platform_id)` might really be: those
-        sharing its normalized company+title. Driven by the title and company the
-        CALLER scraped live, not the current job's stored keys, since a listing just
-        materialized by a `seen` event is still a NULL-keyed stub. A pure read, never
-        creating a row. Excludes the current listing's own job and anything already
-        marked NOT a match (`meta.false_matches`), so a dismissed candidate never
-        comes back. Empty when either key is missing — one field alone is too broad
-        to suggest on."""
+        sharing its normalized company and either its normalized title or a listing
+        with its application destination. Driven by the title and company the CALLER
+        scraped live, not the current job's stored keys, since a listing just
+        materialized by a `seen` event is still a NULL-keyed stub; the destination and
+        all other evidence come from the stored listing. A pure read, never creating a
+        row. Excludes the current listing's own job and anything already marked NOT a
+        match (`meta.false_matches`), so a dismissed candidate never comes back. Empty
+        when either key is missing — one field alone is too broad to suggest on."""
         company_key = normalize_company(company)
         title_key = normalize_title(title)
         if not company_key or not title_key:
             return []
         exclude: set[str] = set()
-        current_jd: str | None = None
         listing = self.listings.get_by_platform(platform, platform_id)
         if listing is not None:
             exclude.add(listing.job_id)
-            current_jd = (listing.meta or {}).get("description")
             current = self.jobs.get(listing.job_id)
             if current is not None:
                 exclude.update(
@@ -158,29 +159,38 @@ class JobService:
                     for excluded_id in current.meta.get("false_matches", [])
                     if (canonical := self.jobs.resolve_id(excluded_id)) is not None
                 )
+        has_apply_url = listing is not None and bool(listing.meta.get("apply_url"))
         rows = [
             row
-            for row in self.jobs.match_candidates(company_key, title_key)
-            if row["job_id"] not in exclude
+            for row in self.jobs.match_candidates(company_key)
+            if row["job_id"] not in exclude and (has_apply_url or row["title_key"] == title_key)
         ]
-        # Score each candidate's JD against the viewed listing's. None whenever either
-        # side is uncaptured: a real 0.0, where the JDs share nothing, is distinct from
-        # having no JD to compare, and the popover shows a % only for real comparisons.
-        current_tokens = tokenize(current_jd) if current_jd else None
-        descriptions = self.listings.descriptions_for_jobs([r["job_id"] for r in rows])
-        out: list[JobMatch] = []
-        for row in rows:
-            cand_jd = descriptions.get(row["job_id"])
-            similarity = (
-                jaccard(current_tokens, tokenize(cand_jd))
-                if current_tokens is not None and cand_jd
-                else None
-            )
-            out.append(JobMatch(**row, similarity=similarity))
+        listings = self.listings.list_for_jobs([row["job_id"] for row in rows])
+        out = [
+            self._job_match(row, listing, listings.get(row["job_id"], []))
+            for row in rows
+            if row["title_key"] == title_key
+            or shares_apply_url(listing, listings.get(row["job_id"], []))
+        ]
         # Strongest duplicate first, unscored candidates last. The stable sort keeps
         # the SQL's created_at-desc order as the tie-breaker.
         out.sort(key=lambda m: (m.similarity is None, -(m.similarity or 0.0)))
         return out
+
+    @staticmethod
+    def _job_match(row: Row, current: Listing | None, candidates: list[Listing]) -> JobMatch:
+        return JobMatch(
+            job_id=row["job_id"],
+            title=row["title"],
+            company=row["company"],
+            status=row["status"],
+            created_at=row["created_at"],
+            closed_at=row["closed_at"],
+            listing_count=row["listing_count"],
+            similarity=_similarity(current, candidates),
+            insights=match_insights(current, candidates),
+            timing=match_timing(current, candidates),
+        )
 
     def applied_count(self, company: str | None) -> CompanyAppliedCount:
         """How many jobs at `company` carry applied evidence — the "previous
@@ -240,6 +250,22 @@ class JobService:
         refreshed = self.jobs.get(job_id)
         assert refreshed is not None
         return refreshed
+
+
+def _description(listing: Listing) -> str | None:
+    description = listing.meta.get("description")
+    return description if isinstance(description, str) and description else None
+
+
+def _similarity(current: Listing | None, candidates: list[Listing]) -> float | None:
+    """Jaccard JD overlap against the candidate's earliest captured JD. None whenever
+    either side is uncaptured: a real 0.0, where the JDs share nothing, is distinct
+    from having no JD to compare, and the popover shows a % only for real comparisons."""
+    current_jd = _description(current) if current is not None else None
+    candidate_jd = next(filter(None, map(_description, candidates)), None)
+    if current_jd is None or candidate_jd is None:
+        return None
+    return jaccard(tokenize(current_jd), tokenize(candidate_jd))
 
 
 def _state(job: Job) -> JobState:

@@ -136,22 +136,22 @@ class JobRepository:
             out[pid] = _to_job(row)
         return out
 
-    def match_candidates(self, company_key: str, title_key: str) -> list[Row]:
-        """Jobs sharing BOTH normalized keys — the duplicate-suggestion set,
-        newest-first. Rolls in a listing count and the latest `closed_at` across
-        each job's postings (MAX ignores the NULLs of still-open listings), so the
-        popover can show whether a candidate's posting has since closed. Caller
-        filters out the current job + its `false_matches`; kept out of SQL because
-        that exclude set is a handful of ids, not worth threading through a
-        variable-length IN clause."""
+    def match_candidates(self, company_key: str) -> list[Row]:
+        """Jobs sharing the normalized company key, newest-first, with their
+        `title_key` so the caller can apply the title-or-apply-URL rule. Rolls in a
+        listing count and the latest `closed_at` across each job's postings (MAX
+        ignores the NULLs of still-open listings), so the popover can show whether a
+        candidate's posting has since closed. Caller filters out the current job + its
+        `false_matches`; kept out of SQL because that exclude set is a handful of ids,
+        not worth threading through a variable-length IN clause."""
         return query_all(
             self.conn,
-            "SELECT j.id AS job_id, j.title, j.company, j.status, j.created_at, "
+            "SELECT j.id AS job_id, j.title, j.company, j.title_key, j.status, j.created_at, "
             "COUNT(l.id) AS listing_count, MAX(l.closed_at) AS closed_at "
             "FROM jobs j LEFT JOIN listings l ON l.job_id = j.id "
-            "WHERE j.company_key = ? AND j.title_key = ? "
+            "WHERE j.company_key = ? "
             "GROUP BY j.id ORDER BY j.created_at DESC",
-            (company_key, title_key),
+            (company_key,),
         )
 
     def applied_count_for_company(self, company_key: str) -> int:
