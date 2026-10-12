@@ -102,12 +102,12 @@ afterEach(() => {
 });
 
 describe("FormFillWorkspace navigation", () => {
-  it("exposes answer creation to the header only in Saved answers", () => {
+  it("exposes answer creation to the header only in Saved answers", async () => {
     const ready = vi.fn();
     const view = render(<FormFillWorkspace onCreateReady={ready} />);
     const create = ready.mock.calls.at(-1)?.[0];
     expect(create).toBeTypeOf("function");
-    act(() => create());
+    await act(async () => create());
     expect(screen.getByText("Answer drawer")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Finish answer" }));
     fireEvent.click(screen.getByRole("tab", { name: "Review inbox" }));
