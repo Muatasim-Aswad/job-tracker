@@ -15,6 +15,7 @@ grep -Fq 'command -v zip' "$ROOT/scripts/build-release.sh" || {
   exit 1
 }
 
+export UV_PROJECT_ENVIRONMENT="$WORK/fresh-build-environment"
 SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/first" bash "$ROOT/scripts/build-release.sh"
 bash "$ROOT/scripts/check-release-contents.sh" "$WORK/first"
 uv run --directory "$ROOT/apps/api" python - "$WORK/first" <<'PY'

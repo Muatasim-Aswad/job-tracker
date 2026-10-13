@@ -73,7 +73,7 @@ done
 # Stage only packaged CLI sources, production metadata, dashboard, version, license, and launcher.
 copy_tracked "$RUNTIME" VERSION LICENSE apps/api/app apps/api/pyproject.toml apps/api/uv.lock
 python3 "$ROOT/scripts/build-metadata.py" --output "$RUNTIME/BUILD_INFO.json"
-uv run --no-sync --directory "$ROOT/apps/api" python "$ROOT/scripts/third-party-notices.py" \
+uv run --frozen --directory "$ROOT/apps/api" python "$ROOT/scripts/third-party-notices.py" \
   --lock "$ROOT/apps/api/uv.lock" --output-dir "$RUNTIME"
 mkdir -p "$RUNTIME/apps/web/dist"
 cp -a "$BUILD_SOURCE/apps/web/dist/." "$RUNTIME/apps/web/dist/"
