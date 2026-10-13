@@ -84,7 +84,7 @@ cp "$ROOT/VERSION" "$STAGE/app/resources/VERSION"
 python3 "$ROOT/scripts/build-metadata.py" --output "$STAGE/app/resources/BUILD_INFO.json"
 cmp "$STAGE/app/resources/BUILD_INFO.json" "$WEB_DIST_SOURCE/version.json" ||
   fail "prebuilt dashboard identity differs from this wheel's source."
-uv run --no-sync --directory "$ROOT/apps/api" python "$ROOT/scripts/third-party-notices.py" \
+uv run --frozen --directory "$ROOT/apps/api" python "$ROOT/scripts/third-party-notices.py" \
   --lock "$ROOT/apps/api/uv.lock" --output-dir "$STAGE/app/resources"
 cp -a "$WEB_DIST_SOURCE/." "$STAGE/app/resources/apps/web/dist/"
 

@@ -62,7 +62,11 @@ def test_generated_wheel_has_canonical_metadata_and_runtime_resources(tmp_path: 
     release_dir = tmp_path / "release"
     environment = os.environ.copy()
     environment.update(
-        {"JOB_TRACKER_RELEASE_DIR": str(release_dir), "UV_CACHE_DIR": str(tmp_path / "uv-cache")}
+        {
+            "JOB_TRACKER_RELEASE_DIR": str(release_dir),
+            "UV_CACHE_DIR": str(tmp_path / "uv-cache"),
+            "UV_PROJECT_ENVIRONMENT": str(tmp_path / "fresh-build-environment"),
+        }
     )
     subprocess.run(
         ["bash", str(ROOT / "scripts/build-wheel.sh")],
