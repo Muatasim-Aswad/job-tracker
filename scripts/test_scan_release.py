@@ -6,7 +6,10 @@ import importlib.util
 import io
 import json
 import os
+import re
+import shutil
 import stat
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -76,6 +79,7 @@ class ScanTests(unittest.TestCase):
             "root = pathlib.Path(sys.argv[2])\n"
             "assert sys.argv[1] == 'dir'\n"
             "assert '--redact' in sys.argv and '--ignore-gitleaks-allow' in sys.argv\n"
+            "assert pathlib.Path(sys.argv[sys.argv.index('--config')+1]) == root / 'source/scripts/release-scan-gitleaks.toml'\n"
             "assert not any(k.startswith('GITLEAKS_') for k in os.environ)\n"
             f"assert pathlib.Path({str(self.checker_record)!r}).exists()\n"
             "assert pathlib.Path(os.environ['HOME']).is_relative_to(root.parent)\n"
@@ -90,6 +94,9 @@ class ScanTests(unittest.TestCase):
                 / "apps/api/app/core/build_info.py"
             ).read_bytes(),
             "README.md": b"synthetic public source\n",
+            "scripts/release-scan-gitleaks.toml": (
+                Path(__file__).with_name("release-scan-gitleaks.toml")
+            ).read_bytes(),
             "apps/api/.env.example": b"EXAMPLE_ONLY=true\n",
             "templates/private-overlay/overlay/apps/web/src/platforms/local/example.ts": b"synthetic public scaffold\n",
             "scripts/check-release-contents.sh": (
@@ -556,6 +563,73 @@ class ScanTests(unittest.TestCase):
         ):
             self.assertEqual(scan.main(), 0)
             self.assertIn(f"revision={REVISION}", output.getvalue())
+
+
+@unittest.skipUnless(
+    os.environ.get("GITLEAKS_BIN"),
+    "explicit scanner required for synthetic policy checks",
+)
+class GitleaksPolicyTests(unittest.TestCase):
+    def test_public_key_exception_preserves_secret_detection_at_same_paths(self):
+        root = Path(__file__).resolve().parent.parent
+        key = re.search(
+            r'  key: "([^"]+)"',
+            (root / "apps/extension/manifest.config.ts").read_text(),
+        )[1]
+        with tempfile.TemporaryDirectory(
+            prefix="job-tracker-policy-test-"
+        ) as temporary:
+            work = Path(temporary)
+            target = work / "scan"
+            public = {
+                "source/apps/extension/manifest.config.ts": f'key: "{key}"; // gitleaks:allow\n',
+                "artifacts/extension/manifest.json": json.dumps({"key": key}) + "\n",
+            }
+            ignore = work / "empty-ignore"
+            ignore.touch()
+            command = [
+                os.environ["GITLEAKS_BIN"],
+                "dir",
+                str(target),
+                "--redact",
+                "--no-banner",
+                "--ignore-gitleaks-allow",
+                "--gitleaks-ignore-path",
+                str(ignore),
+                "--config",
+                str(root / "scripts/release-scan-gitleaks.toml"),
+            ]
+
+            def execute(files):
+                shutil.rmtree(target, ignore_errors=True)
+                for name, content in files.items():
+                    path = target / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(content)
+                return subprocess.run(
+                    command,
+                    cwd=work,
+                    env={"PATH": os.defpath, "HOME": str(work)},
+                    capture_output=True,
+                ).returncode
+
+            self.assertEqual(execute(public), 0)
+            synthetic = (
+                'api_key = "test_9F4qW2zG7nK8vR6mD3xB5cA1yU0hTjLs"; // gitleaks:allow\n'
+            )
+            for name in public:
+                with self.subTest(name=name):
+                    self.assertEqual(
+                        execute({**public, name: public[name] + synthetic}), 1
+                    )
+            self.assertEqual(execute({**public, "other.ts": f'key: "{key}";\n'}), 1)
+            changed = {
+                **public,
+                "artifacts/extension/manifest.json": json.dumps(
+                    {"key": key[:-1] + "C"}
+                ),
+            }
+            self.assertEqual(execute(changed), 1)
 
 
 if __name__ == "__main__":

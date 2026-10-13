@@ -9,7 +9,7 @@ def test_block_normalizes_company_and_defaults_to_all_platforms(client: TestClie
     resp = client.post("/api/blocked-companies", json={"company": "Upwork B.V."})
     assert resp.status_code == 201
     body = resp.json()
-    # Same normalization jobs are keyed by: suffixes/punctuation stripped, lowercased.  # gitleaks:allow
+    # Normalize suffixes, punctuation and casing as job identities do.
     assert body["company_key"] == "upwork"
     assert body["platform"] == "*"
     assert body["label"] == "Upwork B.V."

@@ -346,6 +346,8 @@ def scan_candidate(source, revision, release, scanner, *, source_date_epoch=3155
                 "--ignore-gitleaks-allow",
                 "--gitleaks-ignore-path",
                 str(ignore),
+                "--config",
+                str(exported / "scripts/release-scan-gitleaks.toml"),
             ],
             cwd=work,
             env=env,
