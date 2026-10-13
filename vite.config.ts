@@ -85,6 +85,7 @@ export default defineConfig({
       },
       "py:test": {
         command: "uv run --directory apps/api pytest -q",
+        untrackedEnv: ["TMPDIR"],
         input: [
           { auto: true },
           "!apps/api/.venv/**",

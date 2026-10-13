@@ -38,6 +38,8 @@ The development launcher performs the same built-dashboard preflight as the norm
 
 `bash scripts/check.sh` is the single local entry point and runs the CI-equivalent gates: private-overlay drift, launcher/setup and release-contract tests, formatting, linting, type checking, tests, builds, generated-API drift, Markdown formatting, and version consistency. Linux also runs deterministic production of the Linux x86_64 artifacts; macOS skips that Linux-only production step while retaining every source-checkout gate. Its WSL2 check is a static safety self-test, not external WSL2 evidence, and it does not run Docker, use credentials, publish, or contact a Turso database. Run it before calling a change done; a green run is what CI reproduces for that platform, while release approval still requires the Linux artifact gates documented in the release procedure.
 
+The Python test task passes `TMPDIR` through for disposable pytest and wheel-build fixtures; use an owned disk-backed directory when `/tmp` has insufficient quota. This storage location is not a cached test-result input.
+
 Git hooks run a subset earlier so failures surface sooner. Install them once:
 
 ```bash
