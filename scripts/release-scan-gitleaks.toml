@@ -11,7 +11,7 @@ description = "Exact pinned public key establishing the unpacked extension ID"
 condition = "AND"
 regexTarget = "secret"
 paths = [
-  '''(?:^|/)scan/(?:source/apps/extension/manifest\.config\.ts|artifacts/extension/manifest\.json)$''',
+  '''^(?:source/apps/extension/manifest\.config\.ts|artifacts/extension/manifest\.json)$''',
 ]
 regexes = [
   '''^MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1Zt3fnQzOGTIsooPzMqofGIEWiq5l5XuAh1huw27MMmm/pyix4iZQV9KdQ9MlhNOwb5pxMpmT7fGmkAoZpKJBpc0ORdxoEL/TUEoH7zSCRoPLoaSdvBjMwxbrH0CMAcg8fGKQUryMKCupj0FB4ojW7wx2YXsGEqLU2R/uKZt\+gOvl9umzPEbttDGJbKHlmrQvU8fSSv6355oV6mzjobJTFdHvFlLe0ewDWO9RuiZdKlLmbzQG9fnusuzmLTZBB11HRh\+LeSZEvfBxgfob\+ZgeDa\+BM9gJ6yrppmT5YleZXBRMJWD9K9Mo8WY5EWNljBMVLo2/MTD0e6W24UaziDVrQIDAQAB$''',

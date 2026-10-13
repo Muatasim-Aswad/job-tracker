@@ -76,7 +76,7 @@ class ScanTests(unittest.TestCase):
         self.scanner.write_text(
             f"#!{sys.executable}\n"
             "import json, os, pathlib, sys\n"
-            "root = pathlib.Path(sys.argv[2])\n"
+            "root = pathlib.Path(sys.argv[2]).resolve()\n"
             "assert sys.argv[1] == 'dir'\n"
             "assert '--redact' in sys.argv and '--ignore-gitleaks-allow' in sys.argv\n"
             "assert pathlib.Path(sys.argv[sys.argv.index('--config')+1]) == root / 'source/scripts/release-scan-gitleaks.toml'\n"
@@ -590,7 +590,7 @@ class GitleaksPolicyTests(unittest.TestCase):
             command = [
                 os.environ["GITLEAKS_BIN"],
                 "dir",
-                str(target),
+                ".",
                 "--redact",
                 "--no-banner",
                 "--ignore-gitleaks-allow",
@@ -608,7 +608,7 @@ class GitleaksPolicyTests(unittest.TestCase):
                     path.write_text(content)
                 return subprocess.run(
                     command,
-                    cwd=work,
+                    cwd=target,
                     env={"PATH": os.defpath, "HOME": str(work)},
                     capture_output=True,
                 ).returncode
@@ -622,6 +622,12 @@ class GitleaksPolicyTests(unittest.TestCase):
                         execute({**public, name: public[name] + synthetic}), 1
                     )
             self.assertEqual(execute({**public, "other.ts": f'key: "{key}";\n'}), 1)
+            for nested in (
+                "source/scan/source/apps/extension/manifest.config.ts",
+                "artifacts/scan/artifacts/extension/manifest.json",
+            ):
+                with self.subTest(nested=nested):
+                    self.assertEqual(execute({**public, nested: f'key: "{key}";\n'}), 1)
             changed = {
                 **public,
                 "artifacts/extension/manifest.json": json.dumps(

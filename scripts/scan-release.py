@@ -339,7 +339,7 @@ def scan_candidate(source, revision, release, scanner, *, source_date_epoch=3155
             [
                 scanner,
                 "dir",
-                str(scan),
+                ".",
                 "--redact",
                 "--no-banner",
                 "--no-color",
@@ -349,7 +349,7 @@ def scan_candidate(source, revision, release, scanner, *, source_date_epoch=3155
                 "--config",
                 str(exported / "scripts/release-scan-gitleaks.toml"),
             ],
-            cwd=work,
+            cwd=scan,
             env=env,
         )
         return commit, checksum
