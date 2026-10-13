@@ -45,8 +45,9 @@ grep -Fq "UPDATE_LATEST: \${{ github.event_name == 'push' || inputs.update_lates
   fail "canonical tag pushes must update latest."
 grep -Fq 'TAGS+=(--tag "$IMAGE:latest")' "$CONTAINER_WORKFLOW" ||
   fail "container publication lacks the current-stable latest alias."
-grep -Fq 'image: ${JOB_TRACKER_IMAGE:-ghcr.io/muatasim-aswad/job-tracker:latest}' "$COMPOSE" ||
-  fail "Compose must default to the published current-stable image."
+VERSION="$(tr -d '[:space:]' <"$ROOT/VERSION")"
+grep -Fq "image: \${JOB_TRACKER_IMAGE:-ghcr.io/muatasim-aswad/job-tracker:v$VERSION}" "$COMPOSE" ||
+  fail "Compose default image must match VERSION."
 if grep -Fq 'github.repository_owner' "$CONTAINER_WORKFLOW"; then
   fail "container image path must not preserve mixed-case repository ownership."
 fi

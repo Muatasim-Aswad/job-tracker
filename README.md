@@ -69,22 +69,28 @@ Neither the runtime bundle nor the wheel is a native executable, and neither con
 
 ## Run with Docker Compose
 
-Download the canonical Compose file for a published release and pull its public GHCR image. No Git, source checkout, Node, Python, or image build is needed. For the `1.2.0` release, use the following commands after publication; choose the same version for the Compose file, image, and extension ZIP.
+Requires Docker with Compose. Download the release's Compose file and start the matching published image; no Git, Node, Python, or local build is needed:
 
 ```bash
-mkdir -p job-tracker
-cd job-tracker
-export JOB_TRACKER_VERSION=1.2.0
-curl -fL "https://raw.githubusercontent.com/Muatasim-Aswad/job-tracker/v${JOB_TRACKER_VERSION}/compose.yaml" -o compose.yaml
-export JOB_TRACKER_IMAGE="ghcr.io/muatasim-aswad/job-tracker:v${JOB_TRACKER_VERSION}"
-docker compose config -q
-docker compose pull
+mkdir -p job-tracker && cd job-tracker
+curl -fsSLO https://raw.githubusercontent.com/Muatasim-Aswad/job-tracker/v1.2.1/compose.yaml
 docker compose up -d --no-build
 ```
 
-Open <http://localhost:3456>. Download `job-tracker-extension-${JOB_TRACKER_VERSION}.zip` from the [matching release](https://github.com/Muatasim-Aswad/job-tracker/releases) and follow [Load the extension](#load-the-extension). The image supports Linux/amd64 only. Compose binds the host port to loopback and keeps data in named volumes; [Containers](docs/CONTAINERS.md) covers stop/start, backups, upgrades, and removal.
+Open <http://localhost:3456>. Download `job-tracker-extension-1.2.1.zip` from the [matching release](https://github.com/Muatasim-Aswad/job-tracker/releases/tag/v1.2.1) and follow [Load the extension](#load-the-extension). Linux/amd64 only; no registry login is required. Compose binds to loopback and creates persistent named volumes. [Containers](docs/CONTAINERS.md) covers configuration, backup, upgrades and removal.
 
-To build from a source checkout instead, use `docker compose up -d --build` there.
+### Build the Docker image from source
+
+Requires Git and Docker with Compose; Docker installs all build tools internally:
+
+```bash
+git clone https://github.com/Muatasim-Aswad/job-tracker.git
+cd job-tracker
+docker build --platform linux/amd64 -t job-tracker:local .
+JOB_TRACKER_IMAGE=job-tracker:local docker compose up -d --no-build --pull never
+```
+
+The same Compose file can build it with `JOB_TRACKER_IMAGE=job-tracker:local docker compose build` instead of the plain Docker build command. Select the local image for subsequent commands, or save `JOB_TRACKER_IMAGE=job-tracker:local` in an ignored mode `0600` `.env` beside `compose.yaml`. Ordinary source builds need no release metadata and report revision `dev`.
 
 ## Install from source
 

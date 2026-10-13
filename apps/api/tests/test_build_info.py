@@ -24,6 +24,7 @@ def _source(root: Path) -> str:
         "-c",
         "user.email=synthetic@example.invalid",
         "commit",
+        "--no-gpg-sign",
         "-qm",
         "synthetic build source",
     )

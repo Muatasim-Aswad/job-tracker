@@ -4,6 +4,18 @@ All notable user-facing changes to Job Tracker are documented here. Format follo
 
 One version covers the whole product. The extension, the dashboard, and the server ship from the same commit and share the version in the repository root [`VERSION`](VERSION) file, so any user-visible change in any of them determines the next bump: patch for fixes, minor for a new capability, major for a breaking change. Individual commits do not bump it — the bump happens once while preparing a release, and the matching whole-repository commit is tagged `vX.Y.Z`. See the [development guide](docs/DEVELOPMENT.md#releases-and-versions) for the full rule.
 
+## [Unreleased]
+
+## [1.2.1] - 2026-10-14
+
+### Changed
+
+- One version-pinned Compose file supports published-image and plain Docker source deployments, with explicit local-image selection and concise Docker instructions.
+
+### Fixed
+
+- Extension ZIP timestamps use UTC consistently across release hosts.
+
 ## [1.2.0] - 2026-10-13
 
 ### Added
@@ -101,3 +113,4 @@ Initial public release.
 [1.2.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Muatasim-Aswad/job-tracker/releases/tag/v1.0.0
+[1.2.1]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.2.0...v1.2.1
