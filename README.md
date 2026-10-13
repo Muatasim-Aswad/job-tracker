@@ -153,3 +153,5 @@ The [API guide](apps/api/README.md#backup--restore) holds the tested backup and 
 - Developer policy — quality gate, generated files, comment and Markdown style, migrations, and versioning: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - Contributions and support: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Release history: [`CHANGELOG.md`](CHANGELOG.md)
+
+Licensed under the [MIT License](LICENSE).

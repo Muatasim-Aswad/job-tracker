@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { AddJobDialog } from "./components/AddJobDialog";
+import { AboutDialog } from "./components/AboutDialog";
 import { BlockedCompaniesDialog } from "./components/BlockedCompaniesDialog";
 import { Board } from "./components/Board";
 import { DetailDrawer } from "./components/detail/DetailDrawer";
@@ -22,6 +23,8 @@ import { readPersistentChoice, usePersistentChoice } from "./lib/usePersistentCh
 import { initialWorkspace } from "./lib/workspace";
 import { useTheme } from "./lib/theme";
 import { toast } from "./lib/toast";
+import { useBuildCheck } from "./lib/useBuildCheck";
+import { reloadBuild } from "./lib/reloadBuild";
 import type { EventItem } from "@job-tracker/shared/api";
 
 // Global shortcuts yield to editable controls.
@@ -37,6 +40,7 @@ function isTypingTarget(t: EventTarget | null): boolean {
 }
 
 export default function App() {
+  const buildCheck = useBuildCheck();
   const { data: jobs, isLoading, isFetching, isError, error, refetch } = useJobs();
   const events = useJobEvents();
   const { pref: themePref, cycle: cycleTheme } = useTheme();
@@ -70,6 +74,7 @@ export default function App() {
     DEFAULT_SORT_ORDER,
   );
   const [showHelp, setShowHelp] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -209,7 +214,15 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (view !== "jobs") return;
-      if (isTypingTarget(e.target) || selectedJobId || showHelp || showAdd || showBlocked) return;
+      if (
+        isTypingTarget(e.target) ||
+        selectedJobId ||
+        showHelp ||
+        showAbout ||
+        showAdd ||
+        showBlocked
+      )
+        return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === "/") {
         e.preventDefault();
@@ -260,6 +273,7 @@ export default function App() {
   }, [
     selectedJobId,
     showHelp,
+    showAbout,
     showAdd,
     showBlocked,
     cycleTheme,
@@ -391,6 +405,7 @@ export default function App() {
           onChangeView={changeView}
           onOpenBlocked={() => setShowBlocked(true)}
           onOpenHelp={() => setShowHelp(true)}
+          onOpenAbout={() => setShowAbout(true)}
           themePref={themePref}
           cycleTheme={cycleTheme}
         />
@@ -450,6 +465,15 @@ export default function App() {
       )}
 
       {showHelp && <ShortcutsDialog onClose={() => setShowHelp(false)} />}
+
+      {showAbout && (
+        <AboutDialog
+          onClose={() => setShowAbout(false)}
+          result={buildCheck.result}
+          onCheck={buildCheck.check}
+          onReload={() => reloadBuild()}
+        />
+      )}
 
       {showBlocked && <BlockedCompaniesDialog onClose={() => setShowBlocked(false)} />}
     </div>

@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/job-tracker-release-test.XXXXXX")"
 trap 'rm -rf -- "$WORK"' EXIT
+node "$ROOT/scripts/test-build-metadata.mjs"
 
 for script in build-release.sh check-release-contents.sh smoke-release.sh test-release-build.sh; do
   bash -n "$ROOT/scripts/$script"
@@ -16,6 +17,16 @@ grep -Fq 'command -v zip' "$ROOT/scripts/build-release.sh" || {
 
 SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/first" bash "$ROOT/scripts/build-release.sh"
 bash "$ROOT/scripts/check-release-contents.sh" "$WORK/first"
+uv run --directory "$ROOT/apps/api" python - "$WORK/first" <<'PY'
+import sys, tarfile
+from pathlib import Path
+with tarfile.open(next(Path(sys.argv[1]).glob("*.tar.gz"))) as archive:
+    info = archive.extractfile("./BUILD_INFO.json").read()
+    assert info == archive.extractfile("./apps/web/dist/version.json").read()
+print("packaged dashboard identity agreement OK")
+PY
+tar -xOf "$WORK/first/job-tracker-$(tr -d '[:space:]' <"$ROOT/VERSION")-linux-x86_64.tar.gz" ./apps/web/dist/sw.js >"$WORK/sw.js"
+node "$ROOT/scripts/test-service-worker-cache.mjs" "$WORK/sw.js"
 SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/second" bash "$ROOT/scripts/build-release.sh"
 bash "$ROOT/scripts/check-release-contents.sh" "$WORK/second"
 

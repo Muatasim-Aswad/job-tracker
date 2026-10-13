@@ -17,7 +17,7 @@ Start the Vite development server in another:
 pnpm --filter web dev
 ```
 
-Open <http://localhost:5173>. Vite proxies `/api`, `/docs`, and `/openapi.json` to the API on port 3456. A production build is emitted to `apps/web/dist`; FastAPI serves that directory at <http://localhost:3456> and requires the SPA entry document to revalidate so rebuilds load the current asset hashes.
+Open <http://localhost:5173>. Vite proxies `/api`, `/docs`, `/openapi.json`, and `/version.json` to the API on port 3456. A production build is emitted to `apps/web/dist`; FastAPI serves that directory at <http://localhost:3456> and requires the SPA entry document to revalidate so rebuilds load the current asset hashes.
 
 Run the dashboard tests and checks from the repository root:
 
@@ -31,7 +31,7 @@ pnpm run build:web
 
 Production builds include a PWA manifest, app icons, and a Workbox service worker through `vite-plugin-pwa`. Use the browser's **Install app** or **Add to Home Screen** action on HTTPS or localhost; plain HTTP on a remote host cannot register the worker. Installation keeps the existing server and database. The app shell can reopen offline, but reads and writes still need the server.
 
-`src/sw.ts` fetches entry documents from the network first, falling back to the precached canonical shell only on network failure. Only build assets are precached: API responses, external requests, and navigation query strings are never stored by the worker. Updates activate after existing app tabs/windows close; reopening gets the current build. Vite development does not register a worker. Test the built app with `pnpm --filter web exec vp preview` and DevTools' Application and offline controls.
+`src/sw.ts` fetches entry documents from the network first, falling back to the precached canonical shell only on network failure. Only build assets are precached. `/version.json` is excluded from precache and runtime routes; API responses, external requests, and navigation query strings are never stored by the worker. Updates activate after existing app tabs/windows close; reopening gets the current build. Vite development does not register a worker. Test the built app with `pnpm --filter web exec vp preview` and DevTools' Application and offline controls.
 
 `public/app-icon.svg` owns the PWA icon artwork. Regenerate its tracked PNG variants with `rsvg-convert`:
 
@@ -52,6 +52,12 @@ Listings, Custom fields, Documents, and Timeline start expanded and show counts.
 Jobs and Form Fill share search/count, filters, and order controls, including 38px sizing, keyboard focus, and narrow-screen wrapping. Desktop Add/Refresh sit beside the app name. On phones they move into the burger menu after workspace navigation; the current workspace is marked and disabled. Search/filter/order remain together below branding. Menu arrow and Tab navigation use visible, enabled controls; Escape restores the menu trigger. Collapsed drawer content stays outside focus-trap boundaries.
 
 The funnel highlights changed filters or display options. Jobs groups attention, starred, Easy Apply, hidden, and blocked-company filters, with A/S/E/H/B shortcuts and attention count. Clear filters empties search and restores collection defaults while preserving order. Workspace, collection, filter, order, and display preferences persist locally; explicit URL state wins, and extension job links open Jobs. Search text and drafts are not stored.
+
+## About and build checks
+
+**About** is available only in the burger menu in both workspaces. Its dialog shows the compiled running version, revision, commit/build times in UTC, and verified or development state. The server identity is checked on startup, visible window focus, return from a hidden tab, and Check again/Retry. A fixed `/version.json` request uses `no-store`, omits credentials and referrers, rejects redirects, validates the public identity schema, and bounds the request and body read to five seconds. Failure stays visible in About and never claims the running build is current.
+
+A different identity exposes the server build and Reload; reload is always explicit and retains unsaved-draft confirmation and the native unload warning. Verified revisions produce one update notice per revision; `jt.buildNotices.v1` stores only validated public revision IDs, with an in-memory fallback if storage is unavailable. No development notice is emitted: identical dev metadata cannot prove identical source. About uses the existing modal focus trap, restores the burger trigger, and suppresses application shortcuts while open. The service worker additionally filters the identity endpoint from injected precache entries; no runtime route handles it.
 
 ## Form Fill workspace
 

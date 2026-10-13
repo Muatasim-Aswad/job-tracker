@@ -19,6 +19,7 @@ uv run python -m app.cli --profile direct start [--port PORT]
 uv run python -m app.cli --profile direct status
 uv run python -m app.cli --profile direct paths
 uv run python -m app.cli --profile direct version
+uv run python -m app.cli --profile direct build-info
 uv run python -m app.cli --profile direct doctor
 uv run python -m app.cli --profile direct backup /safe/path/job-tracker.sqlite
 uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite

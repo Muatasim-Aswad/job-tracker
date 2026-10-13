@@ -1,5 +1,6 @@
 """FastAPI routing, profile-locked database lifecycle, and built-dashboard hosting."""
 
+import json
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -17,6 +18,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.application_workflows.router import router as application_workflows_router
 from app.blocked.router import router as blocked_router
+from app.core.build_info import installed_info
 from app.core.config import get_settings
 from app.core.db import Database, connect, init_schema
 from app.core.deps import require_api_key
@@ -70,6 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     _timestamp_uvicorn_logs()
     settings = get_settings()
     paths = settings_paths(settings)
+    logger.info("running build %s", json.dumps(BUILD_INFO, sort_keys=True))
     lock = ServerLock(paths, port=settings.port, version=PRODUCT_VERSION)
     with private_creation_mask():
         lock.acquire()  # before open/pull/init; direct Uvicorn cannot bypass it
@@ -170,6 +173,7 @@ class PrivateResponseHeaders:
 
 settings = get_settings()
 paths = settings_paths(settings)
+BUILD_INFO = installed_info(paths.app_dir, packaged=paths.profile == "packaged")
 
 # Browser-facing allowlist: only the Vite dev server and the extension's fixed
 # chrome-extension:// origin ever legitimately call this API from a browser. Prod
@@ -188,7 +192,15 @@ app.add_middleware(PrivateResponseHeaders)
 
 @app.get("/health", include_in_schema=False)
 async def health() -> dict[str, str]:
-    return {"status": "ok", "version": PRODUCT_VERSION}
+    return {"status": "ok", "version": PRODUCT_VERSION, "revision": BUILD_INFO["revision"]}
+
+
+@app.api_route("/version.json", methods=["GET", "HEAD"], include_in_schema=False)
+async def version_json(request: Request) -> Response:
+    response = JSONResponse(BUILD_INFO, headers={"Cache-Control": "no-store"})
+    if request.method == "HEAD":
+        return Response(headers=dict(response.headers), media_type="application/json")
+    return response
 
 
 # 404 is routine here — the deep-link `/listings/lookup` misses by design — so logging

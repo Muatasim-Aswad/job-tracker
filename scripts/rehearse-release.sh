@@ -26,6 +26,8 @@ fail() {
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "VERSION must be plain SemVer."
 [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "release tag must be canonical vX.Y.Z."
 [[ "$TAG" == "v$VERSION" ]] || fail "release tag and VERSION disagree."
+python3 "$ROOT/scripts/build-metadata.py" --require-release --format shell --output "$WORK/identity.env"
+source "$WORK/identity.env"
 
 # Stage tracked inputs through a temporary index; keep all Git writes under WORK.
 # Ignored overlays, environments, databases, and other checkout state stay excluded.
@@ -59,6 +61,11 @@ safe_env=(
   "VP_SKIP_INSTALL=1"
   "pnpm_config_verify_deps_before_run=warn"
   "CI=true"
+  "APP_IDENTITY_ATTESTED=$APP_IDENTITY_ATTESTED"
+  "APP_REVISION=$APP_REVISION"
+  "APP_COMMIT_TIME=$APP_COMMIT_TIME"
+  "APP_BUILD_TIME=$APP_BUILD_TIME"
+  "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-315532800}"
 )
 mkdir -p "$WORK/home" "$WORK/data" "$WORK/config" "$WORK/state" "$WORK/uv-cache"
 

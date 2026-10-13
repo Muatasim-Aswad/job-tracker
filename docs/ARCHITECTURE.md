@@ -134,6 +134,8 @@ Current Answer and Capture values are deliberately retained private data. Supers
 
 All feature routes are mounted under `/api`; `/docs` and `/openapi.json` remain unprefixed. OpenAPI is the contract for endpoint and payload detail.
 
+Public running identity is a separate build boundary: `core.build_info` owns validation and source provenance, generators bake the same metadata into each artifact, and `/version.json` serves it with `no-store` outside OpenAPI and before static mounting. `/health` exposes revision for deployment comparison. Installed identity lookup never requires Git, configuration, database access, or startup; [distribution](DISTRIBUTION.md#build-identity-and-attribution) owns its timestamp, export, and attribution policy.
+
 The built SPA entry document is served with `Cache-Control: no-cache` so an existing browser session revalidates it after a rebuild and loads the current content-hashed assets. The dashboard PWA worker keeps entry-document requests network-first and precaches only the built shell and static assets. Its offline fallback uses the canonical shell rather than caching visited URLs; API responses and private values never enter worker caches. Existing app windows finish on their current worker before an update activates.
 
 The main boundaries are:

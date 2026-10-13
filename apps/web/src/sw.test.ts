@@ -26,7 +26,12 @@ beforeEach(async () => {
   vi.clearAllMocks();
   vi.stubGlobal("self", {
     location: { origin: "http://localhost:3456" },
-    __WB_MANIFEST: ["index.html", "assets/app.js"],
+    __WB_MANIFEST: [
+      "index.html",
+      "assets/app.js",
+      "version.json",
+      { url: "/version.json?revision=public", revision: "old" },
+    ],
   });
   await import("./sw");
 });
@@ -44,6 +49,8 @@ describe("PWA caching boundary", () => {
       "/api/form-fill/captures",
       "/docs",
       "/openapi.json",
+      "/version.json",
+      "/version.json?revision=public",
     ]) {
       expect(match({ url: new URL(path, "http://localhost:3456") })).toBe(false);
     }

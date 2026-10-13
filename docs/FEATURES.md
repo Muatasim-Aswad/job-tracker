@@ -115,6 +115,8 @@ This feature is prospective and API-only: existing applications are not backfill
 
 The record follows its submitted event through relinks, merges, repeated aliases, and canonical-ID changes. Reverting that event or correcting the job back before application removes the now-invalid record. A merge or relink that would combine two records is refused instead of silently discarding either one.
 
+**About**, available only from the dashboard burger menu, shows the running version and public build identity. It checks the server for a different build, reports failed checks, and offers explicit Reload while protecting unsaved edits. A new verified revision produces a one-time notice; development builds are labelled unverified.
+
 The dashboard can be installed through the browser as a standalone PWA. Its static shell opens offline; loading and saving jobs or answers still requires the configured server.
 
 ## Local by default

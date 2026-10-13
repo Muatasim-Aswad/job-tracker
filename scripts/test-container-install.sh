@@ -82,6 +82,18 @@ import sys
 with open(sys.argv[1]) as source:
     assert json.load(source)["version"] == sys.argv[2]
 PY
+  if [[ "$RELEASE_VERSION" != 1.1.0 ]]; then
+    compose exec -T job-tracker job-tracker build-info >"$WORK/build-info.json"
+    curl -fLsS "$BASE_URL/version.json" >"$WORK/version.json"
+    python3 - "$WORK/build-info.json" "$WORK/version.json" "$WORK/health.json" <<'PY'
+import json, os, sys
+expected = json.load(open(sys.argv[1]))
+assert json.load(open(sys.argv[2])) == expected, "served image build identity mismatch"
+assert json.load(open(sys.argv[3]))["revision"] == expected["revision"]
+if os.environ.get("APP_REVISION"):
+    assert expected["revision"] == os.environ["APP_REVISION"], "deployment revision mismatch"
+PY
+  fi
 }
 wait_ready
 curl -fLsS "$BASE_URL/" >"$WORK/dashboard.html"

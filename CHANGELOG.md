@@ -10,6 +10,8 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 - User-controlled LinkedIn Easy Apply form filling for supported text, numeric, select, and single-choice radio questions, backed by revision-checked Answers, exact Question Matches, remembered-value review, and a Form Fill dashboard. Existing values are preserved; unsupported controls, navigation, review, consent, profile changes, résumés, and submission remain manual.
 - An installable dashboard PWA with an offline static shell. Reading and saving jobs or answers still requires the server; API responses and navigation query strings are not cached.
+- About in the dashboard burger menu shows build identity, checks the current server build, reports failures, and offers explicit reload with unsaved-edit protection. New verified revisions produce one update notice.
+- Offline CLI `build-info` reports installed version, revision, commit time, build time, and development state without Git, network access, or database startup.
 - Dashboard filters for Easy Apply and blocked companies alongside attention, starred, and hidden jobs; persistent workspace/filter/order choices; and collapsible job-drawer sections that preserve drafts.
 - Prospective, API-only application-workflow records for explicitly confirmed submissions, with typed workflow facts, measured human time, canonical artifact references, revision-checked idempotent upserts, and merge/relink/revert lifecycle integrity.
 - **Open new jobs (N)** in LinkedIn job-alert, Viewed Jobs reminder, and profile-match recommendation emails in Gmail. It opens unaffected postings in background tabs, skips already-open listings, and closes only bulk-opened tabs after a detected closure is saved.
@@ -25,6 +27,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 - Relinking opens a full-drawer view with likely duplicates, description similarity, status, listing counts, dates, and match evidence.
 - **To apply** discovery cards follow the extension's **Dimmed / Removed** preference without changing the hidden flag. Discovery cards offer one **Skip job** action; expanded job views retain **Hide** and offer **Skip job** before application.
 - Public GHCR installation needs only the versioned Compose file and matching image/extension; no clone or local build is required. Documentation clarifies version pinning, Linux/amd64 support, named-volume persistence, offline backups, and source builds.
+- Release artifacts carry deterministic build identity and generated bundled dependency notices; deployment health checks compare the served identity with the installed build.
 
 ### Fixed
 

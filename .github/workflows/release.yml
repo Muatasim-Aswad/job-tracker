@@ -46,6 +46,8 @@ jobs:
       - name: Build and verify release artifacts
         run: |
           set -euo pipefail
+          python3 scripts/build-metadata.py --require-release --format shell > "$RUNNER_TEMP/identity.env"
+          source "$RUNNER_TEMP/identity.env"
           bash scripts/build-release.sh
           bash scripts/check-release-contents.sh dist/release
       - name: Upload verified local artifacts for the publication job
@@ -87,6 +89,8 @@ jobs:
           set -euo pipefail
           VERSION="$(tr -d '[:space:]' <VERSION)"
           [[ "$TAG" == "v$VERSION" ]]
+          python3 scripts/build-metadata.py --require-release --format shell > "$RUNNER_TEMP/download-identity.env"
+          source "$RUNNER_TEMP/download-identity.env"
           bash scripts/check-release-contents.sh "$RELEASE_DIR"
       - name: Smoke-test the downloaded runtime bundle and wheel
         env:
@@ -94,6 +98,9 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(tr -d '[:space:]' <VERSION)"
+          python3 scripts/build-metadata.py --require-release --format shell > "$RUNNER_TEMP/smoke-identity.env"
+          source "$RUNNER_TEMP/smoke-identity.env"
+          bash scripts/check-release-contents.sh "$RELEASE_DIR"
           bash scripts/smoke-release.sh "$RELEASE_DIR/job-tracker-$VERSION-linux-x86_64.tar.gz"
           bash scripts/smoke-wheel.sh "$RELEASE_DIR/job_tracker-$VERSION-py3-none-any.whl"
       - name: Create one GitHub Release and upload its four verified files

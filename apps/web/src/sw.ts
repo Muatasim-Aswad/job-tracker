@@ -19,5 +19,11 @@ registerRoute(
   }),
 );
 
-precacheAndRoute(self.__WB_MANIFEST, { ignoreURLParametersMatching: [] });
+precacheAndRoute(
+  self.__WB_MANIFEST.filter((entry) => {
+    const url = new URL(typeof entry === "string" ? entry : entry.url, self.location.origin);
+    return url.pathname !== "/version.json";
+  }),
+  { ignoreURLParametersMatching: [] },
+);
 cleanupOutdatedCaches();

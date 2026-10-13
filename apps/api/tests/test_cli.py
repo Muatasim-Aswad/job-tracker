@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 from unittest.mock import patch
@@ -21,6 +22,28 @@ def _app_tree(tmp_path: Path) -> tuple[Path, Path]:
 
 def _reset_settings() -> None:
     get_settings.cache_clear()
+
+
+def test_build_info_does_not_load_runtime_git_database_or_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    app_dir, home = _app_tree(tmp_path)
+    info = {
+        "version": "9.8.7",
+        "revision": "a" * 40,
+        "commit_time": "2026-01-01T00:00:00Z",
+        "build_time": "1980-01-01T00:00:00Z",
+        "dev": False,
+    }
+    (app_dir / "BUILD_INFO.json").write_text(json.dumps(info))
+    monkeypatch.setattr(cli.os, "environ", {})
+    with (
+        patch.object(cli, "_load_runtime", side_effect=AssertionError("runtime imported")),
+        patch("subprocess.check_output", side_effect=AssertionError("Git accessed")),
+    ):
+        assert cli.main(["--app-dir", str(app_dir), "build-info"]) == 0
+    assert json.loads(capsys.readouterr().out) == info
+    assert not home.exists()
 
 
 @pytest.fixture(autouse=True)

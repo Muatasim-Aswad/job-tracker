@@ -9,6 +9,9 @@
 !pnpm-workspace.yaml
 !tsconfig.base.json
 !vite.config.ts
+!scripts/
+!scripts/build-metadata.*
+!scripts/third-party-notices.*
 !apps/
 !apps/api/
 !apps/api/README.md

@@ -58,6 +58,8 @@ Generated source artifacts are tracked so that a clean checkout builds and type-
 | `packages/shared/src/api/schema.ts` | `pnpm --filter @job-tracker/shared gen:api` | FastAPI route and model definitions |
 | `packages/shared/src/funnel/funnel.contract.json` | API test suite | `apps/api/app/core/enums.py` |
 | `packages/shared/src/text/text.golden.json` | API test suite | `apps/api/app/core/text.py` |
+| Artifact `BUILD_INFO.json` and frontend `version.json` | `scripts/build-metadata.py` and frontend identity plugin | `VERSION`, verified original Git source or explicit export attestation, and `SOURCE_DATE_EPOCH` |
+| Artifact `THIRD_PARTY_NOTICES*.txt` and `THIRD_PARTY_INVENTORY*.json` | `scripts/third-party-notices.{mjs,py}` | Bundled frontend module/asset licenses and locked production Python dependency licenses |
 
 Build output (`apps/*/dist/`), including `apps/extension/dist/manifest.json`, tool caches, and the four gitignored private overlay directories are not tracked. `pnpm run build:ext` regenerates the manifest from `apps/extension/manifest.config.ts` and the root `VERSION`; the gate builds and version-checks it. Changing a tracked generated artifact's shape means changing its generator and committing the regenerated result in the same change.
 

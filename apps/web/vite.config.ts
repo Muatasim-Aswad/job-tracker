@@ -2,10 +2,20 @@ import { defineConfig } from "vite-plus";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { buildInfo, identityPlugin } from "../../scripts/build-metadata.mjs";
+import { noticesPlugin } from "../../scripts/third-party-notices.mjs";
+import { createRequire } from "node:module";
 
 const BACKEND = process.env.VITE_SERVER_URL ?? "http://localhost:3456";
+const BUILD_INFO = buildInfo();
+const require = createRequire(import.meta.url);
+// Generated registration/polyfill code and Tailwind's preflight also ship as assets.
+const assetNoticeInputs = ["vite", "vite-plugin-pwa", "tailwindcss"].map((name) =>
+  require.resolve(name),
+);
 
 export default defineConfig({
+  define: { __BUILD_INFO__: JSON.stringify(BUILD_INFO) },
   // Exclude tsc metadata to avoid self-invalidating independent build/typecheck caches.
   run: {
     tasks: {
@@ -18,6 +28,8 @@ export default defineConfig({
     },
   },
   plugins: [
+    identityPlugin(BUILD_INFO),
+    noticesPlugin("", assetNoticeInputs),
     react(),
     tailwindcss(),
     VitePWA({
@@ -25,7 +37,11 @@ export default defineConfig({
       srcDir: "src",
       filename: "sw.ts",
       injectRegister: "script",
-      injectManifest: { globPatterns: ["**/*.{js,css,html,png,svg,webmanifest}"] },
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,html,png,svg,webmanifest}"],
+        globIgnores: ["**/version.json"],
+        buildPlugins: { vite: [noticesPlugin(".sw")] },
+      },
       manifest: {
         id: "/",
         name: "Job Tracker",
@@ -53,6 +69,7 @@ export default defineConfig({
       "/api": BACKEND,
       "/docs": BACKEND,
       "/openapi.json": BACKEND,
+      "/version.json": BACKEND,
     },
   },
   test: {

@@ -1,6 +1,13 @@
 {
   "name": "@job-tracker/shared",
   "version": "0.0.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Muatasim-Aswad/job-tracker.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/Muatasim-Aswad/job-tracker#readme",
   "private": true,
   "type": "module",
   "exports": {

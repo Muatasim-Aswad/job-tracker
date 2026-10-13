@@ -1,6 +1,7 @@
 # JavaScript and build output
 node_modules/
 dist/
+BUILD_INFO.json
 
 # Local environment files
 *.local

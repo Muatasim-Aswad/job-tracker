@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Ban, Keyboard, Monitor, Moon, Menu, Plus, RefreshCw, Sun, Check } from "lucide-react";
+import {
+  Ban,
+  Keyboard,
+  Monitor,
+  Moon,
+  Menu,
+  Plus,
+  RefreshCw,
+  Sun,
+  Check,
+  Info,
+} from "lucide-react";
 import { IconButton } from "./IconButton";
 import { focusableElements, useFocusTrap } from "../lib/useFocusTrap";
 import type { ThemePref } from "../lib/theme";
@@ -18,6 +29,7 @@ interface DropdownProps {
   onClose: () => void;
   onOpenBlocked: () => void;
   onOpenHelp: () => void;
+  onOpenAbout: () => void;
   themePref: ThemePref;
   cycleTheme: () => void;
   view: "jobs" | "form-fill";
@@ -32,6 +44,7 @@ function HeaderMenuDropdown({
   onClose,
   onOpenBlocked,
   onOpenHelp,
+  onOpenAbout,
   themePref,
   cycleTheme,
   view,
@@ -149,6 +162,17 @@ function HeaderMenuDropdown({
         <Keyboard size={14} className="text-ink-muted" />
         <span>Keyboard shortcuts</span>
         <kbd className={KBD}>?</kbd>
+      </button>
+      <button
+        role="menuitem"
+        onClick={() => {
+          onOpenAbout();
+          onClose();
+        }}
+        className={ITEM}
+      >
+        <Info size={14} className="text-ink-muted" />
+        <span>About</span>
       </button>
       <button
         role="menuitem"

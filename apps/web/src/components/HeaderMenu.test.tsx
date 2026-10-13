@@ -14,11 +14,21 @@ const props = {
   onChangeView: vi.fn(),
   onOpenBlocked: vi.fn(),
   onOpenHelp: vi.fn(),
+  onOpenAbout: vi.fn(),
   themePref: "system" as const,
   cycleTheme: vi.fn(),
 };
 
 describe("mobile header actions", () => {
+  it("offers About only after opening the burger menu and closes it on selection", () => {
+    const about = vi.fn();
+    render(<HeaderMenu {...props} onOpenAbout={about} />);
+    expect(screen.queryByText("About")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Navigation and settings" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "About" }));
+    expect(about).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
   it.each([
     ["jobs", "Jobs", "Form Fill"],
     ["form-fill", "Form Fill", "Jobs"],

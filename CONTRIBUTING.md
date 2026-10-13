@@ -7,7 +7,7 @@ For a code change:
 1. Fork the repository, branch from `main`, and open the pull request from your fork — the repository does not grant push access.
 2. Keep it focused and add or update tests for behavior changes.
 3. Run `bash scripts/check.sh`.
-4. Explain user-visible behavior, privacy implications, and migration needs in the pull request.
+4. Explain user-visible behavior, privacy implications, migrations and compatibility, and checks run with their results in the pull request. Mark non-applicable items explicitly.
 
 This is a local-first personal project, not a hosted service. Community support is best-effort, and public-internet deployments are outside the supported threat model. Report security issues privately as described in [`SECURITY.md`](SECURITY.md).
 

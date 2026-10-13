@@ -39,6 +39,8 @@ PY
 export JOB_TRACKER_HOST_PORT="$PORT"
 
 cd "$ROOT"
+python3 scripts/build-metadata.py --format shell --output "$WORK/identity.env"
+source "$WORK/identity.env"
 docker compose --project-name "$PROJECT" config -q
 timeout 300 docker compose --project-name "$PROJECT" up --build -d
 
@@ -68,6 +70,16 @@ done
 
 VERSION="$(tr -d '[:space:]' <VERSION)"
 grep -Fq "\"version\":\"$VERSION\"" "$WORK/health.json" || fail "health version differs from VERSION"
+python3 - "$WORK/health.json" "$APP_REVISION" <<'PY'
+import json, sys
+assert json.load(open(sys.argv[1]))["revision"] == sys.argv[2], "served revision mismatch"
+PY
+curl --fail --silent --show-error "$BASE_URL/version.json" >"$WORK/version.json"
+docker compose --project-name "$PROJECT" exec -T job-tracker job-tracker build-info >"$WORK/build-info.json"
+python3 - "$WORK/version.json" "$WORK/build-info.json" <<'PY'
+import json, sys
+assert json.load(open(sys.argv[1])) == json.load(open(sys.argv[2])), "installed/served identity mismatch"
+PY
 curl --fail --silent --show-error "$BASE_URL/" >"$WORK/dashboard.html"
 grep -Fq '<div id="root"></div>' "$WORK/dashboard.html" || fail "dashboard was not served"
 
