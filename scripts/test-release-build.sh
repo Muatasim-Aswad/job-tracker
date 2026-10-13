@@ -31,26 +31,28 @@ for builder in build-release.sh build-wheel.sh; do
 done
 
 export UV_PROJECT_ENVIRONMENT="$WORK/fresh-build-environment"
-SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/first" bash "$ROOT/scripts/build-release.sh"
+TZ=UTC0 SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/first" bash "$ROOT/scripts/build-release.sh"
 bash "$ROOT/scripts/check-release-contents.sh" "$WORK/first"
 uv run --directory "$ROOT/apps/api" python - "$WORK/first" <<'PY'
-import sys, tarfile
+import sys, tarfile, zipfile
 from pathlib import Path
 with tarfile.open(next(Path(sys.argv[1]).glob("*.tar.gz"))) as archive:
     info = archive.extractfile("./BUILD_INFO.json").read()
     assert info == archive.extractfile("./apps/web/dist/version.json").read()
+with zipfile.ZipFile(next(Path(sys.argv[1]).glob("*.zip"))) as archive:
+    assert all(member.date_time == (1980, 1, 1, 0, 0, 0) for member in archive.infolist())
 print("packaged dashboard identity agreement OK")
 PY
 tar -xOf "$WORK/first/job-tracker-$(tr -d '[:space:]' <"$ROOT/VERSION")-linux-x86_64.tar.gz" ./apps/web/dist/sw.js >"$WORK/sw.js"
 node "$ROOT/scripts/test-service-worker-cache.mjs" "$WORK/sw.js"
-SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/second" bash "$ROOT/scripts/build-release.sh"
+TZ=UTC-3 SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/second" bash "$ROOT/scripts/build-release.sh"
 bash "$ROOT/scripts/check-release-contents.sh" "$WORK/second"
 
 diff -qr "$WORK/first" "$WORK/second" >/dev/null || {
-  printf '%s\n' 'test-release-build: repeated builds differ.' >&2
+  printf '%s\n' 'test-release-build: builds differ across caller timezones.' >&2
   exit 1
 }
-printf 'release build determinism OK\n'
+printf 'release build determinism across caller timezones OK\n'
 
 uv run --directory "$ROOT/apps/api" python - "$WORK/second" <<'PY'
 import hashlib

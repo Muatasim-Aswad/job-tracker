@@ -4,6 +4,12 @@ All notable user-facing changes to Job Tracker are documented here. Format follo
 
 One version covers the whole product. The extension, the dashboard, and the server ship from the same commit and share the version in the repository root [`VERSION`](VERSION) file, so any user-visible change in any of them determines the next bump: patch for fixes, minor for a new capability, major for a breaking change. Individual commits do not bump it — the bump happens once while preparing a release, and the matching whole-repository commit is tagged `vX.Y.Z`. See the [development guide](docs/DEVELOPMENT.md#releases-and-versions) for the full rule.
 
+## [Unreleased]
+
+### Fixed
+
+- Normalize extension ZIP timestamps to UTC so release archive hashes agree across caller timezones.
+
 ## [1.2.0] - 2026-10-13
 
 ### Added

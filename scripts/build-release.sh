@@ -116,7 +116,7 @@ tar --sort=name --mtime="@$EPOCH" --owner=0 --group=0 --numeric-owner \
 (
   cd "$BUILD_SOURCE/apps/extension/dist"
   find . -exec touch -h -d "@$EPOCH" {} +
-  find . -type f -print | LC_ALL=C sort | zip -X -q "$EXTENSION_ARCHIVE" -@
+  find . -type f -print | LC_ALL=C sort | TZ=UTC zip -X -q "$EXTENSION_ARCHIVE" -@
 )
 
 JOB_TRACKER_RELEASE_DIR="$RELEASE_DIR" \
