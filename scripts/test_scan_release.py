@@ -614,9 +614,8 @@ class GitleaksPolicyTests(unittest.TestCase):
                 ).returncode
 
             self.assertEqual(execute(public), 0)
-            synthetic = (
-                'api_key = "test_9F4qW2zG7nK8vR6mD3xB5cA1yU0hTjLs"; // gitleaks:allow\n'
-            )
+            control = hashlib.sha256(b"synthetic policy fixture").hexdigest()
+            synthetic = f'api_key = "{control}"; // gitleaks:allow\n'
             for name in public:
                 with self.subTest(name=name):
                     self.assertEqual(
