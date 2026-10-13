@@ -18,6 +18,8 @@ class ListingSummary:
     primary_platform: str | None = None
     primary_platform_id: str | None = None
     primary_url: str | None = None
+    # The primary listing's captured application destination (`meta.apply_url`).
+    primary_apply_url: str | None = None
 
 
 _COLUMNS = (
@@ -120,44 +122,34 @@ class ListingRepository:
         row = query_one(self.conn, "SELECT 1 FROM listings WHERE job_id = ? LIMIT 1", (job_id,))
         return row is not None
 
-    def descriptions_for_jobs(self, job_ids: list[str]) -> dict[str, str]:
-        """Best JD text per job — the earliest-captured listing that carries a
-        non-null `meta.description` — for the duplicate-similarity score.
-        Jobs with no captured JD are simply absent. One query (no N+1); `meta` JSON
-        is parsed in Python rather than via `json_extract` so it stays portable
-        across sqlite/libSQL, matching `summaries_for_jobs`. Empty input
-        short-circuits — SQLite rejects `IN ()`."""
+    def list_for_jobs(self, job_ids: list[str]) -> dict[str, list[Listing]]:
+        """Each job's listings by capture time, in one query. Jobs without listings
+        are absent. Empty input short-circuits — SQLite rejects `IN ()`."""
         if not job_ids:
             return {}
         placeholders = ", ".join("?" for _ in job_ids)
         rows = query_all(
             self.conn,
-            f"SELECT job_id, meta FROM listings WHERE job_id IN ({placeholders}) "
+            f"SELECT {_COLUMNS} FROM listings WHERE job_id IN ({placeholders}) "
             "ORDER BY captured_at",
             tuple(job_ids),
         )
-        out: dict[str, str] = {}
+        out: dict[str, list[Listing]] = {}
         for row in rows:
-            if row["job_id"] in out:
-                continue  # earliest-captured wins (rows are captured_at-ordered)
-            meta = json.loads(row["meta"]) if row["meta"] else {}
-            desc = meta.get("description")
-            if desc:
-                out[row["job_id"]] = desc
+            listing = _to_listing(row)
+            out.setdefault(listing.job_id, []).append(listing)
         return out
 
     def summaries_for_jobs(self, job_ids: list[str]) -> dict[str, ListingSummary]:
-        """Roll up each job's listings in one query, keyed by job_id, for the
-        `GET /jobs` board cards. Returns per job: distinct `platforms`, distinct
-        non-null `apply_types`, and `listing_count`. Jobs with no listings are
-        simply absent (the caller defaults them to empty). Empty input
-        short-circuits — SQLite rejects `IN ()`."""
+        """Batch dashboard rollups keyed by job_id: platforms, non-null apply types, listing count, primary address, and application URL. Jobs without listings are absent; empty input avoids a query."""
         if not job_ids:
             return {}
         placeholders = ", ".join("?" for _ in job_ids)
         rows = query_all(
             self.conn,
-            "SELECT job_id, platform, platform_id, url, apply_type FROM listings "
+            "SELECT job_id, platform, platform_id, url, apply_type, "
+            "CASE WHEN json_type(meta, '$.apply_url') = 'text' "
+            "THEN json_extract(meta, '$.apply_url') END AS apply_url FROM listings "
             f"WHERE job_id IN ({placeholders}) ORDER BY captured_at",
             tuple(job_ids),
         )
@@ -175,4 +167,5 @@ class ListingRepository:
                 entry.primary_platform = row["platform"]
                 entry.primary_platform_id = row["platform_id"]
                 entry.primary_url = row["url"]
+                entry.primary_apply_url = row["apply_url"]
         return out

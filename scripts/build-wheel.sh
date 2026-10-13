@@ -14,14 +14,19 @@ fail() {
 
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "VERSION must be plain SemVer."
 RELEASE_DIR="$(realpath -m "$RELEASE_DIR")"
+TEMP_ROOT="$(realpath -m "${TMPDIR:-/tmp}")"
+[[ "$TEMP_ROOT" != / ]] || fail "TMPDIR must not be filesystem root."
 case "$RELEASE_DIR" in
-  "$ROOT/dist/release" | /tmp/*) ;;
-  *) fail "JOB_TRACKER_RELEASE_DIR must be $ROOT/dist/release or a disposable /tmp path." ;;
+  "$ROOT/dist/release" | "$TEMP_ROOT"/*) ;;
+  *) fail "JOB_TRACKER_RELEASE_DIR must be $ROOT/dist/release or a disposable TMPDIR child." ;;
 esac
-[[ "$RELEASE_DIR" != / && "$RELEASE_DIR" != /tmp ]] || fail "refusing an unsafe release directory."
+[[ "$RELEASE_DIR" != / && "$RELEASE_DIR" != "$TEMP_ROOT" ]] || fail "refusing an unsafe release directory."
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/job-tracker-wheel.XXXXXX")"
 trap 'rm -rf -- "$WORK"' EXIT
+python3 "$ROOT/scripts/build-metadata.py" --format shell --output "$WORK/identity.env"
+source "$WORK/identity.env"
+export VP_SKIP_INSTALL=1 pnpm_config_verify_deps_before_run=warn
 
 copy_tracked() {
   local destination="$1"
@@ -38,7 +43,9 @@ if [[ -z "$WEB_DIST_SOURCE" ]]; then
   mkdir -p "$BUILD_SOURCE"
   copy_tracked "$BUILD_SOURCE" \
     VERSION package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json vite.config.ts \
-    apps/web packages
+    apps/web packages \
+    scripts/build-metadata.py scripts/build-metadata.mjs scripts/third-party-notices.mjs \
+    apps/api/app/core/build_info.py
   [[ -d "$ROOT/node_modules" ]] || fail "workspace dependencies are missing; run bash scripts/setup.sh first."
   ln -s "$ROOT/node_modules" "$BUILD_SOURCE/node_modules"
   for package_dir in apps/web packages/shared; do
@@ -58,22 +65,14 @@ WEB_DIST_SOURCE="$(realpath -e "$WEB_DIST_SOURCE")" || fail "dashboard build doe
 
 STAGE="$WORK/stage"
 mkdir -p "$STAGE"
-(
-  cd "$ROOT"
-  find apps/api/app -type f \( -name '*.py' -o -name '*.sql' \) \
-    -not -path '*/__pycache__/*' -print0 >"$WORK/api-files"
-)
-[[ -s "$WORK/api-files" ]] || fail "API source allowlist was empty."
-tar -C "$ROOT" --null --verbatim-files-from --no-recursion --files-from="$WORK/api-files" -cf - |
-  tar -C "$STAGE" -xf -
+copy_tracked "$STAGE" apps/api/app
 mv "$STAGE/apps/api/app" "$STAGE/app"
 rmdir "$STAGE/apps/api" "$STAGE/apps"
 cp "$ROOT/apps/api/pyproject.toml" "$STAGE/pyproject.toml"
 cp "$ROOT/apps/api/README.md" "$STAGE/README.md"
 cp "$ROOT/LICENSE" "$STAGE/LICENSE"
 
-# The checkout metadata remains deliberately non-release metadata. Only this
-# isolated staging copy receives the canonical distribution name and VERSION.
+# Only the temporary staging copy receives canonical release metadata.
 sed -i 's/^name = "job-tracker-api"$/name = "job-tracker"/' "$STAGE/pyproject.toml"
 sed -i "s/^version = \"0.1.0\"$/version = \"$VERSION\"/" "$STAGE/pyproject.toml"
 sed -i '/^description = /a readme = "README.md"\nlicense = "MIT"\nlicense-files = ["LICENSE"]' "$STAGE/pyproject.toml"
@@ -84,6 +83,11 @@ grep -Fxq 'license-files = ["LICENSE"]' "$STAGE/pyproject.toml" || fail "could n
 
 mkdir -p "$STAGE/app/resources/apps/web/dist"
 cp "$ROOT/VERSION" "$STAGE/app/resources/VERSION"
+python3 "$ROOT/scripts/build-metadata.py" --output "$STAGE/app/resources/BUILD_INFO.json"
+cmp "$STAGE/app/resources/BUILD_INFO.json" "$WEB_DIST_SOURCE/version.json" ||
+  fail "prebuilt dashboard identity differs from this wheel's source."
+uv run --frozen --directory "$ROOT/apps/api" python "$ROOT/scripts/third-party-notices.py" \
+  --lock "$ROOT/apps/api/uv.lock" --output-dir "$STAGE/app/resources"
 cp -a "$WEB_DIST_SOURCE/." "$STAGE/app/resources/apps/web/dist/"
 
 mkdir -p "$WORK/output" "$RELEASE_DIR"

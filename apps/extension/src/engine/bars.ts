@@ -6,7 +6,7 @@ import type { JobState } from "../messages.js";
 import { JobFunnel } from "@job-tracker/shared/funnel";
 import { normalizeCompany } from "@job-tracker/shared/text";
 import { SERVER_URL } from "../config.js";
-import { toNaturalKey } from "../registry.js";
+import { getAdapters, toNaturalKey } from "../registry.js";
 import { titleHighlights } from "./keywords.js";
 import { ICON } from "../icons.js";
 
@@ -14,7 +14,25 @@ import { ICON } from "../icons.js";
 // dashboard" deep-links, which are plain navigations, never fetches.
 const DASHBOARD_URL = SERVER_URL;
 
+// List surfaces are for discovery. Once a posting has been selected for application
+// or moved beyond that decision, the display preference may dim/remove its card.
+// This is presentation-only and never changes the independent hidden flag.
+export function isListDeemphasized(status: string): boolean {
+  return status === "to_apply" || JobFunnel.isResolved(status);
+}
+
+// Skipping is a pre-application decision. `untracked` is the extension's temporary
+// state before a discovery card has landed on the server, so it is eligible too.
+export function canSkip(status: string): boolean {
+  return !JobFunnel.APPLIED.has(status) && JobFunnel.isForwardMove(status, "skipped");
+}
+
 export function createBars(engine: Engine) {
+  function renderPageActions() {
+    getAdapters()
+      .find((adapter) => adapter.matches(location.hostname))
+      ?.renderPageActions?.();
+  }
   // Idempotent, and re-run for every card on each scan: the highlight must also come
   // off a card whose rule the user has just turned off.
   function flagCard(card: HTMLElement) {
@@ -111,7 +129,7 @@ export function createBars(engine: Engine) {
     return btn;
   }
 
-  function updateControls(container: HTMLElement, st: JobState) {
+  function updateControls(container: HTMLElement, st: JobState, hideShortcut?: string) {
     const btnHide = container.querySelector(".jh-btn-hide") as HTMLElement | null;
     if (btnHide) {
       // Rewrite icon markup only when state changes.
@@ -119,9 +137,11 @@ export function createBars(engine: Engine) {
       if (btnHide.dataset.jhHidden !== want) {
         btnHide.dataset.jhHidden = want;
         setBtnContent(btnHide, st.hidden ? ICON.eye : ICON.eyeOff);
-        btnHide.title = st.hidden ? "Unhide" : "Hide";
+        btnHide.title = `${st.hidden ? "Unhide" : "Hide"}${hideShortcut ? ` (${hideShortcut})` : ""}`;
       }
     }
+    const btnSkip = container.querySelector(".jh-btn-skip") as HTMLButtonElement | null;
+    if (btnSkip) btnSkip.hidden = !canSkip(st.status);
     const btnStar = container.querySelector(".jh-btn-star") as HTMLElement | null;
     if (btnStar) {
       btnStar.classList.toggle("jh-on", st.starred); // .jh-on fills the star
@@ -134,21 +154,21 @@ export function createBars(engine: Engine) {
     }
   }
 
-  // Hidden/blocked cards receive stronger treatment than resolved cards. Remove mode
-  // hides both tiers; jhForceMode can keep a surface visible.
+  // Hidden/blocked cards receive stronger treatment than selected/resolved cards.
+  // Remove mode hides both tiers; jhForceMode can keep a surface visible.
   function renderCard(card: HTMLElement) {
     const id = card.dataset.jhId!;
     const st = engine.stateOf(id);
     card.classList.remove("jh-hidden", "jh-removed", "jh-resolved", "jh-interested");
 
     const mode = card.dataset.jhForceMode || hideMode;
-    const resolved = JobFunnel.isResolved(st.status);
+    const deemphasized = isListDeemphasized(st.status);
     const blocked = engine.isCardBlocked(card);
-    if (mode === "remove" && (blocked || st.hidden || resolved)) {
+    if (mode === "remove" && (blocked || st.hidden || deemphasized)) {
       card.classList.add("jh-removed");
     } else if (blocked || st.hidden) {
       card.classList.add("jh-hidden");
-    } else if (resolved) {
+    } else if (deemphasized) {
       card.classList.add("jh-resolved");
     } else if (st.starred) {
       card.classList.add("jh-interested");
@@ -163,7 +183,7 @@ export function createBars(engine: Engine) {
 
   function renderDetailBar(bar: HTMLElement) {
     const jobId = bar.dataset.jhJobId!;
-    updateControls(bar, engine.stateOf(jobId));
+    updateControls(bar, engine.stateOf(jobId), "Alt+H");
     // Identity may resolve after the bar is first injected.
     const company = engine.matchCompany(jobId);
     updateAppliedBadge(bar, company);
@@ -198,12 +218,30 @@ export function createBars(engine: Engine) {
       .forEach((el) => renderCard(el as HTMLElement));
     const bar = document.querySelector(`.jh-detail-actions[data-jh-job-id="${sel}"]`);
     if (bar) renderDetailBar(bar as HTMLElement);
+    renderPageActions();
   }
 
   function renderAll() {
     document.querySelectorAll("[data-jh-id]").forEach((el) => renderCard(el as HTMLElement));
     const bar = document.querySelector(".jh-detail-actions");
     if (bar) renderDetailBar(bar as HTMLElement);
+    renderPageActions();
+  }
+
+  // One hidden-flag action shared by pointer controls and platform shortcuts, so
+  // every surface reads the latest cached state before choosing hide or unhide.
+  function toggleHidden(jobId: string) {
+    return engine.emit(jobId, engine.stateOf(jobId).hidden ? "unhidden" : "hidden");
+  }
+
+  // One Skip action owns both tracker state and the host site's optional dismissal.
+  // Re-read cached state at click time so a stale visible control cannot skip a job
+  // that has since entered the application funnel.
+  function skipJob(jobId: string, nativeDismiss?: () => void) {
+    if (!canSkip(engine.stateOf(jobId).status)) return null;
+    const result = engine.emit(jobId, "skipped");
+    nativeDismiss?.();
+    return result;
   }
 
   function flashError(jobId: string) {
@@ -219,7 +257,7 @@ export function createBars(engine: Engine) {
   }
 
   // ── Detail page: action bar ──────────────────────────────────────────────────
-  // Inject the detail-page action bar (status / star / hide) next to `anchor`. Site-
+  // Inject the detail-page action bar (status / star / hide / skip) next to `anchor`. Site-
   // agnostic: each adapter's scanDetail supplies its own anchor and placement.
   function injectDetailButtons(
     jobId: string,
@@ -238,7 +276,13 @@ export function createBars(engine: Engine) {
     btnHide.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      void engine.emit(jobId, engine.stateOf(jobId).hidden ? "unhidden" : "hidden");
+      void toggleHidden(jobId);
+    });
+    const btnSkip = mkBtn("jh-btn-skip", ICON.x, "Skip job");
+    btnSkip.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void skipJob(jobId);
     });
     const btnStar = mkBtn("jh-btn-star", ICON.star, "Star");
     btnStar.addEventListener("click", (e) => {
@@ -258,14 +302,14 @@ export function createBars(engine: Engine) {
       void engine.toggleDetailBlock(jobId, btnBlock);
     });
 
-    // Clusters, left→right: [insight 🔁 ⟲N] | status | [action star hide open block].
+    // Clusters, left→right: [insight 🔁 ⟲N] | status | [action star hide skip open block].
     // The detail bar is roomy — no ⋯ — so Open stays inline. The insight group starts
     // empty; renderMatchControl/updateAppliedBadge fill it on later scans.
     const insight = document.createElement("div");
     insight.className = "jh-group jh-group-insight";
     const action = document.createElement("div");
     action.className = "jh-group jh-group-action";
-    action.append(btnStar, btnHide, mkOpenButton(jobId), btnBlock);
+    action.append(btnStar, btnHide, btnSkip, mkOpenButton(jobId), btnBlock);
 
     bar.append(insight, engine.makeStatusSelect(jobId), action);
     anchor.insertAdjacentElement(placement, bar);
@@ -288,15 +332,16 @@ export function createBars(engine: Engine) {
       void engine.emit(id, engine.stateOf(id).starred ? "unstarred" : "starred");
     });
 
-    const btnHide = mkBtn("jh-btn-hide", ICON.eyeOff, "Hide");
-    btnHide.addEventListener("click", (e) => {
+    const nativeDismiss = adapter.nativeDismiss?.(card) || undefined;
+    const btnSkip = mkBtn("jh-btn-skip", ICON.x, "Skip job");
+    btnSkip.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       engine.captureCardFromAction(card);
-      void engine.emit(id, engine.stateOf(id).hidden ? "unhidden" : "hidden");
+      void skipJob(id, nativeDismiss);
     });
 
-    // Clusters, left→right: [insight 🔁 ⟲N] | status | [action star hide open dismiss]
+    // Clusters, left→right: [insight 🔁 ⟲N] | status | [action star skip open]
     // | ⋯. In the narrow list view (jhCompact) the less-used Open folds into the ⋯
     // menu rather than taking an inline slot.
     const compact = card.dataset.jhCompact === "1";
@@ -304,24 +349,10 @@ export function createBars(engine: Engine) {
     insight.className = "jh-group jh-group-insight";
     const action = document.createElement("div");
     action.className = "jh-group jh-group-action";
-    action.append(btnStar, btnHide);
+    action.append(btnStar, btnSkip);
     if (!compact) action.append(mkOpenButton(id));
 
     bar.append(insight, engine.makeStatusSelect(id, card), action);
-
-    // 🗑️ Dismiss — the site's own native dismiss only (hides + tells the site + marks skipped)
-    const nativeDismiss = adapter.nativeDismiss?.(card);
-    if (nativeDismiss) {
-      const btnDismiss = mkBtn("jh-btn-dismiss", ICON.x, "Dismiss from site");
-      btnDismiss.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        engine.captureCardFromAction(card);
-        dismissJob(id);
-        nativeDismiss();
-      });
-      action.appendChild(btnDismiss);
-    }
 
     // ⋯ overflow: rare actions (block company; Open when compact) kept off the hot
     // path — trailing, quiet.
@@ -333,18 +364,6 @@ export function createBars(engine: Engine) {
     renderCard(card);
   }
 
-  // Dismiss = mark skipped ("decided not to apply"), which then dims the card via
-  // `jh-resolved` — no separate hide flag. Only when skip is still a legit forward
-  // move AND the job isn't already in the application funnel (skipping an applied job
-  // is nonsensical; skipping a terminal one is a correction). If neither holds the
-  // job's already resolved/dimmed, so our side no-ops and only the native dismiss fires.
-  function dismissJob(jobId: string) {
-    const status = engine.stateOf(jobId).status;
-    if (!JobFunnel.APPLIED.has(status) && JobFunnel.isForwardMove(status, "skipped")) {
-      void engine.emit(jobId, "skipped");
-    }
-  }
-
   return {
     flagCard,
     loadHideMode,
@@ -353,6 +372,8 @@ export function createBars(engine: Engine) {
     renderJob,
     renderAll,
     flashError,
+    toggleHidden,
+    skipJob,
     injectDetailButtons,
     injectButtons,
   };

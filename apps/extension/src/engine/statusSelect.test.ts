@@ -1,8 +1,4 @@
-// Unit tests for the status <select> concern. A stub Engine supplies the hooks the
-// change handler reaches for (stateOf/emit); these focus on the offline snap-back:
-// when a status write fails (emit resolves null — the server was unreachable), the
-// dropdown must revert to the actual current status instead of sitting on the picked
-// value as if it took.
+// A failed status write must restore the authoritative selection.
 import { describe, expect, it, vi } from "vitest";
 
 import { createStatusSelect } from "./statusSelect";

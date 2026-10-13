@@ -1,6 +1,7 @@
 # JavaScript and build output
 node_modules/
 dist/
+BUILD_INFO.json
 
 # Local environment files
 *.local
@@ -29,7 +30,6 @@ apps/extension/src/adapters/local/
 apps/web/src/platforms/local/
 apps/api/scripts/local/
 
-# Execution plans and their ledgers carry internal orchestration narration and private
-# context. They stay tracked here (this rule cannot untrack them), but a clean export
-# extracts them as ordinary working files that its fresh history never stages.
+# Plans/ledgers hold internal context. Existing tracked files remain tracked;
+# this rule prevents a fresh export from staging them.
 docs/plans/

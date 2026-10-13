@@ -3,6 +3,7 @@
 import type {
   BlockedCompany,
   CompanyAppliedCount,
+  components,
   JobMatch,
   ListingState,
   ListingUpsertResult,
@@ -18,6 +19,8 @@ export interface ListingRecord extends NaturalKey {
   closed_at?: string;
   via?: string;
   meta?: Record<string, unknown>;
+  /** Merge these list-card facts into existing metadata without replacing a full capture. */
+  meta_patch?: Record<string, unknown>;
 }
 
 /** One funnel/activity event: a verb plus an optional meta side-bag. */
@@ -32,6 +35,11 @@ export interface JobState {
   hidden: boolean;
   starred: boolean;
 }
+
+export type FormFillResolutionRequest = components["schemas"]["ResolutionRequest"];
+export type FormFillResolutionResponse = components["schemas"]["ResolutionResponse"];
+export type FormFillCaptureRequest = components["schemas"]["CaptureCreate"];
+export type FormFillCaptureResponse = components["schemas"]["CaptureCreateResponse"];
 
 /** Everything the content script can ask the service worker to do. */
 export type BridgeRequest =
@@ -51,10 +59,21 @@ export type BridgeRequest =
   // `platform: "*"` blocks the company across platforms.
   | { type: "block-company"; company: string; platform: string }
   | { type: "unblock-company"; company_key: string; platform: string }
+  // Resolution observes Questions on the server but never writes a host form value.
+  | { type: "form-fill-resolve"; payload: FormFillResolutionRequest }
+  // Captures retain an eligible user-originated value for one exact Question.
+  | { type: "form-fill-capture"; payload: FormFillCaptureRequest }
   // Is the server reachable? The popup and content scripts ask on open/start to
   // paint an offline state up front rather than waiting for the first failed
   // write. Answered from the worker's `serverReachable` flag, so no fetch.
   | { type: "reachability" }
+  // Open canonical LinkedIn postings from one explicit Gmail-alert bulk action.
+  // The worker creates background tabs so Chromium's page popup limit cannot drop
+  // every URL after the first.
+  | { type: "open-job-tabs"; urls: string[] }
+  // A successfully closed LinkedIn listing asks the worker to close its tab. The
+  // worker acts only when that sender tab came from `open-job-tabs`.
+  | { type: "close-bulk-job-tab" }
   // "I wrote to the API without going through you" — the popup fetches directly
   // (extension origin, no CSP to dodge), so this puts its write back on the same
   // cross-tab broadcast path relayed writes take. No fetch, no result.
@@ -80,6 +99,8 @@ export type BridgeResult =
   | BlockedCompany[] // "blocklist"
   | BlockedCompany // "block-company"
   | ListingUpsertResult // "listing", "link-job"
+  | FormFillResolutionResponse // "form-fill-resolve"
+  | FormFillCaptureResponse // "form-fill-capture"
   | ReachabilityState // "reachability"
   | null; // 204s — "false-match", "unblock-company"
 

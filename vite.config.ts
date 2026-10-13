@@ -1,7 +1,6 @@
 import { defineConfig } from "vite-plus";
 
-// Workspace-wide formatting, linting, and task defaults. Package configs own
-// framework-specific build and test settings.
+// Package configs own framework-specific build and test settings.
 export default defineConfig({
   // Ruff formats Python; Prettier formats Markdown (see .prettierrc.json).
   fmt: {
@@ -49,15 +48,11 @@ export default defineConfig({
       test: { command: "vp run -r --cache test" },
       build: { command: "vp run -r --cache build" },
 
-      // Formatting is enforced by writing at commit time; the push gate must not
-      // rewrite tracked files, so it reports through this form instead.
+      // Push gates report formatting failures without rewriting committed inputs.
       "fmt:check": { command: "vp fmt --check" },
 
-      // The fast quality gate for both stacks. Build remains a separate release task.
-      // Delegation preserves each task's cache inputs and stops at the first failure.
-      // Named `verify`, not `check`: `vp check` is a builtin that runs a different
-      // (TypeScript-only) set, and one name meaning two things invites running the
-      // wrong gate.
+      // Keep the task named verify: vp check is a different TypeScript-only gate.
+      // Cached task delegation preserves inputs and stops at the first failure.
       verify: {
         command: [
           "vp run fmt:check",
@@ -90,6 +85,7 @@ export default defineConfig({
       },
       "py:test": {
         command: "uv run --directory apps/api pytest -q",
+        untrackedEnv: ["TMPDIR"],
         input: [
           { auto: true },
           "!apps/api/.venv/**",
@@ -104,9 +100,7 @@ export default defineConfig({
         ],
       },
 
-      // Compares the committed API types against a fresh generation without
-      // touching the tracked file. Boots the FastAPI app, so it needs the same
-      // cache exclusions as the other API tasks.
+      // Check generated API drift without rewriting source; app startup needs cache exclusions.
       "api:check": {
         command: "bash packages/shared/scripts/gen-api-types.sh --check",
         input: [

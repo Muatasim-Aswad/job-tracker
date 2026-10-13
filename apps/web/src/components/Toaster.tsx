@@ -2,9 +2,7 @@ import { useSyncExternalStore } from "react";
 import { dismissToast, getToasts, subscribeToasts } from "../lib/toast";
 import { IconButton } from "./IconButton";
 
-// Renders the toast stack (bottom-center), subscribing to the module-level store.
-// Kept a leaf sibling of <App/> so it still paints if the app tree throws and the
-// ErrorBoundary takes over.
+// Keep toasts outside App so render-error fallback cannot hide mutation feedback.
 export function Toaster() {
   const toasts = useSyncExternalStore(subscribeToasts, getToasts);
   if (toasts.length === 0) return null;

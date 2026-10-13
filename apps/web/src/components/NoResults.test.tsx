@@ -13,6 +13,8 @@ describe("NoResults", () => {
         showStarred={false}
         showAttention={false}
         hideHidden={false}
+        hideBlocked={false}
+        easyApplyOnly={false}
         onClear={vi.fn()}
       />,
     );
@@ -26,6 +28,8 @@ describe("NoResults", () => {
         showStarred
         showAttention={false}
         hideHidden={false}
+        hideBlocked={false}
+        easyApplyOnly={false}
         onClear={vi.fn()}
       />,
     );
@@ -34,14 +38,30 @@ describe("NoResults", () => {
 
   it("has starred-only copy when starred narrows with no search text", () => {
     render(
-      <NoResults query="" showStarred showAttention={false} hideHidden={false} onClear={vi.fn()} />,
+      <NoResults
+        query=""
+        showStarred
+        showAttention={false}
+        hideHidden={false}
+        hideBlocked={false}
+        easyApplyOnly={false}
+        onClear={vi.fn()}
+      />,
     );
     expect(screen.getByText("No starred jobs match.")).toBeTruthy();
   });
 
   it("mentions the hidden filter when it excludes every job", () => {
     render(
-      <NoResults query="" showStarred={false} showAttention={false} hideHidden onClear={vi.fn()} />,
+      <NoResults
+        query=""
+        showStarred={false}
+        showAttention={false}
+        hideHidden
+        hideBlocked={false}
+        easyApplyOnly={false}
+        onClear={vi.fn()}
+      />,
     );
     expect(screen.getByText("No non-hidden jobs match.")).toBeTruthy();
   });
@@ -54,6 +74,8 @@ describe("NoResults", () => {
         showStarred={false}
         showAttention={false}
         hideHidden={false}
+        hideBlocked={false}
+        easyApplyOnly={false}
         onClear={onClear}
       />,
     );
@@ -63,7 +85,15 @@ describe("NoResults", () => {
 
   it("has attention-only copy", () => {
     render(
-      <NoResults query="" showStarred={false} showAttention hideHidden={false} onClear={vi.fn()} />,
+      <NoResults
+        query=""
+        showStarred={false}
+        showAttention
+        hideHidden={false}
+        hideBlocked={false}
+        easyApplyOnly={false}
+        onClear={vi.fn()}
+      />,
     );
     expect(screen.getByText("No jobs need attention.")).toBeTruthy();
   });

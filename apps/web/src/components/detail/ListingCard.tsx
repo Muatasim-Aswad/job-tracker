@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Copy, Link2, Pencil, Trash2 } from "lucide-react";
 import type { Listing, ListingUpdate } from "@job-tracker/shared/api";
 import { postingUrl } from "@job-tracker/shared/links";
+import { APPLY_TYPE_LABELS } from "@job-tracker/shared/matches";
 import { platformLabel } from "@job-tracker/shared/platforms";
 import { fmtDate, POSTED_META_KEYS, readPosted } from "@job-tracker/shared/time";
 import { ExpandableText } from "../ExpandableText";
@@ -14,22 +15,16 @@ import { UrlLink } from "../UrlLink";
 import { describeError, toast } from "../../lib/toast";
 import { NEUTRAL } from "./constants";
 import { ListingEditForm } from "./ListingEditForm";
-import { RelinkPicker } from "./RelinkPicker";
 
-// Friendly labels for the raw snake_case detail keys the capture produces.
-// Anything not listed falls back to a title-cased version of the key.
+// Unknown detail keys fall back to title case.
 const LISTING_FIELD_LABELS: Record<string, string> = {
+  apply_url: "Apply",
   company_url: "Company",
   location: "Location",
+  card_location: "Location",
   salary: "Salary",
   workplace: "Workplace",
   employment_type: "Type",
-};
-
-// Unknown apply types add no useful information and are omitted.
-const APPLY_TYPE_LABELS: Record<string, string> = {
-  easy_apply: "Easy apply",
-  external: "External apply",
 };
 
 function fieldLabel(key: string): string {
@@ -38,8 +33,7 @@ function fieldLabel(key: string): string {
   );
 }
 
-// Empty-ish detail values are noise (e.g. a `chips: []` with nothing in it) and
-// shouldn't render a blank row.
+// Empty detail values must not render blank rows.
 function isEmptyValue(v: unknown): boolean {
   if (v == null || v === "") return true;
   if (Array.isArray(v)) return v.length === 0;
@@ -47,8 +41,7 @@ function isEmptyValue(v: unknown): boolean {
   return false;
 }
 
-// Section headings the scraper picks up along with the body, because on the page
-// they sit inside the description container. Matched whole-line and case-insensitively.
+// Scraped container headings are matched by whole line, case-insensitively.
 const JD_HEADINGS = ["about the job", "about this job", "job description", "over de functie"];
 
 // Remove container headings and repeated titles while preserving authored prose.
@@ -87,7 +80,7 @@ interface Props {
   jobCompany: string | null;
   isOnly: boolean;
   onDelete: () => void;
-  onRelink: (targetJobId: string) => void;
+  onRelink: () => void;
   onUpdate: (body: ListingUpdate) => void;
 }
 
@@ -100,7 +93,6 @@ export function ListingCard({
   onRelink,
   onUpdate,
 }: Props) {
-  const [relinking, setRelinking] = useState(false);
   const [editing, setEditing] = useState(false);
 
   // Captured listings remain scraper-owned; manual listings have no other editor.
@@ -118,7 +110,9 @@ export function ListingCard({
   const posted = readPosted(l.meta, { platform: l.platform, capturedAt: l.captured_at });
 
   // Fields with dedicated presentation do not repeat in the metadata grid.
+  // A card's shorter location stands in only until the detail page supplies one.
   const consumed = new Set(["description", "company_url", ...POSTED_META_KEYS]);
+  if (!isEmptyValue(l.meta.location)) consumed.add("card_location");
   const fields = Object.entries(l.meta).filter(([k, v]) => !consumed.has(k) && !isEmptyValue(v));
 
   // Copy a self-contained listing and report the settled clipboard result.
@@ -166,10 +160,8 @@ export function ListingCard({
           <IconButton
             size="sm"
             label="Relink to another job"
-            active={relinking}
-            activeMeans="expanded"
-            onClick={() => setRelinking((v) => !v)}
-            className={relinking ? "text-violet-600 dark:text-violet-300" : NEUTRAL}
+            onClick={onRelink}
+            className={NEUTRAL}
           >
             <Link2 size={14} />
           </IconButton>
@@ -181,22 +173,6 @@ export function ListingCard({
           />
         </span>
       </div>
-
-      {relinking && (
-        <RelinkPicker
-          currentJobId={l.job_id}
-          platform={l.platform}
-          platformId={l.platform_id}
-          matchTitle={jobTitle ?? l.title ?? ""}
-          matchCompany={jobCompany ?? l.company ?? ""}
-          dissolvesSource={isOnly}
-          onPick={(targetJobId) => {
-            setRelinking(false);
-            onRelink(targetJobId);
-          }}
-          onCancel={() => setRelinking(false)}
-        />
-      )}
 
       {editing && (
         <ListingEditForm
@@ -228,9 +204,7 @@ export function ListingCard({
                 />
               ),
               companyUrl && <UrlLink key="company" href={companyUrl} label="Company" />,
-              // The date, and what it's worth. Focusable and tappable because the
-              // qualification ("accurate to the month") is the substance, and
-              // hover-only would hide it from half the people reading it.
+              // Expose date precision by focus and tap as well as hover.
               <Tooltip key="posted" label={posted.tooltip}>
                 <span tabIndex={0} className={posted.known ? "" : "text-ink-faint"}>
                   {posted.known ? `Posted ${posted.text}` : "Posting date unknown"}

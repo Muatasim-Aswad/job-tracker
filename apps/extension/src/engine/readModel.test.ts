@@ -1,7 +1,4 @@
-// Unit tests for the read-model concern in isolation: a fake Engine supplies just
-// the cross-concern hooks readModel calls out to (bridge/renderJob/flashError), so
-// these exercise emit/autoEmit/refreshStates' own logic — dedup, viewState
-// projection, failure handling — without the real bridge or a background worker.
+// Isolate event deduplication, state projection, and failures with fake Engine hooks.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createReadModel } from "./readModel";
@@ -193,8 +190,9 @@ describe("refreshStates", () => {
       result: [{ platform_id: "1", status: "applied", hidden: false, starred: true }],
     }));
 
-    await readModel.refreshStates(["LI-1"]);
+    const available = await readModel.refreshStates(["LI-1"]);
 
+    expect(available).toBe(true);
     expect(readModel.stateOf("LI-1")).toEqual({ status: "applied", hidden: false, starred: true });
   });
 
@@ -216,7 +214,8 @@ describe("refreshStates", () => {
 
   it("keeps the last-known state when the batch call fails", async () => {
     const { readModel } = makeEngine(async () => ({ ok: false, error: "boom" }));
-    await readModel.refreshStates(["LI-1"]);
+    const available = await readModel.refreshStates(["LI-1"]);
+    expect(available).toBe(false);
     expect(readModel.stateOf("LI-1")).toEqual({
       status: "untracked",
       hidden: false,

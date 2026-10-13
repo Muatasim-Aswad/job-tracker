@@ -193,14 +193,7 @@ function cleanTerms(v: unknown): string[] {
 }
 
 // ── Live policy (per-document singleton) ─────────────────────────────────────
-// The active policy the no-argument consumers read. The settings loader replaces it
-// once chrome.storage has been read, and on every change. A module-level singleton is
-// per-document: one content script, one policy.
-//
-// ⚠ Must start EMPTY, not defaultPolicy(): storage is read asynchronously and a scan
-// can run first (the MutationObserver fires on the page's own render). defaultPolicy()
-// is not inert — its banner signals are enabled — so seeding with it makes that scan
-// match the built-in words. Empty matches nothing until the real policy lands.
+// Matchers share one per-document policy, replaced after storage loads and on edits.
 let activePolicy: KeywordPolicy = [];
 
 // Bumped on every swap, for consumers caching something derived from the policy (the
@@ -326,13 +319,9 @@ const PER_KEYWORD_CAP = 3;
 const PER_RULE_CAP = 5;
 const TOTAL_CAP = 15;
 
-// Every banner-worthy keyword match in `text`, each with the context on its own
-// line. Returns all matches — deduped by identical snippet, then capped per keyword,
-// per signal (except an `uncapped` signal sorted last) and overall — so a real
-// requirement isn't silently dropped behind a coincidental one.
-// Feed it elementToText() output, whose block boundaries are already newlined, so a
-// snippet never bleeds across a paragraph break. Only enabled `banner` signals
-// covering the description contribute, so an inert policy yields [].
+// Return enabled description matches with line-local context. Deduplicate snippets,
+// then cap per term, per signal, and overall; only the last signal may be uncapped.
+// Use elementToText output to preserve paragraph boundaries.
 export function keywordFindings(
   text: string,
   policy: KeywordPolicy = activePolicy,

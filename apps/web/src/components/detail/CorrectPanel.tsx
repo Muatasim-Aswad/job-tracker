@@ -4,18 +4,14 @@ import { correctionMoves, type Status } from "@job-tracker/shared/funnel";
 import { StatusBadge } from "../StatusBadge";
 
 interface Props {
-  // The status we're correcting from — the backward/revival targets are derived
-  // from it (the moves the funnel forbids; forward moves live in MovePanel, so the
-  // two never overlap).
+  // Corrections expose backward/revival targets; MovePanel owns forward targets.
   status: Status;
   busy: boolean;
   onCorrect: (to: Status, reason: string) => void;
   onCancel: () => void;
 }
 
-// Correct — the deliberate override (bypasses funnel guards, logs a
-// `corrected:<status>` row). Self-contained state resets on each open; the single
-// `submit` closure is shared by the button and formKeys' Cmd+Enter.
+// Panel mount resets drafts; button and Cmd+Enter share one correction handler.
 export function CorrectPanel({ status, busy, onCorrect, onCancel }: Props) {
   const [correctTo, setCorrectTo] = useState<Status | "">("");
   const [reason, setReason] = useState("");
@@ -31,8 +27,7 @@ export function CorrectPanel({ status, busy, onCorrect, onCancel }: Props) {
       className="flex flex-col gap-2 rounded border border-amber-500/30 bg-amber-500/5 p-3"
       onKeyDown={formKeys(submit, onCancel)}
     >
-      {/* "The funnel" is a word from the codebase, not from the user's job hunt —
-          the heading and the hint both say what this does in their words instead. */}
+      {/* Describe correction in user terms. */}
       <div className="flex items-center justify-between">
         <h3 className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300/80">
           Fix incorrect status

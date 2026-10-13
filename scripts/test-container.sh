@@ -39,6 +39,8 @@ PY
 export JOB_TRACKER_HOST_PORT="$PORT"
 
 cd "$ROOT"
+python3 scripts/build-metadata.py --format shell --output "$WORK/identity.env"
+source "$WORK/identity.env"
 docker compose --project-name "$PROJECT" config -q
 timeout 300 docker compose --project-name "$PROJECT" up --build -d
 
@@ -68,6 +70,16 @@ done
 
 VERSION="$(tr -d '[:space:]' <VERSION)"
 grep -Fq "\"version\":\"$VERSION\"" "$WORK/health.json" || fail "health version differs from VERSION"
+python3 - "$WORK/health.json" "$APP_REVISION" <<'PY'
+import json, sys
+assert json.load(open(sys.argv[1]))["revision"] == sys.argv[2], "served revision mismatch"
+PY
+curl --fail --silent --show-error "$BASE_URL/version.json" >"$WORK/version.json"
+docker compose --project-name "$PROJECT" exec -T job-tracker job-tracker build-info >"$WORK/build-info.json"
+python3 - "$WORK/version.json" "$WORK/build-info.json" <<'PY'
+import json, sys
+assert json.load(open(sys.argv[1])) == json.load(open(sys.argv[2])), "installed/served identity mismatch"
+PY
 curl --fail --silent --show-error "$BASE_URL/" >"$WORK/dashboard.html"
 grep -Fq '<div id="root"></div>' "$WORK/dashboard.html" || fail "dashboard was not served"
 
@@ -81,8 +93,7 @@ done
 docker compose --project-name "$PROJECT" exec -T job-tracker test -s /data/jobtracker.db
 docker compose --project-name "$PROJECT" exec -T job-tracker test -f /state/server.lock
 
-# This stops and restarts only the disposable project. `docker compose run` has no
-# published service port, so it cannot contend with a user's :3456 development server.
+# Only this disposable project stops/restarts; maintenance runs publish no service ports.
 COMPOSE_PROJECT_NAME="$PROJECT" JOB_TRACKER_HOST_PORT="$PORT" \
   bash "$ROOT/scripts/container-backup.sh" "$BACKUP_NAME"
 docker compose --project-name "$PROJECT" run --rm --no-deps --entrypoint /bin/sh job-tracker \

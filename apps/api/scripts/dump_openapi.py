@@ -1,10 +1,4 @@
-"""Dump the FastAPI OpenAPI schema as JSON to stdout.
-
-Boots the app in-process (no server, no DB — `app.openapi()` is a pure computation
-over the route/model definitions) so the shared TypeScript API types can be
-generated from the single source of truth. Consumed by
-`packages/shared/scripts/gen-api-types.sh`, which pipes this into openapi-typescript.
-"""
+"""Print OpenAPI JSON without opening a database or server. packages/shared/scripts/gen-api-types.sh uses this contract to generate TypeScript types."""
 
 import json
 import sys

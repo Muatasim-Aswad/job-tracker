@@ -4,9 +4,6 @@ import { SHORTCUTS } from "../lib/shortcuts";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { IconButton } from "./IconButton";
 
-// The keyboard cheat-sheet, rendered from the shared SHORTCUTS list. A centered,
-// focus-trapped modal — opened by `?` or the header's keyboard icon, closed by
-// Escape, the ✕, or clicking the backdrop.
 export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, onClose);

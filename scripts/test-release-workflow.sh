@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Statically hold the C2 release boundary without creating a tag or contacting GitHub.
+# Check release boundaries without creating tags or contacting GitHub.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -86,4 +86,27 @@ for required in \
   grep -Fq "$required" "$REHEARSAL" || fail "rehearsal is missing $required."
 done
 
-printf 'release workflow contract OK\n'
+for argument in APP_REVISION APP_COMMIT_TIME APP_BUILD_TIME APP_IDENTITY_ATTESTED SOURCE_DATE_EPOCH; do
+  grep -Fq -- "--build-arg \"$argument=" "$CONTAINER_WORKFLOW" || fail "container publication omits $argument."
+  grep -Fq "$argument:" "$COMPOSE" || fail "Compose build omits $argument."
+done
+grep -Fq 'build-metadata.py --require-release' "$WORKFLOW" || fail "release workflow omits original-source attestation."
+python3 - "$WORKFLOW" <<'PY'
+import sys
+from pathlib import Path
+
+workflow = Path(sys.argv[1]).read_text()
+for heading in (
+    "Verify downloaded artifact names, contents, and checksums",
+    "Smoke-test the downloaded runtime bundle and wheel",
+):
+    block = workflow.split(f"- name: {heading}", 1)[1].split("\n      - name:", 1)[0]
+    assert "build-metadata.py --require-release --format shell" in block, heading
+    assert 'source "$RUNNER_TEMP/' in block, heading
+    assert block.index("build-metadata.py") < block.index("bash scripts/check-release-contents.sh"), heading
+print("downloaded artifacts and smokes bind to the checked-out release commit")
+PY
+grep -Fq 'build-metadata.py" --require-release' "$REHEARSAL" || fail "export rehearsal omits original-source attestation."
+grep -Fq '"APP_REVISION=$APP_REVISION"' "$REHEARSAL" || fail "export rehearsal omits revision propagation."
+grep -Fq '/version.json' "$ROOT/Dockerfile" || fail "container health must compare served identity."
+printf 'release workflow and build identity caller contract OK\n'

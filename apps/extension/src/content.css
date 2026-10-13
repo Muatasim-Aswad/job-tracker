@@ -18,6 +18,46 @@
   outline: 2px solid #1a7f5a;
   border-radius: 6px;
 }
+
+/* Easy Apply field markers remain light-DOM so they sit with their question. The
+   panel itself uses a shadow root and carries its own isolated styles. */
+.jh-ff-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 6px 0 0;
+  border: 1px solid #8c9bab;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #f3f6f8;
+  color: #38434f;
+  font:
+    600 12px/1.5 system-ui,
+    sans-serif;
+}
+.jh-ff-marker[data-state="filled"],
+.jh-ff-marker[data-state="already"],
+.jh-ff-marker[data-state="remembered"] {
+  border-color: #4f8f70;
+  background: #edf7f1;
+  color: #24583e;
+}
+.jh-ff-marker[data-state="attention"],
+.jh-ff-marker[data-state="confirmation"],
+.jh-ff-marker[data-state="differs"],
+.jh-ff-marker[data-state="failed"],
+.jh-ff-marker[data-state="error"] {
+  border-color: #9b7229;
+  background: #fff8e6;
+  color: #694b18;
+}
+.jh-ff-marker:focus-visible {
+  outline: 2px solid #0a66c2;
+  outline-offset: 2px;
+}
+.jh-ff-marker__symbol {
+  font-weight: 800;
+}
 /* Resolved (applied-or-beyond + terminals): decided, so muted while browsing —
    but a lighter dim than a manual hide, and never removed (unless remove mode). */
 [data-jh-id].jh-resolved {
@@ -32,9 +72,7 @@
 /* ── Description flag banner ───────────────────────────────────── */
 /* A ⚠ icon beside a body column: a chip row (short context-free flags) then one
    line per keyword finding, each showing the matched word in its JD context. */
-/* The top-card head: the ⚠ banner (when there's something to flag) stacked over the
-   standalone "Copy Job Description" button. The button is its own element, not part of
-   the banner — a clean posting shows just the button, with no empty warning strip. */
+/* The head stacks the optional warning banner above the independent copy button. */
 .jh-detail-head {
   display: flex;
   flex-direction: column;
@@ -74,9 +112,7 @@
   color: #33404d;
   border-color: #dce0e4;
 }
-/* Keyword matches keep the original yellow: they are the reason to stop and read, so
-   the box has to pull the eye down from the facts strip. Loud, but not the alert red —
-   they flag nothing wrong. */
+/* Yellow distinguishes requested keyword findings from red alerts. */
 .jh-banner-findings {
   display: flex;
   flex-direction: column;
@@ -157,10 +193,8 @@
   font-weight: 700;
 }
 
-/* The copy button — a standalone light chip in the head, under the banner (or alone
-   when there's no banner). Light-pinned like the action bar so it stays readable on a
-   host dark theme. Icon-only at rest so its label doesn't compete with the job content
-   on every view; the label reveals on hover/focus (and while flashing a result). */
+/* Pin the copy chip light for host-theme readability. Reveal its label only on
+   hover, focus, or feedback so it does not compete with job content. */
 .jh-banner-copy {
   flex-shrink: 0;
   display: inline-flex;
@@ -204,13 +238,8 @@
 }
 
 /* ── Action bar ────────────────────────────────────────────────── */
-/* color-scheme: our bar is always a light chip strip (white buttons; the
-   <select> shares .jh-btn). On a host's dark theme (LinkedIn's search list,
-   the SDUI jobs-tracker, a job's detail card) the surrounding subtree imposes
-   a light text/control color that our controls would inherit — turning the ☆
-   glyph and the <select> text white-on-white, invisible. Pinning the bar to a
-   light scheme with explicit dark text keeps it readable in either theme,
-   everywhere the bar is injected. */
+/* Pin a light scheme and dark text: host dark themes otherwise make our
+   white buttons and native select text unreadable. */
 /* Separators (border-top here, the insight divider below) sit on the HOST page
    background, not on our white chips — so a near-black tint vanishes on a dark
    host theme. A mid-grey with alpha reads on both light and dark backgrounds. */
@@ -239,14 +268,8 @@
   background: #f0f0f0;
 }
 
-/* ── Button groups ─────────────────────────────────────────────────────────
-   The bar reads left→right as three clusters: insight (🔁 duplicates + ⟲N prior
-   applications), the status box, then actions (star/hide/open/dismiss), with ⋯
-   trailing. Wrapping insight and action in their own flex boxes gives the dynamic
-   badges one clear home and lets a divider sit cleanly between clusters.
-   align-items: stretch so the grouped buttons still stretch to the row height and
-   match the status box / ⋯ (the bar's direct children) — a plain `center` here
-   would leave the grouped boxes shorter than the ungrouped ones. */
+/* Group insights and actions separately around status. Stretch their children
+   to match the height of status and overflow controls. */
 .jh-group {
   display: inline-flex;
   align-items: stretch;
@@ -265,7 +288,17 @@
   margin-left: 6px;
 }
 
-.jh-btn-dismiss:hover {
+/* One bulk action per LinkedIn discovery email, separated from the provider's content
+   but using the same controls as each job card. */
+.jh-email-alert-actions {
+  justify-content: center;
+  margin: 0 0 12px;
+}
+.jh-btn-open-alert.jh-error {
+  border-color: #e53e3e;
+}
+
+.jh-btn-skip:hover {
   background: #ffeaea;
   border-color: #f99;
 }
@@ -352,9 +385,7 @@ button.jh-btn svg,
 }
 
 /* ── Detail page action bar (inline in job header, no border-top) ──── */
-/* Dark-theme readability (color-scheme + text color) is handled by the base
-   .jh-actions/.jh-btn rules above — the detail bar carries the jh-actions class
-   too, so it inherits the fix; only its layout differs here. */
+/* The detail bar inherits theme guards from jh-actions; only layout differs. */
 .jh-detail-actions {
   margin: 0 8px;
   padding: 0;
@@ -478,9 +509,7 @@ button.jh-btn svg,
   font-family: -apple-system, system-ui, sans-serif;
   font-size: 13px;
   padding: 4px 0;
-  /* Pin light like .jh-menu/.jh-actions: without it a host dark theme forces the
-     bare <button>s here to a light control color, so "not a match" (no explicit
-     color of its own) rendered white-on-white and unreadable. */
+  /* Pin light controls so a host dark theme cannot produce white-on-white buttons. */
   color-scheme: light;
 }
 
@@ -550,7 +579,7 @@ button.jh-btn svg,
   flex: 1;
 }
 /* Primary line: the status (+ posting count) — what distinguishes one tracked
-   candidate from another now that the (always-identical) title is gone. */
+   candidate from another when titles match. */
 .jh-match-primary {
   font-weight: 600;
   white-space: nowrap;
@@ -564,6 +593,29 @@ button.jh-btn svg,
 }
 .jh-match-sub:empty {
   display: none;
+}
+.jh-match-title {
+  font-size: 12px;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jh-match-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 11px;
+}
+.jh-match-same {
+  color: #1a7f5a;
+}
+.jh-match-diff {
+  color: #664d03;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .jh-match-actions {
@@ -584,8 +636,7 @@ button.jh-btn svg,
 .jh-match-view:hover {
   text-decoration: underline;
 }
-/* Visited/clicked cue: the browser colors :visited on its own; jh-clicked is the
-   belt-and-braces fallback so a just-clicked link dims immediately. */
+/* jh-clicked dims links immediately while :visited supplies the browser cue. */
 .jh-match-view:visited,
 .jh-match-view.jh-clicked {
   color: #8a63d2;
@@ -597,9 +648,7 @@ button.jh-btn svg,
   border-radius: 4px;
   border: 1px solid #ccc;
   background: #fff;
-  /* Explicit dark text: a bare <button> otherwise takes the system control color,
-     which a host dark theme turns white → white-on-white on this white chip. The
-     .jh-match-link variant overrides with its own green. */
+  /* Pin dark text on white chips against host dark themes; jh-match-link overrides it. */
   color: #1d2226;
   cursor: pointer;
   font-family: inherit;

@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Regenerate packages/shared/src/api/schema.ts from the server's OpenAPI schema.
-#
-# FastAPI is the source of truth. `--check` reports drift instead of writing, so
-# the gates that only need an answer never mutate a tracked file — a pre-push
-# hook that rewrote this one would strand the fix outside the commits being
-# pushed.
+# Generate API types from FastAPI. --check reports drift without rewriting tracked
+# files, keeping push checks from leaving fixes outside the commits being pushed.
 set -euo pipefail
 
 CHECK=0
@@ -21,13 +17,10 @@ SCHEMA="$(mktemp)"
 GENERATED="$(mktemp)"
 trap 'rm -f "$SCHEMA" "$GENERATED"' EXIT
 
-# Boot the app in-process and dump app.openapi() (pure — no DB, no HTTP server).
-# Run as a module from apps/api/ so the app package is importable (matches pytest's
-# pythonpath=["."]).
+# Module execution makes app importable; OpenAPI generation opens no database or server.
 (cd "$ROOT/apps/api" && uv run python -m scripts.dump_openapi) >"$SCHEMA"
 
-# --alphabetize keeps the output stable across runs regardless of schema traversal
-# order, so the drift diff only ever reflects a real API change.
+# Stable ordering prevents schema traversal order from creating drift.
 "$ROOT/packages/shared/node_modules/.bin/openapi-typescript" "$SCHEMA" \
   --output "$GENERATED" \
   --alphabetize

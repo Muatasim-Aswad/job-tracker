@@ -1,0 +1,224 @@
+import { createPortal } from "react-dom";
+import { KnowledgeBadge } from "./KnowledgeBadge";
+import { ListContinuation } from "./ListContinuation";
+import { FilterPopover } from "../components/FilterPopover";
+import { useMemo, useState } from "react";
+import { usePersistentBoolean } from "../lib/persist";
+import { usePersistentChoice } from "../lib/usePersistentChoice";
+import { SortChoiceMenu } from "../components/SortMenu";
+import { Plus } from "lucide-react";
+import { CollectionSearch, CollectionToolbar } from "./CollectionToolbar";
+import { IconButton } from "../components/IconButton";
+import { useFormFillAnswers } from "../hooks";
+import { POLICY_LABEL, VALUE_KIND_LABEL, type AnswerListItem, type AnswerValueKind } from "./model";
+
+const ORDER_OPTIONS = [
+  { value: "updated_at", label: "Most recent" },
+  { value: "mapping_count", label: "Most matched questions" },
+  { value: "label", label: "A–Z" },
+] as const;
+
+interface Props {
+  toolbarHost?: HTMLElement | null;
+  actionHost?: HTMLElement | null;
+  onOpen: (answerId: string) => void;
+  onCreate: () => void;
+}
+
+export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props) {
+  const [sort, setSort] = usePersistentChoice(
+    "jt.formFill.answerOrder",
+    ORDER_OPTIONS.map((option) => option.value),
+    "updated_at",
+  );
+  const [q, setQ] = useState("");
+  const [status, setStatus] = usePersistentChoice(
+    "jt.formFill.answerStatus",
+    ["", "active", "disabled"],
+    "active",
+  );
+  const [valueKind, setValueKind] = usePersistentChoice<"" | AnswerValueKind>(
+    "jt.formFill.answerType",
+    ["", ...(Object.keys(VALUE_KIND_LABEL) as AnswerValueKind[])],
+    "",
+  );
+  const [showDetails, setShowDetails] = usePersistentBoolean(
+    "jt.formFill.showAnswerDetails",
+    false,
+  );
+  const filtersApplied = status !== "active" || !!valueKind || showDetails;
+  const clearFilters = () => {
+    setQ("");
+    setStatus("active");
+    setValueKind("");
+    setShowDetails(false);
+  };
+  const filters = useMemo(
+    () => ({
+      q: q || undefined,
+      status: status || undefined,
+      value_kind: valueKind || undefined,
+      sort,
+      limit: 30,
+    }),
+    [q, status, valueKind, sort],
+  );
+  const query = useFormFillAnswers(filters);
+  const items = query.data?.pages.flatMap((page) => page.items) ?? [];
+  const filteredEmpty =
+    !query.isLoading && items.length === 0 && (!!q || status !== "active" || !!valueKind);
+
+  const addButton = (
+    <IconButton
+      type="button"
+      label="New answer"
+      size="field"
+      onClick={onCreate}
+      className="shrink-0 text-ink-muted hover:text-ink"
+    >
+      <Plus size={16} aria-hidden="true" />
+    </IconButton>
+  );
+  return (
+    <section aria-label="Saved answers" className="space-y-4">
+      {actionHost && createPortal(addButton, actionHost)}
+      <CollectionToolbar host={toolbarHost}>
+        <CollectionSearch
+          label="Search saved answers"
+          placeholder="Search saved answers"
+          value={q}
+          onChange={setQ}
+          count={query.isLoading || (query.isError && !query.data) ? null : items.length}
+          loading={query.isLoading}
+          hasNextPage={query.hasNextPage}
+          itemName="answer"
+          active={filtersApplied}
+          onClear={clearFilters}
+        />
+        <FilterPopover applied={filtersApplied} label="Saved answer filters">
+          <label className="block text-xs text-ink-muted">
+            Status
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as typeof status)}
+              className="mt-1 w-full rounded border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
+            >
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="disabled">Paused</option>
+            </select>
+          </label>
+          <label className="block text-xs text-ink-muted">
+            Value type
+            <select
+              value={valueKind}
+              onChange={(event) => setValueKind(event.target.value as typeof valueKind)}
+              className="mt-1 w-full rounded border border-line bg-surface px-3 py-2 text-sm font-normal text-ink"
+            >
+              <option value="">All types</option>
+              {Object.entries(VALUE_KIND_LABEL).map(([kind, label]) => (
+                <option key={kind} value={kind}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="space-y-3 border-t border-line pt-3">
+            <p className="text-xs text-ink-muted">Display</p>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showDetails}
+                onChange={(event) => setShowDetails(event.target.checked)}
+                className="accent-accent"
+              />
+              Show details
+            </label>
+          </div>
+        </FilterPopover>
+        <SortChoiceMenu
+          value={sort}
+          onChange={setSort}
+          options={ORDER_OPTIONS}
+          menuLabel="Order saved answers"
+          actionLabel="Order"
+          size="field"
+        />
+        {!actionHost && addButton}
+      </CollectionToolbar>
+      {query.isLoading ? (
+        <p role="status" className="text-sm text-ink-muted">
+          Loading Answers…
+        </p>
+      ) : query.isError && !query.data ? (
+        <div role="alert" className="space-y-2 text-sm text-red-700 dark:text-red-300">
+          <p>Couldn’t load Answers.</p>
+          <button
+            type="button"
+            onClick={() => void query.refetch()}
+            className="font-medium underline"
+          >
+            Retry
+          </button>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-line p-8 text-center">
+          <p className="font-medium text-ink">
+            {filteredEmpty ? "No Answers match these filters." : "No Answers yet."}
+          </p>
+          <p className="mt-1 text-sm text-ink-muted">
+            {filteredEmpty
+              ? "Clear a filter to see more."
+              : "Create one here or promote a remembered value from Needs review."}
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-line bg-surface">
+          <ul className="divide-y divide-line">
+            {items.map((answer: AnswerListItem) => (
+              <li key={answer.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpen(answer.id)}
+                  className={`grid w-full gap-2 px-4 py-3 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4 ${answer.status === "disabled" ? "bg-sunken border-l-4 border-line-strong" : ""}`}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-base font-medium leading-6 text-ink">
+                      {answer.label}
+                    </span>
+                    {showDetails && answer.description && (
+                      <span className="mt-0.5 line-clamp-1 block text-prose text-ink-muted">
+                        {answer.description}
+                      </span>
+                    )}
+                    {showDetails && (
+                      <span className="mt-1 block text-xs text-ink-muted">
+                        {VALUE_KIND_LABEL[answer.value_kind]} • {answer.mapping_count}{" "}
+                        {answer.mapping_count === 1 ? "question" : "questions"}
+                      </span>
+                    )}
+                  </span>
+                  {showDetails && (
+                    <KnowledgeBadge>
+                      {answer.status === "disabled" ? "Paused" : POLICY_LABEL[answer.fill_policy]}
+                    </KnowledgeBadge>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {items.length > 0 && (
+        <ListContinuation
+          hasMore={query.hasNextPage}
+          loading={query.isFetchingNextPage}
+          failed={query.isFetchNextPageError}
+          pageKey={query.data?.pages.at(-1)?.next_cursor ?? ""}
+          onLoad={() => void query.fetchNextPage()}
+          onApproach={() => void query.prefetchNextPage()}
+        />
+      )}
+    </section>
+  );
+}

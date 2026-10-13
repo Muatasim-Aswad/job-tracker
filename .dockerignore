@@ -1,5 +1,4 @@
-# Default-deny the Docker build context. Only public application sources and the
-# metadata required by the two build stages are restored below.
+# Default-deny the context; allow only public build inputs.
 *
 !Dockerfile
 !.dockerignore
@@ -10,6 +9,9 @@
 !pnpm-workspace.yaml
 !tsconfig.base.json
 !vite.config.ts
+!scripts/
+!scripts/build-metadata.*
+!scripts/third-party-notices.*
 !apps/
 !apps/api/
 !apps/api/README.md

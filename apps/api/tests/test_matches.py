@@ -484,3 +484,103 @@ def test_link_job_unknown_job_is_404(client: TestClient) -> None:
         json={"platform": "linkedin", "platform_id": "222", "other_job_id": "nope"},
     )
     assert resp.status_code == 404, resp.text
+
+
+_APPLY = "https://jobs.example.com/apply?jobId=7"
+
+
+def test_shared_apply_url_surfaces_a_reworded_title(client: TestClient) -> None:
+    original = _listing(
+        client,
+        "linkedin",
+        "111",
+        title="Backend Engineer",
+        company="Example Company",
+        meta={"apply_url": _APPLY},
+    )
+    _listing(
+        client,
+        "linkedin",
+        "222",
+        title="Backend Engineer II",
+        company="Example Company",
+        meta={"apply_url": f"{_APPLY}&utm_source=linkedin"},
+    )
+
+    found = _matches(client, "222", "Backend Engineer II", "Example Company")
+
+    assert [m["job_id"] for m in found] == [original["job_id"]]
+    assert found[0]["insights"]["apply_url"] == {"is_same": True}
+
+
+def test_shared_apply_url_still_requires_the_same_company(client: TestClient) -> None:
+    _listing(
+        client,
+        "linkedin",
+        "111",
+        title="Backend Engineer",
+        company="Other",
+        meta={"apply_url": _APPLY},
+    )
+    _listing(
+        client,
+        "linkedin",
+        "222",
+        title="Platform Engineer",
+        company="Example Company",
+        meta={"apply_url": _APPLY},
+    )
+
+    assert _matches(client, "222", "Platform Engineer", "Example Company") == []
+
+
+def test_different_evidence_never_excludes_a_title_match(client: TestClient) -> None:
+    original = _listing(
+        client,
+        "linkedin",
+        "111",
+        title="Backend Engineer",
+        company="Example Company",
+        meta={"apply_url": _APPLY, "location": "Utrecht"},
+    )
+    _listing(
+        client,
+        "linkedin",
+        "222",
+        title="Backend Engineer",
+        company="Example Company",
+        meta={"apply_url": "https://jobs.example.com/apply?jobId=8", "location": "Amsterdam"},
+    )
+
+    found = _matches(client, "222", "Backend Engineer", "Example Company")
+
+    assert [m["job_id"] for m in found] == [original["job_id"]]
+    insights = found[0]["insights"]
+    assert insights["apply_url"] == {
+        "is_same": False,
+        "current": "https://jobs.example.com/apply?jobId=8",
+        "candidate": _APPLY,
+    }
+    assert insights["location"] == {
+        "is_same": False,
+        "current": "Amsterdam",
+        "candidate": "Utrecht",
+    }
+    assert insights["salary"] is None
+    assert found[0]["timing"] == {"overlapping": True, "gap_days": None}
+
+
+def test_unstored_viewed_listing_has_no_evidence(client: TestClient) -> None:
+    _listing(
+        client,
+        "linkedin",
+        "111",
+        title="Backend Engineer",
+        company="Example Company",
+        meta={"location": "Utrecht"},
+    )
+
+    found = _matches(client, "999", "Backend Engineer", "Example Company")
+
+    assert found[0]["insights"]["location"] is None
+    assert found[0]["timing"] is None

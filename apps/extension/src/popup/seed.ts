@@ -1,10 +1,16 @@
 import { companyFromSubject, fallbackSeedFromSubject, rejectedHead } from "./subject.js";
 
-// Seed off-platform search from URL structure or a Gmail tab title without reading
+// Seed search from URL structure or a Gmail / LinkedIn job tab title without reading
 // page content. The rule allows opt-in diagnostics to evaluate extraction quality.
 export interface SeedResult {
   value: string;
-  rule: "domain-label" | "ats-path" | "gmail-subject" | "gmail-subject-fallback" | "none";
+  rule:
+    | "domain-label"
+    | "ats-path"
+    | "gmail-subject"
+    | "gmail-subject-fallback"
+    | "linkedin-title"
+    | "none";
 }
 const NO_SEED: SeedResult = { value: "", rule: "none" };
 
@@ -78,9 +84,7 @@ const ATS_HOSTS = new Set([
   "pinpointhq",
 ]);
 
-// Hosts the content script already handles, read from the manifest's match patterns so
-// this can't drift. There the popup's off-platform premise doesn't hold — the injected
-// UI owns the job — so we never seed.
+// Derive supported hosts from the manifest; their domains cannot seed company search.
 const SUPPORTED_BASES = (() => {
   const bases = new Set<string>();
   for (const entry of chrome.runtime.getManifest().content_scripts || []) {
@@ -94,6 +98,20 @@ const SUPPORTED_BASES = (() => {
 const isSupportedHost = (host: string) =>
   SUPPORTED_BASES.some((base) => host === base || host.endsWith(`.${base}`));
 
+// A LinkedIn job page is titled "[(N) ]Role | Company | LinkedIn". Search pages carry
+// the query instead, so only /jobs/view/ titles name a job. The role may itself contain
+// " | ", so the company is the last segment before the site name.
+const isLinkedInJobView = (host: string, path: string) =>
+  (host === "linkedin.com" || host.endsWith(".linkedin.com")) && path.startsWith("/jobs/view/");
+function companyFromLinkedInTitle(title: string): string {
+  const segments = title
+    .replace(/^\(\d+\+?\)\s*/, "")
+    .split(/\s+\|\s+/)
+    .map((s) => s.trim());
+  if (segments.length < 3 || segments.at(-1)?.toLowerCase() !== "linkedin") return "";
+  return segments.at(-2) ?? "";
+}
+
 export function seedFromTab(tab: chrome.tabs.Tab | undefined): SeedResult {
   if (!tab || !tab.url) return NO_SEED;
   let url;
@@ -102,9 +120,7 @@ export function seedFromTab(tab: chrome.tabs.Tab | undefined): SeedResult {
   } catch {
     return NO_SEED;
   }
-  // Only real web pages carry a company signal. chrome://, about:, file: and friends
-  // yield single-label "hosts" like "extensions"/"newtab" that sail through every
-  // guard below and seed junk.
+  // Reject non-web schemes whose single-label hosts would otherwise seed junk.
   if (url.protocol !== "http:" && url.protocol !== "https:") return NO_SEED;
   const host = url.hostname.toLowerCase();
   if (host === "localhost" || /^[\d.]+$/.test(host)) return NO_SEED;
@@ -117,6 +133,10 @@ export function seedFromTab(tab: chrome.tabs.Tab | undefined): SeedResult {
     const subject = fallbackSeedFromSubject(tab.title || "");
     if (!subject || rejectedHead(subject)) return NO_SEED;
     return { value: firstWord(subject), rule: "gmail-subject-fallback" };
+  }
+  if (isLinkedInJobView(host, url.pathname)) {
+    const company = companyFromLinkedInTitle(tab.title || "");
+    return company ? { value: firstWord(company), rule: "linkedin-title" } : NO_SEED;
   }
   if (isSupportedHost(host)) return NO_SEED;
   const parts = host.split(".").filter(Boolean);

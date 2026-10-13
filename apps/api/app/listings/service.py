@@ -1,14 +1,11 @@
-"""Listing upsert, relinking, and the shared job-linking primitive.
+"""Listing upsert and relinking. POST and PATCH share link_listing_to_job; natural-key capture refreshes listing observations independently of canonical job identity."""
 
-`link_listing_to_job` is the *only* place link logic lives; both POST /listings
-and PATCH /listings/{id} route through it. Listing upsert, keyed by
-(platform, platform_id), and job linking stay fully independent: re-opening a
-listing refreshes its scraped fields and never touches job identity.
-"""
-
+from app.application_workflows.repository import ApplicationWorkflowRepository
 from app.core.db import Conn
 from app.core.enums import (
+    APPLIED_EVIDENCE,
     MERGE_IMPORTANCE,
+    ApplyType,
     Status,
     correction_event,
     parse_correction,
@@ -16,7 +13,7 @@ from app.core.enums import (
     target_status,
 )
 from app.core.enums import Event as EventType
-from app.core.errors import NotFoundError
+from app.core.errors import ConflictError, NotFoundError
 from app.core.hashing import stable_hash
 from app.core.ids import new_job_id, new_listing_id
 from app.core.text import normalize_company, normalize_title
@@ -25,11 +22,56 @@ from app.documents.repository import DocumentRepository
 from app.events.automation import is_effective_status_event
 from app.events.projection import reproject_status
 from app.events.repository import EventRepository
+from app.form_fill.repository import FormFillRepository
 from app.jobs.models import Job
 from app.jobs.repository import JobRepository
 from app.listings.automatic_closure import AutomaticClosure
 from app.listings.repository import ListingRepository
 from app.listings.schemas import ListingCreate, ListingUpdate, ListingUpsertResult
+
+
+def _observed(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, dict)):
+        return bool(value)
+    return value is not None
+
+
+def _date_rank(precision: object) -> int:
+    return 2 if precision == "exact" else 1 if precision == "estimated" else 0
+
+
+def _merge_capture_meta(
+    existing: dict[str, object], *captures: dict[str, object]
+) -> dict[str, object]:
+    """Merge observed facts; missing values are not evidence of removal."""
+    meta = dict(existing)
+    date_keys = ("posted_at", "posted_precision", "posted_age")
+    for capture in captures:
+        updates = {key: value for key, value in capture.items() if _observed(value)}
+        has_date = _observed(updates.get("posted_at"))
+        preserve_date = _observed(meta.get("posted_at")) and (
+            not has_date
+            or _date_rank(meta.get("posted_precision"))
+            > _date_rank(updates.get("posted_precision"))
+        )
+        if preserve_date:
+            for key in date_keys:
+                updates.pop(key, None)
+        elif has_date:
+            # A replacement date owns its precision and raw age as one group.
+            for key in date_keys:
+                meta.pop(key, None)
+        for key, value in updates.items():
+            if isinstance(value, dict):
+                old = meta.get(key)
+                merged = _merge_capture_meta(old if isinstance(old, dict) else {}, value)
+                if merged:
+                    meta[key] = merged
+            else:
+                meta[key] = value
+    return meta
 
 
 def _pick_survivor(a: Job, b: Job) -> tuple[Job, Job]:
@@ -49,6 +91,8 @@ class ListingService:
         self.jobs = JobRepository(conn)
         self.events = EventRepository(conn)
         self.documents = DocumentRepository(conn)
+        self.application_workflows = ApplicationWorkflowRepository(conn)
+        self.form_fill = FormFillRepository(conn)
         self.automatic_closure = AutomaticClosure(self.listings, self.jobs, self.events)
 
     # --- job identity -----------------------------------------------------
@@ -104,11 +148,17 @@ class ListingService:
         listing = self.listings.get(listing_id_)
         if listing is None:
             raise NotFoundError(f"listing {listing_id_} not found")
-        if self.jobs.get(job_id) is None:
-            raise NotFoundError(f"job {job_id} not found")
+        requested_job_id = job_id
+        job_id = self.jobs.resolve_id(job_id) or ""
+        if not job_id:
+            raise NotFoundError(f"job {requested_job_id} not found")
         source_job_id = listing.job_id
         if source_job_id == job_id:
             return
+        source_will_dissolve = len(self.listings.list_for_job(source_job_id)) == 1
+        self._guard_workflow_relink(
+            source_job_id, job_id, listing_id_, source_will_dissolve=source_will_dissolve
+        )
         receiver = self.jobs.get(job_id)
         assert receiver is not None
         receiver_before = receiver.status
@@ -117,11 +167,14 @@ class ListingService:
         # Move events known to have come from this listing, even if the source job
         # keeps other listings.
         self.events.move_by_listing(listing_id_, source_job_id, job_id)
+        self.form_fill.move_listing_job_context(listing_id_, job_id)
         if not self.listings.job_has_listings(source_job_id):
             # The source job is empty, so dissolve it while preserving its remaining
             # unattributed events and documents rather than losing them.
             self.events.move_all(source_job_id, job_id)
             self.documents.move_all(source_job_id, job_id)
+            self.form_fill.move_job_context(source_job_id, job_id)
+            self.jobs.alias_merged_id(source_job_id, job_id, utc_now())
             self.jobs.delete(source_job_id)
         else:
             # Removing a listing's events may expose an older status setter on a
@@ -134,6 +187,9 @@ class ListingService:
         self.automatic_closure.reconcile(job_id, allow_close=True)
         if not receiver_was_automatic:
             self._restore_if_combination_regressed(job_id, receiver_before, source="relink")
+        self._discard_ineligible_workflow(job_id)
+        if self.jobs.get(source_job_id) is not None:
+            self._discard_ineligible_workflow(source_job_id)
 
     # --- false-match (mutual "not the same job") --------------------------
 
@@ -143,8 +199,10 @@ class ListingService:
         Materializes an untracked current listing. Stale exclusions are harmless
         because match reads filter them to live jobs.
         """
-        if self.jobs.get(other_job_id) is None:
-            raise NotFoundError(f"job {other_job_id} not found")
+        requested_job_id = other_job_id
+        other_job_id = self.jobs.resolve_id(other_job_id) or ""
+        if not other_job_id:
+            raise NotFoundError(f"job {requested_job_id} not found")
         job_id, _ = self.ensure_listing(platform, platform_id, via="false_match")
         if job_id == other_job_id:
             return  # a listing can't be "not the same job" as its own job
@@ -168,19 +226,25 @@ class ListingService:
         self, platform: str, platform_id: str, other_job_id: str
     ) -> ListingUpsertResult:
         """Merge both complete jobs and return the current listing's new address."""
-        other = self.jobs.get(other_job_id)
+        requested_job_id = other_job_id
+        other_job_id = self.jobs.resolve_id(other_job_id) or ""
+        other = self.jobs.get(other_job_id) if other_job_id else None
         if other is None:
-            raise NotFoundError(f"job {other_job_id} not found")
+            raise NotFoundError(f"job {requested_job_id} not found")
         current_job_id, _ = self.ensure_listing(platform, platform_id, via="link")
+        merged_from: list[str] = []
         if current_job_id != other_job_id:
             current = self.jobs.get(current_job_id)
             assert current is not None
             survivor, loser = _pick_survivor(current, other)
             self._merge_jobs(loser.id, survivor.id)
-        return self.lookup(platform, platform_id)
+            merged_from.append(loser.id)
+        result = self.lookup(platform, platform_id)
+        return result.model_copy(update={"merged_from": merged_from})
 
     def _merge_jobs(self, loser_id: str, survivor_id: str) -> None:
         """Move all dependent records to the survivor, then delete the empty job."""
+        self._guard_workflow_merge(loser_id, survivor_id)
         now = utc_now()
         survivor = self.jobs.get(survivor_id)
         assert survivor is not None
@@ -190,12 +254,49 @@ class ListingService:
             self.listings.set_job(listing.id, survivor_id, now)
         self.events.move_all(loser_id, survivor_id)
         self.documents.move_all(loser_id, survivor_id)
+        self.form_fill.move_job_context(loser_id, survivor_id)
         self._merge_false_matches(loser_id, survivor_id)
+        self.jobs.alias_merged_id(loser_id, survivor_id, now)
         self.jobs.delete(loser_id)
         reproject_status(survivor_id, self.events, self.jobs)
         self.automatic_closure.reconcile(survivor_id, allow_close=True)
         if not before_was_automatic:
             self._restore_if_combination_regressed(survivor_id, before, source="merge")
+        self._discard_ineligible_workflow(survivor_id)
+
+    def _guard_workflow_relink(
+        self, source_job_id: str, target_job_id: str, listing_id: str, *, source_will_dissolve: bool
+    ) -> None:
+        """Refuse a relink that would collapse two singular workflow records."""
+        source = self.application_workflows.get_for_job(source_job_id)
+        target = self.application_workflows.get_for_job(target_job_id)
+        if source is None or target is None:
+            return
+        submitted = self.events.get(source.submitted_event_id)
+        moves = source_will_dissolve or (
+            submitted is not None and submitted.listing_id == listing_id
+        )
+        if moves:
+            raise ConflictError(
+                "application_workflow_conflict",
+                {"source": source.model_dump(), "target": target.model_dump()},
+            )
+
+    def _guard_workflow_merge(self, loser_id: str, survivor_id: str) -> None:
+        """A merge cannot silently choose between two recorded workflows."""
+        loser = self.application_workflows.get_for_job(loser_id)
+        survivor = self.application_workflows.get_for_job(survivor_id)
+        if loser is not None and survivor is not None:
+            raise ConflictError(
+                "application_workflow_conflict",
+                {"source": loser.model_dump(), "target": survivor.model_dump()},
+            )
+
+    def _discard_ineligible_workflow(self, job_id: str) -> None:
+        """Apply workflow lifecycle rules after merge/relink status settles."""
+        job = self.jobs.get(job_id)
+        if job is not None and job.status not in APPLIED_EVIDENCE:
+            self.application_workflows.delete_for_job(job_id)
 
     def _restore_if_combination_regressed(
         self, survivor_id: str, before: str, *, source: str
@@ -267,6 +368,8 @@ class ListingService:
 
     def upsert(self, data: ListingCreate) -> ListingUpsertResult:
         existing = self.listings.get_by_platform(data.platform, data.platform_id)
+        title = data.title if _observed(data.title) else None
+        company = data.company if _observed(data.company) else None
         newly_closed = data.closed_at is not None and (
             existing is None or existing.closed_at is None
         )
@@ -274,26 +377,36 @@ class ListingService:
         if existing:
             self.listings.update_fields(
                 existing.id,
-                self._scraped_fields(data, captured_at=existing.captured_at or now),
+                self._scraped_fields(
+                    data,
+                    captured_at=existing.captured_at or now,
+                    existing_meta=existing.meta,
+                    existing_apply_type=existing.apply_type,
+                ),
                 now,
             )
-            self._fill_stub_job(existing.job_id, data.title, data.company)
+            self._fill_stub_job(existing.job_id, title, company)
             if data.job_id:
                 self.link_listing_to_job(existing.id, data.job_id)
             lid = existing.id
         else:
-            job_id = data.job_id or self._create_job(data.title, data.company, via=data.via)
+            if data.job_id is not None:
+                job_id = self.jobs.resolve_id(data.job_id)
+                if job_id is None:
+                    raise NotFoundError(f"job {data.job_id} not found")
+            else:
+                job_id = self._create_job(title, company, via=data.via)
             lid = new_listing_id()
             self.listings.insert(
                 lid,
                 job_id,
                 data.platform,
                 data.platform_id,
-                url=data.url,
-                title=data.title,
-                company=data.company,
+                url=data.url if _observed(data.url) else None,
+                title=title,
+                company=company,
                 apply_type=data.apply_type.value if data.apply_type else None,
-                meta=data.meta or None,
+                meta=_merge_capture_meta({}, data.meta, data.meta_patch) or None,
                 captured_at=now,
                 updated_at=now,
             )
@@ -321,10 +434,13 @@ class ListingService:
             raise NotFoundError(f"listing {listing_id_} not found")
         job_id = listing.job_id
         self.events.clear_listing(listing_id_)
+        self.form_fill.clear_listing_context(listing_id_)
         self.listings.delete(listing_id_)
         if not self.listings.job_has_listings(job_id):
+            self.application_workflows.delete_for_job(job_id)
             self.events.delete_for_job(job_id)
             self.documents.delete_for_job(job_id)
+            self.form_fill.clear_job_context(job_id)
             self.jobs.delete(job_id)
         else:
             self.automatic_closure.reconcile(job_id, allow_close=True)
@@ -378,18 +494,26 @@ class ListingService:
     # --- field helpers ----------------------------------------------------
 
     @staticmethod
-    def _scraped_fields(data: ListingCreate, captured_at: str) -> dict[str, object]:
+    def _scraped_fields(
+        data: ListingCreate,
+        captured_at: str,
+        existing_meta: dict[str, object],
+        existing_apply_type: str | None,
+    ) -> dict[str, object]:
         # Only overwrite columns the caller actually provided, so a partial
         # recapture never wipes existing scraped values.
         fields: dict[str, object] = {"captured_at": captured_at}
         for col in ("url", "title", "company"):
             value = getattr(data, col)
-            if value is not None:
+            if _observed(value):
                 fields[col] = value
-        if data.apply_type is not None:
+        if data.apply_type is not None and not (
+            data.apply_type == ApplyType.UNKNOWN
+            and existing_apply_type in (ApplyType.EASY_APPLY, ApplyType.EXTERNAL)
+        ):
             fields["apply_type"] = data.apply_type.value
-        if data.meta:
-            fields["meta"] = data.meta
+        if data.meta or data.meta_patch:
+            fields["meta"] = _merge_capture_meta(existing_meta, data.meta, data.meta_patch)
         return fields
 
     @staticmethod

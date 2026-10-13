@@ -66,6 +66,7 @@ if [[ -n "${UV_NO_INDEX:-}" ]]; then install_options+=(--no-index); fi
   [[ "$("${tool_env[@]}" "$BIN_DIR/job-tracker" version)" == "$VERSION" ]] ||
     fail "installed CLI version disagrees with the wheel."
   "${tool_env[@]}" "$BIN_DIR/job-tracker" paths >"$WORK/paths.txt"
+  "${tool_env[@]}" "$BIN_DIR/job-tracker" build-info >"$WORK/build-info.json"
   grep -Fq "application: $TOOL_DIR/" "$WORK/paths.txt" || fail "wheel paths are not installed resources."
 )
 
@@ -110,6 +111,15 @@ stop() {
 
 start
 grep -Fq "\"version\":\"$VERSION\"" "$WORK/health.json" || fail "health version disagrees."
+curl --fail --silent "http://127.0.0.1:$PORT/version.json" >"$WORK/version.json"
+python3 - "$WORK/build-info.json" "$WORK/version.json" "$WORK/health.json" <<'PY'
+import json, os, sys
+expected = json.load(open(sys.argv[1]))
+assert json.load(open(sys.argv[2])) == expected, "wheel installed/served identity mismatch"
+assert json.load(open(sys.argv[3]))["revision"] == expected["revision"], "health revision mismatch"
+if os.environ.get("APP_IDENTITY_ATTESTED") == "1":
+    assert expected["revision"] == os.environ["APP_REVISION"], "deployed source revision mismatch"
+PY
 curl --fail --silent "http://127.0.0.1:$PORT/" >"$WORK/dashboard.html"
 grep -Fq '<div id="root"></div>' "$WORK/dashboard.html" || fail "wheel dashboard was not served."
 stop

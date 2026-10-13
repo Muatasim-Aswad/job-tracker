@@ -62,7 +62,11 @@ def test_generated_wheel_has_canonical_metadata_and_runtime_resources(tmp_path: 
     release_dir = tmp_path / "release"
     environment = os.environ.copy()
     environment.update(
-        {"JOB_TRACKER_RELEASE_DIR": str(release_dir), "UV_CACHE_DIR": str(tmp_path / "uv-cache")}
+        {
+            "JOB_TRACKER_RELEASE_DIR": str(release_dir),
+            "UV_CACHE_DIR": str(tmp_path / "uv-cache"),
+            "UV_PROJECT_ENVIRONMENT": str(tmp_path / "fresh-build-environment"),
+        }
     )
     subprocess.run(
         ["bash", str(ROOT / "scripts/build-wheel.sh")],
@@ -79,6 +83,18 @@ def test_generated_wheel_has_canonical_metadata_and_runtime_resources(tmp_path: 
         metadata = archive.read(f"job_tracker-{VERSION}.dist-info/METADATA").decode()
         assert "app/core/schema.sql" in names
         assert "app/resources/VERSION" in names
+        assert "app/resources/BUILD_INFO.json" in names
+        assert "app/resources/THIRD_PARTY_NOTICES.python.txt" in names
+        assert "app/resources/THIRD_PARTY_INVENTORY.python.json" in names
+        for suffix in ("", ".sw"):
+            notice = archive.read(
+                f"app/resources/apps/web/dist/THIRD_PARTY_NOTICES{suffix}.txt"
+            ).decode()
+            assert "Permission" in notice
+        assert (
+            "Cole Bemis"
+            in archive.read("app/resources/apps/web/dist/THIRD_PARTY_NOTICES.txt").decode()
+        )
         assert "app/resources/apps/web/dist/index.html" in names
         assert f"job_tracker-{VERSION}.dist-info/licenses/LICENSE" in names
         assert archive.read("app/resources/VERSION").decode().strip() == VERSION
@@ -108,3 +124,19 @@ def test_generated_wheel_has_canonical_metadata_and_runtime_resources(tmp_path: 
     assert str(extracted / "app/core/schema.sql") in probe.stdout
     assert str(extracted / "app/resources/apps/web/dist") in probe.stdout
     assert str(ROOT) not in probe.stdout
+    import json
+
+    info = subprocess.run(
+        [sys.executable, "-c", "from app.cli import main; raise SystemExit(main(['build-info']))"],
+        cwd=tmp_path,
+        env={
+            "PATH": "",
+            "HOME": str(tmp_path / "home"),
+            "PYTHONPATH": str(extracted),
+            "JOB_TRACKER_PROFILE": "packaged",
+        },
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    assert json.loads(info.stdout)["version"] == VERSION

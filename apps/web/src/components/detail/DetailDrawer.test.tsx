@@ -1,8 +1,8 @@
 // Dialog behavior, settled mutation feedback, and status presentation.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { JobDetail } from "@job-tracker/shared/api";
+import type { Attention, JobDetail, JobMatch, JobSummary } from "@job-tracker/shared/api";
 import { dismissToast, getToasts } from "../../lib/toast";
 import { DetailDrawer } from "./DetailDrawer";
 
@@ -17,6 +17,8 @@ vi.mock("../../api/client", () => ({
     revertStatus: vi.fn(() => new Promise(() => {})),
     metaVocabulary: vi.fn(() => Promise.resolve({ keys: [] })),
     noteTitles: vi.fn(() => Promise.resolve([])),
+    listJobs: vi.fn(() => Promise.resolve([])),
+    jobMatches: vi.fn(() => Promise.resolve([])),
   },
 }));
 
@@ -24,8 +26,7 @@ import { api } from "../../api/client";
 
 const mockedApi = vi.mocked(api);
 
-// A promise the test resolves by hand, so "did it close on click or on success?"
-// is answerable: between `mutate` and `resolve` the write is in flight.
+// Control completion to distinguish click-time closure from settled-write closure.
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason: unknown) => void;
@@ -69,15 +70,14 @@ function makeJob(over: Partial<JobDetail> = {}): JobDetail {
         meta: {},
       },
     ],
-    // Only a `created` event: the timeline would otherwise render the status label
-    // too, and the doubling test below counts how often the status is named.
+    // Avoid a second timeline status label so the assertion counts the summary alone.
     events: [{ id: 1, job_id: "job-1", listing_id: "l1", event: "created", ts: TWO_DAYS_AGO }],
     documents: [],
     ...over,
   } as unknown as JobDetail;
 }
 
-async function show(job: JobDetail = makeJob()) {
+async function show(job: JobDetail = makeJob(), attention: Attention | null = null) {
   mockedApi.getJob.mockResolvedValue(job);
   const onClose = vi.fn();
   const client = new QueryClient({
@@ -86,8 +86,8 @@ async function show(job: JobDetail = makeJob()) {
   const view = render(
     <QueryClientProvider client={client}>
       <DetailDrawer
-        jobId="job-1"
-        attention={null}
+        jobId={job.id}
+        attention={attention}
         onClose={onClose}
         onEvent={vi.fn()}
         onNavigate={vi.fn()}
@@ -101,6 +101,11 @@ async function show(job: JobDetail = makeJob()) {
 const writeText = vi.fn<(text: string) => Promise<void>>();
 
 beforeEach(() => {
+  const storage = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  });
   vi.clearAllMocks();
   writeText.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {
@@ -111,12 +116,12 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   for (const t of getToasts()) dismissToast(t.id);
 });
 
 describe("DetailDrawer — leaving the drawer", () => {
-  // Esc and the backdrop both worked, and neither is visible; a touch user has no
-  // Esc key at all.
+  // Touch users need a visible close action.
   it("closes from a labelled Close button", async () => {
     const { onClose } = await show();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -167,6 +172,65 @@ describe("DetailDrawer — the page behind it", () => {
     const header = screen.getByRole("heading", { name: "Backend Engineer" }).closest("header")!;
     expect(header.className).toContain("sticky");
     expect(header.className).toContain("top-0");
+  });
+});
+
+describe("DetailDrawer — remembered sections", () => {
+  it("starts expanded and remembers independent section choices across jobs and remounts", async () => {
+    const { unmount } = await show();
+    for (const title of ["Listings", "Custom fields", "Documents", "Timeline"]) {
+      expect(
+        screen.getByRole("button", { name: `Collapse ${title}` }).getAttribute("aria-expanded"),
+      ).toBe("true");
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Listings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Documents" }));
+    expect(screen.queryByRole("button", { name: "Delete listing" })).toBeNull();
+    expect(JSON.parse(localStorage.getItem("jt.collapsedJobSections")!)).toEqual([
+      "listings",
+      "documents",
+    ]);
+    unmount();
+    await show(makeJob({ id: "job-2" }));
+    expect(
+      screen.getByRole("button", { name: "Expand Listings" }).getAttribute("aria-expanded"),
+    ).toBe("false");
+    expect(screen.getByRole("button", { name: "Expand Documents" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Collapse Timeline" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Expand Listings" }));
+    expect(screen.getByRole("button", { name: "Delete listing" })).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem("jt.collapsedJobSections")!)).toEqual(["documents"]);
+  });
+
+  it("opens a collapsed section when adding and preserves its draft while collapsed", async () => {
+    await show();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Custom fields" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add custom field" }));
+    const name = screen.getByRole("combobox", { name: "Field name" }) as HTMLInputElement;
+    const value = screen.getByRole("combobox", { name: "Field value" }) as HTMLInputElement;
+    fireEvent.change(name, { target: { value: "Synthetic field" } });
+    fireEvent.change(value, { target: { value: "Synthetic draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Custom fields" }));
+    expect(screen.queryByRole("combobox", { name: "Field value" })).toBeNull();
+    expect(value.isConnected).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Expand Custom fields" }));
+    expect(screen.getByRole("combobox", { name: "Field value" })).toBe(value);
+    expect(name.value).toBe("Synthetic field");
+    expect(value.value).toBe("Synthetic draft");
+    expect(mockedApi.updateJob).not.toHaveBeenCalled();
+  });
+
+  it("opens the collapsed timeline before an attention note request focuses its composer", async () => {
+    await show(makeJob(), { stage: "in_process", since: TWO_DAYS_AGO, days: 2 });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Timeline" }));
+    const panel = screen.getByText("Needs attention").parentElement!.parentElement!;
+    fireEvent.click(within(panel).getByRole("button", { name: "Add note" }));
+    const title = await screen.findByRole("combobox", { name: "Note title" });
+    expect(
+      screen.getByRole("button", { name: "Collapse Timeline" }).getAttribute("aria-expanded"),
+    ).toBe("true");
+    await waitFor(() => expect(document.activeElement).toBe(title));
+    expect(JSON.parse(localStorage.getItem("jt.collapsedJobSections")!)).toEqual([]);
   });
 });
 
@@ -286,5 +350,72 @@ describe("DetailDrawer — the status line names the stage once", () => {
     const { container } = await show();
     expect(screen.getByText(/^Added /)).toBeTruthy();
     expect(container.textContent).not.toContain("· Added ·");
+  });
+});
+
+describe("DetailDrawer — relinking a listing", () => {
+  const candidate: JobMatch = {
+    job_id: "job-2",
+    title: "Backend Engineer",
+    company: "Sample Company",
+    status: "applied",
+    created_at: "2026-09-01T00:00:00Z",
+    closed_at: "2026-09-10T00:00:00Z",
+    listing_count: 2,
+    similarity: 0.83,
+    insights: {
+      apply_url: { is_same: true },
+      location: { is_same: false, current: "Amsterdam", candidate: "Utrecht" },
+    },
+    timing: { overlapping: false, gap_days: 14 },
+  };
+
+  async function openRelink() {
+    mockedApi.jobMatches.mockResolvedValue([candidate]);
+    mockedApi.listJobs.mockResolvedValue([
+      { id: "job-3", title: "Data Analyst", company: "Other Co", status: "seen" },
+    ] as unknown as JobSummary[]);
+    const view = await show();
+    fireEvent.click(screen.getByRole("button", { name: "Relink to another job" }));
+    await screen.findByRole("heading", { name: "Relink listing" });
+    return view;
+  }
+
+  it("takes over the drawer with each candidate's evidence", async () => {
+    await openRelink();
+
+    expect(screen.queryByRole("heading", { name: "Backend Engineer" })).toBeNull();
+    const card = (await screen.findByText("83%")).closest("article")!;
+    expect(within(card).getByText(/2 listings/)).toBeTruthy();
+    expect(within(card).getByText("Reposted 14 days after it closed")).toBeTruthy();
+    expect(within(card).getByText("Apply link")).toBeTruthy();
+    expect(within(card).getByText("This: Amsterdam")).toBeTruthy();
+    expect(within(card).getByText("Theirs: Utrecht")).toBeTruthy();
+    expect(await screen.findByText("Data Analyst")).toBeTruthy();
+  });
+
+  it("returns to the job from Back and from Escape without closing the drawer", async () => {
+    const { onClose } = await openRelink();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to job" }));
+    expect(await screen.findByRole("heading", { name: "Backend Engineer" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Relink to another job" }));
+    await screen.findByRole("heading", { name: "Relink listing" });
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(await screen.findByRole("heading", { name: "Backend Engineer" })).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("confirms before relinking to a candidate", async () => {
+    await openRelink();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Relink here" }));
+    expect(mockedApi.updateListing).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Relink" }));
+
+    await waitFor(() =>
+      expect(mockedApi.updateListing).toHaveBeenCalledWith("l1", { job_id: "job-2" }),
+    );
   });
 });

@@ -38,6 +38,8 @@ The development launcher performs the same built-dashboard preflight as the norm
 
 `bash scripts/check.sh` is the single local entry point and runs the CI-equivalent gates: private-overlay drift, launcher/setup and release-contract tests, formatting, linting, type checking, tests, builds, generated-API drift, Markdown formatting, and version consistency. Linux also runs deterministic production of the Linux x86_64 artifacts; macOS skips that Linux-only production step while retaining every source-checkout gate. Its WSL2 check is a static safety self-test, not external WSL2 evidence, and it does not run Docker, use credentials, publish, or contact a Turso database. Run it before calling a change done; a green run is what CI reproduces for that platform, while release approval still requires the Linux artifact gates documented in the release procedure.
 
+The Python test task passes `TMPDIR` through for disposable pytest and wheel-build fixtures; use an owned disk-backed directory when `/tmp` has insufficient quota. This storage location is not a cached test-result input.
+
 Git hooks run a subset earlier so failures surface sooner. Install them once:
 
 ```bash
@@ -54,9 +56,12 @@ Generated source artifacts are tracked so that a clean checkout builds and type-
 
 | Generated file | Generator | Source of truth |
 | --- | --- | --- |
+| `apps/web/public/{pwa-192,pwa-512,apple-touch-icon}.png` | `rsvg-convert` commands in the [dashboard README](../apps/web/README.md#installable-app) | `apps/web/public/app-icon.svg` |
 | `packages/shared/src/api/schema.ts` | `pnpm --filter @job-tracker/shared gen:api` | FastAPI route and model definitions |
 | `packages/shared/src/funnel/funnel.contract.json` | API test suite | `apps/api/app/core/enums.py` |
 | `packages/shared/src/text/text.golden.json` | API test suite | `apps/api/app/core/text.py` |
+| Artifact `BUILD_INFO.json` and frontend `version.json` | `scripts/build-metadata.py` and frontend identity plugin | `VERSION`, verified original Git source or explicit export attestation, and `SOURCE_DATE_EPOCH` |
+| Artifact `THIRD_PARTY_NOTICES*.txt` and `THIRD_PARTY_INVENTORY*.json` | `scripts/third-party-notices.{mjs,py}` | Bundled frontend module/asset licenses and locked production Python dependency licenses |
 
 Build output (`apps/*/dist/`), including `apps/extension/dist/manifest.json`, tool caches, and the four gitignored private overlay directories are not tracked. `pnpm run build:ext` regenerates the manifest from `apps/extension/manifest.config.ts` and the root `VERSION`; the gate builds and version-checks it. Changing a tracked generated artifact's shape means changing its generator and committing the regenerated result in the same change.
 
@@ -64,7 +69,7 @@ Build output (`apps/*/dist/`), including `apps/extension/dist/manifest.json`, to
 
 Treat comments and documentation as release artifacts:
 
-- Use always concise, plain language, without dropping necessary meaning.
+- Use concise, plain language without dropping necessary meaning.
 - Explain intent, invariants, constraints, and non-obvious tradeoffs.
 - Prefer clearer code and names over comments that restate the implementation.
 - Remove historical narration, repeated facts, padding, and phrases that add no useful context.
@@ -87,7 +92,7 @@ This policy covers Markdown only. Ruff formats Python and the workspace TypeScri
 
 ## Database migration compatibility
 
-`apps/api/app/core/schema.sql` is the 1.0.0 baseline: every pre-release migration is folded into it, so `_COLUMN_MIGRATIONS` and `_DATA_MIGRATIONS` in `apps/api/app/core/db.py` both start empty. See [architecture](ARCHITECTURE.md#database-and-synchronization) for how migrations are applied.
+`apps/api/app/core/schema.sql` is the 1.0.0 baseline: every pre-release migration is folded into it, so `_COLUMN_MIGRATIONS` and `_DATA_MIGRATIONS` in `apps/api/app/core/db.py` were both empty at that release. See [architecture](ARCHITECTURE.md#database-and-synchronization) for how migrations are applied.
 
 After 1.0.0, migrations are **append-only**:
 

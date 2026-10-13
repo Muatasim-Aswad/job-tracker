@@ -3,16 +3,13 @@ import type { EventItem, JobSummary } from "@job-tracker/shared/api";
 import { JobCard, type NavDir } from "./JobCard";
 
 interface Props {
-  // The droppable id (an active funnel status). Omit to make the column a drag
-  // source only — `new` and the combined terminal column take no funnel event.
+  // Omit the drop ID for new and combined-terminal columns, which accept no funnel event.
   droppableId?: string;
   label: string;
   accentDot: string;
   accentText: string;
   jobs: JobSummary[];
-  // Collapsed shows the column as a narrow rail (label + count), reclaiming
-  // horizontal space without losing awareness or access. A view preference the board
-  // persists; never touches the jobs themselves.
+  // Collapse is a view preference and never changes job state.
   collapsed: boolean;
   onToggleCollapse: () => void;
   onOpen: (jobId: string) => void;
@@ -33,7 +30,7 @@ export function Column({
   onNavigate,
 }: Props) {
   const droppable = droppableId != null;
-  // A collapsed column can't be dropped onto — you expand it first.
+  // Expand a collapsed column before dropping into it.
   const { setNodeRef, isOver } = useDroppable({
     id: droppableId ?? label,
     disabled: !droppable || collapsed,

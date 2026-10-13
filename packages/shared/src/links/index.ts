@@ -1,8 +1,5 @@
-// Reconstruct a link to the original posting from the (platform, platform_id) natural
-// key, so even an uncaptured stub job (listings.url == null) is reachable from the
-// dashboard. A captured url wins when present. How each platform reconstructs a link,
-// or that it can't, lives in the platform registry, so no site is named here — a
-// private board supplies its own via `registerPlatform`.
+// Prefer captured URLs; reconstruct stub links through the platform registry.
+// Private overlays register their own platform-specific link behavior.
 import { platformMeta } from "../platforms";
 
 export function postingUrl(

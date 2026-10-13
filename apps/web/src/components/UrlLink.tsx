@@ -1,8 +1,6 @@
 import { ExternalLink } from "lucide-react";
 
-// The host part of a URL, minus a leading www — a compact stand-in for a long link
-// ("linkedin.com" rather than the full path). Falls back to the raw string when it
-// doesn't parse as a URL.
+// Use a compact hostname; invalid URLs retain their raw text.
 function prettyHost(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -11,9 +9,7 @@ function prettyHost(url: string): string {
   }
 }
 
-// A discrete URL rendered as concise clickable text with an external-link icon,
-// rather than the whole address. Defaults to the hostname; pass `label` for a
-// friendlier name. To linkify URLs inside prose, use Linkify.
+// Use Linkify for URLs embedded in prose.
 export function UrlLink({
   href,
   label,

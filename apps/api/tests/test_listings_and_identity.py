@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -101,6 +102,330 @@ def test_listing_upsert_is_idempotent(client: TestClient) -> None:
     assert len(jobs) == 1
 
 
+def test_card_metadata_patch_preserves_full_detail_capture(client: TestClient) -> None:
+    first = _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="card-1",
+        title="Platform Engineer",
+        meta_patch={"card_label": "Featured", "salary": "card salary"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {"card_label": "Featured", "salary": "card salary"}
+
+    # Detail captures enrich existing facts; omitted card facts survive.
+    _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="card-1",
+        meta={"description": "The complete job description", "salary": "detail salary"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {
+        "card_label": "Featured",
+        "description": "The complete job description",
+        "salary": "detail salary",
+    }
+
+    # A later list revisit updates visible facts but cannot erase the description.
+    _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="card-1",
+        meta_patch={"salary": "new card salary", "hours_per_week": "36"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {
+        "card_label": "Featured",
+        "description": "The complete job description",
+        "salary": "new card salary",
+        "hours_per_week": "36",
+    }
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        {},
+        {
+            "location": None,
+            "workplace": None,
+            "posted_at": None,
+            "posted_precision": None,
+            "posted_age": None,
+        },
+    ],
+)
+def test_recapture_preserves_known_location_and_posting_evidence(
+    client: TestClient, missing: dict[str, Any]
+) -> None:
+    evidence = {
+        "location": "Example City, Exampleland",
+        "card_location": "Example City",
+        "workplace": "Hybrid",
+        "posted_at": "2026-07-01T00:00:00Z",
+        "posted_precision": "exact",
+        "posted_age": "1 week ago",
+    }
+    first = _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-1",
+        meta={**evidence, "description": "Old description", "custom_fact": True},
+    )
+    _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-1",
+        meta={**missing, "description": "New description"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {**evidence, "description": "New description", "custom_fact": True}
+
+
+def test_recapture_updates_evidence_and_explicit_edit_can_clear_it(client: TestClient) -> None:
+    first = _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-2",
+        meta={
+            "location": "Old place",
+            "workplace": "Hybrid",
+            "posted_at": "2026-07-01T00:00:00Z",
+            "posted_precision": "estimated",
+            "posted_age": "1 week ago",
+        },
+    )
+    replacement = {
+        "location": "New place",
+        "workplace": "Remote",
+        "posted_at": "2026-07-19T00:00:00Z",
+        "posted_precision": "estimated",
+        "posted_age": "1 day ago",
+    }
+    _post_listing(client, platform="linkedin", platform_id="capture-2", meta=replacement)
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == replacement
+
+    response = client.patch(f"/api/listings/{first['listing_id']}", json={"meta": {}})
+    assert response.status_code == 200
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {}
+
+
+def test_recapture_retains_date_as_a_group_before_applying_card_patch(client: TestClient) -> None:
+    first = _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-3",
+        meta={
+            "posted_at": "2026-07-01T00:00:00Z",
+            "posted_precision": "exact",
+            "location": "Known place",
+        },
+    )
+    _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="capture-3",
+        meta={
+            "posted_at": None,
+            "posted_age": "unparseable",
+            "posted_precision": None,
+            "description": "Description",
+        },
+        meta_patch={"workplace": "Hybrid"},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {
+        "posted_at": "2026-07-01T00:00:00Z",
+        "posted_precision": "exact",
+        "location": "Known place",
+        "description": "Description",
+        "workplace": "Hybrid",
+    }
+
+
+@pytest.mark.parametrize("capture_field", ["meta", "meta_patch"])
+@pytest.mark.parametrize("missing", [None, "", "  \n", [], {}])
+def test_capture_preserves_unobserved_metadata(
+    client: TestClient, capture_field: str, missing: Any
+) -> None:
+    known = {
+        "salary": "EUR 70,000",
+        "applicants": 25,
+        "poster": "Example Recruiter",
+        "poster_url": "https://example.com/recruiter",
+        "company_url": "https://example.com/company",
+        "match_level": "High",
+        "chips": ["Hybrid", "Full-time"],
+        "description": "Complete description",
+        "apply_url": "https://example.com/apply",
+        "custom_fact": "Retained",
+    }
+    first = _post_listing(client, platform="exampleboard", platform_id="missing-facts", meta=known)
+    _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="missing-facts",
+        **{capture_field: {key: missing for key in known if key != "apply_url"}},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == known
+
+
+def test_capture_updates_observed_values_including_zero_and_false(client: TestClient) -> None:
+    first = _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="updated-facts",
+        meta={
+            "applicants": 25,
+            "eligible": True,
+            "salary": "Old salary",
+            "chips": ["Hybrid"],
+            "description": "Old description",
+            "apply_url": "https://example.com/old",
+        },
+    )
+    observed = {
+        "applicants": 0,
+        "eligible": False,
+        "salary": "New salary",
+        "chips": ["Remote"],
+        "description": "New description",
+        "apply_url": "https://example.com/new",
+    }
+    _post_listing(client, platform="exampleboard", platform_id="updated-facts", meta=observed)
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == observed
+
+
+def test_capture_merges_nested_evidence_and_ignores_empty_patch_on_creation(
+    client: TestClient,
+) -> None:
+    first = _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="nested-facts",
+        meta={"salary": "Known salary", "details": {"currency": "EUR", "amount": 70000}},
+        meta_patch={
+            "salary": None,
+            "details": {"currency": "", "amount": None},
+            "unknown": {"value": None},
+        },
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {
+        "salary": "Known salary",
+        "details": {"currency": "EUR", "amount": 70000},
+    }
+    _post_listing(
+        client,
+        platform="exampleboard",
+        platform_id="nested-facts",
+        meta={"details": {"amount": 75000}},
+        meta_patch={"details": {"currency": None, "period": "year"}},
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {
+        "salary": "Known salary",
+        "details": {"currency": "EUR", "amount": 75000, "period": "year"},
+    }
+
+
+@pytest.mark.parametrize("capture_field", ["meta", "meta_patch"])
+def test_estimate_cannot_replace_exact_posting_date(client: TestClient, capture_field: str) -> None:
+    date = {
+        "posted_at": "2026-07-01T00:00:00Z",
+        "posted_precision": "exact",
+        "posted_age": "1 week ago",
+    }
+    first = _post_listing(client, platform="linkedin", platform_id="exact-date", meta=date)
+    _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="exact-date",
+        **{
+            capture_field: {
+                "posted_at": "2026-07-19T12:00:00Z",
+                "posted_precision": "estimated",
+                "posted_age": "1 day ago",
+                "applicants": 50,
+            }
+        },
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == {**date, "applicants": 50}
+
+
+@pytest.mark.parametrize(
+    "old_precision,new_precision",
+    [("estimated", "exact"), ("exact", "exact"), ("estimated", "estimated")],
+)
+def test_new_date_replaces_its_evidence_together(
+    client: TestClient, old_precision: str, new_precision: str
+) -> None:
+    first = _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="new-date",
+        meta={
+            "posted_at": "2026-07-01T00:00:00Z",
+            "posted_precision": old_precision,
+            "posted_age": "1 week ago",
+        },
+    )
+    replacement = {"posted_at": "2026-07-19T00:00:00Z", "posted_precision": new_precision}
+    _post_listing(client, platform="linkedin", platform_id="new-date", meta_patch=replacement)
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["meta"] == replacement
+
+
+@pytest.mark.parametrize("missing", [None, "", "   "])
+def test_capture_preserves_listing_columns_when_unknown(
+    client: TestClient, missing: str | None
+) -> None:
+    first = _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="missing-columns",
+        title="Engineer",
+        company="Example Company",
+        url="https://example.com/job",
+        apply_type="external",
+    )
+    _post_listing(
+        client,
+        platform="linkedin",
+        platform_id="missing-columns",
+        title=missing,
+        company=missing,
+        url=missing,
+        apply_type="unknown",
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert (listing["title"], listing["company"], listing["url"], listing["apply_type"]) == (
+        "Engineer",
+        "Example Company",
+        "https://example.com/job",
+        "external",
+    )
+    _post_listing(
+        client, platform="linkedin", platform_id="missing-columns", apply_type="easy_apply"
+    )
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["apply_type"] == "easy_apply"
+    response = client.patch(
+        f"/api/listings/{first['listing_id']}",
+        json={"apply_type": "unknown", "meta": {"salary": None, "chips": []}},
+    )
+    assert response.status_code == 200
+    listing = client.get(f"/api/jobs/{first['job_id']}").json()["listings"][0]
+    assert listing["apply_type"] == "unknown"
+    assert listing["meta"] == {"salary": None, "chips": []}
+
+
 def test_adversarial_natural_keys_get_distinct_listing_ids(client: TestClient) -> None:
     # Delimiters make these natural keys collide under simple string concatenation.
     a = _post_listing(client, platform="sample company", platform_id="12-34", title="A")
@@ -168,7 +493,9 @@ def test_patch_listing_relink_dissolves_empty_donor(client: TestClient) -> None:
 
     detail = client.get(f"/api/jobs/{job_a}").json()
     assert any(e["event"] == "seen" for e in detail["events"])  # history carried over
-    assert client.get(f"/api/jobs/{job_b}").status_code == 404  # donor dissolved
+    dissolved = client.get(f"/api/jobs/{job_b}")
+    assert dissolved.status_code == 200
+    assert dissolved.json()["id"] == job_a  # donor id is now a canonical alias
 
 
 def test_patch_listing_relink_reprojects_after_moving_all_donor_events(client: TestClient) -> None:
@@ -197,7 +524,9 @@ def test_patch_listing_relink_reprojects_after_moving_all_donor_events(client: T
     detail = client.get(f"/api/jobs/{receiver['job_id']}").json()
     assert detail["status"] == "closed"
     assert any(e["event"] == "closed" for e in detail["events"])
-    assert client.get(f"/api/jobs/{donor['job_id']}").status_code == 404
+    dissolved = client.get(f"/api/jobs/{donor['job_id']}")
+    assert dissolved.status_code == 200
+    assert dissolved.json()["id"] == receiver["job_id"]
 
 
 def test_relink_keeps_donor_with_other_listings(client: TestClient) -> None:
@@ -251,8 +580,7 @@ def test_relink_reprojects_receiver_and_surviving_donor(client: TestClient) -> N
 
 
 def test_relink_moves_events_without_dedup(client: TestClient) -> None:
-    # No more UNIQUE(job_id, event, day): relinking just reassigns events. If donor
-    # and target each hold the same event kind, both are retained (not collapsed).
+    # Relinking retains both jobs' same-kind events without deduplication.
     r1 = _post_listing(client, platform="exampleboard", platform_id="JR_1", title="A", company="X")
     r2 = _post_listing(client, platform="linkedin", platform_id="99", title="A", company="X")
     job_a = r1["job_id"]

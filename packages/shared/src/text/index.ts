@@ -1,9 +1,5 @@
-// Normalization for the advisory `company_key` / `title_key` lookup fields, and the
-// single TS mirror of the server's app.core.text. Both ends MUST agree: the server
-// stores a job or block under these keys, and the extension matches each card's
-// company against the synced blocklist with the same key, so a drift here silently
-// stops a block from matching. They're pinned by text.golden.json — the server's
-// pytest suite writes that fixture and text.golden.test.ts replays it here.
+// Mirror app.core.text for advisory lookup and blocklist keys. Server-generated
+// text.golden.json pins equivalence so normalization drift cannot break block matching.
 
 // Common legal/entity suffixes stripped so "Example Company N.V." and "Example
 // Company" fold together.

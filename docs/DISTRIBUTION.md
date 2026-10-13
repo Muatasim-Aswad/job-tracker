@@ -50,6 +50,7 @@ Resource lookup uses the selected application layout and never walks repository 
 | Resource | Source checkout | Runtime bundle or wheel |
 | --- | --- | --- |
 | Product version | `<repository>/VERSION` | `<application root>/VERSION` or the wheel resource copied from it |
+| Build identity | Derived from the original clean Git checkout; modified or unverified source reports `dev` | `<application root>/BUILD_INFO.json`, including the wheel resource root |
 | Database schema | `apps/api/app/core/schema.sql` | the installed `app/core/schema.sql` package resource |
 | Dashboard | `apps/web/dist/` | `<application root>/apps/web/dist/` in the runtime bundle or the wheel's installed dashboard resource |
 | API project and lock | `apps/api/pyproject.toml`, `apps/api/uv.lock` | corresponding files inside the runtime bundle; not runtime resources in a wheel installation |
@@ -67,11 +68,21 @@ job_tracker-<version>-py3-none-any.whl
 SHA256SUMS
 ```
 
-The runtime tarball has its application files at archive root: `job-tracker`, `VERSION`, `LICENSE`, public API source with `pyproject.toml`/`uv.lock`, and the prebuilt dashboard. The extension ZIP has its public built extension contents, including `manifest.json`, at ZIP root. The wheel carries the API, schema, version, license, console entry point, and prebuilt dashboard as installed package resources. The generator first builds both frontends from a tracked-files-only temporary source tree. It therefore does not read or package ignored private overlays, checkout `.env` files, databases, credentials, fixtures, or local build output.
+The runtime tarball has its application files at archive root: `job-tracker`, `VERSION`, `LICENSE`, `BUILD_INFO.json`, generated Python dependency notices/inventory, public API source with `pyproject.toml`/`uv.lock`, and the prebuilt dashboard. The extension ZIP has its public built extension contents, including `manifest.json`, `version.json`, and generated dependency notices/inventory, at ZIP root. The wheel carries the API, schema, version, build identity, notices, license, console entry point, and prebuilt dashboard as installed package resources. Both dashboard module graphs (application and service worker) carry notices/inventories. The generator first builds both frontends from a tracked-files-only temporary source tree. It therefore does not read or package ignored private overlays, checkout `.env` files, databases, credentials, fixtures, or local build output.
 
 `bash scripts/check-release-contents.sh dist/release` verifies the exact four-file release directory, checksums, canonical versions, runtime and wheel allowlists, absence of source maps and private/developer artifacts, and the public extension host allowlist. `bash scripts/smoke-release.sh dist/release/job-tracker-<version>-linux-x86_64.tar.gz` extracts a runtime into disposable paths, moves it before startup, uses temporary XDG roots and loopback port `34656`, verifies health/OpenAPI/dashboard serving, and replaces the application directory while preserving data, configuration, and state. `bash scripts/smoke-wheel.sh dist/release/job_tracker-<version>-py3-none-any.whl` uses a fresh isolated `uv tool` environment outside the checkout on port `34657`, then verifies startup, backup, diagnostics, uninstall, and persistence.
 
-The archives normalize owner, ordering, timestamps (default `SOURCE_DATE_EPOCH=315532800`), and compression metadata. `bash scripts/test-release-build.sh` builds twice in independent disposable roots and compares the outputs byte-for-byte. Determinism is scoped to identical tracked working-tree inputs and the pinned build toolchain; a changed toolchain or dependency lock is a new build input.
+Builders use `TMPDIR` (default `/tmp`) for disposable scratch space; `JOB_TRACKER_RELEASE_DIR` accepts only `dist/release` or a child of that temporary root, never the root itself. Set `TMPDIR` to an owned disk-backed directory when `/tmp` has insufficient quota. The archives normalize owner, ordering, timestamps (default `SOURCE_DATE_EPOCH=315532800`), and compression metadata. `bash scripts/test-release-build.sh` builds twice in independent disposable roots, compares the outputs byte-for-byte, and verifies content checks with large asset inventories. Determinism is scoped to identical tracked working-tree inputs and the pinned build toolchain; a changed toolchain or dependency lock is a new build input.
+
+### Build identity and attribution
+
+`scripts/build-metadata.py`, backed by `app/core/build_info.py`, generates `{version, revision, commit_time, build_time, dev}`. Clean original Git source supplies the full commit revision and UTC commit time; dirty, missing, or unverified source supplies `revision: "dev"`, `commit_time: null`, and `dev: true`. Build time is the UTC rendering of `SOURCE_DATE_EPOCH`, defaulting to `1980-01-01T00:00:00Z`; it is a reproducibility input, not the wall-clock attempt time. Record actual attempt times in release evidence. Generated metadata is untracked.
+
+Before exporting source, obtain explicit attestation with `python3 scripts/build-metadata.py --require-release --format shell`. Pass its `APP_REVISION`, `APP_COMMIT_TIME`, `APP_BUILD_TIME`, and `APP_IDENTITY_ATTESTED=1` to the export's builds, retaining the same `SOURCE_DATE_EPOCH`. Never derive release identity from a new commit invented inside an export. Unattested exports report dev; attested identities must match an original checkout's clean commit and the timestamp policy. Local release builders propagate this metadata automatically. Container builds receive the same fields as build arguments; `bash scripts/build-container.sh` prepares them for Compose. Direct Compose builds without attestation truthfully report dev. CI, rehearsal, and container smokes propagate the original identity explicitly.
+
+The API serves running identity at `GET /version.json` and `HEAD /version.json` with `Cache-Control: no-store`, outside OpenAPI and ahead of dashboard static files. HEAD returns the GET headers without a body. The service worker excludes this resource from precache. `/health` includes the running revision; deployment smokes compare served identity with installed metadata and, when supplied, the expected source revision. The server logs public identity once at startup. `job-tracker build-info` reads packaged metadata without Git, network, database access, configuration loading, or server startup; the runtime launcher handles this command before invoking uv.
+
+`scripts/third-party-notices.mjs` reads licenses from the actual bundled module/asset inputs, including Lucide's ISC and Cole Bemis's MIT attribution. The runtime and wheel builders prepare their Python environments from the frozen API lock before `scripts/third-party-notices.py` walks the production dependency closure and reads distributed license files, including vendored notices; an existing development environment is not required. The locked `pyturso 0.7.2` distribution omits license files, so the generator obtains checksum-pinned license/notice inputs from its matching upstream release. Builds require those public upstream inputs to be reachable; changed bytes fail verification. Notices and SHA-256 inventories are generated artifact resources, not a committed omnibus notices document.
 
 ## Path inventory
 
@@ -231,16 +242,12 @@ A purge is a separate, explicitly confirmed procedure. It may remove the local p
 
 ## Current command surface
 
-The delayed-import `job-tracker` entry point now provides the shared command surface used by staged applications and later packaged artifacts:
+The delayed-import `job-tracker` entry point serves source, runtime-bundle, wheel, and container layouts. [CLI](CLI.md#commands) owns command syntax; the lifecycle guarantees remain here:
 
-- `job-tracker start [--port PORT]` runs the server in the foreground on `127.0.0.1`; Ctrl-C performs the normal FastAPI shutdown, including final sync and lock release.
-- `job-tracker status` reads advisory-lock ownership and performs a bounded loopback health check. It reports `stopped`, `healthy`, or `lock-held-but-unhealthy` and never opens or creates the database or lock.
-- `job-tracker paths` prints the selected application, data, configuration, state, database, dashboard, schema, and version paths without configuration values or credentials.
-- `job-tracker version` prints the selected application's canonical `VERSION` value.
-- `job-tracker doctor` reports redacted product/runtime, profile, database-mode, path, lock/health, integrity, and permission diagnostics. It skips database inspection while the lock is held and returns nonzero for a diagnostic failure.
-- `job-tracker backup OUTPUT.sqlite` creates a private, validated, atomic snapshot of the stopped profile's effective local store.
-- `job-tracker restore BACKUP.sqlite [--target TARGET.sqlite] [--replace]` validates and migrates a local candidate before installation. Turso profiles require a separate explicit recovery target and never reseed a primary.
-- `job-tracker migrate-checkout CHECKOUT` snapshots a stopped legacy checkout into an empty local packaged destination without copying configuration, credentials, or other checkout state.
+- Foreground startup binds loopback, acquires the profile lock, and releases it only after database cleanup.
+- Status and path inspection do not open the database or disclose credentials; diagnostics skip database inspection while the lock is held.
+- Backup and restore validate stopped-profile snapshots, with atomic installation and explicit replacement/recovery rules.
+- Checkout adoption copies only a verified database snapshot into an empty packaged destination.
 
 The command defaults to the packaged profile because it is the installed/staged entry point. Source-checkout use selects `--profile source` or uses the root launchers; direct `uvicorn app.main:app` from `apps/api/` remains the explicit direct-development compatibility profile.
 

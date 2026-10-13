@@ -66,6 +66,8 @@ jobs:
           set -euo pipefail
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           SOURCE_SHA="$(git rev-parse HEAD)"
+          python3 scripts/build-metadata.py --require-release --format shell > "$RUNNER_TEMP/identity.env"
+          source "$RUNNER_TEMP/identity.env"
           TAGS=(
             --tag "$IMAGE:$TAG"
             --tag "$IMAGE:sha-$SOURCE_SHA"
@@ -74,5 +76,10 @@ jobs:
             TAGS+=(--tag "$IMAGE:latest")
           fi
           docker buildx build --platform linux/amd64 --pull --push \
+            --build-arg "APP_REVISION=$APP_REVISION" \
+            --build-arg "APP_COMMIT_TIME=$APP_COMMIT_TIME" \
+            --build-arg "APP_BUILD_TIME=$APP_BUILD_TIME" \
+            --build-arg "APP_IDENTITY_ATTESTED=$APP_IDENTITY_ATTESTED" \
+            --build-arg "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-315532800}" \
             "${TAGS[@]}" \
             .

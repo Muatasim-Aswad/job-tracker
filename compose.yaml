@@ -3,6 +3,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        APP_REVISION: ${APP_REVISION:-dev}
+        APP_COMMIT_TIME: ${APP_COMMIT_TIME:-}
+        APP_BUILD_TIME: ${APP_BUILD_TIME:-1980-01-01T00:00:00Z}
+        APP_IDENTITY_ATTESTED: ${APP_IDENTITY_ATTESTED:-0}
+        SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-315532800}
     image: ${JOB_TRACKER_IMAGE:-ghcr.io/muatasim-aswad/job-tracker:latest}
     platform: linux/amd64
     init: true

@@ -200,8 +200,7 @@ export function eventLabel(event: string): string {
   return STATUS_LABEL[event as Status] ?? NON_STATUS_EVENT_LABEL[event] ?? event;
 }
 
-// The extension consumes the funnel through this namespace object, so engine.ts and
-// popup.ts change only their import line rather than every call site.
+// Namespace interface for extension consumers.
 export const JobFunnel = {
   ACTIVE_STATUSES,
   TERMINAL_STATUSES,

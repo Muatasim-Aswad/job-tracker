@@ -1,16 +1,7 @@
-<!-- Search-side-panel detail layout. The top card is outside #job-details, and
-     the relative age is the only posting-date evidence in this fixture.
-
-     The top card's own block class is `__container--two-pane`. The bare
-     `job-details-jobs-unified-top-card` this fixture used to carry is no longer
-     served, and its disappearance silently removed the detail action bar from the
-     whole layout, because the bar's anchor was scoped to it. The element classes
-     (`__job-title`, `__company-name`, `__top-buttons`) survived that change.
-
-     The action bar anchors to the `__top-buttons` cluster, not to a button inside
-     it: the overflow control there carries no aria-label — its accessible name is
-     the "Show more options" text — so nothing in the cluster is addressable by
-     attribute. -->
+<!-- Classic detail: the top card sits outside #job-details; posting age is relative.
+     Both top-card class variants retain title/company/button descendants. Anchor to
+     the button cluster because overflow has visible text but no aria-label.
+     Age remains nested two spans below its separator row. -->
 <div class="relative job-details-jobs-unified-top-card__container--two-pane">
   <h1 class="job-details-jobs-unified-top-card__job-title">Example Backend Engineer</h1>
   <div class="job-details-jobs-unified-top-card__company-name">
@@ -20,8 +11,17 @@
     <button aria-label="Share">Share</button>
     <button class="artdeco-button artdeco-button--tertiary">Show more options</button>
   </div>
-  <span>17 days ago</span>
-  <span>25 people clicked apply</span>
+  <div class="t-black--light mt2 job-details-jobs-unified-top-card__tertiary-description-container">
+    <span
+      ><span class="tvm__text tvm__text--low-emphasis">Example City, Exampleland</span
+      ><span class="tvm__text tvm__text--low-emphasis"
+        ><span class="white-space-pre"> </span>·<span class="white-space-pre"> </span></span
+      ><span class="tvm__text tvm__text--low-emphasis"><span>17 days ago</span></span
+      ><span class="tvm__text tvm__text--low-emphasis"
+        ><span class="white-space-pre"> </span>·<span class="white-space-pre"> </span></span
+      ><span class="tvm__text tvm__text--low-emphasis">25 people clicked apply</span></span
+    >
+  </div>
   <button id="jobs-apply-button-id" aria-label="Easy Apply to Example Labs">Easy Apply</button>
 </div>
 <div class="job-details-fit-level-preferences">

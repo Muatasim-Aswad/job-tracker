@@ -8,7 +8,7 @@ import { ExpandableText } from "./ExpandableText";
 import { IconButton } from "./IconButton";
 import { InlineConfirm } from "./InlineConfirm";
 import { MetaLine } from "./MetaLine";
-import { SectionHeader } from "./SectionHeader";
+import { CollapsibleSection, type SectionDisclosure } from "./CollapsibleSection";
 
 const DOC_TYPES = ["cover_letter", "motivation_letter", "cv", "other"];
 
@@ -21,11 +21,10 @@ const DOC_TYPE_LABEL: Record<string, string> = {
 
 const docLabel = (type: string) => DOC_TYPE_LABEL[type] ?? type;
 
-// Only what a document is. The rest of the three-way rule — dated event vs. standing
-// fact — lives on Timeline, the section that owns that choice.
+// Timeline owns the distinction between dated activity and standing facts.
 const HELP = "Deliverables you send: CV, cover letter, motivation letter.";
 
-// The request state a doc can carry; '' is the wire `null` (unspecified).
+// Empty selection represents wire null.
 const REQUESTED = [
   { value: "", label: "not specified" },
   { value: "required", label: "required" },
@@ -52,7 +51,6 @@ function toDraft(d: JobDocument): Draft {
 
 const emptyDraft: Draft = { type: "cover_letter", requested: "", provided: false, content: "" };
 
-// The shared field row used by both the edit form and the add form.
 function DraftFields({
   draft,
   onChange,
@@ -117,8 +115,7 @@ function DocumentCard({ jobId, doc }: { jobId: string; doc: JobDocument }) {
   const content = doc.content?.trim() ?? "";
 
   const save = () => {
-    // The draft is DOM form state (plain strings), but the <select> options are
-    // constrained to the valid enum values, so assert that at the API edge.
+    // Select options constrain the string draft to valid wire enum values.
     const body: DocumentUpdate = {
       type: draft.type as DocumentUpdate["type"],
       requested: (draft.requested || null) as DocumentUpdate["requested"],
@@ -202,7 +199,15 @@ function DocumentCard({ jobId, doc }: { jobId: string; doc: JobDocument }) {
   );
 }
 
-export function Documents({ jobId, documents }: { jobId: string; documents: JobDocument[] }) {
+export function Documents({
+  jobId,
+  documents,
+  disclosure,
+}: {
+  jobId: string;
+  documents: JobDocument[];
+  disclosure?: SectionDisclosure;
+}) {
   const addDoc = useAddDocument();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
@@ -228,17 +233,17 @@ export function Documents({ jobId, documents }: { jobId: string; documents: JobD
   };
 
   return (
-    <section>
-      <SectionHeader
-        title="Documents"
-        count={documents.length}
-        help={HELP}
-        add={{
-          noun: "document",
-          open: adding,
-          onToggle: () => (adding ? close() : setAdding(true)),
-        }}
-      />
+    <CollapsibleSection
+      title="Documents"
+      count={documents.length}
+      help={HELP}
+      add={{
+        noun: "document",
+        open: adding,
+        onToggle: () => (adding ? close() : setAdding(true)),
+      }}
+      disclosure={disclosure}
+    >
       <div className="flex flex-col gap-2">
         {adding && (
           <div
@@ -270,12 +275,8 @@ export function Documents({ jobId, documents }: { jobId: string; documents: JobD
           <DocumentCard key={d.id} jobId={jobId} doc={d} />
         ))}
 
-        {/* No empty state. `SectionHeader` already carries the count — a literal
-            `(0)` — the `?` explaining what documents are for, and the `+` that adds
-            one. A dashed "No documents yet. + Add document" box below it said all
-            three a third time, and made an empty section taller than a full one
-            with a single card. The header IS the empty state. */}
+        {/* SectionHeader already supplies the empty count and add action. */}
       </div>
-    </section>
+    </CollapsibleSection>
   );
 }

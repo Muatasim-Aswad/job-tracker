@@ -1,18 +1,9 @@
-"""Report events whose timestamps contradict the job lifecycle, read-only.
+"""Read-only report of timestamps that contradict lifecycle order. Snapshot/compare modes check that PATCH /api/events/{id} repairs reduce violations without changing projected statuses.
 
-Bulk capture can stamp `created` or `applied` at scan time rather than when the
-event happened, making a job appear rejected before it was created. This command
-finds those contradictions and classifies the evidence available for repair.
-The `--snapshot` and `--compare` modes verify that corrections remove violations
-without changing projected statuses.
-
-Never writes to the tracker. Corrections go through `PATCH /api/events/{id}`.
-
-Usage (from apps/api/, so the app package is importable — matches
-`scripts/dump_openapi.py`):
-  uv run python -m scripts.scan_event_order                    # report
+Run from apps/api/:
+  uv run python -m scripts.scan_event_order
   uv run python -m scripts.scan_event_order --snapshot pre.json
-  uv run python -m scripts.scan_event_order --compare pre.json # after applying
+  uv run python -m scripts.scan_event_order --compare pre.json
 """
 
 from __future__ import annotations

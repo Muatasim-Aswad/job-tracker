@@ -40,10 +40,7 @@ function makeJob(overrides: Partial<JobSummary> = {}): JobSummary {
   };
 }
 
-// getBoundingClientRect keyed by element identity, so dnd-kit's continuous
-// (WhileDragging) rect measuring sees whatever this test set up for that node and
-// a zero rect for everything else — including every OTHER column, so only the
-// intended drop target ever has positive collision area.
+// Only the intended target has collision area under continuous drag measurement.
 const rects = new WeakMap<Element, DOMRect>();
 
 function stubRect(el: Element, rect: { x: number; y: number; width: number; height: number }) {
@@ -60,8 +57,6 @@ function stubRect(el: Element, rect: { x: number; y: number; width: number; heig
 }
 
 function dropZoneFor(label: string): HTMLElement {
-  // Column renders a label row, then the droppable jobs container, as siblings
-  // under one wrapper div.
   const labelRow = screen.getByText(label).closest("div")!;
   return labelRow.parentElement!.children[1] as HTMLElement;
 }
@@ -76,8 +71,7 @@ function renderBoard(jobs: JobSummary[], onEvent = vi.fn()) {
   return { onEvent };
 }
 
-// Drags job-1's card from its own rect to whatever rect was stubbed for `target`,
-// exceeding the 5px pointer-sensor activation distance first.
+// Activate the pointer sensor before moving to the target rectangle.
 function drag(target: Element) {
   const cardEl = document.querySelector<HTMLElement>('[data-card-id="job-1"]')!;
   stubRect(cardEl, { x: 0, y: 0, width: 50, height: 30 });
@@ -89,9 +83,7 @@ function drag(target: Element) {
     clientX: 0,
     clientY: 0,
   });
-  // Exceed the activation distance to start the drag.
   fireEvent.pointerMove(document, { pointerId: 1, isPrimary: true, clientX: 0, clientY: 10 });
-  // Move onto the target's rect.
   const targetRect = rects.get(target)!;
   fireEvent.pointerMove(document, {
     pointerId: 1,
@@ -152,8 +144,7 @@ describe("Board drag interaction", () => {
       }),
     ]);
 
-    // Duration first, stage after the dot — "Stalled in {stage}" doubled the
-    // preposition for noun-phrase stages ("Stalled in In process").
+    // Separate noun-phrase stage labels to avoid "in In process".
     expect(screen.getByText("Stalled 24 days · Applied")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /ghosted/i })).toBeNull();
   });
@@ -165,7 +156,7 @@ describe("Board drag interaction", () => {
 
     drag(target);
 
-    // useCorrectStatus's mutationFn calls api.correctStatus asynchronously.
+    // The mutation invokes its endpoint asynchronously.
     await waitFor(() =>
       expect(mockedApi.correctStatus).toHaveBeenCalledWith("job-1", "seen", undefined),
     );
@@ -193,5 +184,44 @@ describe("Board drag interaction", () => {
     expect(document.activeElement).toBe(cards[2]);
     fireEvent.keyDown(cards[2], { key: "ArrowUp" });
     expect(document.activeElement).toBe(cards[1]);
+  });
+});
+
+describe("Board — application link", () => {
+  const listing = {
+    platform: "linkedin",
+    platform_id: "1",
+    url: "https://www.linkedin.com/jobs/view/1/",
+  };
+  const applyUrl = "https://jobs.example.com/backend?source=linkedin";
+
+  afterEach(cleanup);
+
+  it("links a To apply card to its off-platform application", () => {
+    renderBoard([
+      makeJob({
+        status: "to_apply",
+        primary_listing: { ...listing, apply_url: applyUrl },
+      }),
+    ]);
+    expect(screen.getByRole("link", { name: "Open application" }).getAttribute("href")).toBe(
+      applyUrl,
+    );
+  });
+
+  it("omits the link when it repeats the posting or the job is past To apply", () => {
+    renderBoard([
+      makeJob({
+        id: "same",
+        status: "to_apply",
+        primary_listing: { ...listing, apply_url: listing.url },
+      }),
+      makeJob({
+        id: "applied",
+        status: "applied",
+        primary_listing: { ...listing, apply_url: applyUrl },
+      }),
+    ]);
+    expect(screen.queryByRole("link", { name: "Open application" })).toBeNull();
   });
 });

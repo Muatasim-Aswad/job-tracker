@@ -98,7 +98,7 @@ def test_listing_addressed_status_cannot_clobber_terminal(client: TestClient) ->
 
 def test_listing_addressed_status_cannot_walk_active_funnel_backward(client: TestClient) -> None:
     job = _listing(client, "linkedin", "1", title="A")
-    # Advance past applied via the dashboard (free-set).
+    # Advance past applied via an ordinary dashboard event.
     _emit(client, "in_process", job_id=job["job_id"])
     # A re-detected automatic (listing-addressed) `applied` must not downgrade it.
     _emit(client, "applied", platform="linkedin", platform_id="1")

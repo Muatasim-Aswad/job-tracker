@@ -22,6 +22,28 @@ class JobRepository:
         row = query_one(self.conn, f"SELECT {_COLUMNS} FROM jobs WHERE id = ?", (job_id,))
         return _to_job(row) if row else None
 
+    def resolve_id(self, job_id: str) -> str | None:
+        """Resolve a live or merged identity to its live canonical job id."""
+        if self.get(job_id) is not None:
+            return job_id
+        row = query_one(
+            self.conn, "SELECT canonical_job_id FROM job_id_aliases WHERE old_job_id = ?", (job_id,)
+        )
+        return str(row["canonical_job_id"]) if row else None
+
+    def alias_merged_id(self, old_job_id: str, canonical_job_id: str, merged_at: str) -> None:
+        """Flatten prior aliases and retain the newly dissolved identity."""
+        execute(
+            self.conn,
+            "UPDATE job_id_aliases SET canonical_job_id = ? WHERE canonical_job_id = ?",
+            (canonical_job_id, old_job_id),
+        )
+        execute(
+            self.conn,
+            "INSERT INTO job_id_aliases (old_job_id, canonical_job_id, merged_at) VALUES (?, ?, ?)",
+            (old_job_id, canonical_job_id, merged_at),
+        )
+
     def insert(self, job: Job) -> None:
         execute(
             self.conn,
@@ -93,10 +115,7 @@ class JobRepository:
         execute(self.conn, "DELETE FROM jobs WHERE id = ?", (job_id,))
 
     def states_by_listings(self, platform: str, platform_ids: list[str]) -> dict[str, Job]:
-        """Resolve many listings on one platform to their jobs in a single query,
-        keyed by platform_id. Untracked ids are simply absent from the map (the
-        caller fills them as `untracked`). Empty input short-circuits — SQLite
-        rejects an empty `IN ()`."""
+        """Batch listing-state lookup keyed by platform_id. Missing IDs are absent for the caller to project as untracked; empty input avoids a query."""
         if not platform_ids:
             return {}
         placeholders = ", ".join("?" for _ in platform_ids)
@@ -114,22 +133,16 @@ class JobRepository:
             out[pid] = _to_job(row)
         return out
 
-    def match_candidates(self, company_key: str, title_key: str) -> list[Row]:
-        """Jobs sharing BOTH normalized keys — the duplicate-suggestion set,
-        newest-first. Rolls in a listing count and the latest `closed_at` across
-        each job's postings (MAX ignores the NULLs of still-open listings), so the
-        popover can show whether a candidate's posting has since closed. Caller
-        filters out the current job + its `false_matches`; kept out of SQL because
-        that exclude set is a handful of ids, not worth threading through a
-        variable-length IN clause."""
+    def match_candidates(self, company_key: str) -> list[Row]:
+        """Jobs sharing company_key, newest first, with title_key, listing count, and latest closed_at. MAX ignores open listings; callers apply title/destination rules and exclude the current job and false matches."""
         return query_all(
             self.conn,
-            "SELECT j.id AS job_id, j.title, j.company, j.status, j.created_at, "
+            "SELECT j.id AS job_id, j.title, j.company, j.title_key, j.status, j.created_at, "
             "COUNT(l.id) AS listing_count, MAX(l.closed_at) AS closed_at "
             "FROM jobs j LEFT JOIN listings l ON l.job_id = j.id "
-            "WHERE j.company_key = ? AND j.title_key = ? "
+            "WHERE j.company_key = ? "
             "GROUP BY j.id ORDER BY j.created_at DESC",
-            (company_key, title_key),
+            (company_key,),
         )
 
     def applied_count_for_company(self, company_key: str) -> int:

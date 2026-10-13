@@ -213,10 +213,8 @@ def test_applied_receiver_wins_when_automatic_job_is_relinked(client: TestClient
 def test_closing_a_listing_adopts_an_adjacent_provenance_less_closed_event(
     client: TestClient, conn: sqlite3.Connection
 ) -> None:
-    # The pre-1.0 batch repair is gone from the baseline, but the same situation
-    # still arrives live from an older extension: a `closed` event posted with no
-    # meta beside the listing close. Adopting it is what keeps the closure
-    # reversible when the listing reopens.
+    # Older extensions post a provenance-less closed event beside the listing close.
+    # Adoption must keep that closure reversible when the listing reopens.
     first = _listing(client, "1")
     job_id = first["job_id"]
     _listing(client, "2", job_id=job_id)

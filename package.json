@@ -1,6 +1,12 @@
 {
   "name": "job-tracker",
   "private": true,
+  "homepage": "https://github.com/Muatasim-Aswad/job-tracker#readme",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Muatasim-Aswad/job-tracker.git"
+  },
   "type": "module",
   "scripts": {
     "prepare": "uv run --directory apps/api pre-commit install || true",

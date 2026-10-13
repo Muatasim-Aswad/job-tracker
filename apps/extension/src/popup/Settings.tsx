@@ -2,16 +2,11 @@ import { HideToggle } from "./HideToggle";
 import { ThemeToggle } from "./ThemeToggle";
 import { KeywordSettings } from "./KeywordSettings";
 import { DiagnosticsSettings } from "./DiagnosticsSettings";
+import { EasyApplyToggle } from "./EasyApplyToggle";
 
-// The settings panel — a labelled home for the popup's two display preferences and a
-// static keyboard cheat-sheet, opened from the gear beside search. ThemeToggle and
-// HideToggle own their own storage and apply logic; this is just the layout.
-//
-// The cheat-sheet is a plain read-only list, deliberately not the dashboard's
-// focus-trapped `?` dialog: Esc closes an action popup at the browser level, so a
-// dismissable modal can't work here. The in-popup keys mirror the handlers in
-// Popup.tsx and Detail.tsx, and "Open this popup" is the global `_execute_action`
-// command from manifest.config.ts. Edit this list alongside those so it can't drift.
+// Each preference control owns storage and apply behavior.
+// Keep this keyboard list aligned with Popup, Detail, and the manifest command.
+// Use a static list: Chrome closes action popups on Escape, preventing a dismissible modal.
 const SHORTCUTS: { keys: string[]; label: string }[] = [
   // Open / navigate.
   { keys: ["Alt+J"], label: "Open this popup (any tab)" },
@@ -37,9 +32,11 @@ export function Settings() {
         <ThemeToggle />
       </div>
       <div className="flex items-center justify-between gap-2.5">
-        <span className="text-[13px] text-popup-fg">Hidden jobs</span>
+        <span className="text-[13px] text-popup-fg">Discovery lists</span>
         <HideToggle />
       </div>
+
+      <EasyApplyToggle />
 
       <KeywordSettings />
 

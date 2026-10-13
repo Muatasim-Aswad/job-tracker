@@ -44,10 +44,7 @@ describe("IconButton", () => {
     expect(b.getAttribute("aria-pressed")).toBeNull();
   });
 
-  // WCAG 2.2 §2.5.8: 24×24 is the floor, and `sm` sits exactly on it. The class
-  // assertion is a proxy for the rendered size (jsdom applies no stylesheet), but
-  // it does pin the rule that matters: the growth is conditional on a coarse
-  // pointer, so the desktop density is not rewritten for a touch minimum.
+  // jsdom cannot measure CSS; pin the 24px WCAG floor and coarse-pointer-only growth.
   it("grows the compact hit area on a coarse pointer only", () => {
     render(
       <IconButton label="Edit" size="sm">

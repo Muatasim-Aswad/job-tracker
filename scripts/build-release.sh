@@ -19,11 +19,13 @@ command -v zip >/dev/null 2>&1 ||
 [[ "$EPOCH" =~ ^[0-9]+$ ]] || fail "SOURCE_DATE_EPOCH must be an integer."
 
 RELEASE_DIR="$(realpath -m "$RELEASE_DIR")"
+TEMP_ROOT="$(realpath -m "${TMPDIR:-/tmp}")"
+[[ "$TEMP_ROOT" != / ]] || fail "TMPDIR must not be filesystem root."
 case "$RELEASE_DIR" in
-  "$ROOT/dist/release" | /tmp/*) ;;
-  *) fail "JOB_TRACKER_RELEASE_DIR must be $ROOT/dist/release or a disposable /tmp path." ;;
+  "$ROOT/dist/release" | "$TEMP_ROOT"/*) ;;
+  *) fail "JOB_TRACKER_RELEASE_DIR must be $ROOT/dist/release or a disposable TMPDIR child." ;;
 esac
-[[ "$RELEASE_DIR" != / && "$RELEASE_DIR" != /tmp ]] || fail "refusing an unsafe release directory."
+[[ "$RELEASE_DIR" != / && "$RELEASE_DIR" != "$TEMP_ROOT" ]] || fail "refusing an unsafe release directory."
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/job-tracker-release.XXXXXX")"
 trap 'rm -rf -- "$WORK"' EXIT
@@ -41,16 +43,18 @@ copy_tracked() {
 BUILD_SOURCE="$WORK/public-source"
 RUNTIME="$WORK/runtime"
 mkdir -p "$BUILD_SOURCE" "$RUNTIME"
+python3 "$ROOT/scripts/build-metadata.py" --format shell --output "$WORK/identity.env"
+source "$WORK/identity.env"
+export VP_SKIP_INSTALL=1 pnpm_config_verify_deps_before_run=warn
 
-# This copy is deliberately limited to tracked public files. In particular, ignored
-# overlays and local .env files cannot affect either frontend build or artifact.
+# Tracked public files alone can influence artifacts; ignored overlays and .env stay excluded.
 copy_tracked "$BUILD_SOURCE" \
   VERSION package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json vite.config.ts \
-  apps/web apps/extension packages
+  apps/web apps/extension packages \
+  scripts/build-metadata.py scripts/build-metadata.mjs scripts/third-party-notices.mjs \
+  apps/api/app/core/build_info.py
 
-# A prepared checkout already owns the pinned frontend toolchain. Reuse it read-only
-# through this temporary source tree instead of invoking an install that could write
-# a package-store database under the user's home.
+# Reuse the prepared toolchain read-only to avoid user package-store writes.
 [[ -d "$ROOT/node_modules" ]] || fail "workspace dependencies are missing; run bash scripts/setup.sh first."
 ln -s "$ROOT/node_modules" "$BUILD_SOURCE/node_modules"
 for package_dir in apps/web apps/extension packages/shared; do
@@ -68,10 +72,11 @@ done
   node "$ROOT/node_modules/vite-plus/bin/vp" build
 )
 
-# The runtime carries only what the packaged CLI needs: public API source, the
-# production dependency metadata/lock, a prebuilt dashboard, the canonical version
-# and notice, and the top-level launcher below.
+# Stage only packaged CLI sources, production metadata, dashboard, version, license, and launcher.
 copy_tracked "$RUNTIME" VERSION LICENSE apps/api/app apps/api/pyproject.toml apps/api/uv.lock
+python3 "$ROOT/scripts/build-metadata.py" --output "$RUNTIME/BUILD_INFO.json"
+uv run --frozen --directory "$ROOT/apps/api" python "$ROOT/scripts/third-party-notices.py" \
+  --lock "$ROOT/apps/api/uv.lock" --output-dir "$RUNTIME"
 mkdir -p "$RUNTIME/apps/web/dist"
 cp -a "$BUILD_SOURCE/apps/web/dist/." "$RUNTIME/apps/web/dist/"
 
@@ -80,6 +85,12 @@ cat >"$RUNTIME/job-tracker" <<'WRAPPER'
 set -eu
 
 APP_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ "$#" -eq 1 ] && [ "$1" = build-info ]; then
+  exec cat "$APP_DIR/BUILD_INFO.json"
+fi
+if [ "$#" -eq 1 ] && [ "$1" = version ]; then
+  exec cat "$APP_DIR/VERSION"
+fi
 if ! command -v uv >/dev/null 2>&1; then
   printf '%s\n' 'job-tracker: uv is required by this runtime bundle; install uv and retry.' >&2
   exit 127
@@ -90,8 +101,7 @@ exec uv run --frozen --no-dev --directory "$APP_DIR/apps/api" python -m app.cli 
 WRAPPER
 chmod 0755 "$RUNTIME/job-tracker"
 
-# Normalize archive metadata after all generators have run. The frontend build is
-# content-addressed; this makes repeated archives byte-for-byte comparable as well.
+# Normalize metadata after generation for byte-identical archives.
 find "$RUNTIME" -exec touch -h -d "@$EPOCH" {} +
 
 rm -rf -- "$RELEASE_DIR"

@@ -1,8 +1,5 @@
-// Inline SVG icons (Lucide, ISC-licensed). Imported with `?raw` so Vite inlines
-// the markup straight into the content-script bundle at build time — no runtime
-// fetch, no host-page CSP issues, and each icon tints itself via the button's
-// CSS `color` (Lucide uses stroke="currentColor"). Only the icons imported here
-// are bundled. Size/stroke are controlled by `.jh-btn svg` in content.css.
+// Lucide SVGs (ISC-licensed) are bundled through ?raw, avoiding runtime fetches and host CSP.
+// content.css controls size, stroke, and currentColor.
 import externalLink from "lucide-static/icons/external-link.svg?raw";
 import eye from "lucide-static/icons/eye.svg?raw";
 import eyeOff from "lucide-static/icons/eye-off.svg?raw";

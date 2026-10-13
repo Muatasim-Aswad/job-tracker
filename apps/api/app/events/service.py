@@ -1,19 +1,9 @@
-"""The single state-write path. Every submission updates the projected
-state (`jobs.status`/`hidden`/`starred`) and *conditionally* logs an event row:
+"""State writes obey forward-only funnel guards. Real transitions are logged; flags log only novel metadata; manual notes always log. Correction/revert provide explicit overrides. Listing-addressed submissions materialize a stub on first contact."""
 
-- funnel status change → always logged on a real transition (meta enriches);
-- flag (hide/star) → logged only when it carries novel meta;
-- anything that neither changes state nor adds novel info → a no-op.
-
-Funnel events move forward for dashboard and automatic submissions alike:
-`seen` is monotonic, terminal outcomes cannot be revived, and active stages
-cannot move backward. Correction and revert are the explicit override paths.
-Listing-addressed submissions also create a stub on first contact.
-"""
-
+from app.application_workflows.repository import ApplicationWorkflowRepository
 from app.core.db import Conn
-from app.core.enums import Event as EventType
 from app.core.enums import (
+    APPLIED_EVIDENCE,
     Status,
     correction_event,
     flag_for_event,
@@ -21,6 +11,7 @@ from app.core.enums import (
     status_set_by,
     target_status,
 )
+from app.core.enums import Event as EventType
 from app.core.errors import NotFoundError, ValidationError
 from app.core.hashing import stable_hash
 from app.core.timeutil import utc_now
@@ -31,7 +22,7 @@ from app.events.repository import EventRepository
 from app.events.schemas import EventCreate
 from app.jobs.models import Job
 from app.jobs.repository import JobRepository
-from app.jobs.schemas import JobState
+from app.jobs.schemas import JobMutationState
 from app.listings.service import ListingService
 
 
@@ -39,9 +30,10 @@ class EventService:
     def __init__(self, conn: Conn) -> None:
         self.events = EventRepository(conn)
         self.jobs = JobRepository(conn)
+        self.application_workflows = ApplicationWorkflowRepository(conn)
         self.listings = ListingService(conn)
 
-    def record(self, data: EventCreate) -> JobState:
+    def record(self, data: EventCreate) -> JobMutationState:
         # Resolve the address, and any stub it materializes, once; every event in the
         # submission then applies against that same job/listing, in order.
         job_id, listing_id = self._resolve_target(data)
@@ -59,18 +51,25 @@ class EventService:
 
         refreshed = self.jobs.get(job_id)
         assert refreshed is not None
-        return JobState(status=refreshed.status, hidden=refreshed.hidden, starred=refreshed.starred)
+        return JobMutationState(
+            job_id=refreshed.id,
+            status=refreshed.status,
+            hidden=refreshed.hidden,
+            starred=refreshed.starred,
+        )
 
     # --- dashboard corrections --------------------------------------------
 
-    def correct(self, job_id: str, status: Status, reason: str | None) -> JobState:
+    def correct(self, job_id: str, status: Status, reason: str | None) -> JobMutationState:
         """Force a job to `status`, bypassing every funnel guard, and log a
         `corrected:<status>` row marking the override deliberate and carrying the
         optional `reason`. Correcting to the status the job already holds is a
         no-op and logs nothing."""
-        job = self.jobs.get(job_id)
+        requested_job_id = job_id
+        job_id = self.jobs.resolve_id(job_id) or ""
+        job = self.jobs.get(job_id) if job_id else None
         if job is None:
-            raise NotFoundError(f"job {job_id} not found")
+            raise NotFoundError(f"job {requested_job_id} not found")
         self.listings.automatic_closure.invalidate(job_id, "manual_correction")
         job = self.jobs.get(job_id)
         assert job is not None
@@ -90,14 +89,16 @@ class EventService:
         self._reproject_status(job_id)
         return self._state(job_id)
 
-    def revert_last_status(self, job_id: str) -> JobState:
+    def revert_last_status(self, job_id: str) -> JobMutationState:
         """Remove the latest status-setting event and reproject the prior state.
 
         Flags and the server-generated `created` event are never affected.
         """
-        job = self.jobs.get(job_id)
+        requested_job_id = job_id
+        job_id = self.jobs.resolve_id(job_id) or ""
+        job = self.jobs.get(job_id) if job_id else None
         if job is None:
-            raise NotFoundError(f"job {job_id} not found")
+            raise NotFoundError(f"job {requested_job_id} not found")
         status_events = [
             e
             for e in self.events.list_for_job(job_id)
@@ -153,11 +154,20 @@ class EventService:
     def _reproject_status(self, job_id: str) -> None:
         """Project status from the latest `(ts, id)` status-setting event."""
         reproject_status(job_id, self.events, self.jobs)
-
-    def _state(self, job_id: str) -> JobState:
         job = self.jobs.get(job_id)
         assert job is not None
-        return JobState(status=job.status, hidden=job.hidden, starred=job.starred)
+        # Corrections and reverts can make the record inapplicable even while its
+        # submitted event remains. Event deletion separately cascades through the
+        # record's composite foreign key.
+        if job.status not in APPLIED_EVIDENCE:
+            self.application_workflows.delete_for_job(job_id)
+
+    def _state(self, job_id: str) -> JobMutationState:
+        job = self.jobs.get(job_id)
+        assert job is not None
+        return JobMutationState(
+            job_id=job.id, status=job.status, hidden=job.hidden, starred=job.starred
+        )
 
     # --- target resolution ------------------------------------------------
 
@@ -165,9 +175,10 @@ class EventService:
         """Return (job_id, listing_id). A listing-addressed submission stubs a job on
         first contact, firing `created`; a job-addressed one must already exist."""
         if data.job_id is not None:
-            if self.jobs.get(data.job_id) is None:
+            canonical_job_id = self.jobs.resolve_id(data.job_id)
+            if canonical_job_id is None:
                 raise NotFoundError(f"job {data.job_id} not found")
-            return data.job_id, None
+            return canonical_job_id, None
         assert data.platform is not None and data.platform_id is not None
         # `via` records the verb that first materialized the stub — the first event.
         via = str(data.events[0].event)

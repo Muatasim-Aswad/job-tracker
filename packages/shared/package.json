@@ -2,6 +2,13 @@
   "name": "@job-tracker/shared",
   "version": "0.0.0",
   "private": true,
+  "homepage": "https://github.com/Muatasim-Aswad/job-tracker#readme",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Muatasim-Aswad/job-tracker.git",
+    "directory": "packages/shared"
+  },
   "type": "module",
   "exports": {
     "./funnel": "./src/funnel/index.ts",
@@ -10,6 +17,7 @@
     "./text": "./src/text/index.ts",
     "./time": "./src/time/index.ts",
     "./links": "./src/links/index.ts",
+    "./matches": "./src/matches/index.ts",
     "./platforms": "./src/platforms/index.ts"
   },
   "scripts": {

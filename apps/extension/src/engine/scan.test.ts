@@ -1,7 +1,4 @@
-// Unit tests for the scan loop's scheduling. A fake Engine and a stub adapter reduce
-// a "scan" to a counter, so these assert only WHEN the loop runs. The host page's
-// mutation cadence, a route change, and a tab becoming visible each decide whether the
-// injections land at all.
+// Count adapter passes to isolate mutation, navigation, and visibility scheduling.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createScan } from "./scan";
@@ -15,12 +12,19 @@ interface ScanOptions {
   // the first pass the boot ladder would otherwise run.
   hideModeResolves?: boolean;
   activeOn?: (path: string) => boolean;
+  onKeyDown?: (event: KeyboardEvent) => void;
+  renderPageActions?: (statesAvailable?: boolean) => void;
 }
 
 // A scan calls the adapter's hooks, so scanDetail counts passes. findCards returns
 // nothing: card processing is exercised separately, and an empty list keeps the
 // engine stubs trivial.
-function makeScan({ hideModeResolves = true, activeOn }: ScanOptions = {}) {
+function makeScan({
+  hideModeResolves = true,
+  activeOn,
+  onKeyDown,
+  renderPageActions,
+}: ScanOptions = {}) {
   const scans = vi.fn();
   const adapter: Adapter = {
     matches: () => true,
@@ -28,6 +32,8 @@ function makeScan({ hideModeResolves = true, activeOn }: ScanOptions = {}) {
     findCards: () => [],
     scanDetail: scans,
     ...(activeOn ? { activeOn } : {}),
+    ...(onKeyDown ? { onKeyDown } : {}),
+    ...(renderPageActions ? { renderPageActions } : {}),
   };
   setAdapters([adapter]);
   const engine = {
@@ -37,7 +43,7 @@ function makeScan({ hideModeResolves = true, activeOn }: ScanOptions = {}) {
       if (hideModeResolves) cb?.();
     },
     renderAll: vi.fn(),
-    refreshStates: vi.fn(async () => {}),
+    refreshStates: vi.fn(async () => true),
     stateOf: () => ({ status: "untracked", hidden: false, starred: false }),
     invalidateStates: vi.fn(),
     setOffline: vi.fn(),
@@ -69,9 +75,7 @@ afterEach(() => {
 });
 
 describe("scan scheduling", () => {
-  // A hidden tab clamps timers to ~1s, the same cadence the host page renders on. If
-  // each mutation only cleared the pending scan, the settle delay would never elapse
-  // and the page would get its bars only after a manual reload.
+  // Continuous mutations under background-tab timer clamping must not starve scans.
   it("still scans while mutations keep arriving faster than the settle delay", async () => {
     const { scans, scan } = makeScan({ hideModeResolves: false });
     scan.start();
@@ -118,6 +122,28 @@ describe("scan scheduling", () => {
     vi.advanceTimersByTime(10_000);
 
     expect(scans).not.toHaveBeenCalled();
+  });
+
+  it("forwards page keydowns to the active host adapter", () => {
+    const onKeyDown = vi.fn();
+    const { scan } = makeScan({ onKeyDown });
+    scan.start();
+    const event = new KeyboardEvent("keydown", { key: "h", altKey: true });
+
+    window.dispatchEvent(event);
+
+    expect(onKeyDown).toHaveBeenCalledWith(event);
+  });
+
+  it("reports when all card states are available", async () => {
+    const renderPageActions = vi.fn();
+    const { scan } = makeScan({ renderPageActions });
+    scan.start();
+
+    vi.advanceTimersByTime(10_000);
+    await Promise.resolve();
+
+    expect(renderPageActions).toHaveBeenCalledWith(true);
   });
 });
 

@@ -1,9 +1,5 @@
-// The adapter registry — the single place holding the active adapter set and
-// resolving a render key to its natural key. It imports only the Adapter *type*,
-// erased at build, so it has no runtime dependency on any adapter or on the engine.
-// That's what breaks the content↔adapters cycle: content.ts builds the adapter list
-// and injects it via setAdapters(), and the engine and adapters both read from here
-// without importing each other.
+// Type-only adapter imports break the engine/adapter cycle. content.ts installs
+// the priority-ordered adapters; the engine and adapters share this registry.
 import type { Adapter, NaturalKey } from "./adapters/types";
 
 let adapters: Adapter[] = [];
@@ -18,9 +14,7 @@ export function getAdapters(): Adapter[] {
   return adapters;
 }
 
-// dataset.jhId is a prefixed *render key* ("LI-123"); the API speaks the natural key
-// underneath. Each adapter owns its prefix via naturalKey(), so asking them in turn
-// and taking the first match means a new adapter needs no edit here.
+// Render keys are extension-local. Each adapter resolves its own prefix to an API natural key.
 export function toNaturalKey(jobId: string): NaturalKey | null {
   for (const adapter of adapters) {
     const key = adapter.naturalKey?.(jobId);

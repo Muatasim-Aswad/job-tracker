@@ -1,11 +1,8 @@
 import { JobFunnel } from "@job-tracker/shared/funnel";
 import type { PopupJob } from "./types";
 
-// The search-results list. Rows are buttons so they're keyboard-reachable, and the
-// ↑/↓ highlight (`.sel`) is painted from `selIndex` rather than focus, since the
-// search box keeps focus so typing keeps refining the query. A row's subtitle is
-// company + status label, re-rendered from state, so a status changed in the detail
-// view is current the moment you come Back.
+// Keep focus in search while selIndex highlights keyboard-reachable result buttons.
+// State-driven subtitles reflect status changes when returning from detail.
 export function Results({
   jobs,
   selIndex,

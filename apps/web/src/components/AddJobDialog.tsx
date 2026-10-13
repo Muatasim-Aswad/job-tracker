@@ -4,13 +4,7 @@ import { useFocusTrap } from "../lib/useFocusTrap";
 import { useCreateListing } from "../hooks";
 import { IconButton } from "./IconButton";
 
-// Manually add a job the extension never captured (a referral, a recruiter email,
-// a careers page / ATS with no scraper). It routes through the same POST /listings
-// verb as a scrape: platform="manual" + a client-minted platform_id (manual
-// entries have no natural key, so a fresh uuid each time is correct — no dedup) +
-// via="manual" so the job's birth reads as hand-added, not scraped. The server
-// auto-creates the owning job; on success the parent opens its drawer to fill in
-// the rest (status, notes, documents).
+// Manual listings have no natural key, so each gets a fresh UUID and manual provenance.
 export function AddJobDialog({
   onClose,
   onCreated,
@@ -28,8 +22,7 @@ export function AddJobDialog({
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Enough to identify the job: at least a title or a company. Everything else is
-  // optional and editable later in the drawer.
+  // Require title or company; other fields can be edited later.
   const canSave = (title.trim() !== "" || company.trim() !== "") && !create.isPending;
 
   const submit = () => {
@@ -43,12 +36,8 @@ export function AddJobDialog({
         title: title.trim() || undefined,
         company: company.trim() || undefined,
         url: url.trim() || undefined,
-        // A hand-added job is an off-platform application by nature — never the
-        // in-app `easy_apply` a capture detects — so it's always `external`. The
-        // board only badges non-external/unknown apply types, so this stays silent
-        // (correct); no selector, one less field on a fast-add.
+        // Manual jobs use external application flow, never scraped easy_apply.
         apply_type: "external",
-        // Same bag a capture fills — renders as prose in the drawer like a scraped JD.
         meta: description.trim() ? { description: description.trim() } : undefined,
       },
       {
@@ -78,7 +67,7 @@ export function AddJobDialog({
         aria-label="Add a job"
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className="relative z-10 w-full max-w-md rounded-lg border border-line bg-canvas p-5 shadow-2xl outline-none"
+        className="relative z-10 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-line bg-canvas p-5 shadow-2xl outline-none"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink">Add a job</h2>

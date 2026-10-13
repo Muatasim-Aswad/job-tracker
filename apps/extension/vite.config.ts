@@ -3,14 +3,27 @@ import { crx } from "@crxjs/vite-plugin";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import manifest from "./manifest.config";
+import { buildInfo, identityPlugin } from "../../scripts/build-metadata.mjs";
+import { noticesPlugin } from "../../scripts/third-party-notices.mjs";
+import { createRequire } from "node:module";
 
-// CRXJS reads the generated manifest, bundles the content script / service worker /
-// popup as MV3-compatible modules, and writes the loadable extension to dist/. The
-// popup is a React app (same framework as the dashboard); @vitejs/plugin-react
-// compiles its JSX and wires Fast Refresh in dev. Only the popup uses React — the
-// content scripts and service worker stay vanilla TS.
+const BUILD_INFO = buildInfo();
+const require = createRequire(import.meta.url);
+// Generated loader/polyfill code and Tailwind's preflight also ship as assets.
+const assetNoticeInputs = ["vite", "@crxjs/vite-plugin", "tailwindcss"].map((name) =>
+  require.resolve(name),
+);
+
+// CRXJS bundles MV3 entries into dist/. React and Fast Refresh apply only to the popup.
 export default defineConfig({
-  plugins: [react(), tailwindcss(), crx({ manifest })],
+  define: { __BUILD_INFO__: JSON.stringify(BUILD_INFO) },
+  plugins: [
+    react(),
+    tailwindcss(),
+    crx({ manifest }),
+    identityPlugin(BUILD_INFO),
+    noticesPlugin("", assetNoticeInputs),
+  ],
   build: {
     target: "esnext",
   },

@@ -10,13 +10,42 @@ vi.mock("./api/client", () => ({
     listJobs: vi.fn(),
     postEvents: vi.fn(),
     getJob: vi.fn(),
+    listFormFillCaptures: vi.fn(),
+    listFormFillQuestions: vi.fn(),
   },
 }));
 
 import { api } from "./api/client";
-import { useJob, useJobEvents, useJobs } from "./hooks";
+import { useFormFillReviewPresence, useJob, useJobEvents, useJobs } from "./hooks";
 
 const mockedApi = vi.mocked(api);
+
+function queryWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  };
+}
+
+describe("form-fill review presence", () => {
+  it("asks for actionable Questions rather than every open Question", async () => {
+    mockedApi.listFormFillCaptures.mockResolvedValue({ items: [], next_cursor: null } as never);
+    mockedApi.listFormFillQuestions.mockResolvedValue({
+      items: [{ id: "question-actionable" }],
+      next_cursor: null,
+    } as never);
+    const { result } = renderHook(() => useFormFillReviewPresence(), {
+      wrapper: queryWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.hasQuestions).toBe(true));
+    expect(result.current.hasCaptures).toBe(false);
+    expect(mockedApi.listFormFillQuestions).toHaveBeenCalledWith({
+      needs_review: true,
+      limit: 1,
+    });
+  });
+});
 
 function makeJob(overrides: Partial<JobSummary> = {}): JobSummary {
   return {
@@ -40,9 +69,7 @@ function makeJob(overrides: Partial<JobSummary> = {}): JobSummary {
   };
 }
 
-// One QueryClient shared by both hooks for the lifetime of a test, so the
-// mutation's cache writes land where useJobs reads from — a fresh client per
-// render (as a wrapper prop default would give) would reset the cache instead.
+// Share one client per test so mutation writes reach the observed query cache.
 function setup(seed: JobSummary[]) {
   mockedApi.listJobs.mockResolvedValue(seed);
   const qc = new QueryClient({
@@ -92,8 +119,7 @@ describe("useJobEvents optimistic replay", () => {
     const { result } = setup([makeJob()]);
     await waitFor(() => expect(result.current.jobs.data).toEqual([makeJob()]));
 
-    // Never resolves during this test — proves the projection is applied
-    // synchronously with the mutation, not after a round-trip.
+    // An unresolved request proves projection occurs before the response.
     mockedApi.postEvents.mockReturnValue(new Promise(() => {}));
 
     act(() => {
@@ -156,9 +182,13 @@ describe("useJobEvents rollback", () => {
     const { result } = setup([makeJob({ status: "new" })]);
     await waitFor(() => expect(result.current.jobs.data?.[0].status).toBe("new"));
 
-    mockedApi.postEvents.mockResolvedValue({ status: "applied", hidden: false, starred: true });
-    // The successful mutation invalidates the summaries so server-derived fields
-    // such as attention reconcile too; model that follow-up GET as authoritative.
+    mockedApi.postEvents.mockResolvedValue({
+      job_id: "job-1",
+      status: "applied",
+      hidden: false,
+      starred: true,
+    });
+    // Model refetch as authoritative for server-derived fields such as attention.
     mockedApi.listJobs.mockResolvedValue([
       makeJob({ status: "applied", hidden: false, starred: true, attention: null }),
     ]);

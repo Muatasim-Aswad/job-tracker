@@ -47,9 +47,20 @@ export default defineManifest({
   content_scripts: [
     {
       matches: contentMatches,
-      js: ["src/content.ts"],
+      // The wrapper gives CRXJS a distinct exported entry while preserving the
+      // existing content engine unchanged and top-frame-only.
+      js: ["src/form-fill/top-content.ts"],
       css: ["src/content.css"],
       run_at: "document_idle",
+    },
+    {
+      // Standalone Easy Apply renders in a same-origin /preload frame, so the
+      // entry covers LinkedIn frames broadly and stays inert until it finds a form.
+      matches: ["https://www.linkedin.com/*"],
+      js: ["src/form-fill/content.ts"],
+      css: ["src/content.css"],
+      run_at: "document_idle",
+      all_frames: true,
     },
   ],
 });

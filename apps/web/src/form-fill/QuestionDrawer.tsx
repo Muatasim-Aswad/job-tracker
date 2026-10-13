@@ -1,0 +1,627 @@
+import { useEffect, useRef, useState } from "react";
+import { RevisionConflictPanel } from "../components/RevisionConflictPanel";
+import {
+  useFormFillAnswer,
+  useFormFillConflictCaptures,
+  useFormFillQuestion,
+  usePutFormFillMapping,
+  useRemoveFormFillDetail,
+  useResolveFormFillCaptureConflict,
+  useUpdateFormFillMapping,
+  useUpdateFormFillQuestion,
+} from "../hooks";
+import { toast } from "../lib/toast";
+import { Drawer } from "./Drawer";
+import { bindingsComplete, suggestBindings } from "./bindings";
+import { OptionBindingEditor } from "./OptionBindingEditor";
+import {
+  CONTROL_LABEL,
+  fillExplanation,
+  formatDate,
+  siteLabel,
+  SOURCE_LABEL,
+  valueText,
+  type QuestionDetail,
+} from "./model";
+import { AnswerPicker } from "./AnswerPicker";
+import { ChangeReview } from "./ChangeReview";
+import { KnowledgeHistory } from "./KnowledgeHistory";
+import { HelpTip } from "./HelpTip";
+
+interface Props {
+  questionId: string;
+  onClose: () => void;
+  onCreateAnswer: (question: QuestionDetail) => void;
+  onOpenCapture?: (id: string) => void;
+  onNext?: () => void;
+}
+
+export function QuestionDrawer({
+  questionId,
+  onClose,
+  onCreateAnswer,
+  onOpenCapture,
+  onNext,
+}: Props) {
+  const query = useFormFillQuestion(questionId);
+  const putMapping = usePutFormFillMapping();
+  const updateMapping = useUpdateFormFillMapping();
+  const updateQuestion = useUpdateFormFillQuestion();
+  const resolveConflict = useResolveFormFillCaptureConflict();
+  const removeDetail = useRemoveFormFillDetail();
+  const [answerId, setAnswerId] = useState("");
+  const [bindings, setBindings] = useState<Record<string, string>>({});
+  const [baseline, setBaseline] = useState("");
+  const [winnerId, setWinnerId] = useState("");
+  const [reviewedContext, setReviewedContext] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+  const [announcement, setAnnouncement] = useState("");
+  const openedAnswerIds = useRef(new Set<string>());
+  const reviewRef = useRef<HTMLElement>(null);
+  const retainedCaptureIds = useRef<string[]>([]);
+  const question = query.data;
+  const selectedAnswer = useFormFillAnswer(answerId || null);
+  const currentAnswer = useFormFillAnswer(question?.answer?.id ?? null);
+  const captureIds = question?.current_captures?.map((capture) => capture.id) ?? [];
+  retainedCaptureIds.current = captureIds;
+  const captures = useFormFillConflictCaptures(captureIds);
+  const rememberedCapture = captures.length === 1 ? captures[0].data : undefined;
+  const choiceQuestion =
+    !!question &&
+    ["radio", "select", "checkbox_group", "multi_select"].includes(question.control_kind);
+  const complete =
+    !choiceQuestion ||
+    (!!selectedAnswer.data &&
+      bindingsComplete(question?.options ?? [], selectedAnswer.data.choices, bindings));
+  const draft = JSON.stringify({ answerId, bindings });
+  const busy =
+    putMapping.isPending ||
+    updateMapping.isPending ||
+    updateQuestion.isPending ||
+    resolveConflict.isPending;
+
+  const canReview =
+    !!question &&
+    !query.isError &&
+    !!selectedAnswer.data &&
+    !selectedAnswer.isError &&
+    complete &&
+    captures.every((capture) => !!capture.data && !capture.isError) &&
+    (question.current_captures ?? []).every((summary) =>
+      captures.some(
+        (capture) => capture.data?.id === summary.id && capture.data.revision >= summary.revision,
+      ),
+    ) &&
+    !question.capture_conflict &&
+    (!question.answer ||
+      (!!currentAnswer.data &&
+        !currentAnswer.isError &&
+        currentAnswer.data.revision >= question.answer.revision));
+  const reviewContext = JSON.stringify({
+    draft,
+    question: [question?.id, question?.revision],
+    mapping: [question?.mapping?.id, question?.mapping?.revision],
+    answer: [selectedAnswer.data?.id, selectedAnswer.data?.revision],
+    currentAnswer: [
+      question?.answer?.id,
+      question?.answer?.revision,
+      currentAnswer.data?.id,
+      currentAnswer.data?.revision,
+    ],
+    captureSummaries: question?.current_captures?.map((capture) => [capture.id, capture.revision]),
+    captures: captures.map((capture) => [capture.data?.id, capture.data?.revision]),
+  });
+  const reviewed = canReview && reviewedContext === reviewContext;
+  useEffect(() => {
+    if (reviewed) reviewRef.current?.scrollIntoView?.({ block: "start" });
+  }, [reviewed]);
+
+  useEffect(() => {
+    if (!question || initialized) return;
+    const nextAnswerId = question.answer?.id ?? "";
+    const nextBindings = Object.fromEntries(
+      (question.mapping?.bindings ?? []).map((binding) => [
+        binding.question_option_id,
+        binding.answer_choice_id,
+      ]),
+    );
+    setAnswerId(nextAnswerId);
+    setBindings(nextBindings);
+    setBaseline(JSON.stringify({ answerId: nextAnswerId, bindings: nextBindings }));
+    setInitialized(true);
+  }, [question, initialized]);
+  useEffect(() => {
+    if (answerId) openedAnswerIds.current.add(answerId);
+    if (question?.answer?.id) openedAnswerIds.current.add(question.answer.id);
+  }, [answerId, question?.answer?.id]);
+  useEffect(
+    () => () => {
+      removeDetail("question", questionId);
+      for (const id of retainedCaptureIds.current) removeDetail("capture", id);
+      for (const id of openedAnswerIds.current) removeDetail("answer", id);
+    },
+    [removeDetail, questionId],
+  );
+  useEffect(() => {
+    if (!selectedAnswer.data || !question || !choiceQuestion) return;
+    setBindings((current) =>
+      suggestBindings(question.options, selectedAnswer.data!.choices, current),
+    );
+  }, [answerId, selectedAnswer.data, question, choiceQuestion]);
+
+  async function saveMapping(advance = false) {
+    if (!question || !selectedAnswer.data || !complete || !reviewed) return;
+    try {
+      await putMapping.mutateAsync({
+        questionId,
+        body: {
+          answer_id: selectedAnswer.data.id,
+          expected_answer_revision: selectedAnswer.data.revision,
+          expected_mapping_revision: question.mapping?.revision ?? null,
+          expected_question_revision: question.revision,
+          bindings: choiceQuestion
+            ? question.options
+                .filter((option) => option.status === "active")
+                .map((option) => ({
+                  question_option_id: option.id,
+                  answer_choice_id: bindings[option.id],
+                }))
+            : [],
+        },
+      });
+      setBaseline(draft);
+      setReviewedContext(null);
+      setAnnouncement("Answer matched to question.");
+      toast.info("Answer matched to question.");
+      if (advance && onNext) onNext();
+      else onClose();
+    } catch {
+      setAnnouncement("The match was not saved.");
+      setReviewedContext(null);
+    }
+  }
+  async function changeMapping(status: "active" | "disabled" | "retired") {
+    if (!question?.mapping) return;
+    try {
+      await updateMapping.mutateAsync({
+        questionId,
+        body: {
+          expected_question_revision: question.revision,
+          expected_revision: question.mapping.revision,
+          status,
+        },
+      });
+      toast.info("Fill behavior saved.");
+      onClose();
+    } catch {
+      setAnnouncement("The fill behavior was not changed.");
+    }
+  }
+  async function changeReview(review_state: "open" | "ignored") {
+    if (!question) return;
+    try {
+      await updateQuestion.mutateAsync({
+        questionId,
+        body: { expected_revision: question.revision, review_state },
+      });
+      setAnnouncement(review_state === "ignored" ? "Question dismissed." : "Question reopened.");
+      toast.info(review_state === "ignored" ? "Question dismissed." : "Question reopened.");
+      onClose();
+    } catch {
+      setAnnouncement("The question was not changed.");
+    }
+  }
+  async function chooseWinner() {
+    if (!question || !winnerId || captures.some((capture) => !capture.data || capture.isError))
+      return;
+    try {
+      await resolveConflict.mutateAsync({
+        questionId,
+        body: {
+          expected_question_revision: question.revision,
+          winner_capture_id: winnerId,
+          captures: captures.map((capture) => ({
+            capture_id: capture.data!.id,
+            expected_revision: capture.data!.revision,
+          })),
+        },
+      });
+      setWinnerId("");
+      toast.info("Remembered value selected.");
+    } catch {
+      setAnnouncement("The conflict was not resolved.");
+    }
+  }
+  const conflictError =
+    putMapping.error ?? updateMapping.error ?? updateQuestion.error ?? resolveConflict.error;
+  const before = currentAnswer.data
+    ? `${currentAnswer.data.label}: ${valueText(currentAnswer.data.value, currentAnswer.data.choices)}`
+    : "No saved answer matched";
+
+  return (
+    <Drawer
+      label="Review question"
+      title={
+        question && (
+          <h2 className="text-lg font-semibold leading-7 text-ink">{question.raw_question}</h2>
+        )
+      }
+      onClose={onClose}
+      dirty={initialized && (draft !== baseline || !!winnerId)}
+      busy={busy}
+      footer={
+        question && !question.capture_conflict ? (
+          rememberedCapture && onOpenCapture && (!answerId || draft === baseline) && !reviewed ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onOpenCapture(rememberedCapture.id)}
+              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
+            >
+              Review remembered value
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-3">
+                {!reviewed ? (
+                  <HelpTip text="Check the answer value and fill behavior before saving.">
+                    <button
+                      type="button"
+                      disabled={!canReview || busy}
+                      onClick={() => setReviewedContext(reviewContext)}
+                      className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
+                    >
+                      Review match
+                    </button>
+                  </HelpTip>
+                ) : (
+                  <>
+                    <HelpTip text="Check the answer value and fill behavior before saving.">
+                      <button
+                        type="button"
+                        disabled={!canReview || busy}
+                        onClick={() => void saveMapping()}
+                        className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
+                      >
+                        {busy ? "Saving…" : "Save match"}
+                      </button>
+                    </HelpTip>
+                    {onNext && (
+                      <HelpTip text="Save this match, then open the next question.">
+                        <button
+                          type="button"
+                          disabled={!canReview || busy}
+                          onClick={() => void saveMapping(true)}
+                          className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
+                        >
+                          Save and review next
+                        </button>
+                      </HelpTip>
+                    )}
+                  </>
+                )}
+              </div>
+              {answerId && !complete && (
+                <p className="text-xs text-ink-muted">Match every form choice before saving.</p>
+              )}
+            </div>
+          )
+        ) : undefined
+      }
+    >
+      <p aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+      {query.isLoading ? (
+        <p role="status">Loading question…</p>
+      ) : query.isError || !question ? (
+        <p role="alert">
+          Couldn’t load this question.{" "}
+          <button type="button" className="underline" onClick={() => void query.refetch()}>
+            Retry
+          </button>
+        </p>
+      ) : (
+        <>
+          {question.review_state === "ignored" && (
+            <div className="space-y-2 rounded-md border border-line bg-sunken p-3">
+              <p className="text-sm text-ink-muted">
+                This question is dismissed and will not fill.
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void changeReview("open")}
+                className="text-sm font-medium text-accent"
+              >
+                Reopen question
+              </button>
+            </div>
+          )}
+          {!!captures.length && (
+            <section
+              className={`space-y-3 ${question.capture_conflict ? "rounded-lg border border-red-400 bg-red-50 p-4 dark:bg-red-950/20" : ""}`}
+              aria-label="Remembered values"
+            >
+              <h3
+                className={
+                  question.capture_conflict
+                    ? "font-medium text-ink"
+                    : "text-xs font-normal text-ink-muted"
+                }
+              >
+                {question.capture_conflict
+                  ? "Choose which remembered value to keep"
+                  : "Remembered value"}
+              </h3>
+              {question.capture_conflict && (
+                <p className="text-sm text-ink-muted">
+                  Conflicting values block filling. Keeping one clears the other retained values.
+                </p>
+              )}
+              {captures.some((capture) => capture.isLoading) ? (
+                <p role="status">Loading remembered values…</p>
+              ) : captures.some((capture) => capture.isError) ? (
+                <p role="alert">
+                  Couldn’t load every remembered value.{" "}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      for (const capture of captures) void capture.refetch();
+                    }}
+                  >
+                    Retry
+                  </button>
+                </p>
+              ) : (
+                captures.map(
+                  (capture) =>
+                    capture.data && (
+                      <div key={capture.data.id} className="space-y-2">
+                        <label className="flex items-start gap-3">
+                          {question.capture_conflict && (
+                            <input
+                              type="radio"
+                              name="capture-winner"
+                              checked={winnerId === capture.data.id}
+                              onChange={() => setWinnerId(capture.data!.id)}
+                            />
+                          )}
+                          <span>
+                            <span className="block whitespace-pre-wrap break-words text-lg font-normal text-ink">
+                              {valueText(capture.data.value, question.options)}
+                            </span>
+                            {question.capture_conflict && (
+                              <span className="mt-1 block text-xs text-ink-muted">
+                                {SOURCE_LABEL[capture.data.source]} •{" "}
+                                {formatDate(capture.data.created_at)}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                        {!question.capture_conflict && onOpenCapture && captures.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenCapture(capture.data!.id)}
+                            className="rounded-md border border-accent px-3 py-2 text-sm font-medium text-accent"
+                          >
+                            Use or dismiss this value
+                          </button>
+                        )}
+                      </div>
+                    ),
+                )
+              )}
+              {question.capture_conflict && (
+                <button
+                  type="button"
+                  disabled={
+                    !winnerId ||
+                    busy ||
+                    captures.some((capture) => !capture.data || capture.isError)
+                  }
+                  onClick={() => void chooseWinner()}
+                  className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
+                >
+                  Keep selected value
+                </button>
+              )}
+            </section>
+          )}
+          {!question.capture_conflict && (
+            <section className="space-y-4" aria-label="Saved answer for this question">
+              <AnswerPicker
+                questionId={question.id}
+                questionRevision={question.revision}
+                value={answerId}
+                selected={selectedAnswer.data}
+                loading={selectedAnswer.isLoading}
+                error={selectedAnswer.isError}
+                onRetry={() => void selectedAnswer.refetch()}
+                onCreate={() => onCreateAnswer(question)}
+                onChange={(id) => {
+                  setAnswerId(id);
+                  setBindings({});
+                  setReviewedContext(null);
+                }}
+              />
+              {choiceQuestion && selectedAnswer.data && (
+                <OptionBindingEditor
+                  options={question.options}
+                  choices={selectedAnswer.data.choices}
+                  value={bindings}
+                  onChange={(next) => {
+                    setBindings(next);
+                    setReviewedContext(null);
+                  }}
+                />
+              )}
+              {reviewed && selectedAnswer.data && (
+                <ChangeReview
+                  ref={reviewRef}
+                  before={before}
+                  after={`${selectedAnswer.data.label}: ${valueText(selectedAnswer.data.value, selectedAnswer.data.choices)}`}
+                  behavior={
+                    question.review_state === "ignored"
+                      ? "This question stays dismissed and will not fill until reopened."
+                      : fillExplanation(selectedAnswer.data.fill_policy, selectedAnswer.data.status)
+                  }
+                  affected={[question.raw_question]}
+                >
+                  {choiceQuestion && (
+                    <ul className="space-y-1 text-sm text-ink-muted">
+                      {question.options
+                        .filter((option) => option.status === "active")
+                        .map((option) => (
+                          <li key={option.id}>
+                            {option.raw_label} →{" "}
+                            {
+                              selectedAnswer.data!.choices.find(
+                                (choice) => choice.id === bindings[option.id],
+                              )?.display_label
+                            }
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                  {!!captures.length && (
+                    <p className="text-sm text-ink-muted">
+                      An identical remembered value is marked reviewed. A differing remembered value
+                      stays in the inbox.
+                    </p>
+                  )}
+                </ChangeReview>
+              )}
+            </section>
+          )}
+          <details className="border-t border-line pt-3 text-sm text-ink-muted">
+            <summary className="cursor-pointer font-medium">
+              Manage question
+              {question.mapping?.status === "active"
+                ? " · Matched"
+                : question.mapping?.status === "disabled"
+                  ? " · Filling paused"
+                  : ""}
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-3">
+              {question.mapping && !question.capture_conflict && (
+                <>
+                  <HelpTip text="Pausing stops filling and keeps the match.">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void changeMapping(
+                          question.mapping!.status === "active" ? "disabled" : "active",
+                        )
+                      }
+                      className="rounded border border-line px-3 py-2"
+                    >
+                      {question.mapping.status === "active" ? "Pause filling" : "Resume filling"}
+                    </button>
+                  </HelpTip>
+                  {question.mapping.status !== "retired" && (
+                    <HelpTip text="Remove this match. You can choose another saved answer later.">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void changeMapping("retired")}
+                        className="rounded border border-line px-3 py-2"
+                      >
+                        Remove match
+                      </button>
+                    </HelpTip>
+                  )}
+                </>
+              )}
+              {question.review_state === "open" && question.mapping?.status !== "active" && (
+                <HelpTip text="Dismiss this question and clear its current remembered values. It will not fill until reopened.">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void changeReview("ignored")}
+                    className="rounded border border-line px-3 py-2"
+                  >
+                    Dismiss question
+                  </button>
+                </HelpTip>
+              )}
+            </div>
+          </details>
+          <details className="border-t border-line pt-3 text-sm text-ink-muted">
+            <summary className="cursor-pointer font-medium">Question details</summary>
+            {question.raw_help && (
+              <p className="mt-3 max-w-prose text-xs leading-5">{question.raw_help}</p>
+            )}
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs">Section</dt>
+                <dd className="mt-1 text-ink">{question.raw_section || "Application form"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs">Field type</dt>
+                <dd className="mt-1 text-ink">
+                  {CONTROL_LABEL[question.control_kind]}
+                  {question.option_count ? ` · ${question.option_count} choices` : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs">Source</dt>
+                <dd className="mt-1 text-ink">{siteLabel(question.site_scope)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs">Seen</dt>
+                <dd className="mt-1 text-ink">
+                  {question.seen_count} {question.seen_count === 1 ? "time" : "times"}
+                </dd>
+              </div>
+            </dl>
+            {captures
+              .filter((capture) => capture.data)
+              .map((capture) => (
+                <p key={capture.data!.id} className="mt-3 text-xs">
+                  {SOURCE_LABEL[capture.data!.source]} · {formatDate(capture.data!.created_at)}
+                </p>
+              ))}
+          </details>
+          <RevisionConflictPanel
+            error={conflictError}
+            draft={draft}
+            onReviewCurrent={async () => {
+              await Promise.all([
+                query.refetch(),
+                selectedAnswer.refetch(),
+                currentAnswer.refetch(),
+              ]);
+              setReviewedContext(null);
+              putMapping.reset();
+              updateMapping.reset();
+              updateQuestion.reset();
+              resolveConflict.reset();
+            }}
+            onDiscard={() => {
+              const id = question.answer?.id ?? "";
+              const next = Object.fromEntries(
+                (question.mapping?.bindings ?? []).map((binding) => [
+                  binding.question_option_id,
+                  binding.answer_choice_id,
+                ]),
+              );
+              setAnswerId(id);
+              setBindings(next);
+              setBaseline(JSON.stringify({ answerId: id, bindings: next }));
+              setWinnerId("");
+              setReviewedContext(null);
+              putMapping.reset();
+              updateMapping.reset();
+              updateQuestion.reset();
+              resolveConflict.reset();
+            }}
+          />
+          <KnowledgeHistory events={question.events ?? []} />
+        </>
+      )}
+    </Drawer>
+  );
+}

@@ -1,6 +1,5 @@
-// One size for every icon in the drawer, so nothing looks heavier than its
-// neighbor. Lucide strokes at a consistent weight; 16px sits right in a 32px button.
+// Use one drawer icon size to keep visual weight consistent.
 export const ICON_SIZE = 16;
 
-// The resting tone for a plain icon button (IconButton sets no color of its own).
+// IconButton leaves color to the caller.
 export const NEUTRAL = "text-ink-faint hover:text-ink-soft";

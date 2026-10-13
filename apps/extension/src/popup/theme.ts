@@ -1,8 +1,5 @@
-// Popup color theme. `system` sets no attribute, letting popup.css's
-// `prefers-color-scheme` query decide; `light` and `dark` pin it via a `data-theme`
-// attribute on <html> that overrides the query in both directions. Persisted in
-// chrome.storage.local under THEME_KEY so the choice survives across opens, and
-// applied before React mounts (main.tsx) so there's no flash of the wrong theme.
+// System uses the media query; explicit themes override it with data-theme.
+// Persist in chrome.storage and apply before mounting to avoid a flash.
 export type Theme = "system" | "light" | "dark";
 
 export const THEME_KEY = "theme";

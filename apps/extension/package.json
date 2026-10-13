@@ -2,6 +2,13 @@
   "name": "job-tracker-extension",
   "private": true,
   "description": "Job Tracker browser extension — captures listings and drives the funnel from the sites you browse.",
+  "homepage": "https://github.com/Muatasim-Aswad/job-tracker#readme",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Muatasim-Aswad/job-tracker.git",
+    "directory": "apps/extension"
+  },
   "type": "module",
   "scripts": {
     "dev": "vp dev",

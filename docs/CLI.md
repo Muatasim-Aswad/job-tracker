@@ -24,6 +24,7 @@ job-tracker start [--port PORT]
 job-tracker status
 job-tracker paths
 job-tracker version
+job-tracker build-info
 job-tracker doctor
 job-tracker backup OUTPUT.sqlite
 job-tracker restore BACKUP.sqlite [--target RECOVERY.sqlite] [--replace]
@@ -33,6 +34,7 @@ job-tracker migrate-checkout CHECKOUT
 - `start` binds to `127.0.0.1`, stays in the foreground, and stops cleanly with Ctrl-C. Run it from a terminal or an operator-selected service manager; the CLI does not daemonize itself.
 - `status` performs a bounded loopback health check and distinguishes stopped, healthy, and lock-held-but-unhealthy states. It does not open or mutate the database.
 - `paths` prints the resolved non-secret application, persistent, schema, and dashboard paths. `version` prints the canonical product version.
+- `build-info` prints installed public JSON identity: version, full revision, commit/build times, and dev state. It requires no Git, network, database, configuration loading, or server startup. Missing or malformed packaged metadata fails clearly; a source profile without packaged metadata reports unverified dev. [Distribution](DISTRIBUTION.md#build-identity-and-attribution) owns provenance and timestamp policy.
 - `doctor` reports the product and Python versions, profile, configured database mode, resolved non-secret paths, lock/health state, database integrity when it is safe to inspect, and POSIX permissions. It skips integrity inspection while the server lock is held, never prints tokens or the complete environment, and returns nonzero when a performed diagnostic fails.
 - `backup`, `restore`, and `migrate-checkout` are offline operations with the refusal, validation, and copy/snapshot semantics in [`DISTRIBUTION.md`](DISTRIBUTION.md#database-lifecycle-and-backups). Stop the foreground server before using them.
 

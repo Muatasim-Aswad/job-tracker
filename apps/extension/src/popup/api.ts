@@ -1,6 +1,4 @@
-// The popup's tracker-API client. It runs on the extension origin, so unlike the
-// content scripts — blocked from localhost by the host sites' CSP — it fetches the
-// API directly. The writes are the same verbs the dashboard and injected cards speak.
+// The extension origin fetches the API directly; content scripts use the CSP-safe worker proxy.
 import { API_BASE_URL } from "../config.js";
 import type { BridgeRequest } from "../messages.js";
 
@@ -13,11 +11,8 @@ async function api(path: string, opts?: RequestInit) {
   return res.status === 204 ? null : res.json();
 }
 
-// Writing straight to the API means the service worker never sees it — and it's the
-// worker that tells open tabs their read-model went stale. One ping puts the write
-// back on that path, so a status recorded here updates the tabs behind the popup
-// instead of leaving them stale until a reload. Fire-and-forget: the write already
-// succeeded, and a missed refresh must never surface as an error.
+// Notify the worker after direct writes so other tabs invalidate their read models.
+// A missed notification cannot turn a successful mutation into an error.
 function notifyChange(): void {
   const msg: BridgeRequest = { type: "notify-change" };
   chrome.runtime.sendMessage(msg).catch(() => {});
@@ -51,10 +46,8 @@ export const postEvents = (jobId: string, events: unknown[], ts?: string) =>
 
 export const noteTitles = () => api("/meta/note-titles").catch(() => []);
 
-// Manually add a job no content script captured (a referral, an HR email, an ATS with
-// no scraper). The same POST /listings verb as a scrape, but with platform="manual", a
-// client-minted platform_id since there's no natural key to dedup on, and via="manual"
-// so the job's birth reads as hand-added. The server auto-creates the owning job.
+// Manual listings mint a platform ID because no external natural key exists.
+// via=manual preserves provenance; the server creates the owning job.
 export const createListing = (body: unknown) =>
   api("/listings", {
     method: "POST",
@@ -79,10 +72,8 @@ export const patchEventMeta = (eventId: number, meta: unknown) =>
 // the settings panel's "Clear stored data" control.
 export const clearSearchLog = () => api("/search-log", { method: "DELETE" });
 
-// Fire-and-forget search diagnostics. Only reached when the user has opted in (see
-// engine/diagnostics.ts), and the caller decides what fields the body carries. Never
-// blocks or surfaces errors — a failed beacon must not touch the popup UX.
-// `keepalive` lets the request outlive the popup when sent from pagehide.
+// Only opted-in callers send diagnostics. keepalive lets pagehide requests finish
+// after teardown; failure must not affect the popup.
 export function logSearch(body: unknown, keepalive = false): void {
   try {
     fetch(`${BASE_URL}/search-log`, {

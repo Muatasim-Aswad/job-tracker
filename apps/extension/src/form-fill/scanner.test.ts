@@ -1,0 +1,2147 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type {
+  FormFillCaptureRequest,
+  FormFillCaptureResponse,
+  FormFillResolutionRequest,
+  FormFillResolutionResponse,
+} from "../messages";
+import { EasyApplyScanner, startEasyApplyFormFill } from "./scanner";
+import { SUGGESTION_WAIT_MS } from "./suggestions";
+
+const field = (number: number, prompt: string, value = "") => `
+  <div data-test-form-element>
+    <label for="single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-${number}-text">${prompt}</label>
+    <input id="single-line-text-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-${number}-text" type="text" value="${value}">
+  </div>`;
+
+const locationField = () => {
+  const id =
+    "single-typeahead-entity-form-component-formElement-urn-li-jobs-applyformcommon-easyApplyFormElement-123456-9-location-GEO-LOCATION";
+  return `
+    <div data-test-form-element>
+      <div data-test-single-typeahead-entity-form-component>
+        <label for="${id}">Location (city)</label>
+        <input id="${id}" type="text" role="combobox" aria-autocomplete="list" required>
+      </div>
+    </div>`;
+};
+
+function fixture(contents: string, actions = "") {
+  history.replaceState({}, "", "/jobs/view/example-123456/");
+  document.body.innerHTML = `
+    <div class="jobs-easy-apply-modal" role="dialog">
+      <h3>Screening questions</h3>
+      ${contents}
+      <footer>${actions}</footer>
+    </div>`;
+}
+
+function response(
+  request: FormFillResolutionRequest,
+  results: FormFillResolutionResponse["results"],
+): FormFillResolutionResponse {
+  return {
+    scan_id: request.scan_id,
+    listing_context: { job_id: null, listing_id: null },
+    results,
+  };
+}
+
+function unresolved(clientFieldId: string): FormFillResolutionResponse["results"][number] {
+  return {
+    status: "unresolved",
+    client_field_id: clientFieldId,
+    question_id: `question-${clientFieldId}`,
+    reason: "no_knowledge",
+    option_mappings: [],
+  };
+}
+
+function summaryText(): string | null {
+  return document
+    .querySelector<HTMLElement>("[data-jh-ff-panel]")!
+    .shadowRoot!.querySelector(".summary")!.textContent;
+}
+
+const ids = () => {
+  let count = 0;
+  return () => `runtime-${++count}`;
+};
+
+afterEach(() => {
+  vi.useRealTimers();
+  document.body.replaceChildren();
+  history.replaceState({}, "", "/");
+  vi.restoreAllMocks();
+});
+
+describe("generation-based safe form filling", () => {
+  it("discovers a modal that opens inside LinkedIn's interop shadow root", async () => {
+    vi.useFakeTimers();
+    history.replaceState({}, "", "/jobs/search-results/");
+    const host = document.createElement("div");
+    host.dataset.testid = "interop-shadowdom";
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const bridge = vi.fn(async (request: FormFillResolutionRequest) => ({
+      ok: true as const,
+      result: response(
+        request,
+        request.fields.map((item) => unresolved(item.client_field_id)),
+      ),
+    }));
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      bridge,
+      captureBridge,
+      captureSettleMs: 20,
+      isUserEvent: () => true,
+      settleMs: 180,
+    });
+    scanner.setEnabled(true);
+
+    shadow.innerHTML = `
+      <div class="jobs-easy-apply-modal" role="dialog">
+        <h3>Screening questions</h3>
+        ${field(1, "Shadow question")}
+      </div>`;
+    await vi.advanceTimersByTimeAsync(180);
+
+    expect(bridge).toHaveBeenCalledOnce();
+    expect(bridge.mock.calls[0][0].page.platform_id).toBe("123456");
+    expect(document.querySelector(".jobs-easy-apply-modal")).toBeNull();
+    expect(shadow.querySelector("[data-jh-ff-panel]")).not.toBeNull();
+    expect(shadow.querySelector("[data-jh-ff-marker]")).not.toBeNull();
+    expect(shadow.querySelector("[data-jh-ff-shadow-styles]")).not.toBeNull();
+
+    const input = shadow.querySelector<HTMLInputElement>("input")!;
+    input.value = "shadow-user-value";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      source: "user_input",
+      value: { kind: "text", value: "shadow-user-value" },
+    });
+
+    scanner.setEnabled(false);
+    expect(shadow.querySelector("[data-jh-ff-ui]")).toBeNull();
+  });
+
+  it("waits for lazy fields to settle and resolves one batch", async () => {
+    vi.useFakeTimers();
+    fixture("");
+    const bridge = vi.fn(async (request: FormFillResolutionRequest) => ({
+      ok: true as const,
+      result: response(
+        request,
+        request.fields.map((item) => unresolved(item.client_field_id)),
+      ),
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      bridge,
+      settleMs: 180,
+    });
+    scanner.setEnabled(true);
+    await vi.advanceTimersByTimeAsync(100);
+    document.querySelector("footer")!.insertAdjacentHTML("beforebegin", field(1, "Lazy question"));
+    await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(179);
+    expect(bridge).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(bridge).toHaveBeenCalledOnce();
+    expect(bridge.mock.calls[0][0].fields.map((item) => item.prompt)).toEqual(["Lazy question"]);
+    scanner.setEnabled(false);
+  });
+
+  it("fills a safe field while an independent missing result stays untouched", async () => {
+    fixture(field(1, "First question") + field(2, "Second question"));
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return {
+          ok: true,
+          result: response(request, [
+            {
+              status: "approved",
+              client_field_id: "field-1",
+              question_id: "question-field-1",
+              answer_id: "answer-1",
+              answer_revision: 1,
+              mapping_id: "mapping-1",
+              mapping_revision: 1,
+              action: { kind: "set_text", value: "safe-first-value" },
+              option_mappings: [],
+            },
+          ]),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].page).toEqual({
+      platform: "linkedin",
+      platform_id: "123456",
+      site_scope: "linkedin:easy-apply",
+      adapter_id: "linkedin.easy_apply",
+      adapter_version: "1",
+    });
+    expect(requests[0].fields.map((requestField) => requestField.prompt)).toEqual([
+      "First question",
+      "Second question",
+    ]);
+    const markers = [...document.querySelectorAll<HTMLElement>(".jh-ff-marker")];
+    expect(markers.map((marker) => marker.dataset.state)).toEqual(["filled", "error"]);
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value),
+    ).toEqual(["safe-first-value", ""]);
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.textContent).toContain(
+      "1 filled · 0 already match · 1 needs attention · 0 manual",
+    );
+    expect(panel.textContent).toContain("Job Tracker never continues or submits");
+    scanner.setEnabled(false);
+  });
+
+  it("links unresolved fields to the dashboard's non-sensitive Question route", async () => {
+    fixture(field(1, "Dashboard question"));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [{ ...unresolved("field-1"), question_id: "question-opaque" }]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    const url = new URL(panel.querySelector<HTMLAnchorElement>("a")!.href);
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      view: "form-fill",
+      section: "review",
+      type: "questions",
+      question: "question-opaque",
+    });
+    expect(url.toString()).not.toContain("Dashboard question");
+    scanner.setEnabled(false);
+  });
+
+  it("keeps the user's summary choice across presentation rerenders", async () => {
+    fixture(field(1, "Summary preference"));
+    const saveSummaryOpen = vi.fn();
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      saveSummaryOpen,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setSummaryOpenPreference(false);
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    let panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    let details = panel.querySelector<HTMLDetailsElement>("details")!;
+    expect(details.open).toBe(false);
+    panel.querySelector<HTMLElement>("summary")!.click();
+    await vi.waitFor(() => expect(saveSummaryOpen).toHaveBeenCalledWith(true));
+    details = panel.querySelector<HTMLDetailsElement>("details")!;
+    expect(details.open).toBe(true);
+
+    await scanner.scan();
+    panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    details = panel.querySelector<HTMLDetailsElement>("details")!;
+    expect(details.open).toBe(true);
+    scanner.setEnabled(false);
+  });
+
+  it("omits the summary when the step has no field information", async () => {
+    fixture("");
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(document.querySelector("[data-jh-ff-panel]")).toBeNull();
+    scanner.setEnabled(false);
+  });
+
+  it("clears LinkedIn's preselected follow-company control without resolving it", async () => {
+    fixture(`
+      ${field(1, "Application question")}
+      <div data-test-form-element>
+        <label><input id="follow-company" type="checkbox" checked>Follow Example Co to stay up to date with their page.</label>
+      </div>
+    `);
+    const requests: FormFillResolutionRequest[] = [];
+    const follow = document.querySelector<HTMLInputElement>("#follow-company")!;
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return { ok: true, result: response(request, [unresolved("field-1")]) };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(follow.checked).toBe(false);
+    expect(requests[0].fields.map((item) => item.prompt)).toEqual(["Application question"]);
+    scanner.setEnabled(false);
+  });
+
+  it("keeps a newer collapsed choice when initial storage loading settles late", async () => {
+    fixture(field(1, "Startup summary preference"));
+    const gets = new Map<string, (data: Record<string, unknown>) => void>();
+    const changeListeners: Array<
+      (changes: Record<string, chrome.storage.StorageChange>, area: string) => void
+    > = [];
+    (globalThis as unknown as { chrome: unknown }).chrome = {
+      runtime: {
+        lastError: undefined,
+        sendMessage: (
+          message: { payload: FormFillResolutionRequest },
+          callback: (result: unknown) => void,
+        ) =>
+          callback({
+            ok: true,
+            result: response(message.payload, [unresolved("field-1")]),
+          }),
+      },
+      storage: {
+        local: {
+          get: (key: string, callback: (data: Record<string, unknown>) => void) => {
+            gets.set(key, callback);
+          },
+          set: vi.fn(),
+        },
+        onChanged: {
+          addListener: (listener: (typeof changeListeners)[number]) => {
+            changeListeners.push(listener);
+          },
+        },
+      },
+    };
+
+    const scanner = startEasyApplyFormFill(document);
+    changeListeners[0]({ easyApplySummaryOpen: { newValue: false } }, "local");
+    gets.get("easyApplySummaryOpen")!({});
+    gets.get("easyApplyEnabled")!({ easyApplyEnabled: true });
+    await scanner.scan();
+
+    let panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.querySelector<HTMLDetailsElement>("details")!.open).toBe(false);
+
+    await scanner.scan();
+    panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.querySelector<HTMLDetailsElement>("details")!.open).toBe(false);
+    scanner.setEnabled(false);
+  });
+
+  it("discards a stale response after a newer generation settles", async () => {
+    fixture(field(1, "Current question"));
+    let releaseFirst:
+      | ((value: { ok: true; result: FormFillResolutionResponse }) => void)
+      | undefined;
+    let calls = 0;
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: (request) => {
+        calls += 1;
+        if (calls === 1) {
+          return new Promise((resolve) => {
+            releaseFirst = resolve;
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          result: response(request, [unresolved("field-1")]),
+        });
+      },
+    });
+    scanner.setEnabled(true);
+    const oldScan = scanner.scan();
+    await scanner.scan();
+    expect(document.querySelector<HTMLElement>(".jh-ff-marker")?.dataset.state).toBe("unresolved");
+    const oldRequest: FormFillResolutionRequest = {
+      application_context_id: "runtime-1",
+      scan_id: "runtime-2",
+      page: {
+        platform: "linkedin",
+        platform_id: "123456",
+        site_scope: "linkedin:easy-apply",
+        adapter_id: "linkedin.easy_apply",
+        adapter_version: "1",
+      },
+      fields: [],
+    };
+    releaseFirst?.({
+      ok: true,
+      result: response(oldRequest, [
+        {
+          status: "approved",
+          client_field_id: "field-1",
+          question_id: "question-field-1",
+          answer_id: "answer-1",
+          answer_revision: 1,
+          mapping_id: "mapping-1",
+          mapping_revision: 1,
+          action: { kind: "set_text", value: "synthetic-answer" },
+          option_mappings: [],
+        },
+      ]),
+    });
+    await oldScan;
+    expect(document.querySelector<HTMLElement>(".jh-ff-marker")?.dataset.state).toBe("unresolved");
+    scanner.setEnabled(false);
+  });
+
+  it("stabilizes and then observes later same-step fields", async () => {
+    fixture(field(1, "Initial question"));
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return {
+          ok: true,
+          result: response(
+            request,
+            request.fields.map((item) => unresolved(item.client_field_id)),
+          ),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    document
+      .querySelector("footer")!
+      .insertAdjacentHTML("beforebegin", field(2, "Conditional question"));
+    await Promise.resolve();
+    await scanner.scan();
+
+    expect(requests[1].fields.map((item) => item.prompt)).toEqual(["Initial question"]);
+    let panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.textContent).toContain("Waiting for this new question to finish rendering.");
+
+    await scanner.scan();
+    expect(requests[2].fields.map((item) => item.prompt)).toEqual([
+      "Initial question",
+      "Conditional question",
+    ]);
+    panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.textContent).not.toContain("Complete this manually");
+    scanner.setEnabled(false);
+  });
+
+  it("resets the supported baseline when the host advances to another step", async () => {
+    fixture(field(1, "First-step question"));
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return {
+          ok: true,
+          result: response(
+            request,
+            request.fields.map((item) => unresolved(item.client_field_id)),
+          ),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    document.querySelector("h3")!.textContent = "Next screening step";
+    document.querySelector("[data-test-form-element]")!.outerHTML = field(
+      2,
+      "Second-step question",
+    );
+    await Promise.resolve();
+    await scanner.scan();
+
+    expect(requests[1].fields.map((item) => item.prompt)).toEqual(["Second-step question"]);
+    expect(document.body.textContent).not.toContain("Complete this manually");
+
+    document.querySelector("h3")!.textContent = "Screening questions";
+    document.querySelector("[data-test-form-element]")!.outerHTML = field(1, "First-step question");
+    await Promise.resolve();
+    await scanner.scan();
+    expect(requests[2].fields.map((item) => item.prompt)).toEqual(["First-step question"]);
+    expect(document.body.textContent).not.toContain("Complete this manually");
+    scanner.setEnabled(false);
+  });
+
+  it("scans LinkedIn's SDUI modal and tracks its page position across steps", async () => {
+    history.replaceState({}, "", "/jobs/view/123456/");
+    const step = (position: string, title: string, id: string, prompt: string) => `
+      <div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+        <div><p>${position} pages</p></div>
+        <div data-testid="lazy-column">
+          <div><p>${title}</p><div>
+            <div componentkey="easyApplyFieldFocus_ea_validation_${id}">
+              <label for="${id}"><div>${prompt}*</div></label>
+              <div><input id="${id}" type="text" required></div>
+            </div>
+          </div></div>
+        </div>
+      </div>`;
+    document.body.innerHTML = `<dialog data-testid="dialog" open>${step("1/4", "Contact info", "_r_a_", "Preferred name")}</dialog>`;
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return {
+          ok: true,
+          result: response(
+            request,
+            request.fields.map((item) => unresolved(item.client_field_id)),
+          ),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(requests[0].page.platform_id).toBe("123456");
+    expect(requests[0].fields).toMatchObject([
+      { prompt: "Preferred name", section: "Contact info", required: true },
+    ]);
+    const title = document.querySelector("[data-testid=lazy-column] p")!;
+    expect(title.nextElementSibling?.hasAttribute("data-jh-ff-panel")).toBe(true);
+
+    document.querySelector("dialog")!.innerHTML = step("2/4", "Contact info", "_r_b_", "City");
+    await Promise.resolve();
+    await scanner.scan();
+    expect(requests[1].fields.map((item) => item.prompt)).toEqual(["City"]);
+    expect(document.body.textContent).not.toContain("Complete this manually");
+    scanner.setEnabled(false);
+  });
+
+  it("keeps SDUI questions that share one validation key independent", async () => {
+    history.replaceState({}, "", "/jobs/view/123456/");
+    const question = (id: string, prompt: string) => `
+      <div componentkey="easyApplyFieldFocus_ea_validation_p2_0_123456">
+        <label for="${id}"><div>${prompt}*</div></label>
+        <div><input id="${id}" type="text" required></div>
+      </div>`;
+    document.body.innerHTML = `
+      <dialog data-testid="dialog" open>
+        <div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+          <div><p>3/4 pages</p></div>
+          <div data-testid="lazy-column"><div><p>Additional questions</p><div>
+            ${question("_r_t_", "First question")}
+            ${question("_r_v_", "Second question")}
+          </div></div></div>
+        </div>
+      </dialog>`;
+    const approved = (clientFieldId: string, value: string) => ({
+      status: "approved" as const,
+      client_field_id: clientFieldId,
+      question_id: `question-${clientFieldId}`,
+      answer_id: `answer-${clientFieldId}`,
+      answer_revision: 1,
+      mapping_id: `mapping-${clientFieldId}`,
+      mapping_revision: 1,
+      action: { kind: "set_text" as const, value },
+      option_mappings: [],
+    });
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [approved("field-1", "first"), approved("field-2", "second")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    const inputs = [...document.querySelectorAll<HTMLInputElement>("dialog input")];
+    expect(inputs.map((input) => input.value)).toEqual(["first", "second"]);
+    expect(
+      [...document.querySelectorAll<HTMLElement>("[data-jh-ff-marker]")].map(
+        (marker) => marker.dataset.state,
+      ),
+    ).toEqual(["filled", "filled"]);
+    scanner.setEnabled(false);
+  });
+
+  it("scans an unmarked dialog only when it opens after an Easy Apply launch", async () => {
+    history.replaceState({}, "", "/jobs/view/123456/");
+    document.body.innerHTML = `
+      <div role="dialog" aria-label="Messaging"><textarea aria-label="Message"></textarea></div>
+      <button type="button">Easy Apply</button>`;
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return {
+          ok: true,
+          result: response(
+            request,
+            request.fields.map((item) => unresolved(item.client_field_id)),
+          ),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    expect(requests).toEqual([]);
+
+    document.querySelector("button")!.click();
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<div role="dialog"><label for="q">Preferred name</label><input id="q" type="text"></div>`,
+    );
+    await Promise.resolve();
+    await scanner.scan();
+
+    expect(requests.map((request) => request.fields.map((item) => item.prompt))).toEqual([
+      ["Preferred name"],
+    ]);
+    scanner.setEnabled(false);
+  });
+
+  it("uses the same safe scanner contract in a same-origin frame document", async () => {
+    const frameDocument = document.implementation.createHTMLDocument("Easy Apply frame");
+    frameDocument.body.innerHTML = `
+      <div class="jobs-easy-apply-modal" role="dialog">
+        <h3>Screening questions</h3>
+        ${field(7, "Frame question")}
+        <footer></footer>
+      </div>`;
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(frameDocument, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        return {
+          ok: true,
+          result: response(
+            request,
+            request.fields.map((item) => unresolved(item.client_field_id)),
+          ),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].page.platform_id).toBe("123456");
+    expect(requests[0].fields.map((item) => item.prompt)).toEqual(["Frame question"]);
+    const panel = frameDocument.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    expect(panel.textContent).toContain("Job Tracker never continues or submits");
+    scanner.setEnabled(false);
+  });
+
+  it("preserves an existing value and never invokes host navigation or document actions", async () => {
+    fixture(
+      field(1, "Existing answer", "synthetic-existing"),
+      `<button data-easy-apply-next-button>Next</button>
+       <button aria-label="Review your application">Review</button>
+       <button aria-label="Submit application">Submit</button>
+       <button aria-label="Select résumé">Résumé</button>
+       <button aria-label="Accept consent">Consent</button>
+       <button aria-label="Edit profile">Edit profile</button>`,
+    );
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    const before = input.value;
+    const click = vi.spyOn(HTMLElement.prototype, "click");
+    const setValue = vi.spyOn(HTMLInputElement.prototype, "value", "set");
+
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            status: "approved",
+            client_field_id: "field-1",
+            question_id: "question-1",
+            answer_id: "answer-1",
+            answer_revision: 1,
+            mapping_id: "mapping-1",
+            mapping_revision: 1,
+            action: { kind: "set_text", value: "synthetic-answer" },
+            option_mappings: [],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(input.value).toBe(before);
+    expect(setValue).not.toHaveBeenCalled();
+    expect(click).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain("synthetic-answer");
+    expect(
+      document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!.textContent,
+    ).not.toContain("synthetic-answer");
+    scanner.setEnabled(false);
+  });
+
+  it("fills an empty text field natively, verifies it, and reverts only its owned value", async () => {
+    fixture(
+      field(1, "Empty answer"),
+      `<button data-easy-apply-next-button>Next</button>
+       <button aria-label="Review your application">Review</button>
+       <button aria-label="Submit application">Submit</button>
+       <button aria-label="Select résumé">Résumé</button>
+       <button aria-label="Accept consent">Consent</button>
+       <button aria-label="Edit profile">Edit profile</button>`,
+    );
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    const inputEvents: string[] = [];
+    input.addEventListener("input", () => inputEvents.push("input"));
+    input.addEventListener("change", () => inputEvents.push("change"));
+    const hostActions = [...document.querySelectorAll<HTMLButtonElement>("footer button")];
+    const hostAction = vi.fn();
+    hostActions.forEach((button) => button.addEventListener("click", hostAction));
+    const captureBridge = vi.fn();
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            status: "approved",
+            client_field_id: "field-1",
+            question_id: "question-1",
+            answer_id: "answer-1",
+            answer_revision: 1,
+            mapping_id: "mapping-1",
+            mapping_revision: 1,
+            action: { kind: "set_text", value: "synthetic-answer" },
+            option_mappings: [],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(input.value).toBe("synthetic-answer");
+    expect(inputEvents).toEqual(["input", "change"]);
+    expect(captureBridge).not.toHaveBeenCalled();
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    expect(captureBridge).not.toHaveBeenCalled();
+    expect(hostAction).not.toHaveBeenCalled();
+    expect(document.querySelector<HTMLElement>(".jh-ff-marker")?.dataset.state).toBe("filled");
+
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    const revert = [...panel.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent === "Revert",
+    )!;
+    revert.click();
+    expect(input.value).toBe("");
+    await scanner.scan();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 reverted",
+    );
+    expect(hostAction).not.toHaveBeenCalled();
+    scanner.setEnabled(false);
+  });
+
+  it("fills and remembers LinkedIn's location GEO typeahead as text", async () => {
+    vi.useFakeTimers();
+    fixture(locationField());
+    const input = document.querySelector<HTMLInputElement>('input[id$="-location-GEO-LOCATION"]')!;
+    const inputEvents: string[] = [];
+    input.addEventListener("input", () => inputEvents.push("input"));
+    input.addEventListener("change", () => inputEvents.push("change"));
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureSettleMs: 20,
+      captureBridge,
+      bridge: async (request) => {
+        expect(request.fields[0]).toMatchObject({
+          prompt: "Location (city)",
+          control_kind: "text",
+        });
+        return {
+          ok: true,
+          result: response(request, [
+            {
+              status: "approved",
+              client_field_id: "field-1",
+              question_id: "question-location",
+              answer_id: "answer-location",
+              answer_revision: 1,
+              mapping_id: "mapping-location",
+              mapping_revision: 1,
+              action: { kind: "set_text", value: "Synthetic City, Example Region" },
+              option_mappings: [],
+            },
+          ]),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(input.value).toBe("Synthetic City, Example Region");
+    expect(inputEvents).toEqual(["input", "change"]);
+    expect(captureBridge).not.toHaveBeenCalled();
+
+    input.value = "Other City, Example Region";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      question_id: "question-location",
+      source: "user_input",
+      value: { kind: "text", value: "Other City, Example Region" },
+    });
+    scanner.setEnabled(false);
+  });
+
+  describe("suggestion typeaheads", () => {
+    const remembered = "Synthetic City, Example Region";
+
+    // A host typeahead that lists suggestions after input and commits a value
+    // only when an option is pressed.
+    function typeahead(suggestions: string[]) {
+      history.replaceState({}, "", "/jobs/view/123456/");
+      document.body.innerHTML = `
+        <dialog open><div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+          <div componentkey="easyApplyFieldFocus_ea.q::1::UNKNOWN::value.validation">
+            <p>Location (city)*</p>
+            <div><input id="city" data-testid="typeahead-input" aria-autocomplete="list" aria-owns="city-results"></div>
+          </div>
+        </div></dialog>
+        <div role="listbox" id="city-results"></div>`;
+      const input = document.querySelector<HTMLInputElement>("#city")!;
+      const list = document.querySelector<HTMLElement>("#city-results")!;
+      const pressed: string[] = [];
+      input.addEventListener("input", () => {
+        list.innerHTML = input.value
+          ? suggestions.map((text) => `<div role="option">${text}</div>`).join("")
+          : "";
+      });
+      list.addEventListener("click", (event) => {
+        const option = (event.target as Element).closest('[role="option"]')!;
+        pressed.push(option.textContent!);
+        input.value = option.textContent!;
+        list.replaceChildren();
+      });
+      return { input, list, pressed };
+    }
+
+    function scannerWith(
+      action: string | null,
+      captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+        ok: true as const,
+        result: { capture: {} } as FormFillCaptureResponse,
+      })),
+    ) {
+      const scanner = new EasyApplyScanner(document, {
+        id: ids(),
+        isUserEvent: () => true,
+        settleMs: 60_000,
+        captureSettleMs: 20,
+        captureBridge,
+        bridge: async (request) => ({
+          ok: true,
+          result: response(request, [
+            action
+              ? {
+                  status: "captured",
+                  client_field_id: "field-1",
+                  question_id: "question-city",
+                  capture_id: "capture-city",
+                  capture_revision: 1,
+                  source: "user_input",
+                  action: { kind: "set_text", value: action },
+                  option_mappings: [],
+                }
+              : unresolved("field-1"),
+          ]),
+        }),
+      });
+      scanner.setEnabled(true);
+      return { scanner, captureBridge };
+    }
+
+    it("types a remembered value and picks only its exact suggestion", async () => {
+      vi.useFakeTimers();
+      const { input, pressed } = typeahead([
+        "Synthetic City-South, Example Region",
+        remembered,
+        remembered,
+      ]);
+      const { scanner, captureBridge } = scannerWith(remembered);
+      await scanner.scan();
+      await vi.advanceTimersByTimeAsync(200);
+
+      expect(pressed).toEqual([remembered]);
+      expect(input.value).toBe(remembered);
+      expect(document.body.textContent).toContain("Filled from a remembered value");
+      expect(captureBridge).not.toHaveBeenCalled();
+      scanner.setEnabled(false);
+    });
+
+    it("reverts the typed value when no suggestion matches exactly", async () => {
+      vi.useFakeTimers();
+      const { input, pressed } = typeahead(["Synthetic City-South, Example Region"]);
+      const { scanner } = scannerWith(remembered);
+      await scanner.scan();
+      await vi.advanceTimersByTimeAsync(SUGGESTION_WAIT_MS + 200);
+
+      expect(pressed).toEqual([]);
+      expect(input.value).toBe("");
+      await scanner.scan();
+      expect(document.body.textContent).toContain("No exact suggestion to select");
+      expect(input.value).toBe("");
+      scanner.setEnabled(false);
+    });
+
+    it.each(["disable", "re-enable", "step", "root", "replacement", "identity", "ownership"])(
+      "cancels a delayed suggestion after %s changes without clicking or rolling back",
+      async (change) => {
+        vi.useFakeTimers();
+        const { input, list, pressed } = typeahead([]);
+        const { scanner } = scannerWith(remembered);
+        await scanner.scan();
+        expect(input.value).toBe(remembered);
+
+        if (change === "disable") scanner.setEnabled(false);
+        if (change === "re-enable") {
+          scanner.setEnabled(false);
+          scanner.setEnabled(true);
+        }
+        if (change === "step") {
+          document
+            .querySelector("[data-sdui-screen]")!
+            .prepend(Object.assign(document.createElement("h3"), { textContent: "Next step" }));
+        }
+        if (change === "root")
+          document
+            .querySelector("dialog")!
+            .replaceWith(document.querySelector("dialog")!.cloneNode(true));
+        if (change === "replacement") input.replaceWith(input.cloneNode(true));
+        if (change === "identity") document.querySelector("p")!.textContent = "Different question";
+        if (change === "ownership") {
+          input.value = "User edit";
+          input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+          input.value = remembered;
+        }
+        list.innerHTML = `<div role="option">${remembered}</div>`;
+        await vi.advanceTimersByTimeAsync(SUGGESTION_WAIT_MS + 200);
+        expect(pressed).toEqual([]);
+        expect(input.value).toBe(remembered);
+        expect(document.body.textContent).not.toContain("No exact suggestion to select");
+        scanner.setEnabled(false);
+      },
+    );
+
+    it("keeps a delayed exact selection valid across suggestion-list rescan scheduling", async () => {
+      vi.useFakeTimers();
+      const { list, pressed } = typeahead([]);
+      const { scanner } = scannerWith(remembered);
+      await scanner.scan();
+      list.innerHTML = `<div role="option">${remembered}</div>`;
+      scanner.schedule();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(pressed).toEqual([remembered]);
+      scanner.setEnabled(false);
+    });
+
+    it("remembers a picked suggestion but never typed search text", async () => {
+      vi.useFakeTimers();
+      const { input, list } = typeahead([remembered]);
+      const { scanner, captureBridge } = scannerWith(null);
+      await scanner.scan();
+
+      input.value = "Synth";
+      input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+      await vi.advanceTimersByTimeAsync(100);
+      expect(captureBridge).not.toHaveBeenCalled();
+
+      list.querySelector<HTMLElement>('[role="option"]')!.click();
+      await vi.advanceTimersByTimeAsync(20);
+      expect(captureBridge).toHaveBeenCalledOnce();
+      expect(captureBridge.mock.calls[0][0]).toMatchObject({
+        question_id: "question-field-1",
+        value: { kind: "text", value: remembered },
+      });
+      scanner.setEnabled(false);
+    });
+  });
+
+  it.each(
+    ['value="Netherlands"', "", 'value=""'].flatMap((attribute) =>
+      ["remember", "replace"].map((approval) => [attribute, approval] as const),
+    ),
+  )(
+    "preserves a real first select choice with %s until %s approval",
+    async (attribute, approval) => {
+      fixture(
+        `<div data-test-form-element><label for="country">Country</label><select id="country" ${attribute === 'value=""' ? "" : "required"}><option ${attribute} selected>Netherlands</option><option value="Belgium">Belgium</option></select></div>`,
+      );
+      const bridge = vi.fn(async (request: FormFillResolutionRequest) => {
+        const options = request.fields[0].options!;
+        return {
+          ok: true as const,
+          result: response(request, [
+            {
+              status: "approved",
+              client_field_id: request.fields[0].client_field_id,
+              question_id: "country-question",
+              answer_id: "country-answer",
+              answer_revision: 1,
+              mapping_id: "country-mapping",
+              mapping_revision: 1,
+              option_mappings: options.map((option) => ({
+                client_option_id: option.client_option_id,
+                question_option_id: `question-${option.label}`,
+              })),
+              action: {
+                kind: "set_single_choice",
+                client_option_id: options.find((option) => option.label === "Belgium")!
+                  .client_option_id,
+              },
+            },
+          ]),
+        };
+      });
+      const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+        ok: true as const,
+        result: { capture: {} } as FormFillCaptureResponse,
+      }));
+      const scanner = new EasyApplyScanner(document, {
+        id: ids(),
+        settleMs: 60_000,
+        bridge,
+        captureBridge,
+      });
+      scanner.setEnabled(true);
+      try {
+        await scanner.scan();
+        const select = document.querySelector<HTMLSelectElement>("select")!;
+        expect(select.selectedIndex).toBe(0);
+        expect(bridge.mock.calls[0][0].fields[0].has_value).toBe(true);
+        expect(bridge.mock.calls[0][0].fields[0].options?.map((option) => option.label)).toEqual([
+          "Netherlands",
+          "Belgium",
+        ]);
+        expect(captureBridge).not.toHaveBeenCalled();
+        const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+        const button = (label: string) =>
+          [...panel.querySelectorAll<HTMLButtonElement>("button")].find(
+            (item) => item.textContent === label,
+          )!;
+        if (approval === "remember") {
+          button("Remember existing").click();
+          await vi.waitFor(() => expect(captureBridge).toHaveBeenCalledOnce());
+          expect(captureBridge.mock.calls[0][0]).toMatchObject({
+            source: "confirmed_external",
+            value: { kind: "single_choice", question_option_id: "question-Netherlands" },
+          });
+          expect(select.selectedIndex).toBe(0);
+        } else {
+          button("Use my answer").click();
+          expect(select.selectedIndex).toBe(1);
+          button("Revert").click();
+          expect(select.selectedIndex).toBe(0);
+        }
+      } finally {
+        scanner.setEnabled(false);
+      }
+    },
+  );
+
+  it("requires an explicit replacement and loses ownership after a later change", async () => {
+    fixture(field(1, "Current answer", "host-value"));
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            status: "approved",
+            client_field_id: "field-1",
+            question_id: "question-1",
+            answer_id: "answer-1",
+            answer_revision: 1,
+            mapping_id: "mapping-1",
+            mapping_revision: 1,
+            action: { kind: "set_text", value: "verified-value" },
+            option_mappings: [],
+          },
+        ]),
+      }),
+      captureBridge: async () => ({ ok: false }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    expect(input.value).toBe("host-value");
+    expect(document.querySelector<HTMLElement>(".jh-ff-marker")?.dataset.state).toBe("differs");
+
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    [...panel.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Use my answer")!
+      .click();
+    expect(input.value).toBe("verified-value");
+
+    input.value = "later-user-value";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    const staleRevert = [...panel.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent === "Revert",
+    );
+    staleRevert?.click();
+    expect(input.value).toBe("later-user-value");
+    scanner.setEnabled(false);
+  });
+
+  it("captures one settled user change, never captures its own fill, and clears value-free", async () => {
+    vi.useFakeTimers();
+    fixture(field(1, "Remember me"));
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureSettleMs: 20,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+
+    input.value = "user-entered-value";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      question_id: "question-field-1",
+      source: "user_input",
+      cleared: false,
+      value: { kind: "text", value: "user-entered-value" },
+    });
+    await scanner.scan();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 remembered",
+    );
+    const stableKey = captureBridge.mock.calls[0][0].capture_key;
+
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(stableKey).toBeTruthy();
+
+    input.value = "";
+    input.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        inputType: "deleteContentBackward",
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(captureBridge).toHaveBeenCalledTimes(2);
+    expect(captureBridge.mock.calls[1][0]).toMatchObject({
+      cleared: true,
+      value: null,
+    });
+    expect(JSON.stringify(captureBridge.mock.calls[1][0])).not.toContain("user-entered-value");
+    await scanner.scan();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 cleared",
+    );
+    scanner.setEnabled(false);
+  });
+
+  describe("in-flight capture ordering", () => {
+    function setup(rememberedValue?: string) {
+      vi.useFakeTimers();
+      fixture(field(1, "Remember me"));
+      const completions: ((ok: boolean) => void)[] = [];
+      const stored: string[] = [];
+      const captureBridge = vi.fn(
+        (request: FormFillCaptureRequest) =>
+          new Promise<{ ok: true; result: FormFillCaptureResponse } | { ok: false }>((resolve) => {
+            completions.push((ok) => {
+              if (ok) {
+                stored.push(request.cleared ? "clear" : (request.value as { value: string }).value);
+                resolve({ ok: true, result: { capture: {} } as FormFillCaptureResponse });
+              } else resolve({ ok: false });
+            });
+          }),
+      );
+      const scanner = new EasyApplyScanner(document, {
+        id: ids(),
+        isUserEvent: () => true,
+        settleMs: 60_000,
+        captureSettleMs: 20,
+        captureBridge,
+        bridge: async (request) => ({
+          ok: true,
+          result: response(request, [
+            rememberedValue
+              ? {
+                  status: "captured",
+                  client_field_id: "field-1",
+                  question_id: "question-field-1",
+                  capture_id: "old-capture",
+                  capture_revision: 1,
+                  source: "user_input",
+                  action: { kind: "set_text", value: rememberedValue },
+                  option_mappings: [],
+                }
+              : unresolved("field-1"),
+          ]),
+        }),
+      });
+      scanner.setEnabled(true);
+      const edit = (value: string) => {
+        const input = document.querySelector<HTMLInputElement>("input")!;
+        input.value = value;
+        input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      };
+      return { scanner, edit, captureBridge, completions, stored };
+    }
+
+    it.each([true, false])(
+      "preserves the newer debounce and status when old save succeeds=%s",
+      async (ok) => {
+        const { scanner, edit, captureBridge, completions } = setup();
+        await scanner.scan();
+        edit("A");
+        await vi.advanceTimersByTimeAsync(20);
+        edit("B");
+        completions[0](ok);
+        await vi.advanceTimersByTimeAsync(0);
+        await scanner.scan();
+        expect(summaryText()).not.toContain("remembered");
+        expect(document.body.textContent).not.toContain("Could not remember this value");
+        await vi.advanceTimersByTimeAsync(20);
+        expect(captureBridge).toHaveBeenCalledTimes(2);
+        expect(captureBridge.mock.calls[1][0].value).toEqual({ kind: "text", value: "B" });
+        completions[1](true);
+        await vi.advanceTimersByTimeAsync(0);
+        await scanner.scan();
+        expect(summaryText()).toContain("1 remembered");
+        scanner.setEnabled(false);
+      },
+    );
+
+    it.each(["B", ""])(
+      "serializes a newer settled edit or clear (%s) after the old save",
+      async (value) => {
+        const { scanner, edit, captureBridge, completions, stored } = setup();
+        await scanner.scan();
+        edit("A");
+        await vi.advanceTimersByTimeAsync(20);
+        edit(value);
+        await vi.advanceTimersByTimeAsync(20);
+        expect(captureBridge).toHaveBeenCalledOnce();
+        completions[0](true);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(captureBridge).toHaveBeenCalledTimes(2);
+        expect(captureBridge.mock.calls[1][0]).toMatchObject(
+          value
+            ? { cleared: false, value: { kind: "text", value } }
+            : { cleared: true, value: null },
+        );
+        completions[1](true);
+        await vi.advanceTimersByTimeAsync(0);
+        await scanner.scan();
+        expect(stored).toEqual(["A", value || "clear"]);
+        expect(summaryText()).toContain(value ? "1 remembered" : "1 cleared");
+        scanner.setEnabled(false);
+      },
+    );
+
+    it("saves a previously remembered value again when it follows an in-flight clear", async () => {
+      const { scanner, edit, captureBridge, completions, stored } = setup();
+      await scanner.scan();
+      edit("A");
+      await vi.advanceTimersByTimeAsync(20);
+      completions[0](true);
+      await vi.advanceTimersByTimeAsync(0);
+      edit("");
+      await vi.advanceTimersByTimeAsync(0);
+      edit("A");
+      await vi.advanceTimersByTimeAsync(20);
+      expect(captureBridge).toHaveBeenCalledTimes(2);
+      completions[1](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(captureBridge).toHaveBeenCalledTimes(3);
+      completions[2](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(stored).toEqual(["A", "clear", "A"]);
+      await scanner.scan();
+      expect(summaryText()).toContain("1 remembered");
+      scanner.setEnabled(false);
+    });
+
+    it("preserves a clear while resolution still returns older remembered knowledge", async () => {
+      const { scanner, edit, captureBridge, completions } = setup("A");
+      await scanner.scan();
+      edit("B");
+      await vi.advanceTimersByTimeAsync(20);
+      edit("");
+      await vi.advanceTimersByTimeAsync(0);
+      await scanner.scan();
+      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("");
+      expect(summaryText()).toContain("0 filled");
+      expect(summaryText()).toContain("0 already match");
+      completions[0](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(captureBridge.mock.calls[1][0]).toMatchObject({ cleared: true, value: null });
+      await scanner.scan();
+      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("");
+      completions[1](true);
+      await vi.advanceTimersByTimeAsync(0);
+      await scanner.scan();
+      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("");
+      expect(summaryText()).toContain("1 cleared");
+      scanner.setEnabled(false);
+    });
+
+    it("cancels an unsent queued save on disable even when immediately re-enabled", async () => {
+      const { scanner, edit, captureBridge, completions } = setup();
+      await scanner.scan();
+      edit("A");
+      await vi.advanceTimersByTimeAsync(20);
+      edit("B");
+      await vi.advanceTimersByTimeAsync(20);
+      scanner.setEnabled(false);
+      scanner.setEnabled(true);
+      completions[0](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(captureBridge).toHaveBeenCalledOnce();
+      expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("B");
+      scanner.setEnabled(false);
+    });
+
+    it("retains ordering when a control is replaced during disable/re-enable", async () => {
+      const { scanner, edit, captureBridge, completions, stored } = setup();
+      await scanner.scan();
+      edit("A");
+      await vi.advanceTimersByTimeAsync(20);
+      scanner.setEnabled(false);
+      fixture(field(1, "Remember me"));
+      scanner.setEnabled(true);
+      await scanner.scan();
+      edit("");
+      // A non-empty edit first establishes trusted provenance for this new control.
+      edit("B");
+      await vi.advanceTimersByTimeAsync(20);
+      edit("");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(captureBridge).toHaveBeenCalledOnce();
+      completions[0](true);
+      await vi.advanceTimersByTimeAsync(0);
+      completions[1](true);
+      await vi.advanceTimersByTimeAsync(0);
+      completions[2](true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(stored).toEqual(["A", "B", "clear"]);
+      await scanner.scan();
+      expect(summaryText()).toContain("1 cleared");
+      scanner.setEnabled(false);
+    });
+  });
+
+  it("flushes a pending text capture before the host advances the step", async () => {
+    history.replaceState({}, "", "/jobs/view/example-123456/");
+    document.body.innerHTML = `
+      <div class="jobs-easy-apply-modal" role="dialog">
+        <h3>First step</h3><progress value="1" max="3"></progress>
+        ${field(1, "Fast answer")}
+      </div>`;
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureSettleMs: 60_000,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    input.value = "typed-before-next";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    expect(captureBridge).not.toHaveBeenCalled();
+
+    document.querySelector("h3")!.textContent = "Second step";
+    document.querySelector<HTMLProgressElement>("progress")!.value = 2;
+    await scanner.scan();
+
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(captureBridge.mock.calls[0][0].value).toEqual({
+      kind: "text",
+      value: "typed-before-next",
+    });
+    scanner.setEnabled(false);
+  });
+
+  it("allows the same value to retry after a capture transport failure", async () => {
+    vi.useFakeTimers();
+    fixture(field(1, "Retry answer"));
+    const captureBridge = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false as const })
+      .mockResolvedValue({
+        ok: true as const,
+        result: { capture: {} } as FormFillCaptureResponse,
+      });
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureSettleMs: 20,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    input.value = "retryable-value";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledOnce();
+
+    await scanner.scan();
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).toHaveBeenCalledTimes(2);
+    expect(captureBridge.mock.calls[1][0].value).toEqual({
+      kind: "text",
+      value: "retryable-value",
+    });
+    scanner.setEnabled(false);
+  });
+
+  it("preserves an untrusted host change without remembering it automatically", async () => {
+    vi.useFakeTimers();
+    fixture(field(1, "Host-managed value"));
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      captureSettleMs: 20,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+
+    input.value = "host-programmatic-value";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(20);
+
+    expect(input.value).toBe("host-programmatic-value");
+    expect(captureBridge).not.toHaveBeenCalled();
+    scanner.setEnabled(false);
+  });
+
+  it("does not remember a prefilled value until Remember existing is explicit", async () => {
+    fixture(field(1, "Prefilled answer", "external-value"));
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    expect(captureBridge).not.toHaveBeenCalled();
+
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    [...panel.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Remember existing")!
+      .click();
+    await vi.waitFor(() => expect(captureBridge).toHaveBeenCalledOnce());
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      source: "confirmed_external",
+      value: { kind: "text", value: "external-value" },
+    });
+    await vi.waitFor(async () => {
+      await scanner.scan();
+      expect(summaryText()).toBe(
+        "0 filled · 0 already match · 0 needs attention · 0 manual · 1 remembered",
+      );
+    });
+    scanner.setEnabled(false);
+  });
+
+  it("counts a deliberately kept value separately from agreement", async () => {
+    fixture(field(1, "Keep host answer", "host-value"));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            status: "approved",
+            client_field_id: "field-1",
+            question_id: "question-kept",
+            answer_id: "answer-kept",
+            answer_revision: 1,
+            mapping_id: "mapping-kept",
+            mapping_revision: 1,
+            action: { kind: "set_text", value: "verified-value" },
+            option_mappings: [],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    [...panel.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Keep existing")!
+      .click();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 kept",
+    );
+    await scanner.scan();
+    expect(summaryText()).toBe(
+      "0 filled · 0 already match · 0 needs attention · 0 manual · 1 kept",
+    );
+    expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("host-value");
+    scanner.setEnabled(false);
+  });
+
+  it("rechecks the live value before an explicit replacement", async () => {
+    fixture(field(1, "Race checked", "first-host-value"));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            status: "approved",
+            client_field_id: "field-1",
+            question_id: "question-1",
+            answer_id: "answer-1",
+            answer_revision: 1,
+            mapping_id: "mapping-1",
+            mapping_revision: 1,
+            action: { kind: "set_text", value: "verified-value" },
+            option_mappings: [],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    input.value = "racing-host-value";
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    [...panel.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Use my answer")!
+      .click();
+    expect(input.value).toBe("racing-host-value");
+    expect(document.querySelector<HTMLElement>(".jh-ff-marker")?.dataset.state).toBe("failed");
+    scanner.setEnabled(false);
+  });
+
+  it("fills select and Yes/No radio actions by request-local option identity", async () => {
+    fixture(`
+      <div data-test-form-element>
+        <label for="select-123456-multipleChoice">Work preference</label>
+        <select id="select-123456-multipleChoice" required>
+          <option value="Choose">Choose</option>
+          <option value="alpha">Option Alpha</option>
+          <option value="beta">Option Beta</option>
+        </select>
+      </div>
+      <div data-test-form-element>
+        <fieldset><legend>Authorized?</legend>
+          <label><input id="radio-123456-0" type="radio" name="auth">Yes</label>
+          <label><input id="radio-123456-1" type="radio" name="auth">No</label>
+        </fieldset>
+      </div>`);
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            status: "approved",
+            client_field_id: "field-1",
+            question_id: "question-select",
+            answer_id: "answer-select",
+            answer_revision: 1,
+            mapping_id: "mapping-select",
+            mapping_revision: 1,
+            action: {
+              kind: "set_single_choice",
+              client_option_id: "field-1-option-2",
+            },
+            option_mappings: [
+              {
+                client_option_id: "field-1-option-1",
+                question_option_id: "option-alpha",
+              },
+              {
+                client_option_id: "field-1-option-2",
+                question_option_id: "option-beta",
+              },
+            ],
+          },
+          {
+            status: "approved",
+            client_field_id: "field-2",
+            question_id: "question-radio",
+            answer_id: "answer-radio",
+            answer_revision: 1,
+            mapping_id: "mapping-radio",
+            mapping_revision: 1,
+            action: {
+              kind: "set_single_choice",
+              client_option_id: "field-2-option-1",
+            },
+            option_mappings: [
+              {
+                client_option_id: "field-2-option-1",
+                question_option_id: "option-yes",
+              },
+              {
+                client_option_id: "field-2-option-2",
+                question_option_id: "option-no",
+              },
+            ],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    expect(document.querySelector<HTMLSelectElement>("select")!.value).toBe("beta");
+    expect(document.querySelectorAll<HTMLInputElement>('input[type="radio"]')[0].checked).toBe(
+      true,
+    );
+    expect(
+      [...document.querySelectorAll<HTMLElement>(".jh-ff-marker")].map(
+        (marker) => marker.dataset.state,
+      ),
+    ).toEqual(["filled", "filled"]);
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    const reverts = [...panel.querySelectorAll<HTMLButtonElement>("button")].filter(
+      (button) => button.textContent === "Revert",
+    );
+    expect(reverts).toHaveLength(1);
+    scanner.setEnabled(false);
+  });
+
+  it("distinguishes agreement and a provisional remembered fill without overwriting", async () => {
+    fixture(field(1, "Agreement", "same-value") + field(2, "Remembered blank"));
+    const setValue = vi.spyOn(HTMLInputElement.prototype, "value", "set");
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            status: "approved",
+            client_field_id: "field-1",
+            question_id: "question-agreement",
+            answer_id: "answer-agreement",
+            answer_revision: 1,
+            mapping_id: "mapping-agreement",
+            mapping_revision: 1,
+            action: { kind: "set_text", value: "same-value" },
+            option_mappings: [],
+          },
+          {
+            status: "captured",
+            client_field_id: "field-2",
+            question_id: "question-remembered",
+            capture_id: "capture-remembered",
+            capture_revision: 1,
+            source: "user_input",
+            action: { kind: "set_text", value: "remembered-value" },
+            option_mappings: [],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value),
+    ).toEqual(["same-value", "remembered-value"]);
+    expect(setValue).toHaveBeenCalledTimes(1);
+    expect(
+      [...document.querySelectorAll<HTMLElement>(".jh-ff-marker")].map(
+        (marker) => marker.dataset.state,
+      ),
+    ).toEqual(["already", "filled"]);
+    expect(
+      document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!.textContent,
+    ).toContain("1 filled · 1 already match · 0 needs attention · 0 manual");
+    await scanner.scan();
+    expect(summaryText()).toBe("1 filled · 1 already match · 0 needs attention · 0 manual");
+    scanner.setEnabled(false);
+  });
+
+  it("captures a direct choice with its server-owned option identity", async () => {
+    fixture(`
+      <div data-test-form-element>
+        <label for="select-123456-multipleChoice">Work preference</label>
+        <select id="select-123456-multipleChoice" required>
+          <option value="Choose">Choose</option>
+          <option value="alpha">Option Alpha</option>
+          <option value="beta">Option Beta</option>
+        </select>
+      </div>`);
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            ...unresolved("field-1"),
+            question_id: "question-select",
+            option_mappings: [
+              {
+                client_option_id: "field-1-option-1",
+                question_option_id: "option-alpha",
+              },
+              {
+                client_option_id: "field-1-option-2",
+                question_option_id: "option-beta",
+              },
+            ],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const select = document.querySelector<HTMLSelectElement>("select")!;
+    select.selectedIndex = 2;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => expect(captureBridge).toHaveBeenCalledOnce());
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      question_id: "question-select",
+      value: { kind: "single_choice", question_option_id: "option-beta" },
+    });
+    scanner.setEnabled(false);
+  });
+
+  it("captures an SDUI radio choice whose group remounts during the click", async () => {
+    history.replaceState({}, "", "/jobs/view/123456/");
+    const radios = (prefix: string, checked: number | null) =>
+      ["Yes", "No"]
+        .map(
+          (label, index) => `
+          <div><input id="${prefix}-${index}" aria-label="Completed a degree?" type="radio"
+            name="radio-group-_r_n_" ${checked === index ? "checked" : ""}><p>${label}</p></div>`,
+        )
+        .join("");
+    document.body.innerHTML = `
+      <dialog data-testid="dialog" open>
+        <div data-sdui-screen="com.linkedin.sdui.flagshipnav.jobs.easyapply.EasyApply">
+          <div data-testid="lazy-column"><div><p>Additional questions</p><div>
+            <div componentkey="easyApplyFieldFocus_ea_validation_p2_0_123456">
+              <p>Completed a degree?*</p>
+              <fieldset role="radiogroup">${radios("_r_o_", null)}</fieldset>
+            </div>
+          </div></div></div>
+        </div>
+      </dialog>`;
+    const group = document.querySelector("fieldset")!;
+    group.addEventListener("click", (event) => {
+      const index = Number((event.target as HTMLInputElement).id.split("-").pop());
+      group.innerHTML = radios("_r_q_", index);
+    });
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            ...unresolved("field-1"),
+            question_id: "question-degree",
+            option_mappings: [
+              { client_option_id: "field-1-option-1", question_option_id: "option-yes" },
+              { client_option_id: "field-1-option-2", question_option_id: "option-no" },
+            ],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+
+    document.querySelector<HTMLInputElement>("#_r_o_-0")!.click();
+    await vi.waitFor(() => expect(captureBridge).toHaveBeenCalledOnce());
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      question_id: "question-degree",
+      value: { kind: "single_choice", question_option_id: "option-yes" },
+    });
+    scanner.setEnabled(false);
+  });
+
+  it("holds numeric capture until validation-clean evidence", async () => {
+    vi.useFakeTimers();
+    fixture(`
+      <div data-test-form-element>
+        <label for="numeric-123456-numeric">Years</label>
+        <input id="numeric-123456-numeric" type="text" inputmode="numeric"
+          aria-describedby="numeric-123456-numeric-error">
+        <div id="numeric-123456-numeric-error"></div>
+      </div>`);
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureSettleMs: 20,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    input.value = "4";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).not.toHaveBeenCalled();
+
+    input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(captureBridge.mock.calls[0][0]).toMatchObject({
+      cleared: false,
+      value: { kind: "decimal", value: "4" },
+    });
+    scanner.setEnabled(false);
+  });
+
+  it("accepts forward step progress as numeric capture proof", async () => {
+    vi.useFakeTimers();
+    history.replaceState({}, "", "/jobs/view/example-123456/");
+    document.body.innerHTML = `
+      <div class="jobs-easy-apply-modal" role="dialog">
+        <h3>First step</h3><progress value="1" max="3"></progress>
+        <div data-test-form-element>
+          <label for="numeric-123456-numeric">Years</label>
+          <input id="numeric-123456-numeric" type="text" inputmode="numeric"
+            aria-describedby="numeric-123456-numeric-error">
+          <div id="numeric-123456-numeric-error"></div>
+        </div>
+      </div>`;
+    const captureBridge = vi.fn(async (_request: FormFillCaptureRequest) => ({
+      ok: true as const,
+      result: { capture: {} } as FormFillCaptureResponse,
+    }));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      isUserEvent: () => true,
+      settleMs: 60_000,
+      captureSettleMs: 20,
+      captureBridge,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(
+          request,
+          request.fields.map((item) => unresolved(item.client_field_id)),
+        ),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    input.value = "5";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText" }));
+    await vi.advanceTimersByTimeAsync(20);
+    expect(captureBridge).not.toHaveBeenCalled();
+
+    document.querySelector("h3")!.textContent = "Second step";
+    document.querySelector<HTMLProgressElement>("progress")!.value = 2;
+    await Promise.resolve();
+    await scanner.scan();
+    expect(captureBridge).toHaveBeenCalledOnce();
+    expect(captureBridge.mock.calls[0][0].value).toEqual({
+      kind: "decimal",
+      value: "5",
+    });
+    scanner.setEnabled(false);
+  });
+
+  it("marks a host validation error and never retries the fill", async () => {
+    fixture(`
+      <div data-test-form-element>
+        <label for="numeric-123456-numeric">Years</label>
+        <input id="numeric-123456-numeric" type="text" inputmode="numeric"
+          aria-describedby="numeric-123456-numeric-error">
+        <div id="numeric-123456-numeric-error"></div>
+      </div>`);
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    input.addEventListener("input", () => {
+      document.getElementById("numeric-123456-numeric-error")!.textContent =
+        "Enter a whole number between 0 and 3";
+    });
+    const setValue = vi.spyOn(HTMLInputElement.prototype, "value", "set");
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [
+          {
+            status: "approved",
+            client_field_id: "field-1",
+            question_id: "question-numeric",
+            answer_id: "answer-numeric",
+            answer_revision: 1,
+            mapping_id: "mapping-numeric",
+            mapping_revision: 1,
+            action: { kind: "set_decimal", value: "4" },
+            option_mappings: [],
+          },
+        ]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    expect(input.value).toBe("4");
+    expect(document.querySelector<HTMLElement>(".jh-ff-marker")?.dataset.state).toBe("failed");
+    expect(setValue).toHaveBeenCalledTimes(1);
+    await scanner.scan();
+    expect(setValue).toHaveBeenCalledTimes(1);
+    scanner.setEnabled(false);
+  });
+
+  it("re-resolves confirmation and fills only after the explicit Confirm action", async () => {
+    fixture(field(1, "Confirm me"));
+    const requests: FormFillResolutionRequest[] = [];
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => {
+        requests.push(request);
+        const confirmed = request.fields[0].user_confirmed;
+        return {
+          ok: true,
+          result: response(request, [
+            confirmed
+              ? {
+                  status: "approved" as const,
+                  client_field_id: "field-1",
+                  question_id: "question-confirm",
+                  answer_id: "answer-confirm",
+                  answer_revision: 1,
+                  mapping_id: "mapping-confirm",
+                  mapping_revision: 1,
+                  action: {
+                    kind: "set_text" as const,
+                    value: "confirmed-value",
+                  },
+                  option_mappings: [],
+                }
+              : {
+                  status: "confirmation_required" as const,
+                  client_field_id: "field-1",
+                  question_id: "question-confirm",
+                  answer_id: "answer-confirm",
+                  answer_revision: 1,
+                  mapping_id: "mapping-confirm",
+                  mapping_revision: 1,
+                  option_mappings: [],
+                },
+          ]),
+        };
+      },
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    const input = document.querySelector<HTMLInputElement>("input")!;
+    expect(input.value).toBe("");
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    [...panel.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Confirm")!
+      .click();
+    await vi.waitFor(() => expect(input.value).toBe("confirmed-value"));
+    expect(requests).toHaveLength(2);
+    expect(requests[1].fields[0].user_confirmed).toBe(true);
+    scanner.setEnabled(false);
+  });
+
+  it("undoes every still-owned fill without touching host action buttons", async () => {
+    fixture(
+      field(1, "First empty") + field(2, "Second empty"),
+      '<button data-easy-apply-next-button>Next</button><button aria-label="Submit application">Submit</button>',
+    );
+    const hostAction = vi.fn();
+    document
+      .querySelectorAll<HTMLButtonElement>("footer button")
+      .forEach((button) => button.addEventListener("click", hostAction));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(
+          request,
+          request.fields.map((requestField, index) => ({
+            status: "approved" as const,
+            client_field_id: requestField.client_field_id,
+            question_id: `question-${index + 1}`,
+            answer_id: `answer-${index + 1}`,
+            answer_revision: 1,
+            mapping_id: `mapping-${index + 1}`,
+            mapping_revision: 1,
+            action: { kind: "set_text" as const, value: `filled-${index + 1}` },
+            option_mappings: [],
+          })),
+        ),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value),
+    ).toEqual(["filled-1", "filled-2"]);
+    const panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;
+    [...panel.querySelectorAll<HTMLButtonElement>("button")]
+      .find((button) => button.textContent === "Undo all fills")!
+      .click();
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value),
+    ).toEqual(["", ""]);
+    expect(hostAction).not.toHaveBeenCalled();
+    scanner.setEnabled(false);
+  });
+
+  it("leaves every field untouched while resolution is offline", async () => {
+    fixture(field(1, "Offline blank") + field(2, "Offline existing", "host-value"));
+    const setValue = vi.spyOn(HTMLInputElement.prototype, "value", "set");
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async () => ({ ok: false }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value),
+    ).toEqual(["", "host-value"]);
+    expect(setValue).not.toHaveBeenCalled();
+    expect(
+      [...document.querySelectorAll<HTMLElement>(".jh-ff-marker")].map(
+        (marker) => marker.dataset.state,
+      ),
+    ).toEqual(["error", "error"]);
+    scanner.setEnabled(false);
+  });
+
+  it("removes every form-fill surface immediately when disabled", async () => {
+    fixture(field(1, "Question"));
+    const scanner = new EasyApplyScanner(document, {
+      id: ids(),
+      settleMs: 60_000,
+      bridge: async (request) => ({
+        ok: true,
+        result: response(request, [unresolved("field-1")]),
+      }),
+    });
+    scanner.setEnabled(true);
+    await scanner.scan();
+    expect(document.querySelector("[data-jh-ff-panel]")).not.toBeNull();
+    scanner.setEnabled(false);
+    expect(document.querySelector("[data-jh-ff-panel]")).toBeNull();
+    expect(document.querySelector(".jh-ff-marker")).toBeNull();
+  });
+});

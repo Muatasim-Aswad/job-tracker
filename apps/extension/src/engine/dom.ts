@@ -1,8 +1,4 @@
-// ── Pure DOM/text helpers ────────────────────────────────────────────────────
-// A dependency-free leaf of the engine: stringifying a DOM subtree and placing the
-// ⚠ banner. Nothing here touches the read-model, the API bridge, or the adapter
-// registry — it imports only engine/keywords.ts, itself a pure leaf — so the engine
-// and any adapter can pull it in without a cycle.
+// Pure DOM/text helpers depend only on keyword logic, avoiding engine/adapter cycles.
 import { type KeywordFinding, getPolicyRevision } from "./keywords.js";
 
 // Null-safe text reader for a selector — used across sites when scraping detail.
@@ -10,10 +6,7 @@ export function detailText(sel: string) {
   return document.querySelector(sel)?.textContent?.trim() || null;
 }
 
-// Block-level tags whose boundaries must become a line break when flattening a node
-// to text. A JD is often a stack of <p>/<li> blocks with no whitespace between them,
-// so `textContent` glues the last word of one onto the first of the next
-// ("...bigYour team", "...bayCarry responsibility").
+// Block boundaries need newlines: adjacent p/li textContent otherwise joins unrelated words.
 const BLOCK_TAGS = new Set([
   "P",
   "DIV",
@@ -74,11 +67,7 @@ export function bannerFingerprint() {
   return `${location.href}#p${getPolicyRevision()}`;
 }
 
-// The stricter key, for a caller that scrapes before it decides: the job and policy
-// plus what the banner would show. Detail panes render in stages, so the same job can
-// yield more warnings a scan later — an applicant count, a posting age, a JD that had
-// not loaded — and a fingerprint alone would never ask for the rebuild that shows
-// them, leaving a reload as the only way to see the complete set.
+// Include scraped findings in the cache key because detail facts arrive across multiple scans.
 export function bannerSignature(content: BannerContent) {
   return `${bannerFingerprint()}#${bannerKey(content)}`;
 }
@@ -105,10 +94,7 @@ export function bannerCurrent(content?: BannerContent) {
   return false;
 }
 
-// A short standalone fact on the stats strip: the job's context in one place, so it is
-// read here rather than hunted for around the host page. `tone` tints it by state —
-// left off for a fact that carries no direction, since a colour the data does not
-// support reads as a verdict. `title` holds the unabbreviated wording.
+// Tone requires directional evidence; title holds the full wording behind a compact label.
 export interface BannerChip {
   text: string;
   tone?: "good" | "warn" | "faded";
@@ -126,12 +112,8 @@ export interface BannerContent {
   alerts?: string[];
 }
 
-// Place the banner relative to `anchor`: immediately before it, or as its last child
-// under `position: "append"`, so an adapter can drop it inside the top card rather than
-// before some later section. No-op when there is nothing to say or nowhere to hang it.
-// The boxes stack in one fixed order — stats, findings, alerts — so the strip that
-// shows on every job holds a steady position instead of sliding under whatever else
-// happened to appear.
+// Place before anchor or append inside it. Empty banners and missing anchors are no-ops.
+// Keep stats, findings, and alerts in fixed order so routine facts do not shift.
 export function placeBanner(
   content: BannerContent,
   anchor: Element | null,

@@ -12,9 +12,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 5_000, refetchOnWindowFocus: true },
   },
-  // One place that turns every mutation failure into a toast, so no write fails
-  // silently and no onError has to be threaded through each of the ~13 hooks. A
-  // hook's own onError — useJobEvents' optimistic rollback — still runs too.
+  // Global mutation errors use one toast path; hook-specific rollback handlers still run.
   mutationCache: new MutationCache({
     onError: (err) => toast.error(describeError(err)),
   }),

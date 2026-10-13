@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import stat
 import sys
@@ -35,6 +36,7 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("status", help="report stopped, healthy, or unhealthy-lock state")
     commands.add_parser("paths", help="print the resolved non-secret path inventory")
     commands.add_parser("version", help="print the product version")
+    commands.add_parser("build-info", help="print installed public build identity without startup")
     commands.add_parser("doctor", help="run bounded, redacted local diagnostics")
     backup = commands.add_parser("backup", help="create a validated offline SQLite snapshot")
     backup.add_argument("output", type=Path)
@@ -160,6 +162,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         _establish_profile(args, os.environ)
+        if args.command == "build-info":
+            from app.core.build_info import installed_info
+
+            app_dir = Path(os.environ["JOB_TRACKER_APP_DIR"])
+            if not app_dir.is_absolute():
+                raise PathResolutionError("JOB_TRACKER_APP_DIR must be absolute")
+            print(
+                json.dumps(
+                    installed_info(
+                        app_dir,
+                        packaged=os.environ["JOB_TRACKER_PROFILE"] == "packaged",
+                        allow_git=False,
+                    ),
+                    sort_keys=True,
+                )
+            )
+            return 0
         settings, paths = _load_runtime()
     except (OSError, PathResolutionError, ValueError) as exc:
         print(f"job-tracker: {exc}", file=sys.stderr)
@@ -224,7 +243,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # after every packaged path/config override above is in place.
     import uvicorn
 
-    uvicorn.run("app.main:app", host="127.0.0.1", port=settings.port)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=settings.port, timeout_graceful_shutdown=15)
     return 0
 
 

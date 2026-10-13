@@ -1,7 +1,4 @@
-// Unit tests for the offline concern in isolation: a stub Engine supplies only the
-// `renderAll` hook setOffline calls out to, so these exercise the flag/decoration
-// logic — class + badge toggling, the SERVER_URL in the badge title, and the
-// change-guard — without a real engine or a background worker.
+// Isolate reachability decoration using a stub renderAll hook.
 import { describe, expect, it, vi } from "vitest";
 
 import { createOffline } from "./offline";

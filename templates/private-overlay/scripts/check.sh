@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Materialize this private source in its public checkout, then delegate all
-# quality decisions to the public toolchain and application context.
+# Sync this private source, then validate it in the public application context.
 
 set -euo pipefail
 
@@ -22,9 +21,7 @@ elif [[ $# -gt 0 ]]; then
   exit 2
 fi
 
-# The public local/ directories are ignored, disposable build inputs. Updating
-# them here ensures the checks exercise the current private source, not a stale
-# prior sync.
+# Refresh disposable installed copies before checking to avoid validating stale source.
 JOB_TRACKER_PRIVATE_DIR="$PRIVATE_ROOT" bash "$PUBLIC_ROOT/scripts/sync-private.sh"
 
 if [[ "$MODE" == fast ]]; then

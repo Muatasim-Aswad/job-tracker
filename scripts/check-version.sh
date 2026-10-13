@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Assert that every artifact carrying a product version agrees with the root
-# VERSION file, and that release tags follow the vX.Y.Z convention.
-#
-# Run after the builds, so the extension check reads the manifest a real build
-# produced rather than the config that generates it.
+# Check artifact versions and canonical tags after builds produce the real manifest.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -35,12 +31,8 @@ API_VERSION="$(cd apps/api && uv run python -c 'from app.main import app; print(
 [[ "$API_VERSION" == "$VERSION" ]] ||
   fail "API metadata is $API_VERSION, VERSION is $VERSION."
 
-# Release tags are cut on the whole-repository commit that carries the bump, so
-# a vX.Y.Z tag on HEAD must name the version HEAD declares. Tags elsewhere in
-# history are not re-checked; only the shape is enforced repository-wide.
-#
-# These two loops are inert on a CI checkout, which fetches no tags. They guard
-# the moment that matters — tagging a release locally — rather than every push.
+# HEAD release tags must match VERSION; historical tags need only canonical shape.
+# Checks are inert in CI checkouts that fetch no tags.
 while read -r tag; do
   [[ -z "$tag" ]] && continue
   [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||

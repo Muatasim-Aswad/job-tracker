@@ -15,10 +15,8 @@ export function subjectOf(title: string): string {
 const GMAIL_LIST_VIEW =
   /^(inbox|starred|snoozed|sent|drafts|spam|trash|important|scheduled|all mail|chats|search results?)\b/i;
 
-// Fallback when no PATTERNS shape matched: seed the *whole* cleaned subject rather
-// than a guessed company. Rejects list views, strips reply/forward prefixes, and
-// truncates to a searchable length. Deliberately not `looksLikeCompany`-gated, since
-// that filter rejects ordinary subject words and here the subject IS the query.
+// Fallback to a bounded cleaned subject, rejecting mailbox titles and reply/forward prefixes.
+// Company-name filtering does not apply because this fallback is a search query.
 export function fallbackSeedFromSubject(title: string): string {
   let s = subjectOf(title || "");
   // Reject a mailbox/list view, whether named ("Inbox") or just a trailing "(3)" count.
@@ -81,13 +79,8 @@ function clean(s: string): string {
 const ROLE_WORDS =
   /\b(engineer|developer|programmer|architect|analyst|consultant|manager|intern)\b/i;
 
-// Fall-through reject list of process/role words that never start a company name.
-// The seed is always the candidate's FIRST word, so a capture leading with one of
-// these produced a wrong query: skip it and let the NEXT rule try, rather than
-// suppressing the rule outright and possibly dropping a correct capture. Deliberately
-// conservative — industry words that DO start real names ("Software" as in Software
-// AG, "Systems", "Solutions", "Group", "Labs") stay out, so a correct signal is never
-// blocked. Grow it from telemetry as real bad seeds surface.
+// Reject process/role opening words and let the next rule try.
+// Keep industry words that can begin real company names; expand from observed bad seeds.
 const REJECT_SEED_HEADS = new Set([
   "application",
   "applications",
@@ -117,13 +110,8 @@ const REJECT_SEED_HEADS = new Set([
 export const rejectedHead = (candidate: string): boolean =>
   REJECT_SEED_HEADS.has((candidate.split(/\s+/)[0] ?? "").toLowerCase());
 
-// Ordered shapes. `tail` matchers capture text after a keyword/separator and are
-// only trusted when the capture carries a capital (companies are proper nouns —
-// this rejects "... at the moment", "... with confidence"). `lead` matchers pull
-// a bracketed/possessive company off the front and need no capital guard. The
-// leading-segment matcher sits after the keyword tails (so a high-precision "at
-// Company" still wins) but before the trailing separators (so "Dawnguard - Recruiter
-// Interview" seeds Dawnguard, not "Recruiter").
+// Keyword tails require a capital to reject ordinary phrases; bracketed/possessive
+// leads do not. Try precise keyword tails, then leading segments, then trailing separators.
 const PATTERNS: {
   re: RegExp;
   needsCapital: boolean;

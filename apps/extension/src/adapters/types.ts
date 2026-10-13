@@ -1,15 +1,5 @@
-// The contribution contract for a site adapter. One object per supported site;
-// engine.ts `start()` picks the first whose `matches(hostname)` is true, then
-// drives it. Only `matches` + `findCards` are required; the rest are called via
-// `?.` when present.
-//
-//   import type { Adapter } from '../types'
-//   export const myAdapter: Adapter = { … }
-//
-// Capture-capable adapters import shared helpers (injectDetailButtons,
-// captureListingOnce, autoEmit, refreshStates, renderJob, …) from ../engine.js;
-// DOM-only ones need no imports. See builtin/linkedin/web.ts (full capture) and
-// gmail.ts (DOM-only).
+// One adapter owns each supported host. Only matches and findCards are required.
+// Capture helpers come from engine.js; see README.md for registration and examples.
 /** The API's identity for a job: a platform name plus its bare, un-prefixed id. */
 export interface NaturalKey {
   platform: string;
@@ -34,13 +24,23 @@ export interface Adapter {
   cardBodySelector?: string;
 
   /** Tag each NEW list card — set dataset.jhId (the prefixed render key) plus
-   *  jobUrl/jobTitle/jobCompany — and return those cards. Idempotent per session
-   *  (skip cards already carrying dataset.jhId). */
+   *  jobUrl/jobTitle/jobCompany and optional JSON-object jobMeta — and return
+   *  those cards. Idempotent per session (skip cards already carrying
+   *  dataset.jhId). `jobMeta` is patched into, rather than replacing, metadata
+   *  previously captured from the detail page. */
   findCards(doc: Document): HTMLElement[];
 
   /** On a job detail view: inject the detail action bar, run auto-detects
    *  (applied/closed), fire `seen`, draw the keyword banner. */
   scanDetail?(): void;
+
+  /** Handle a page-level key while this adapter owns the current host. The handler
+   *  must scope itself to the relevant surface before consuming the event. */
+  onKeyDown?(event: KeyboardEvent): void;
+
+  /** Repaint adapter-owned page actions after card state renders. `statesAvailable`
+   *  is supplied only when a full card-state refresh settles. */
+  renderPageActions?(statesAvailable?: boolean): void;
 
   /** Scrape the open detail into a listing record and upsert it via
    *  captureListingOnce(id, builder). Omit if this site isn't captured. */

@@ -32,6 +32,8 @@ mkdir -p "$WORK/extracted"
 tar -xzf "$ARCHIVE" -C "$WORK/extracted"
 mv "$WORK/extracted" "$WORK/moved-app"
 APP="$WORK/moved-app"
+env -i PATH=/usr/bin:/bin "$APP/job-tracker" build-info >"$WORK/build-info.json"
+cmp "$APP/BUILD_INFO.json" "$WORK/build-info.json" || fail "runtime build-info differs."
 DATA="$WORK/data"
 CONFIG="$WORK/config"
 STATE="$WORK/state"
@@ -113,6 +115,15 @@ stop() {
 
 start
 grep -Fq "\"version\":\"$VERSION\"" "$WORK/health.json" || fail "health version disagrees with archive."
+curl --fail --silent "http://127.0.0.1:$PORT/version.json" >"$WORK/version.json"
+python3 - "$APP/BUILD_INFO.json" "$WORK/version.json" "$WORK/health.json" <<'PY'
+import json, os, sys
+expected = json.load(open(sys.argv[1]))
+assert json.load(open(sys.argv[2])) == expected, "served artifact identity mismatch"
+assert json.load(open(sys.argv[3]))["revision"] == expected["revision"], "health revision mismatch"
+if os.environ.get("APP_IDENTITY_ATTESTED") == "1":
+    assert expected["revision"] == os.environ["APP_REVISION"], "deployed source revision mismatch"
+PY
 curl --fail --silent "http://127.0.0.1:$PORT/openapi.json" >"$WORK/openapi.json"
 grep -Fq "\"version\":\"$VERSION\"" "$WORK/openapi.json" || fail "OpenAPI version disagrees with archive."
 curl --fail --silent "http://127.0.0.1:$PORT/" >"$WORK/dashboard.html"

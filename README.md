@@ -6,12 +6,15 @@ A job search rarely stays in one place. The same opportunity can appear in a sea
 
 Job Tracker is a self-hosted workspace built around one lasting record per job. Listings, status changes, notes, decisions, and materials stay attached to that opportunity. A browser extension captures details and reliable lifecycle updates, while a local Kanban dashboard keeps the process visible and under your control.
 
+Job Tracker gives AI agents structured context about your opportunities, application history, notes, and materials to support job-search decisions and application preparation. Agents can discover the API through the running server's OpenAPI schema at `/openapi.json`.
+
 ![Job Tracker overview](docs/images/social-preview.png)
 
 ## Features
 
 - **One opportunity, one history.** Keep multiple listing URLs, status changes, notes, events, decisions, and materials connected to the same job.
 - **Capture what can be captured.** Record supported listing details and lifecycle updates while you browse instead of retyping them later.
+- **Reuse answers without giving up control.** Fill supported LinkedIn Easy Apply questions from exact, reviewed Matches; preserve existing values and keep unsupported controls, navigation, and submission manual.
 - **Catch reposts without losing control.** Review suggested matches, confirm genuine reposts, and preserve the history already gathered; merging is never automatic.
 - **Decide with context.** Surface experience requirements, languages, pay, seniority, applicant activity, listing age, custom terms, and company history with the evidence around each signal.
 - **Act where you encounter the job.** Use in-page controls or the context-seeded popup to search, update status, backdate events, comment, add notes, or create a job manually.
@@ -24,7 +27,7 @@ Job Tracker is a self-hosted workspace built around one lasting record per job. 
 
 | Surface | Support |
 | --- | --- |
-| LinkedIn jobs | Listing capture and in-page triage on search cards and job details |
+| LinkedIn jobs | Listing capture and in-page triage on search cards and job details; user-controlled filling for supported Easy Apply questions |
 | LinkedIn job emails in Gmail | Recognizes supported messages and adds tracker actions |
 | Sites without a built-in integration | Add a job manually from the popup |
 
@@ -48,7 +51,7 @@ Capture job details, review decision signals, and update tracked opportunities w
 
 ## Data and privacy
 
-Job Tracker is a single-user, self-hosted application designed for localhost use. By default, records stay in a local SQLite file on your own machine; Turso synchronization is optional. The extension talks only to the configured Job Tracker server, uses no third-party analytics, and keeps optional search diagnostics off by default.
+Job Tracker is a single-user, self-hosted application designed for localhost use. By default, records—including verified form Answers and remembered values awaiting review—stay in a local SQLite file on your own machine; Turso synchronization is optional. Database backups and optional Turso synchronization include those retained private values. The extension talks only to the configured Job Tracker server, uses no third-party analytics, and keeps optional search diagnostics off by default.
 
 On Gmail, the extension recognizes supported LinkedIn job messages in the browser and sends only the structured job and action data needed by the tracker; it does not send or store the email body as a job description. See [Privacy](PRIVACY.md) for captured fields, permissions, retention, and deletion, and [Security](SECURITY.md) for the supported localhost threat model.
 
@@ -59,10 +62,29 @@ Every path needs a Chromium browser — Chrome, Edge, or Brave — that can load
 | Path | Get the files | Platforms | Host tools |
 | --- | --- | --- | --- |
 | [Source checkout](#install-from-source) | Clone the repository | Linux, macOS | Git, [Node.js](https://nodejs.org/en/download) as pinned in `.node-version`, [pnpm through Corepack](https://pnpm.io/installation#using-corepack), [uv](https://docs.astral.sh/uv/getting-started/installation/) |
-| [Docker Compose](#run-with-docker-compose) | Clone the repository or download the source archive; pull the [published image](https://github.com/Muatasim-Aswad/job-tracker/pkgs/container/job-tracker) | Linux/amd64 | Docker Engine with Compose |
+| [Docker Compose](#run-with-docker-compose) | Download one Compose file and pull the [public GHCR image](https://github.com/Muatasim-Aswad/job-tracker/pkgs/container/job-tracker); no clone or build | Linux/amd64 | Docker Engine with Compose, `curl` |
 | [Linux release](#install-a-linux-x86_64-release) | Download the [latest release](https://github.com/Muatasim-Aswad/job-tracker/releases/latest) | Linux x86_64, including Windows 11 [WSL2](docs/WSL2.md) x86_64 | [uv](https://docs.astral.sh/uv/getting-started/installation/) |
 
 Neither the runtime bundle nor the wheel is a native executable, and neither contains Python: `uv` provisions the pinned Python runtime and dependencies. Native Windows and Git Bash are unsupported, and there is no packaged macOS artifact — on macOS, install from source.
+
+## Run with Docker Compose
+
+Download the canonical Compose file for a published release and pull its public GHCR image. No Git, source checkout, Node, Python, or image build is needed. For the `1.2.0` release, use the following commands after publication; choose the same version for the Compose file, image, and extension ZIP.
+
+```bash
+mkdir -p job-tracker
+cd job-tracker
+export JOB_TRACKER_VERSION=1.2.0
+curl -fL "https://raw.githubusercontent.com/Muatasim-Aswad/job-tracker/v${JOB_TRACKER_VERSION}/compose.yaml" -o compose.yaml
+export JOB_TRACKER_IMAGE="ghcr.io/muatasim-aswad/job-tracker:v${JOB_TRACKER_VERSION}"
+docker compose config -q
+docker compose pull
+docker compose up -d --no-build
+```
+
+Open <http://localhost:3456>. Download `job-tracker-extension-${JOB_TRACKER_VERSION}.zip` from the [matching release](https://github.com/Muatasim-Aswad/job-tracker/releases) and follow [Load the extension](#load-the-extension). The image supports Linux/amd64 only. Compose binds the host port to loopback and keeps data in named volumes; [Containers](docs/CONTAINERS.md) covers stop/start, backups, upgrades, and removal.
+
+To build from a source checkout instead, use `docker compose up -d --build` there.
 
 ## Install from source
 
@@ -74,17 +96,6 @@ bash scripts/start.sh
 ```
 
 Setup installs the locked dependencies and builds the dashboard and extension. It prints the absolute extension path needed below. The [development guide](docs/DEVELOPMENT.md) covers the contributor launcher, quality gate, and per-component commands.
-
-## Run with Docker Compose
-
-From the cloned repository or extracted source archive:
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-This runs the [current stable image](https://github.com/Muatasim-Aswad/job-tracker/pkgs/container/job-tracker) through its `latest` tag. Use `docker compose up -d --build` instead to build the checked-out source. The container serves the API and dashboard; use the matching extension ZIP from the [latest release](https://github.com/Muatasim-Aswad/job-tracker/releases/latest) in the shared step below. [Containers](docs/CONTAINERS.md) covers configuration, volumes, backups, and updates.
 
 ## Install a Linux x86_64 release
 
@@ -142,3 +153,5 @@ The [API guide](apps/api/README.md#backup--restore) holds the tested backup and 
 - Developer policy — quality gate, generated files, comment and Markdown style, migrations, and versioning: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - Contributions and support: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Release history: [`CHANGELOG.md`](CHANGELOG.md)
+
+Licensed under the [MIT License](LICENSE).

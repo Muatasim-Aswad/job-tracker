@@ -1,8 +1,4 @@
-"""app/core/deps.py::get_conn — the commit-on-success/rollback-on-error contract
-every route's DB access rides on, plus the push-scheduler nudge for writes.
-
-Driven directly as a generator (bypassing FastAPI's Depends plumbing) so the
-commit/rollback paths can be forced without a real request round-trip."""
+"""Request commit/rollback and sync-nudge contracts, driven directly through the dependency generator."""
 
 from __future__ import annotations
 
@@ -105,3 +101,14 @@ def test_does_not_log_a_commit_line_for_a_get(caplog: pytest.LogCaptureFixture) 
             next(gen)
 
     assert not any("db commit" in r.message for r in caplog.records)
+
+
+def test_closing_an_unfinished_transaction_rolls_back_and_releases_lock() -> None:
+    db = Database(conn=MagicMock())
+    gen = get_conn(_request("POST", "/api/jobs", db))
+    next(gen)
+    assert db.lock.locked()
+    gen.close()
+    db.conn.rollback.assert_called_once()
+    db.conn.commit.assert_not_called()
+    assert not db.lock.locked()

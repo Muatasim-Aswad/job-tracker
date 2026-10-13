@@ -1,18 +1,8 @@
-"""JD-similarity primitives (ported from scripts/merge_duplicates.py).
-
-Jaccard overlap on word sets — the duplicate-detection signal behind the repost
-popover's "N% match". Stdlib only, and once stop words and short tokens are dropped
-the score reflects meaningful, role-specific vocabulary. Purely lexical, unifying no
-synonyms or morphological variants, which suits recruiter reposts (copy-pasted JDs
-score 1.00); a genuinely rewritten repost may under-score, the accepted trade for
-zero dependencies and a cheap synchronous read.
-"""
+"""Lexical Jaccard overlap for duplicate suggestions, shared with scripts.merge_duplicates. HTML, short words, and stop words are discarded; synonyms and morphological variants are not unified, so rewritten reposts may score lower."""
 
 import re
 
-# The `len > 3` filter still passes common 3-letter stop words (and, are, the), and
-# every English JD shares hundreds of those, inflating Jaccard until different roles
-# look similar. This list removes that noise.
+# Stop words longer than three characters survive the length filter and inflate overlap.
 _STOP = {
     "the",
     "and",

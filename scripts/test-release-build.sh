@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Prove that two clean release builds from identical tracked inputs are identical.
+# Prove deterministic release builds and content checks for large asset inventories.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/job-tracker-release-test.XXXXXX")"
 trap 'rm -rf -- "$WORK"' EXIT
+node "$ROOT/scripts/test-build-metadata.mjs"
 
 for script in build-release.sh check-release-contents.sh smoke-release.sh test-release-build.sh; do
   bash -n "$ROOT/scripts/$script"
@@ -14,8 +15,34 @@ grep -Fq 'command -v zip' "$ROOT/scripts/build-release.sh" || {
   exit 1
 }
 
+for builder in build-release.sh build-wheel.sh; do
+  for destination in "$WORK" "$WORK-outside"; do
+    if TMPDIR="$WORK" JOB_TRACKER_RELEASE_DIR="$destination" bash "$ROOT/scripts/$builder" >"$WORK/refusal.log" 2>&1; then
+      printf 'test-release-build: %s accepted unsafe output %s\n' "$builder" "$destination" >&2
+      exit 1
+    fi
+    grep -Eq 'refusing an unsafe release directory|disposable TMPDIR child' "$WORK/refusal.log"
+  done
+  if TMPDIR=/ JOB_TRACKER_RELEASE_DIR="$WORK/output" bash "$ROOT/scripts/$builder" >"$WORK/refusal.log" 2>&1; then
+    printf 'test-release-build: %s accepted filesystem-root TMPDIR\n' "$builder" >&2
+    exit 1
+  fi
+  grep -Fq 'TMPDIR must not be filesystem root' "$WORK/refusal.log"
+done
+
+export UV_PROJECT_ENVIRONMENT="$WORK/fresh-build-environment"
 SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/first" bash "$ROOT/scripts/build-release.sh"
 bash "$ROOT/scripts/check-release-contents.sh" "$WORK/first"
+uv run --directory "$ROOT/apps/api" python - "$WORK/first" <<'PY'
+import sys, tarfile
+from pathlib import Path
+with tarfile.open(next(Path(sys.argv[1]).glob("*.tar.gz"))) as archive:
+    info = archive.extractfile("./BUILD_INFO.json").read()
+    assert info == archive.extractfile("./apps/web/dist/version.json").read()
+print("packaged dashboard identity agreement OK")
+PY
+tar -xOf "$WORK/first/job-tracker-$(tr -d '[:space:]' <"$ROOT/VERSION")-linux-x86_64.tar.gz" ./apps/web/dist/sw.js >"$WORK/sw.js"
+node "$ROOT/scripts/test-service-worker-cache.mjs" "$WORK/sw.js"
 SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/second" bash "$ROOT/scripts/build-release.sh"
 bash "$ROOT/scripts/check-release-contents.sh" "$WORK/second"
 
@@ -24,3 +51,28 @@ diff -qr "$WORK/first" "$WORK/second" >/dev/null || {
   exit 1
 }
 printf 'release build determinism OK\n'
+
+uv run --directory "$ROOT/apps/api" python - "$WORK/second" <<'PY'
+import hashlib
+import sys
+import tarfile
+from pathlib import Path
+
+release = Path(sys.argv[1])
+runtime = next(release.glob("*.tar.gz"))
+candidate = runtime.with_suffix(".candidate")
+with tarfile.open(runtime, "r:gz") as source, tarfile.open(candidate, "w:gz") as target:
+    for member in source.getmembers():
+        target.addfile(member, source.extractfile(member) if member.isfile() else None)
+    for index in range(2048):
+        target.addfile(tarfile.TarInfo(f"apps/web/dist/assets/content-check-{index}.js"))
+candidate.replace(runtime)
+checksums = [
+    f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n"
+    for path in sorted(release.iterdir())
+    if path.name != "SHA256SUMS"
+]
+(release / "SHA256SUMS").write_text("".join(checksums))
+PY
+bash "$ROOT/scripts/check-release-contents.sh" "$WORK/second"
+printf 'large release inventory checks OK\n'

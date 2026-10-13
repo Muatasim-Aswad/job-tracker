@@ -1,20 +1,9 @@
-// LinkedIn's render-key prefix — the one identity fact both LinkedIn surfaces
-// share. The web adapter tags a card "LI-4424562295" and parses it back; the Gmail
-// adapter reuses the prefix because its job links ARE LinkedIn postings, carrying no
-// natural key of their own. Render keys are extension-local, so they live here
-// rather than in the shared platform registry, which owns only runtime-agnostic
-// display/link data (label, canonical URL, date quirks).
+// LinkedIn web and Gmail cards share this extension-local render-key prefix.
+// Shared platform metadata owns canonical URLs, not DOM render keys.
 export const LINKEDIN_PREFIX = "LI-";
 
-// Both URL shapes LinkedIn hands out for a posting must resolve to the same id:
-// in-app navigation writes the bare `/jobs/view/4444945220/`, while shared, emailed,
-// and search-engine links carry an SEO slug ahead of it
-// (`/jobs/view/junior-engineer-at-example-employer-4444945220/`).
-//
-// The id is the last hyphen-delimited digit run in the segment, so a slug carrying
-// its own numbers ("data-engineer-2-at-example-123456") still resolves to the trailing
-// id; the lookahead pins it to the segment end. Unanchored at the front so the
-// `/comm/jobs/view/` email variant matches the same pattern.
+// Bare, SEO-slug, and /comm/jobs/view/ URLs must resolve to the same trailing numeric ID.
+// Anchor the ID at the segment end so digits inside a slug cannot win.
 const JOB_PATH = /\/jobs\/view\/(?:[^/?#]*-)?(\d+)(?=[/?#]|$)/;
 
 /** The numeric platform id in a LinkedIn job URL or path. Null when there is none. */

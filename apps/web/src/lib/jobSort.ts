@@ -71,9 +71,7 @@ export const JOB_COMPARATORS: Record<SortOrder, (a: JobSummary, b: JobSummary) =
   title_za: (a, b) => compareTitle(a.title, b.title, -1) || compareCompanyId(a, b),
 };
 
-// Never reorder the query-cache array in place. Board derives each column with
-// filter(), which preserves this order and therefore gives every column the same
-// selected ordering.
+// Copy the query-cache array; per-column filters preserve the chosen order.
 export function sortJobs(jobs: JobSummary[], order: SortOrder): JobSummary[] {
   return jobs.toSorted(JOB_COMPARATORS[order]);
 }

@@ -1,9 +1,6 @@
 import { ApiError } from "@job-tracker/shared/api";
 
-// A tiny framework-agnostic toast store, living outside React so non-component code
-// can raise a toast too — chiefly the QueryClient's global mutation-error handler
-// (main.tsx), which realizes "onError on all mutations" once. Components read it
-// through <Toaster/> via useSyncExternalStore.
+// Keep the store outside React so request/mutation handlers can publish toasts.
 
 export type ToastKind = "error" | "info";
 
@@ -26,8 +23,7 @@ export function subscribeToasts(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-// A stable snapshot: the array reference only changes when the toasts do, so
-// useSyncExternalStore won't loop.
+// Snapshots change identity only with toasts, avoiding useSyncExternalStore loops.
 export function getToasts(): Toast[] {
   return toasts;
 }
@@ -51,8 +47,6 @@ export const toast = {
   info: (message: string, ttl = 6000) => push("info", message, ttl),
 };
 
-// Turn whatever a mutation or fetch threw into a human line. An ApiError carries the
-// server's status and body; anything else falls back to its message.
 export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
     const detail = err.message.trim();

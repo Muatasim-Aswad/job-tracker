@@ -22,7 +22,8 @@ import { IconButton } from "../IconButton";
 import { InlineConfirm } from "../InlineConfirm";
 import { MetaEditor } from "../MetaEditor";
 import { MetaLine } from "../MetaLine";
-import { SectionHeader } from "../SectionHeader";
+import { CollapsibleSection } from "../CollapsibleSection";
+import { usePersistentStringSet } from "../../lib/persist";
 import { StatusBadge } from "../StatusBadge";
 import { Timeline } from "../Timeline";
 import { CorrectPanel } from "./CorrectPanel";
@@ -30,37 +31,29 @@ import { AttentionPanel } from "./AttentionPanel";
 import { ICON_SIZE, NEUTRAL } from "./constants";
 import { ListingCard } from "./ListingCard";
 import { MovePanel } from "./MovePanel";
+import { RelinkView } from "./RelinkView";
 
 interface Props {
   jobId: string;
   attention: Attention | null;
   onClose: () => void;
   onEvent: (jobId: string, events: EventItem[]) => void;
-  // Open a different job in the drawer — used after relinking a listing, to follow
-  // it to (and confirm the merge into) its new home.
+  // Follow a relinked listing when its original job is dissolved.
   onNavigate: (jobId: string) => void;
 }
 
-// How long the job has been in its current stage. `fmtSpan` says "just now" under
-// a minute, which doesn't compose with a trailing "in this stage".
+// Use a stage-compatible label for durations below one minute.
 function stageSpan(since: string): string {
   const span = fmtSpan(since);
   return span === "just now" ? "<1m" : span;
 }
 
-// A status action that doesn't apply to *this* job stays in the toolbar, greyed,
-// with the reason appended to its label — hiding it made the toolbar reflow between
-// jobs, so the same control sat under a different pixel on every job.
-//
-// `aria-disabled` rather than `disabled` on purpose: a `disabled` button leaves the
-// tab order AND stops firing pointer events, so neither the keyboard nor the hover
-// tooltip could reach the reason — the one thing the state exists to communicate.
-// The click is inert instead, guarded at the handler.
+// Keep unavailable actions in place and explain them through aria-disabled.
+// Native disabled would remove focus/hover access; guard clicks instead.
 function unavailable(reason: string | null, tone: string) {
   return {
     "aria-disabled": !!reason,
-    // An unavailable control also drops its tone: an amber "correct" or red "undo"
-    // reads as armed, and nothing that can't be used should look armed.
+    // Unavailable actions must not look armed.
     className: reason ? `${NEUTRAL} cursor-not-allowed opacity-50` : tone,
   };
 }
@@ -70,7 +63,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
   const updateJob = useUpdateJob();
   const deleteJob = useDeleteJob();
   const deleteListing = useDeleteListing();
-  const relinkListing = useRelinkListing();
+  const relinkListingMutation = useRelinkListing();
   const updateListing = useUpdateListing();
   const correctStatus = useCorrectStatus();
   const revertStatus = useRevertStatus();
@@ -78,31 +71,46 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [editing, setEditing] = useState(false);
+  const [collapsedSections, toggleSection] = usePersistentStringSet("jt.collapsedJobSections");
+  const disclosure = (section: string) => ({
+    collapsed: collapsedSections.has(section),
+    onToggle: () => toggleSection(section),
+  });
 
-  // Which status action owns the panel below the toolbar. At most one is open, so
-  // opening one closes the others (see the toolbar handlers). Move/Correct keep
-  // their own field state inside their panels; only "which is open" lives here.
+  // Only one action panel can be open; each mounted panel owns its draft.
   const [moving, setMoving] = useState(false);
   const [correcting, setCorrecting] = useState(false);
-  // Undo is armed on first click, applied on the second — a status change is not
-  // something to fire on a stray click.
+  // Undo requires a second deliberate click.
   const [undoArming, setUndoArming] = useState(false);
   const [addNoteRequest, setAddNoteRequest] = useState<{ jobId: string; token: number } | null>(
     null,
   );
 
-  // The dialog surface — the root of the focus trap and initial focus target.
   const asideRef = useRef<HTMLElement>(null);
 
-  // Persist the header title/company edit — shared by the Save button and
-  // formKeys' Cmd+Enter so the write lives in one place.
+  // Preserve job scroll position while relinking takes over the drawer.
+  const [relinkListingId, setRelinkListingId] = useState<string | null>(null);
+  const jobScrollTop = useRef(0);
+  const relinkListing = job?.listings.find((l) => l.id === relinkListingId) ?? null;
+
+  function openRelink(listingId: string) {
+    jobScrollTop.current = asideRef.current?.scrollTop ?? 0;
+    setRelinkListingId(listingId);
+  }
+
+  useEffect(() => setRelinkListingId(null), [jobId]);
+
+  const relinking = relinkListing !== null;
+  useEffect(() => {
+    if (asideRef.current) asideRef.current.scrollTop = relinking ? 0 : jobScrollTop.current;
+  }, [relinking]);
+
   function saveHeader() {
     updateJob.mutate({ jobId, body: { title, company } });
     setEditing(false);
   }
 
-  // Clipboard writes can fail because of permissions or an insecure origin, so
-  // report their settled result rather than acknowledging the click.
+  // Report settled clipboard results, including permission/origin failures.
   async function copyJson() {
     if (!job) return;
     try {
@@ -120,25 +128,19 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
     }
   }, [job]);
 
-  // Modal dialog behavior: focus into the drawer on open, trap Tab inside it,
-  // close on Escape, and hand focus back to the card that opened it on close.
-  useFocusTrap(asideRef, onClose);
-  // …and freeze the board behind it, so the drawer is the only thing that scrolls.
+  useFocusTrap(asideRef, relinkListing ? () => setRelinkListingId(null) : onClose);
+  // Freeze background scrolling while the drawer owns the screen.
   useScrollLock();
 
-  // The organic forward moves available from the current status (advancing the
-  // funnel or reaching a terminal). Backward moves are corrections, not here.
+  // Backward moves require correction.
   const moves = job ? pickableMoves(job.status) : [];
   const canUndo = !!job && job.events.some((e) => isStatusSettingEvent(e.event));
 
-  // Why a status action can't be used on this job. `null` means it can. The string
-  // replaces the button's label wholesale, so the reason is the accessible name and
-  // the hover text both — see `unavailable`.
+  // Unavailable reasons supply both accessible names and hover text.
   const moveReason = moves.length === 0 ? "Move forward — this job is at a terminal outcome" : null;
   const undoReason = canUndo ? null : "Undo the last status change — there hasn’t been one yet";
 
-  // When the job entered its current stage: the newest status-setting event, or
-  // its birth if it's never moved. Drives the "in stage for Nd" read.
+  // The newest status event or birth anchors current-stage duration.
   const stageSince = job
     ? (job.events
         .filter((e) => isStatusSettingEvent(e.event))
@@ -147,9 +149,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
         .at(-1) ?? job.created_at)
     : undefined;
 
-  // The explicit way out. Esc and the backdrop still work, but neither is visible,
-  // and a touch user has no Esc at all. Present in every branch — the error state
-  // is where being unable to leave is worst.
+  // Every branch needs a visible close action, including errors and touch use.
   const closeButton = (
     <IconButton label="Close" onClick={onClose} className={NEUTRAL}>
       <X size={ICON_SIZE} />
@@ -186,109 +186,123 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
             <span>Loading…</span>
             {closeButton}
           </div>
+        ) : relinkListing ? (
+          <RelinkView
+            listing={relinkListing}
+            jobTitle={job.title}
+            jobCompany={job.company}
+            dissolvesSource={job.listings.length === 1}
+            onBack={() => setRelinkListingId(null)}
+            onPick={(targetJobId) => {
+              setRelinkListingId(null);
+              relinkListingMutation.mutate({
+                listingId: relinkListing.id,
+                sourceJobId: jobId,
+                targetJobId,
+              });
+              // Follow the new owner only when relinking dissolves this job.
+              if (job.listings.length === 1) onNavigate(targetJobId);
+            }}
+          />
         ) : (
           <div className="flex flex-col gap-6 p-6">
-            <header className="sticky top-0 z-20 -mx-6 -mt-6 flex items-start justify-between gap-3 border-b border-line bg-canvas px-6 pb-3 pt-6">
-              <div className="min-w-0 flex-1">
-                {editing ? (
-                  <div
-                    className="flex flex-col gap-2"
-                    onKeyDown={formKeys(saveHeader, () => setEditing(false))}
-                  >
-                    <input
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      aria-label="Job title"
-                      placeholder="Title"
-                      autoFocus
-                      className="rounded border border-line bg-surface px-2 py-1 text-sm text-ink"
-                    />
-                    <input
-                      value={company}
-                      onChange={(e) => setCompany(e.target.value)}
-                      aria-label="Company"
-                      placeholder="Company"
-                      className="rounded border border-line bg-surface px-2 py-1 text-sm text-ink"
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={saveHeader}
-                        className="rounded bg-violet-600 px-2 py-1 text-xs font-medium text-white hover:bg-violet-700"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => setEditing(false)}
-                        className="rounded px-2 py-1 text-xs text-ink-muted hover:text-ink"
-                      >
-                        Cancel
-                      </button>
+            <header className="sticky top-0 z-20 -mx-6 -mt-6 flex flex-col gap-1 border-b border-line bg-canvas px-6 pb-3 pt-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {editing ? (
+                    <div
+                      className="flex flex-col gap-2"
+                      onKeyDown={formKeys(saveHeader, () => setEditing(false))}
+                    >
+                      <input
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        aria-label="Job title"
+                        placeholder="Title"
+                        autoFocus
+                        className="rounded border border-line bg-surface px-2 py-1 text-sm text-ink"
+                      />
+                      <input
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
+                        aria-label="Company"
+                        placeholder="Company"
+                        className="rounded border border-line bg-surface px-2 py-1 text-sm text-ink"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={saveHeader}
+                          className="rounded bg-violet-600 px-2 py-1 text-xs font-medium text-white hover:bg-violet-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditing(false)}
+                          className="rounded px-2 py-1 text-xs text-ink-muted hover:text-ink"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  // The drawer IS the detail view: a title clipped here was
-                  // readable nowhere else short of opening the edit form. Two
-                  // lines rather than unbounded wrap, because the header is
-                  // sticky and a five-line title would eat the viewport; the
-                  // `title` attribute carries whatever the second line can't.
-                  <>
+                  ) : (
+                    // Bound the sticky title to two lines; title exposes any remaining text.
                     <h2
                       title={job.title ?? undefined}
                       className="line-clamp-2 text-lg font-semibold text-ink"
                     >
                       {job.title ?? "(untitled)"}
                     </h2>
+                  )}
+                </div>
+                {closeButton}
+              </div>
+              <div className="flex min-w-0 items-center justify-between gap-3">
+                {!editing && (
+                  <div className="flex min-w-0 items-center gap-1">
                     <div
                       title={job.company ?? undefined}
-                      className="truncate text-sm text-ink-muted"
+                      className="min-w-0 truncate text-sm text-ink-muted"
                     >
                       {job.company ?? "—"}
                     </div>
-                  </>
+                    <IconButton
+                      label="Edit title / company"
+                      onClick={() => setEditing(true)}
+                      className={`${NEUTRAL} shrink-0`}
+                    >
+                      <Pencil size={ICON_SIZE} />
+                    </IconButton>
+                  </div>
                 )}
-              </div>
-              <div className="flex shrink-0 items-center gap-0.5">
-                {!editing && (
+                <div className="ml-auto flex shrink-0 items-center gap-0.5">
                   <IconButton
-                    label="Edit title / company"
-                    onClick={() => setEditing(true)}
-                    className={NEUTRAL}
+                    label={job.starred ? "Unstar" : "Star"}
+                    onClick={() => onEvent(jobId, [{ event: flagEvent("starred", job.starred) }])}
+                    className={job.starred ? "text-amber-600 dark:text-amber-400" : NEUTRAL}
                   >
-                    <Pencil size={ICON_SIZE} />
+                    <Star size={ICON_SIZE} fill={job.starred ? "currentColor" : "none"} />
                   </IconButton>
-                )}
-                <IconButton
-                  label={job.starred ? "Unstar" : "Star"}
-                  onClick={() => onEvent(jobId, [{ event: flagEvent("starred", job.starred) }])}
-                  className={job.starred ? "text-amber-600 dark:text-amber-400" : NEUTRAL}
-                >
-                  <Star size={ICON_SIZE} fill={job.starred ? "currentColor" : "none"} />
-                </IconButton>
-                <IconButton
-                  label={job.hidden ? "Hidden from board — click to unhide" : "Hide from board"}
-                  active={job.hidden}
-                  onClick={() => onEvent(jobId, [{ event: flagEvent("hidden", job.hidden) }])}
-                  className={job.hidden ? "text-ink" : NEUTRAL}
-                >
-                  {job.hidden ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
-                </IconButton>
-                {/* Copying the raw response is a debugging affordance, so it sits
-                    last before Close and keeps the neutral tone. Its full name is
-                    the accessible name and the hover text — a glyph alone would
-                    not distinguish it from the listing card's copy-JD. */}
-                <IconButton
-                  label="Copy full response JSON"
-                  onClick={() => void copyJson()}
-                  className={NEUTRAL}
-                >
-                  <Copy size={ICON_SIZE} />
-                </IconButton>
-                {closeButton}
+                  <IconButton
+                    label={job.hidden ? "Hidden from board — click to unhide" : "Hide from board"}
+                    active={job.hidden}
+                    onClick={() => onEvent(jobId, [{ event: flagEvent("hidden", job.hidden) }])}
+                    className={job.hidden ? "text-ink" : NEUTRAL}
+                  >
+                    {job.hidden ? <EyeOff size={ICON_SIZE} /> : <Eye size={ICON_SIZE} />}
+                  </IconButton>
+                  {/* The full name distinguishes this debugging action from copy-JD. */}
+                  <IconButton
+                    label="Copy full response JSON"
+                    onClick={() => void copyJson()}
+                    className={`ml-2 ${NEUTRAL}`}
+                  >
+                    <Copy size={ICON_SIZE} />
+                  </IconButton>
+                </div>
               </div>
             </header>
 
-            {/* Status — current state plus its actions (move / undo / correct) as a
-                compact icon toolbar; each action that needs input opens a panel below. */}
+            {/* Each status action owns one input panel. */}
             <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface/40 p-4">
               <div className="flex items-center gap-2">
                 <StatusBadge status={job.status} size="md" />
@@ -428,22 +442,24 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
               {attention && (
                 <AttentionPanel
                   attention={attention}
-                  onAddNote={() =>
+                  onAddNote={() => {
+                    if (collapsedSections.has("timeline")) toggleSection("timeline");
                     setAddNoteRequest((request) => ({
                       jobId,
                       token: request?.jobId === jobId ? request.token + 1 : 1,
-                    }))
-                  }
+                    }));
+                  }}
                   onMarkGhosted={() => onEvent(jobId, [{ event: "ghosted" }])}
                 />
               )}
             </section>
 
             {/* Listings */}
-            <section>
-              {/* No `+`: listings arrive by capture or by adding a job, never from
-                  inside the drawer. No `?` either — the title is the whole idea. */}
-              <SectionHeader title="Listings" count={job.listings.length} />
+            <CollapsibleSection
+              title="Listings"
+              count={job.listings.length}
+              disclosure={disclosure("listings")}
+            >
               <div className="flex flex-col gap-2">
                 {job.listings.map((l) => (
                   <ListingCard
@@ -460,29 +476,28 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
                         { onSuccess: () => lastOne && onClose() },
                       );
                     }}
-                    onRelink={(targetJobId) => {
-                      relinkListing.mutate({ listingId: l.id, sourceJobId: jobId, targetJobId });
-                      // If this was the job's only listing the source dissolves,
-                      // so follow the listing to its new home; otherwise the source
-                      // survives and we stay put (more listings may need relinking).
-                      if (job.listings.length === 1) onNavigate(targetJobId);
-                    }}
+                    onRelink={() => openRelink(l.id)}
                     onUpdate={(body) => updateListing.mutate({ listingId: l.id, jobId, body })}
                   />
                 ))}
                 {/* Defensive fallback for inconsistent imported data. */}
                 {job.listings.length === 0 && <EmptyBlock message="No listings." />}
               </div>
-            </section>
+            </CollapsibleSection>
 
-            <MetaEditor job={job} />
+            <MetaEditor job={job} disclosure={disclosure("custom-fields")} />
 
-            <Documents jobId={jobId} documents={job.documents} />
+            <Documents
+              jobId={jobId}
+              documents={job.documents}
+              disclosure={disclosure("documents")}
+            />
 
             <Timeline
               key={jobId}
               jobId={jobId}
               events={job.events}
+              disclosure={disclosure("timeline")}
               addNoteRequest={addNoteRequest?.jobId === jobId ? addNoteRequest.token : 0}
             />
 
@@ -490,8 +505,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
               <InlineConfirm
                 trigger="Delete job"
                 confirmLabel="Delete job and all its data?"
-                // Close only once the delete lands; a failed delete must leave the
-                // drawer open on the job that still exists.
+                // A failed delete must leave the still-existing job open.
                 onConfirm={() => deleteJob.mutate(jobId, { onSuccess: onClose })}
               />
             </section>

@@ -59,6 +59,35 @@ describe("seedFromTab — Gmail", () => {
   });
 });
 
+describe("seedFromTab — LinkedIn job view", () => {
+  const job = (title: string, path = "/jobs/view/4469726251/") =>
+    seed(`https://www.linkedin.com${path}`, title);
+
+  it("seeds the company from the job title", () => {
+    expect(job("Robotics Software Engineer | Lely | LinkedIn")).toEqual({
+      value: "Lely",
+      rule: "linkedin-title",
+    });
+  });
+
+  it("ignores a notification count and a role containing the separator", () => {
+    expect(job("(10) Backend Engineer | Remote | Example Company | LinkedIn")).toEqual({
+      value: "Example",
+      rule: "linkedin-title",
+    });
+  });
+
+  it("does not seed from a title without a company segment", () => {
+    expect(job("LinkedIn")).toEqual({ value: "", rule: "none" });
+  });
+
+  it("does not seed from a search page title", () => {
+    expect(
+      job("(10) software engineer Jobs | LinkedIn", "/jobs/search/?currentJobId=4469726251"),
+    ).toEqual({ value: "", rule: "none" });
+  });
+});
+
 describe("seedFromTab — non-web tabs", () => {
   it("does not seed on a chrome:// page", () => {
     expect(seed("chrome://extensions")).toEqual({ value: "", rule: "none" });
