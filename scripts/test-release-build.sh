@@ -15,6 +15,21 @@ grep -Fq 'command -v zip' "$ROOT/scripts/build-release.sh" || {
   exit 1
 }
 
+for builder in build-release.sh build-wheel.sh; do
+  for destination in "$WORK" "$WORK-outside"; do
+    if TMPDIR="$WORK" JOB_TRACKER_RELEASE_DIR="$destination" bash "$ROOT/scripts/$builder" >"$WORK/refusal.log" 2>&1; then
+      printf 'test-release-build: %s accepted unsafe output %s\n' "$builder" "$destination" >&2
+      exit 1
+    fi
+    grep -Eq 'refusing an unsafe release directory|disposable TMPDIR child' "$WORK/refusal.log"
+  done
+  if TMPDIR=/ JOB_TRACKER_RELEASE_DIR="$WORK/output" bash "$ROOT/scripts/$builder" >"$WORK/refusal.log" 2>&1; then
+    printf 'test-release-build: %s accepted filesystem-root TMPDIR\n' "$builder" >&2
+    exit 1
+  fi
+  grep -Fq 'TMPDIR must not be filesystem root' "$WORK/refusal.log"
+done
+
 export UV_PROJECT_ENVIRONMENT="$WORK/fresh-build-environment"
 SOURCE_DATE_EPOCH=315532800 JOB_TRACKER_RELEASE_DIR="$WORK/first" bash "$ROOT/scripts/build-release.sh"
 bash "$ROOT/scripts/check-release-contents.sh" "$WORK/first"

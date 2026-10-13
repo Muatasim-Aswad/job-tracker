@@ -19,11 +19,13 @@ command -v zip >/dev/null 2>&1 ||
 [[ "$EPOCH" =~ ^[0-9]+$ ]] || fail "SOURCE_DATE_EPOCH must be an integer."
 
 RELEASE_DIR="$(realpath -m "$RELEASE_DIR")"
+TEMP_ROOT="$(realpath -m "${TMPDIR:-/tmp}")"
+[[ "$TEMP_ROOT" != / ]] || fail "TMPDIR must not be filesystem root."
 case "$RELEASE_DIR" in
-  "$ROOT/dist/release" | /tmp/*) ;;
-  *) fail "JOB_TRACKER_RELEASE_DIR must be $ROOT/dist/release or a disposable /tmp path." ;;
+  "$ROOT/dist/release" | "$TEMP_ROOT"/*) ;;
+  *) fail "JOB_TRACKER_RELEASE_DIR must be $ROOT/dist/release or a disposable TMPDIR child." ;;
 esac
-[[ "$RELEASE_DIR" != / && "$RELEASE_DIR" != /tmp ]] || fail "refusing an unsafe release directory."
+[[ "$RELEASE_DIR" != / && "$RELEASE_DIR" != "$TEMP_ROOT" ]] || fail "refusing an unsafe release directory."
 
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/job-tracker-release.XXXXXX")"
 trap 'rm -rf -- "$WORK"' EXIT
