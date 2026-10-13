@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import posixpath
 import re
 import runpy
 import shutil
@@ -89,7 +90,7 @@ def forbidden_path(name, *, artifact=False):
     )
 
 
-def archive_members(archive):
+def archive_members(archive, *, source_inventory=None):
     members = []
     seen = set()
     files = set()
@@ -102,9 +103,37 @@ def archive_members(archive):
     for entry in entries:
         if isinstance(entry, tarfile.TarInfo):
             directory = entry.isdir()
+            name = safe_path(entry.name, directory=directory)
+            if entry.issym() and source_inventory is not None:
+                target = entry.linkname
+                if (
+                    source_inventory.get(name) != b"120000"
+                    or target.startswith("/")
+                    or "\\" in target
+                    or ":" in target
+                    or any(ord(c) < 32 for c in target)
+                ):
+                    raise ScanError("unsafe source link")
+                target = posixpath.normpath(
+                    posixpath.join(posixpath.dirname(name), target)
+                )
+                if source_inventory.get(target) not in (b"100644", b"100755"):
+                    raise ScanError(
+                        "source link must target a tracked public regular file"
+                    )
+                try:
+                    entry = archive.getmember(target)
+                except KeyError as error:
+                    raise ScanError(
+                        "source link target is missing from export"
+                    ) from error
+                if not entry.isreg():
+                    raise ScanError("source link target is not regular")
+            elif source_inventory is not None and not directory:
+                if source_inventory.get(name) == b"120000":
+                    raise ScanError("source link differs from tracked inventory")
             if not (directory or entry.isreg()) or entry.issparse():
                 raise ScanError("archive contains a link or special file")
-            name = safe_path(entry.name, directory=directory)
             size = entry.size
         else:
             directory = entry.is_dir()
@@ -168,7 +197,7 @@ def clean_revision(source, revision):
     )
     if commit != git(source, "rev-parse", "HEAD").decode().strip():
         raise ScanError("candidate revision must be the checkout HEAD")
-    inventory = set()
+    inventory = {}
     for record in git(source, "ls-tree", "-rz", "--full-tree", commit).split(b"\0"):
         if not record:
             continue
@@ -176,12 +205,12 @@ def clean_revision(source, revision):
         mode, kind, _ = metadata.split()
         name = safe_path(os.fsdecode(raw_name))
         if (
-            mode not in (b"100644", b"100755")
+            mode not in (b"100644", b"100755", b"120000")
             or kind != b"blob"
             or forbidden_path(name)
         ):
             raise ScanError("candidate tracks a non-public path, link, or submodule")
-        inventory.add(name)
+        inventory[name] = mode
     if git(source, "status", "--porcelain", "--untracked-files=no"):
         raise ScanError("candidate tracked files must be clean")
     return commit, inventory
@@ -233,8 +262,10 @@ def scan_candidate(source, revision, release, scanner, *, source_date_epoch=3155
         source_tar = work / "source.tar"
         git(source, "archive", "--format=tar", f"--output={source_tar}", commit)
         with tarfile.open(source_tar) as archive:
-            members = archive_members(archive)
-            if {name for name, directory, _ in members if not directory} != inventory:
+            members = archive_members(archive, source_inventory=inventory)
+            if {name for name, directory, _ in members if not directory} != set(
+                inventory
+            ):
                 raise ScanError("source export differs from exact tracked inventory")
             extract(archive, members, scan / "source")
         exported = scan / "source"

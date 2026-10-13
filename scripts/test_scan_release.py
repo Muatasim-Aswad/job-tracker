@@ -25,7 +25,7 @@ SPEC.loader.exec_module(scan)
 REVISION = "a" * 40
 
 
-def tar_bytes(entries):
+def tar_bytes(entries, links=None):
     output = io.BytesIO()
     with tarfile.open(fileobj=output, mode="w:gz") as archive:
         for name, content, kind in entries:
@@ -37,6 +37,11 @@ def tar_bytes(entries):
             archive.addfile(
                 entry, io.BytesIO(content) if kind == tarfile.REGTYPE else None
             )
+        for name, target in (links or {}).items():
+            entry = tarfile.TarInfo(name)
+            entry.type = tarfile.SYMTYPE
+            entry.linkname = target
+            archive.addfile(entry)
     return output.getvalue()
 
 
@@ -106,6 +111,7 @@ class ScanTests(unittest.TestCase):
         self.write_artifacts(self.identity)
         self.dirty = False
         self.mode = b"100644"
+        self.source_links = {}
         self.export_extra = []
         self.git_patch = patch.object(scan, "git", side_effect=self.git)
         self.git_patch.start()
@@ -166,8 +172,13 @@ class ScanTests(unittest.TestCase):
         if args[0] == "ls-tree":
             self.assertEqual(args[-1], REVISION)
             return b"".join(
-                self.mode + b" blob " + b"b" * 40 + b"\t" + name.encode() + b"\0"
-                for name in self.source_files
+                (b"120000" if name in self.source_links else self.mode)
+                + b" blob "
+                + b"b" * 40
+                + b"\t"
+                + name.encode()
+                + b"\0"
+                for name in (*self.source_files, *self.source_links)
             )
         if args[0] == "archive":
             self.assertEqual(args[-1], REVISION)
@@ -184,7 +195,8 @@ class ScanTests(unittest.TestCase):
                         (name, content, tarfile.REGTYPE)
                         for name, content in self.source_files.items()
                     ]
-                    + self.export_extra
+                    + self.export_extra,
+                    links=self.source_links,
                 )
             )
             return b""
@@ -249,6 +261,35 @@ class ScanTests(unittest.TestCase):
     def test_dirty_source_refused_before_export(self):
         self.dirty = True
         self.rejected("must be clean")
+
+    def test_tracked_public_source_link_is_materialized_without_following_checkout(
+        self,
+    ):
+        self.source_links = {"CLAUDE.md": "README.md"}
+        (self.source / "CLAUDE.md").symlink_to("/not-read")
+        self.execute()
+        files = json.loads(self.record.read_text())
+        self.assertEqual(files["source/CLAUDE.md"], "synthetic public source\n")
+
+    def test_source_links_require_a_tracked_public_regular_target(self):
+        for target in (
+            "../outside",
+            "/absolute",
+            "missing",
+            ".env",
+            "README.md/child",
+            "CLAUDE.md",
+            "other-link",
+        ):
+            with self.subTest(target=target):
+                self.source_links = {"CLAUDE.md": target, "other-link": "README.md"}
+                self.rejected("source link")
+
+    def test_nested_source_link_can_reference_tracked_parent_file(self):
+        self.source_links = {"docs/alias.md": "../README.md"}
+        self.execute()
+        files = json.loads(self.record.read_text())
+        self.assertEqual(files["source/docs/alias.md"], "synthetic public source\n")
 
     def test_stale_dev_and_wrong_time_artifacts_fail_before_checker_and_scan(self):
         for changed in (
