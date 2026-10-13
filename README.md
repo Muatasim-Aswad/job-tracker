@@ -6,7 +6,7 @@ A job search rarely stays in one place. The same opportunity can appear in a sea
 
 Job Tracker is a self-hosted workspace built around one lasting record per job. Listings, status changes, notes, decisions, and materials stay attached to that opportunity. A browser extension captures details and reliable lifecycle updates, while a local Kanban dashboard keeps the process visible and under your control.
 
-Job Tracker gives AI agents structured context about your opportunities, application history, notes, and materials to support job-search decisions and application preparation. Agents can discover the API through the running server's [OpenAPI schema](http://localhost:3456/openapi.json).
+Job Tracker gives AI agents structured context about your opportunities, application history, notes, and materials to support job-search decisions and application preparation. Agents can discover the API through the running server's OpenAPI schema at `/openapi.json`.
 
 ![Job Tracker overview](docs/images/social-preview.png)
 
