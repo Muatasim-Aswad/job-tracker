@@ -58,6 +58,30 @@ def test_normalize_url_keeps_identifying_parts(a: str, b: str) -> None:
     assert normalize_url(a) != normalize_url(b)
 
 
+@pytest.mark.parametrize(
+    "authority",
+    [
+        "notlinkedin.com",
+        "linkedin.com.example.org",
+        "linkedin.com@notlinkedin.com",
+        "linkedin.com@evil.example",
+    ],
+)
+def test_normalize_url_keeps_profile_subpages_on_non_linkedin_hosts(authority: str) -> None:
+    profile = f"https://{authority}/company/Example-Labs"
+    assert normalize_url(f"{profile}/life") != normalize_url(profile)
+
+
+@pytest.mark.parametrize(
+    "authority",
+    ["linkedin.com", "www.linkedin.com", "nl.linkedin.com", "LINKEDIN.COM", "linkedin.com:443"],
+)
+def test_normalize_url_collapses_profile_subpages_on_linkedin_hosts(authority: str) -> None:
+    assert normalize_url(f"https://{authority}/company/Example-Labs/life") == normalize_url(
+        f"https://{authority}/company/example-labs"
+    )
+
+
 @pytest.mark.parametrize("url", [None, "", "not a url"])
 def test_normalize_url_rejects_unusable_input(url: str | None) -> None:
     assert normalize_url(url) is None

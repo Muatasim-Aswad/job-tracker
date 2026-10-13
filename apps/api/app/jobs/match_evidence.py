@@ -44,8 +44,10 @@ def normalize_url(url: str | None) -> str | None:
     if not parts.netloc:
         return None
     host = parts.netloc.lower().removeprefix("www.")
+    hostname = parts.hostname or ""
+    is_linkedin = hostname == "linkedin.com" or hostname.endswith(".linkedin.com")
     segments = [segment for segment in parts.path.split("/") if segment]
-    if host.endswith("linkedin.com") and segments and segments[0] in _LINKEDIN_PROFILE_ROOTS:
+    if is_linkedin and segments and segments[0] in _LINKEDIN_PROFILE_ROOTS:
         return f"{host}/{'/'.join(segments[:2]).lower()}"
     query = urlencode(
         sorted(

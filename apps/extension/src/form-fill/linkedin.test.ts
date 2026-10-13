@@ -35,7 +35,7 @@ const sduiRadio = (key: string, group: string, prompt: string, options: string[]
         .map(
           (option, index) => `
         <div><div><div>
-          <input id="${group}-${index}" aria-label="${prompt.replace("*", "")}" type="radio" name="radio-group-${group}">
+          <input id="${group}-${index}" aria-label="${prompt.replaceAll("*", "")}" type="radio" name="radio-group-${group}">
           <label for="${group}-${index}"></label>
         </div><div><p>${option}</p></div></div></div>`,
         )
