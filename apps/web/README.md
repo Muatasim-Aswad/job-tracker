@@ -4,17 +4,12 @@ The dashboard is the React client for Job Tracker. For installation and normal u
 
 ## Development
 
-Start the API in one terminal:
+Complete the [workspace setup](../../docs/DEVELOPMENT.md#local-development), then start the API in one terminal using its [direct-run command](../api/README.md#run-the-api-directly).
+
+Start the Vite development server from the repository root in another:
 
 ```bash
-cd apps/api
-uv run uvicorn app.main:app --port 3456 --reload
-```
-
-Start the Vite development server in another:
-
-```bash
-pnpm --filter web dev
+pnpm run dev:web
 ```
 
 Open <http://localhost:5173>. Vite proxies `/api`, `/docs`, `/openapi.json`, and `/version.json` to the API on port 3456. A production build is emitted to `apps/web/dist`; FastAPI serves that directory at <http://localhost:3456> and requires the SPA entry document to revalidate so rebuilds load the current asset hashes.

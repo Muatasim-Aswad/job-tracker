@@ -13,7 +13,7 @@ docker compose ps
 docker compose up -d --no-build
 ```
 
-`JOB_TRACKER_IMAGE=ghcr.io/muatasim-aswad/job-tracker:v<version>` pins a release. Export it again in a new shell before any command that creates a container; Compose otherwise uses its versioned default image. Source builds require the Dockerfile checkout: build with `docker build --platform linux/amd64 -t job-tracker:local .`, then select `JOB_TRACKER_IMAGE=job-tracker:local` and start with `--no-build --pull never`. The same file also supports `docker compose build`; no second Compose file is needed.
+`JOB_TRACKER_IMAGE=ghcr.io/muatasim-aswad/job-tracker:v<version>` pins a release. Export it again in a new shell before any command that creates a container; Compose otherwise uses its versioned default image. For source builds, follow the README's [build procedure](../README.md#build-the-docker-image-from-source); the same Compose file owns build and runtime settings.
 
 The default publication is deliberately loopback-only: `127.0.0.1:3456:3456`. Open <http://127.0.0.1:3456>; do not change it to a public interface. The service runs as UID/GID `10001`, has no added Linux capabilities, and uses its image only for replaceable application files.
 

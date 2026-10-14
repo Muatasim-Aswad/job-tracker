@@ -39,7 +39,7 @@ The CLI and source launchers give Uvicorn 15 seconds to drain active requests be
 
 The [dashboard](../web/README.md) uses relative `/api/...` paths in development and production.
 
-- **Dev** (hot reload): `cd ../web && pnpm install && pnpm dev` → <http://localhost:5173>. Vite proxies `/api` (plus `/docs`/`/openapi.json`) to this server on :3456, so run `uvicorn` too.
+- **Dev** (hot reload): follow the [dashboard development procedure](../web/README.md#development). Vite proxies API requests to this server; keep the API running in a separate terminal.
 - **Prod / one process**: from the repository root, `pnpm run build:web` produces `apps/web/dist`, which FastAPI serves at the root on startup ([main.py](app/main.py)) via `Settings.web_dist_path`. Then the whole thing is just <http://localhost:3456>. The mount is skipped when that directory is absent, so the API still runs without a build.
 
 Job-addressed reads and ordinary writes accept merged aliases, return canonical IDs, and set `Content-Location`. Deletion through an alias returns `409 job_merged` and requires repeating the request against the survivor. See [identity](../../docs/ARCHITECTURE.md#identity) for merge invariants.
