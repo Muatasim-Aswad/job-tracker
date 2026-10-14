@@ -14,12 +14,13 @@ Each supported site is a small **adapter**. Built-in ones (LinkedIn, and LinkedI
 
 ## Build & load
 
+Complete the [workspace setup](../../docs/DEVELOPMENT.md#local-development), then build from the repository root:
+
 ```bash
-pnpm install
-pnpm build          # emits the loadable extension into dist/
+pnpm run build:ext
 ```
 
-Then in the browser: `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select the **`dist/`** folder. After any source change, run `pnpm build` again and hit the reload ↻ on the extension card.
+Then in the browser: `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select **`apps/extension/dist/`**. After a source change, rebuild and hit the reload ↻ on the extension card. Commands below also run from the repository root.
 
 For a versioned release ZIP, follow the root [extension loading procedure](../../README.md#load-the-extension). Keep its version matched to the installed server artifact.
 
@@ -29,18 +30,18 @@ For a versioned release ZIP, follow the root [extension loading procedure](../..
 
 `manifest.config.ts` derives the manifest version from the root `VERSION`, shared by all components. See the [versioning rules](../../docs/DEVELOPMENT.md#releases-and-versions) and [release history](../../CHANGELOG.md).
 
-Run `pnpm build` and `pnpm typecheck` before calling a change done.
+Use `pnpm --filter job-tracker-extension typecheck` for focused iteration and the [repository gate](../../docs/DEVELOPMENT.md#quality-gate) before calling a change done.
 
 ## Configure the server address
 
 Copy the example environment file, set `VITE_SERVER_URL`, and rebuild:
 
 ```bash
-cp .env.example .env      # then set VITE_SERVER_URL, e.g. https://tracker.example.com
-pnpm build
+cp apps/extension/.env.example apps/extension/.env
+pnpm run build:ext
 ```
 
-`VITE_SERVER_URL` feeds both the in-page fetches ([config.ts](src/config.ts)) and the manifest's `host_permissions` ([manifest.config.ts](manifest.config.ts)), defaulting to `http://localhost:3456`. The extension never stores or sends the server's optional `X-API-Key`, so keep `API_KEY` unset for a direct local connection or put a trusted intermediary in front to inject the header — otherwise every API call gets a `401`.
+Set `VITE_SERVER_URL` in that file before rebuilding, for example `https://tracker.example.com`. It feeds both the in-page fetches ([config.ts](src/config.ts)) and the manifest's `host_permissions` ([manifest.config.ts](manifest.config.ts)), defaulting to `http://localhost:3456`. The extension never stores or sends the server's optional `X-API-Key`, so keep `API_KEY` unset for a direct local connection or put a trusted intermediary in front to inject the header — otherwise every API call gets a `401`.
 
 ## LinkedIn Easy Apply form fill
 
@@ -166,7 +167,7 @@ Then register the host so the content script is injected there. Add the match gl
 ["https://jobs.myboard.com/*"]
 ```
 
-Rebuild with `pnpm build` and reload the extension. Registration needs no engine edit.
+Rebuild with `pnpm run build:ext` and reload the extension. Registration needs no engine edit.
 
 - `platform` is a free-form string on the server — adding an adapter needs no server change.
 - The engine asks every registered adapter's `naturalKey` in turn, so your prefix is owned entirely by your adapter.

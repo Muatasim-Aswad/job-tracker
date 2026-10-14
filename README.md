@@ -86,11 +86,12 @@ Requires Git and Docker with Compose; Docker installs all build tools internally
 ```bash
 git clone https://github.com/Muatasim-Aswad/job-tracker.git
 cd job-tracker
-docker build --platform linux/amd64 -t job-tracker:local .
-JOB_TRACKER_IMAGE=job-tracker:local docker compose up -d --no-build --pull never
+export JOB_TRACKER_IMAGE=job-tracker:local
+docker compose build
+docker compose up -d --no-build --pull never
 ```
 
-The same Compose file can build it with `JOB_TRACKER_IMAGE=job-tracker:local docker compose build` instead of the plain Docker build command. Select the local image for subsequent commands, or save `JOB_TRACKER_IMAGE=job-tracker:local` in an ignored mode `0600` `.env` beside `compose.yaml`. Ordinary source builds need no release metadata and report revision `dev`.
+[`compose.yaml`](compose.yaml) owns the build context, platform, and arguments. The exported image selection also applies to subsequent commands; save it in an ignored mode `0600` `.env` beside `compose.yaml` to retain it across shells. Ordinary source builds need no release metadata and report revision `dev`.
 
 ## Install from source
 
