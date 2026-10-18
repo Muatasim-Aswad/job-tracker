@@ -30,8 +30,8 @@ grep -A5 '^  publish:' "$WORKFLOW" | grep -Fq 'contents: write' || fail "publica
 [[ "$(grep -Fc 'contents: write' "$WORKFLOW")" == 1 ]] || fail "contents: write must be limited to publication."
 [[ "$(grep -Fc 'persist-credentials: false' "$WORKFLOW")" == 2 ]] || fail "every checkout must disable persisted credentials."
 [[ "$(grep -Fc 'ref: ${{ github.ref }}' "$WORKFLOW")" == 2 ]] || fail "every checkout must select the pushed ref."
-[[ "$(grep -Fc 'astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d' "$WORKFLOW")" == 2 ]] || fail "every job that runs release scripts must install pinned uv."
-[[ "$(grep -Fc 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' "$WORKFLOW")" == 2 ]] || fail "every job that verifies release contents must install pinned Node."
+[[ "$(grep -Fc 'astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7' "$WORKFLOW")" == 2 ]] || fail "every job that runs release scripts must install pinned uv."
+[[ "$(grep -Fc 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1' "$WORKFLOW")" == 2 ]] || fail "every job that verifies release contents must install pinned Node."
 grep -Fq 'workflow_dispatch:' "$CONTAINER_WORKFLOW" || fail "container workflow lacks manual release recovery."
 [[ "$(grep -Fc "format('refs/tags/{0}', inputs.tag)" "$CONTAINER_WORKFLOW")" == 2 ]] ||
   fail "container recovery must check out the requested tag in both jobs."
@@ -52,16 +52,16 @@ if grep -Fq 'github.repository_owner' "$CONTAINER_WORKFLOW"; then
   fail "container image path must not preserve mixed-case repository ownership."
 fi
 for required in \
-  'astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d' \
+  'astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7' \
   'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413' \
-  'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' \
+  'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1' \
   'pnpm install --frozen-lockfile' \
   'bash scripts/check.sh' \
   'bash scripts/build-release.sh' \
   'bash scripts/check-release-contents.sh' \
   'bash scripts/smoke-release.sh' \
-  'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' \
-  'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' \
+  'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9' \
+  'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333' \
   'gh release create'; do
   grep -Fq "$required" "$WORKFLOW" || fail "workflow is missing $required."
 done

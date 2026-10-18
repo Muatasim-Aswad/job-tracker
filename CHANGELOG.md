@@ -6,6 +6,10 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+### Fixed
+
+- Duplicate suggestions use the highest description similarity across a candidate job's listings instead of only its earliest captured description.
+
 ## [1.2.1] - 2026-10-14
 
 ### Changed
