@@ -198,6 +198,47 @@ def test_matches_similarity_none_when_a_jd_is_missing(client: TestClient) -> Non
     assert found[0]["similarity"] is None
 
 
+@pytest.mark.parametrize("descriptions", [(_JD_FAR, _JD_B, None), (_JD_B, _JD_FAR, None)])
+def test_matches_uses_best_description_across_candidate_listings(
+    client: TestClient, descriptions: tuple[str | None, ...]
+) -> None:
+    original = _listing(
+        client, "linkedin", "111", title="Backend Engineer", company="Example Company"
+    )
+    for index, description in enumerate(descriptions):
+        _listing(
+            client,
+            "linkedin",
+            f"candidate-{index}",
+            title="Backend Engineer",
+            company="Example Company",
+            job_id=original["job_id"],
+            meta={"description": description},
+        )
+    other = _listing(
+        client,
+        "linkedin",
+        "333",
+        title="Backend Engineer",
+        company="Example Company",
+        meta={"description": _JD_A},
+    )
+    _listing(
+        client,
+        "linkedin",
+        "222",
+        title="Backend Engineer",
+        company="Example Company",
+        meta={"description": _JD_B},
+    )
+
+    found = _matches(client, "222", "Backend Engineer", "Example Company")
+
+    assert [match["job_id"] for match in found] == [original["job_id"], other["job_id"]]
+    assert found[0]["similarity"] == 1.0
+    assert 0.0 < found[1]["similarity"] < 1.0
+
+
 def test_matches_sort_strongest_first_then_none_last(client: TestClient) -> None:
     # A far JD, a near JD, and a no-JD candidate → ordered near, far, none.
     near = _listing(

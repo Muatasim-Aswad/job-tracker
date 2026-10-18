@@ -258,14 +258,20 @@ def _description(listing: Listing) -> str | None:
 
 
 def _similarity(current: Listing | None, candidates: list[Listing]) -> float | None:
-    """Jaccard JD overlap against the candidate's earliest captured JD. None whenever
+    """Highest Jaccard JD overlap across the candidate's listings. None whenever
     either side is uncaptured: a real 0.0, where the JDs share nothing, is distinct
     from having no JD to compare, and the popover shows a % only for real comparisons."""
     current_jd = _description(current) if current is not None else None
-    candidate_jd = next(filter(None, map(_description, candidates)), None)
-    if current_jd is None or candidate_jd is None:
+    if current_jd is None:
         return None
-    return jaccard(tokenize(current_jd), tokenize(candidate_jd))
+    current_tokens = tokenize(current_jd)
+    return max(
+        (
+            jaccard(current_tokens, tokenize(jd))
+            for jd in filter(None, map(_description, candidates))
+        ),
+        default=None,
+    )
 
 
 def _state(job: Job) -> JobState:
