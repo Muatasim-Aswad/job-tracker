@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import Settings
+from app.core.db import _SCHEMA_PATH
 from app.core.lifecycle import ServerLock
 from app.core.paths import ResolvedPaths, resolve_paths
 from app.maintenance.base import MaintenanceError
@@ -16,10 +17,7 @@ def _destination(tmp_path: Path) -> tuple[ResolvedPaths, Settings]:
     app_dir = tmp_path / "packaged-app"
     schema = app_dir / "apps/api/app/core/schema.sql"
     schema.parent.mkdir(parents=True)
-    schema.write_text(
-        "CREATE TABLE IF NOT EXISTS schema_migrations "
-        "(key TEXT PRIMARY KEY, applied_at TEXT NOT NULL);\n"
-    )
+    schema.write_text(_SCHEMA_PATH.read_text())
     paths = resolve_paths(
         profile="packaged",
         environ={"JOB_TRACKER_APP_DIR": str(app_dir), "HOME": str(tmp_path / "home")},

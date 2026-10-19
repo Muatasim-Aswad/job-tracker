@@ -95,9 +95,15 @@ Flags do not change funnel status. Flag events without metadata update the proje
 
 An uncaptured listing can read as `untracked`. This is a client-facing projection, not a stored status or a valid transition target.
 
+### Listing availability
+
+Listings expose `availability` independently of the job funnel: `unknown`, `open`, `unavailable`, or `closed`, with an optional original `availability_message` and `availability_observed_at` timestamp. Captures update this evidence together; omitted or unknown observations preserve it, and older timestamped observations cannot replace newer ones. Existing `closed_at` values project as `closed` without rewriting historical data.
+
+LinkedIn’s gray “Not currently accepting applications” notice records `unavailable` without closing the listing or job. It does not establish that the employer paused hiring. A visible, enabled Apply control records `open`, clears the notice and listing closure, and lets the normal automatic-closure reconciliation restore a job closed only by automation. An informational notice alone cannot undo an earlier explicit closure. Missing controls, loading content, descriptions, and recommendation cards provide no availability evidence. Full captures repeat when availability changes, including within one document.
+
 ### Closed listings
 
-When the extension detects that a posting no longer accepts applications, or LinkedIn reports that a recorded posting ID is invalid or removed, it records `listings.closed_at`. The unavailable-page path first confirms that the listing is already tracked, so an arbitrary invalid URL cannot create a stub. The server automatically closes a pre-application job only when all its listings are closed. The event carries automatic provenance and is superseded if an open listing appears through reopening, relinking, or merging. Manual closures are never reversed. Applied and later jobs keep their status because the application may remain active after the posting closes.
+When the extension detects LinkedIn’s red “No longer accepting applications” notice, or LinkedIn reports that a recorded posting ID is invalid or removed, it records `listings.closed_at`. The unavailable-page path first confirms that the listing is already tracked, so an arbitrary invalid URL cannot create a stub. The server automatically closes a pre-application job only when all its listings are closed. The event carries automatic provenance and is superseded if an open listing appears through reopening, relinking, or merging. Manual closures are never reversed. Applied and later jobs keep their status because the application may remain active after the posting closes.
 
 ### Attention
 

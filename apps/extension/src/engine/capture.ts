@@ -5,7 +5,7 @@ import { platformMeta } from "@job-tracker/shared/platforms";
 import { toNaturalKey } from "../registry.js";
 
 export function createCapture(engine: Engine) {
-  async function markListingClosed(jobId: string) {
+  async function markListingClosed(jobId: string, message?: string) {
     const dedup = `${jobId}:closed`;
     if (engine.hasEmitted(dedup)) return;
     engine.markEmitted(dedup);
@@ -13,9 +13,20 @@ export function createCapture(engine: Engine) {
     const key = toNaturalKey(jobId);
     if (!key) return;
     try {
+      const observedAt = new Date().toISOString();
       const resp = await engine.bridge({
         type: "listing",
-        payload: { ...key, closed_at: new Date().toISOString() },
+        payload: {
+          ...key,
+          closed_at: observedAt,
+          ...(message
+            ? {
+                availability: "closed" as const,
+                availability_message: message,
+                availability_observed_at: observedAt,
+              }
+            : {}),
+        },
       });
       if (!resp.ok) {
         console.warn(`[job-tracker] close failed for ${jobId}:`, resp.error);
@@ -32,7 +43,7 @@ export function createCapture(engine: Engine) {
 
   // ── Listing capture (shared) ────────────────────────────────────────────────
   // Track whether a full capture had company identity, allowing one later upgrade.
-  const capturedListings = new Map<string, boolean>();
+  const capturedListings = new Map<string, { hasCompany: boolean; availability: string | null }>();
 
   function captureListingOnce(
     jobId: string | null,
@@ -48,16 +59,30 @@ export function createCapture(engine: Engine) {
       engine.stateOf(jobId).status === "untracked"
     )
       return;
-    const hadCompany = capturedListings.get(jobId);
+    const previous = capturedListings.get(jobId);
     const hasCompany = !!rec.company;
-    // Recapture only when it adds a previously missing company.
-    if (hadCompany === true || (hadCompany === false && !hasCompany)) return;
-    capturedListings.set(jobId, hasCompany);
+    const availability = rec.availability
+      ? JSON.stringify([rec.availability, rec.availability_message ?? null])
+      : null;
+    if (
+      previous &&
+      (previous.hasCompany || !hasCompany) &&
+      (availability === null || previous.availability === availability)
+    )
+      return;
+    const captured = {
+      hasCompany: hasCompany || !!previous?.hasCompany,
+      availability: availability ?? previous?.availability ?? null,
+    };
+    capturedListings.set(jobId, captured);
     void engine.bridge({ type: "listing", payload: rec }).then((resp) => {
       if (!resp.ok) {
         console.warn(`[job-tracker] listing capture failed for ${jobId}:`, resp.error);
-        capturedListings.delete(jobId); // let a later scan retry from scratch
+        if (capturedListings.get(jobId) === captured) capturedListings.delete(jobId);
         return;
+      }
+      if (rec.availability === "open" && capturedListings.get(jobId) === captured) {
+        engine.unmarkEmitted(`${jobId}:closed`);
       }
       // This is the moment the JD reaches the server, which is what the duplicate
       // popover scores its rows against — see refreshMatches.

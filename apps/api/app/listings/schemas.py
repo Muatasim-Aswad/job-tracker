@@ -1,8 +1,8 @@
-from typing import Any
+from typing import Any, Self
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
-from app.core.enums import ApplyType
+from app.core.enums import ApplyType, ListingAvailability
 
 
 class ListingCreate(BaseModel):
@@ -18,9 +18,26 @@ class ListingCreate(BaseModel):
     # Discovery-card facts enrich an existing full capture instead of replacing it.
     meta_patch: dict[str, Any] = Field(default_factory=dict)
     closed_at: str | None = None  # "no longer accepting" — a natural-keyed listing fact
+    availability: ListingAvailability | None = None
+    availability_message: str | None = Field(default=None, max_length=1000)
+    availability_observed_at: AwareDatetime | None = None
     job_id: str | None = None  # explicit link; otherwise a new listing auto-creates a job
     # Recorded on `created` only when this listing creates its job.
     via: str = "capture"
+
+    @model_validator(mode="after")
+    def availability_evidence(self) -> Self:
+        if self.availability is None and (
+            self.availability_message is not None or self.availability_observed_at is not None
+        ):
+            raise ValueError("availability evidence requires an availability value")
+        if self.closed_at is not None and self.availability not in (
+            None,
+            ListingAvailability.UNKNOWN,
+            ListingAvailability.CLOSED,
+        ):
+            raise ValueError("closed_at conflicts with the availability observation")
+        return self
 
 
 class ListingUpdate(BaseModel):

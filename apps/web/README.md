@@ -42,6 +42,8 @@ The header separates Title/Close from Company/Edit and Star/Hide/Copy. Phone fie
 
 Listings, Custom fields, Documents, and Timeline start expanded and show counts. `jt.collapsedJobSections` stores only collapsed section keys, shared across jobs. Collapsing hides mounted content and preserves drafts; Add expands its section, and attention-driven Add note expands Timeline before focusing the composer. `CollapsibleSection` and `SectionHeader` share disclosure/add controls; the drawer owns persistence.
 
+Captured listing cards show application availability independently of job status, retain the original platform notice, and show the observation date with the precise local time available by hover or focus. Recorded closures keep their closure date.
+
 ## Application header
 
 Jobs and Form Fill share search/count, filters, and order controls, including 38px sizing, keyboard focus, and narrow-screen wrapping. Desktop Add/Refresh sit beside the app name. On phones they move into the burger menu after workspace navigation; the current workspace is marked and disabled. Search/filter/order remain together below branding. Menu arrow and Tab navigation use visible, enabled controls; Escape restores the menu trigger. Collapsed drawer content stays outside focus-trap boundaries.

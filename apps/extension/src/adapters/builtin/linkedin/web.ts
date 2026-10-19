@@ -413,7 +413,11 @@ function renderDetailHead(detail: HTMLElement) {
   const alerts: string[] = [];
   // The two things here that are wrong rather than merely worth knowing. Closed sorts
   // first: it decides whether the rest is worth reading at all.
-  if (listingClosed()) alerts.push("closed to applications");
+  const availability = listingAvailability();
+  if (availability?.availability === "closed") alerts.push("closed to applications");
+  if (availability?.availability === "unavailable") {
+    chips.push({ text: "Applications unavailable", title: availability.availability_message! });
+  }
   // Explain why a blocked listing is not captured.
   const { company } = detailIdentity();
   if (isCompanyBlocked(company, "linkedin")) alerts.push("blocked company");
@@ -534,11 +538,54 @@ function detectApplied(jobId: string) {
   if (hasLegacyStatus || hasAppliedLink || hasAppliedFeedback) void autoEmit(jobId, "applied");
 }
 
-// Closure detection and the head alert share this predicate so their states agree.
-function listingClosed() {
-  return [...document.querySelectorAll("p")].some(
-    (el) => el.textContent!.trim() === "No longer accepting applications",
+type AvailabilityObservation = Pick<ListingRecord, "availability" | "availability_message">;
+
+function availabilityScope(): Element | null {
+  return (
+    document.querySelector(SEL.topCard) ??
+    standaloneTopCard() ??
+    (detectLayout() === "B" ? (detailAnchor()?.parentElement ?? null) : null)
   );
+}
+
+function isVisibleAvailabilityEvidence(element: Element): boolean {
+  for (let node: Element | null = element; node; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (
+      node.matches('[hidden], [aria-hidden="true"]') ||
+      style.display === "none" ||
+      style.visibility === "hidden"
+    )
+      return false;
+  }
+  return true;
+}
+
+// Only current-header evidence counts; descriptions and recommendation cards may
+// quote these same phrases or expose unrelated Apply controls.
+function listingAvailability(): AvailabilityObservation | null {
+  const scope = availabilityScope();
+  if (!scope) return null;
+  const detailId = detailElement()
+    ?.getAttribute("componentkey")
+    ?.match(/^JobDetails_AboutTheJob_(\d+)$/)?.[1];
+  if (detailId && currentDetailId() !== PREFIX + detailId) return null;
+  for (const el of scope.querySelectorAll("p")) {
+    if (el.closest(".jh-detail-head, " + CARD_SCOPES) || !isVisibleAvailabilityEvidence(el))
+      continue;
+    const message = el.textContent?.trim();
+    if (message === "No longer accepting applications") {
+      return { availability: "closed", availability_message: message };
+    }
+    if (message === "Not currently accepting applications") {
+      return { availability: "unavailable", availability_message: message };
+    }
+  }
+  const control = scope.querySelector(`#${SEL.applyButtonId}, ${SEL.applyControl}`);
+  if (!control || control.matches(':disabled, [aria-disabled="true"]')) return null;
+  return isVisibleAvailabilityEvidence(control)
+    ? { availability: "open", availability_message: null }
+    : null;
 }
 
 // A removed posting has no detail anchor or description, so LinkedIn's paired error
@@ -568,7 +615,10 @@ async function closeTrackedUnavailableListing(jobId: string) {
 }
 
 function detectClosed(jobId: string) {
-  if (listingClosed()) markListingClosed(jobId).catch(() => {});
+  const observation = listingAvailability();
+  if (observation?.availability === "closed") {
+    markListingClosed(jobId, observation.availability_message ?? undefined).catch(() => {});
+  }
 }
 
 // ── Listing capture ──────────────────────────────────────────────────────────
@@ -629,6 +679,7 @@ function captureDetail(jobId: string): ListingRecord | null {
   const cardDay = listCardPostedDay(key.platform_id);
   const posted = cardDay ? postedFromExact(cardDay) : postedFromRelative(postedAge, capturedAt);
   const applyUrl = detectApplyUrl();
+  const availability = listingAvailability();
 
   return {
     ...key,
@@ -636,6 +687,7 @@ function captureDetail(jobId: string): ListingRecord | null {
     title,
     company,
     apply_type: detectApplyType(),
+    ...(availability ? { ...availability, availability_observed_at: capturedAt } : {}),
     meta: {
       company_url: companyUrl,
       ...(applyUrl ? { apply_url: applyUrl } : {}),

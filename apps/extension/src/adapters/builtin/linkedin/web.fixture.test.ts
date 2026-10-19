@@ -265,6 +265,9 @@ describe("linkedin adapter — detail capture", () => {
         title: "Example Backend Engineer",
         company: "Example Labs",
         apply_type: "easy_apply",
+        availability: "open",
+        availability_message: null,
+        availability_observed_at: CAPTURED_AT,
         meta: {
           company_url: "https://www.linkedin.com/company/example-labs/",
           posted_at: "2026-07-03T12:00:00.000Z",
@@ -972,5 +975,147 @@ describe("linkedin adapter — detail head placement", () => {
     const head = document.querySelector(".jh-detail-head") as HTMLElement;
     expect(head.style.marginLeft).toBe("");
     expect(head.style.marginRight).toBe("");
+  });
+});
+
+describe("linkedin adapter — application availability", () => {
+  const gray = "Not currently accepting applications";
+  const red = "No longer accepting applications";
+  const layouts = [
+    [
+      "classic",
+      "linkedin-detail.html",
+      "/jobs/view/100001/",
+      ".job-details-jobs-unified-top-card__container--two-pane",
+    ],
+    ["standalone", "linkedin-detail-sdui.html", "/jobs/view/100004/", "body > div:first-child"],
+    [
+      "search",
+      "linkedin-search-results-detail.html",
+      "/jobs/search-results/?currentJobId=100005",
+      '[data-testid="lazy-column"] > div:first-child',
+    ],
+  ];
+
+  let nextId = 200000;
+  function setup(fixture: string, url: string, selector: string) {
+    const baseId = url.match(/(?:view\/|currentJobId=)(\d+)/)![1]!;
+    const id = String(nextId++);
+    document.body.innerHTML = loadFixture(fixture).replaceAll(baseId, id);
+    url = url.replace(baseId, id);
+    document.title = "Example Engineer | Example Labs | LinkedIn";
+    window.history.pushState({}, "", url);
+    const chrome = installFakeChrome();
+    chrome.onMessage.addListener((message: unknown) => {
+      const request = message as BridgeRequest;
+      if (request.type === "listing")
+        return {
+          ok: true,
+          result: { job_id: "job-availability", listing_id: "listing-availability" },
+        };
+      return undefined;
+    });
+    return { ...chrome, header: document.querySelector(selector)! };
+  }
+
+  it.each(layouts)(
+    "captures the gray notice without closing or dismissing the %s view",
+    async (_layout, fixture, url, selector) => {
+      const { header, sendMessage } = setup(fixture, url, selector);
+      const notice = document.createElement("p");
+      notice.textContent = gray;
+      header.append(notice);
+      linkedinAdapter.scanDetail!();
+      linkedinAdapter.capture!();
+      await vi.waitFor(() =>
+        expect(
+          sendMessage.mock.calls.some(([value]) => (value as BridgeRequest).type === "listing"),
+        ).toBe(true),
+      );
+      const captures = sendMessage.mock.calls
+        .map(([value]) => value as BridgeRequest)
+        .filter((value) => value.type === "listing");
+      expect(captures).toHaveLength(1);
+      expect(captures[0]).toMatchObject({
+        payload: {
+          availability: "unavailable",
+          availability_message: gray,
+          availability_observed_at: expect.any(String),
+        },
+      });
+      expect(captures[0]!.payload).not.toHaveProperty("closed_at");
+      expect(
+        sendMessage.mock.calls.some(
+          ([value]) => (value as BridgeRequest).type === "close-bulk-job-tab",
+        ),
+      ).toBe(false);
+      expect(document.querySelector(".jh-banner-alert")).toBeNull();
+      expect(document.querySelector(".jh-detail-head")?.textContent).toContain(
+        "Applications unavailable",
+      );
+    },
+  );
+
+  it("captures resumed applications in the same document and clears the notice", async () => {
+    const { header, sendMessage } = setup(layouts[1]![1]!, layouts[1]![2]!, layouts[1]![3]!);
+    const notice = document.createElement("p");
+    notice.textContent = gray;
+    header.append(notice);
+    linkedinAdapter.capture!();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+    notice.remove();
+    linkedinAdapter.capture!();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(2));
+    expect(sendMessage.mock.calls[1]![0]).toMatchObject({
+      payload: { availability: "open", availability_message: null },
+    });
+    linkedinAdapter.capture!();
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["description", "recommendation"])("ignores unavailable notices in a %s", (where) => {
+    const { sendMessage } = setup(layouts[1]![1]!, layouts[1]![2]!, layouts[1]![3]!);
+    const container =
+      where === "description"
+        ? document.querySelector('[componentkey^="JobDetails_AboutTheJob"]')!
+        : document.body.appendChild(document.createElement("aside"));
+    container.insertAdjacentHTML("beforeend", `<p>${gray}</p><p>${red}</p>`);
+    linkedinAdapter.capture!();
+    expect(sendMessage.mock.calls[0]![0]).toMatchObject({ payload: { availability: "open" } });
+  });
+
+  it.each(["missing", "disabled", "hidden"])(
+    "does not infer open availability from a %s Apply control",
+    (kind) => {
+      const { header, sendMessage } = setup(layouts[1]![1]!, layouts[1]![2]!, layouts[1]![3]!);
+      const control = header.querySelector('[aria-label*="Easy Apply"]')!;
+      if (kind === "missing") control.remove();
+      if (kind === "disabled") control.setAttribute("aria-disabled", "true");
+      if (kind === "hidden") header.setAttribute("hidden", "");
+      linkedinAdapter.capture!();
+      expect((sendMessage.mock.calls[0]![0] as { payload: object }).payload).not.toHaveProperty(
+        "availability",
+      );
+    },
+  );
+  it("ignores a hidden notice and captures the visible Apply control", () => {
+    const { header, sendMessage } = setup(layouts[1]![1]!, layouts[1]![2]!, layouts[1]![3]!);
+    header.insertAdjacentHTML("beforeend", `<div hidden><p>${gray}</p><p>${red}</p></div>`);
+    linkedinAdapter.capture!();
+    expect(sendMessage.mock.calls[0]![0]).toMatchObject({ payload: { availability: "open" } });
+  });
+
+  it("ignores a stale detail pane after the URL moves to another job", () => {
+    const { header, sendMessage } = setup(layouts[1]![1]!, layouts[1]![2]!, layouts[1]![3]!);
+    header.insertAdjacentHTML("beforeend", `<p>${red}</p>`);
+    window.history.pushState({}, "", "/jobs/view/300000/");
+    linkedinAdapter.scanDetail!();
+    linkedinAdapter.capture!();
+    const captures = sendMessage.mock.calls
+      .map(([value]) => value as BridgeRequest)
+      .filter((value) => value.type === "listing");
+    expect(captures).toHaveLength(1);
+    expect(captures[0]!.payload).not.toHaveProperty("availability");
+    expect(captures[0]!.payload).not.toHaveProperty("closed_at");
   });
 });

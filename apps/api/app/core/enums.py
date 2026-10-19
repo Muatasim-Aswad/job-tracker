@@ -178,6 +178,13 @@ def target_status(event: str, current: str) -> str | None:
     return target.value
 
 
+class ListingAvailability(StrEnum):
+    UNKNOWN = "unknown"
+    OPEN = "open"
+    UNAVAILABLE = "unavailable"
+    CLOSED = "closed"
+
+
 class ApplyType(StrEnum):
     EASY_APPLY = "easy_apply"
     EXTERNAL = "external"

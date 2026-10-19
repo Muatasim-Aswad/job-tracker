@@ -67,6 +67,10 @@ A selected first option is an existing value even when its HTML value equals its
 
 Controls with up to 512 choices retain complete option identity; larger controls stay manual so one oversized field cannot reject the whole resolution batch. Unlinked typeaheads, malformed radio groups, consent and utility controls, and repeatable profile sections remain local/manual and are omitted from resolution. Résumé selectors, file inputs, and top-choice preferences have no request, marker, or status. The preselected follow-company preference is cleared once outside form-fill knowledge; users can select it afterward. The scanner never invokes application navigation, review, submission, consent, profile, file, résumé, follow-company, or top-choice actions.
 
+## Listing availability
+
+LinkedIn’s current job header supplies availability evidence. The gray “Not currently accepting applications” notice records **Unavailable** without changing the job’s funnel status; the red “No longer accepting applications” notice retains closure handling. Captures retain the exact notice and observation time, and repeat when availability changes. A visible, enabled Apply control records **Open**; missing, hidden, disabled, or unrelated controls do not. The detail banner presents unavailable applications as a neutral chip.
+
 ## Keyboard
 
 Open the popup with **Alt+J**; rebind or clear it at `chrome://extensions/shortcuts`. Type to search, then use the controls below.

@@ -382,8 +382,12 @@ def test_failed_data_migration_rolls_back_data_and_ledger(conn: sqlite3.Connecti
 def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
     # Every pre-release migration is folded into schema.sql. Post-release entries
     # are appended, never edited: the form-fill foundation is the first such data
-    # migration, while the column-migration baseline remains empty.
-    assert _COLUMN_MIGRATIONS == ()
+    # migration; listing availability adds only new columns after that baseline.
+    assert tuple((table, column) for table, column, _ddl in _COLUMN_MIGRATIONS) == (
+        ("listings", "availability"),
+        ("listings", "availability_message"),
+        ("listings", "availability_observed_at"),
+    )
     assert tuple(key for key, _migration in _DATA_MIGRATIONS) == (
         "create_form_fill_foundation_v1",
         "create_job_id_aliases_v1",

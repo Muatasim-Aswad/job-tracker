@@ -28,6 +28,8 @@ The browser extension reduces repeated entry on supported sources:
 - Supported LinkedIn job emails in Gmail can record a rejection using the email timestamp.
 - Listing closure can be detected when LinkedIn stops accepting applications or reports that a recorded posting is invalid or removed, without treating one unavailable URL as proof that the entire opportunity disappeared.
 
+Listing details show application availability separately from the job’s progress, together with the original notice and observation time. LinkedIn’s gray “Not currently accepting applications” notice means **Unavailable** and preserves the job’s status; a visible, enabled Apply control updates availability to **Open**. Missing or loading controls never imply reopening.
+
 A pre-application job closes automatically only when all of its linked listings are closed. Jobs at applied or later stages keep their application status because a hiring process may continue after its listing closes.
 
 Jobs from sources without a built-in integration can still be created manually from the extension popup.

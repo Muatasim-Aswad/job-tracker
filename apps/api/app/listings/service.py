@@ -1,11 +1,14 @@
 """Listing upsert and relinking. POST and PATCH share link_listing_to_job; natural-key capture refreshes listing observations independently of canonical job identity."""
 
+from datetime import UTC, datetime
+
 from app.application_workflows.repository import ApplicationWorkflowRepository
 from app.core.db import Conn
 from app.core.enums import (
     APPLIED_EVIDENCE,
     MERGE_IMPORTANCE,
     ApplyType,
+    ListingAvailability,
     Status,
     correction_event,
     parse_correction,
@@ -26,6 +29,7 @@ from app.form_fill.repository import FormFillRepository
 from app.jobs.models import Job
 from app.jobs.repository import JobRepository
 from app.listings.automatic_closure import AutomaticClosure
+from app.listings.models import Listing
 from app.listings.repository import ListingRepository
 from app.listings.schemas import ListingCreate, ListingUpdate, ListingUpsertResult
 
@@ -370,10 +374,8 @@ class ListingService:
         existing = self.listings.get_by_platform(data.platform, data.platform_id)
         title = data.title if _observed(data.title) else None
         company = data.company if _observed(data.company) else None
-        newly_closed = data.closed_at is not None and (
-            existing is None or existing.closed_at is None
-        )
         now = utc_now()
+        availability_fields = self._availability_fields(data, existing, now)
         if existing:
             self.listings.update_fields(
                 existing.id,
@@ -410,15 +412,15 @@ class ListingService:
                 captured_at=now,
                 updated_at=now,
             )
-        # closed_at is natural-keyed rather than a surrogate PATCH: the extension
-        # reports "no longer accepting" by (platform, platform_id) like every other
-        # write. Applied uniformly to both branches.
-        if data.closed_at is not None:
-            self.listings.update_fields(lid, {"closed_at": data.closed_at}, now)
+        if availability_fields:
+            self.listings.update_fields(lid, availability_fields, now)
         final = self.listings.get(lid)
         assert final is not None
-        if data.closed_at is not None:
-            self.automatic_closure.adopt_legacy(final.job_id, data.closed_at)
+        newly_closed = final.closed_at is not None and (
+            existing is None or existing.closed_at is None
+        )
+        if newly_closed and final.closed_at is not None:
+            self.automatic_closure.adopt_legacy(final.job_id, final.closed_at)
         self.automatic_closure.reconcile(final.job_id, allow_close=newly_closed)
         return ListingUpsertResult(job_id=final.job_id, listing_id=lid)
 
@@ -494,6 +496,38 @@ class ListingService:
     # --- field helpers ----------------------------------------------------
 
     @staticmethod
+    def _availability_fields(
+        data: ListingCreate, existing: Listing | None, now: str
+    ) -> dict[str, object]:
+        fields: dict[str, object] = {}
+        if data.closed_at is not None:
+            fields["closed_at"] = data.closed_at
+        if data.availability in (None, ListingAvailability.UNKNOWN):
+            return fields
+        observed_at = data.availability_observed_at or datetime.fromisoformat(now)
+        if (
+            existing
+            and existing.availability_observed_at
+            and observed_at < datetime.fromisoformat(existing.availability_observed_at)
+        ):
+            return {}
+        fields.update(
+            availability=data.availability.value,
+            availability_message=data.availability_message,
+            availability_observed_at=observed_at.astimezone(UTC).isoformat(),
+        )
+        if data.availability == ListingAvailability.OPEN:
+            fields["closed_at"] = None
+        elif data.availability == ListingAvailability.CLOSED:
+            fields["closed_at"] = (
+                data.closed_at
+                or (existing.closed_at if existing else None)
+                or observed_at.astimezone(UTC).isoformat()
+            )
+        # An informational notice alone cannot undo a previously observed closure.
+        return fields
+
+    @staticmethod
     def _scraped_fields(
         data: ListingCreate,
         captured_at: str,
@@ -525,6 +559,13 @@ class ListingService:
                 fields[col] = value
         if "closed_at" in data.model_fields_set:
             fields["closed_at"] = data.closed_at
+            fields["availability"] = (
+                ListingAvailability.CLOSED.value
+                if data.closed_at is not None
+                else ListingAvailability.UNKNOWN.value
+            )
+            fields["availability_message"] = None
+            fields["availability_observed_at"] = utc_now()
         if data.apply_type is not None:
             fields["apply_type"] = data.apply_type.value
         if data.meta is not None:

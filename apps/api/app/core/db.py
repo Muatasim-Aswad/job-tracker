@@ -200,7 +200,11 @@ def check_foreign_keys(conn: Conn) -> None:
 # reordered once released — a released key has already run on user databases, so
 # changing it would silently skip the change on some and not others. Additive
 # column migrations first, then data ones; see docs/DEVELOPMENT.md.
-_COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = ()
+_COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
+    ("listings", "availability", "availability TEXT NOT NULL DEFAULT 'unknown'"),
+    ("listings", "availability_message", "availability_message TEXT"),
+    ("listings", "availability_observed_at", "availability_observed_at TEXT"),
+)
 
 DataMigration = str | Callable[[Conn], None]
 

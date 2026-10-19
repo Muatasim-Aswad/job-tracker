@@ -44,6 +44,10 @@ The [dashboard](../web/README.md) uses relative `/api/...` paths in development 
 
 Job-addressed reads and ordinary writes accept merged aliases, return canonical IDs, and set `Content-Location`. Deletion through an alias returns `409 job_merged` and requires repeating the request against the survivor. See [identity](../../docs/ARCHITECTURE.md#identity) for merge invariants.
 
+### Listing availability
+
+`POST /api/listings` accepts `availability` (`unknown`, `open`, `unavailable`, or `closed`), an optional `availability_message`, and an optional timezone-aware `availability_observed_at` (server time when omitted). `GET /api/jobs/{job_id}` returns these fields on each listing. Omitted or unknown observations preserve prior evidence; older observations are ignored. Notice and timestamp require an availability value. An open observation clears the listing closure; unavailable observations neither close a listing nor undo a recorded closure. Existing `closed_at` captures and explicit closure edits remain supported. Availability is independent of funnel progress; automatic reconciliation and manual-closure safeguards still apply.
+
 ### Application-workflow analytics
 
 Agents can use `GET` and `PUT /api/jobs/{job_id}/application-workflow` after submission has been explicitly confirmed by an effective `applied` or `corrected:applied` event. The singular record captures a typed preparation lane, submission actor and channel, narrative kinds and provenance, an optional measured human-time duration in integer seconds, and bounded opaque references to canonical agent artifacts or submission evidence. Use `unknown` when a required workflow fact is unknown, `null` only when human time was not measured, and an empty narrative list only when no narrative was used; do not infer or estimate missing facts.
