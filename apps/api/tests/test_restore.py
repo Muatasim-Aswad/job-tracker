@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from app.core.config import Settings
+from app.core.db import _SCHEMA_PATH
 from app.core.lifecycle import ServerLock
 from app.core.paths import ResolvedPaths, resolve_paths
 from app.maintenance.base import MaintenanceError
@@ -18,9 +19,7 @@ def _profile(tmp_path: Path) -> tuple[ResolvedPaths, Settings]:
     schema = app_dir / "apps/api/app/core/schema.sql"
     schema.parent.mkdir(parents=True)
     schema.write_text(
-        "CREATE TABLE IF NOT EXISTS schema_migrations "
-        "(key TEXT PRIMARY KEY, applied_at TEXT NOT NULL);\n"
-        "CREATE TABLE IF NOT EXISTS current_schema (value TEXT);\n"
+        _SCHEMA_PATH.read_text() + "\nCREATE TABLE IF NOT EXISTS current_schema (value TEXT);\n"
     )
     paths = resolve_paths(
         profile="packaged",

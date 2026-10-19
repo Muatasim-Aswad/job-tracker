@@ -140,3 +140,27 @@ describe("markListingClosed", () => {
     expect(bridge).not.toHaveBeenCalledWith({ type: "close-bulk-job-tab" });
   });
 });
+
+describe("availability recapture", () => {
+  it("captures repeated availability changes without duplicating identical observations", async () => {
+    const { bridge, capture } = makeCapture();
+    const observe = (availability: "open" | "unavailable") =>
+      capture.captureListingOnce("LI-1", () => record({ availability }));
+    observe("unavailable");
+    observe("unavailable");
+    observe("open");
+    observe("unavailable");
+    await vi.waitFor(() => expect(bridge).toHaveBeenCalledTimes(3));
+  });
+
+  it("retries a failed availability update", async () => {
+    const { bridge, capture } = makeCapture(async () => ({ ok: false, error: "offline" }));
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const observe = () =>
+      capture.captureListingOnce("LI-1", () => record({ availability: "unavailable" }));
+    observe();
+    await vi.waitFor(() => expect(bridge).toHaveResolved());
+    observe();
+    expect(bridge).toHaveBeenCalledTimes(2);
+  });
+});

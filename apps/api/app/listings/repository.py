@@ -24,7 +24,9 @@ class ListingSummary:
 
 _COLUMNS = (
     "id, job_id, platform, platform_id, url, title, company, apply_type, "
-    "meta, captured_at, closed_at, updated_at"
+    "meta, captured_at, closed_at, updated_at, "
+    "CASE WHEN closed_at IS NOT NULL THEN 'closed' ELSE availability END AS availability, "
+    "availability_message, availability_observed_at"
 )
 
 

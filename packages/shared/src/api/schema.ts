@@ -1904,6 +1904,12 @@ export interface components {
         Listing: {
             /** Apply Type */
             apply_type?: string | null;
+            /** @default unknown */
+            availability: components["schemas"]["ListingAvailability"];
+            /** Availability Message */
+            availability_message?: string | null;
+            /** Availability Observed At */
+            availability_observed_at?: string | null;
             /** Captured At */
             captured_at?: string | null;
             /** Closed At */
@@ -1930,11 +1936,21 @@ export interface components {
             url?: string | null;
         };
         /**
+         * ListingAvailability
+         * @enum {string}
+         */
+        ListingAvailability: "unknown" | "open" | "unavailable" | "closed";
+        /**
          * ListingCreate
          * @description Capture observations; missing, null, or empty facts preserve stored values.
          */
         ListingCreate: {
             apply_type?: components["schemas"]["ApplyType"] | null;
+            availability?: components["schemas"]["ListingAvailability"] | null;
+            /** Availability Message */
+            availability_message?: string | null;
+            /** Availability Observed At */
+            availability_observed_at?: string | null;
             /** Closed At */
             closed_at?: string | null;
             /** Company */

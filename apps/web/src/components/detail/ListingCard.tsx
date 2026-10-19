@@ -216,10 +216,32 @@ export function ListingCard({
                   Closed {fmtDate(l.closed_at)}
                 </span>
               ),
+              !l.closed_at && (
+                <span key="availability">
+                  Applications:{" "}
+                  {l.availability === "open"
+                    ? "Open"
+                    : l.availability === "unavailable"
+                      ? "Unavailable"
+                      : "Unknown"}
+                </span>
+              ),
               l.apply_type && APPLY_TYPE_LABELS[l.apply_type],
             ]}
           />
 
+          {(l.availability_message || l.availability_observed_at) && (
+            <div className="mt-1 text-micro text-ink-muted">
+              {l.availability_message && <p>{l.availability_message}</p>}
+              {l.availability_observed_at && (
+                <Tooltip label={new Date(l.availability_observed_at).toLocaleString()}>
+                  <time dateTime={l.availability_observed_at} tabIndex={0}>
+                    Availability observed {fmtDate(l.availability_observed_at)}
+                  </time>
+                </Tooltip>
+              )}
+            </div>
+          )}
           {fields.length > 0 && (
             <dl className="mt-1 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1 text-micro">
               {fields.map(([k, v]) => {

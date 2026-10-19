@@ -24,6 +24,8 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Added
 
+- Listing application availability with original notices and observation times in capture details. LinkedIn’s gray “Not currently accepting applications” notice records **Unavailable** independently of funnel status; visible Apply controls record **Open**, including after availability changes in the same page.
+
 - User-controlled LinkedIn Easy Apply form filling for supported text, numeric, select, and single-choice radio questions, backed by revision-checked Answers, exact Question Matches, remembered-value review, and a Form Fill dashboard. Existing values are preserved; unsupported controls, navigation, review, consent, profile changes, résumés, and submission remain manual.
 - An installable dashboard PWA with an offline static shell. Reading and saving jobs or answers still requires the server; API responses and navigation query strings are not cached.
 - About in the dashboard burger menu shows build identity, checks the current server build, reports failures, and offers explicit reload with unsaved-edit protection. New verified revisions produce one update notice.

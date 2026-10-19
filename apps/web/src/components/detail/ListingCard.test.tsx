@@ -152,7 +152,7 @@ describe("ListingCard — labels", () => {
       apply_type: "unknown",
       meta: { posted_at: "2026-05-03T09:30:00Z", posted_precision: "exact" },
     });
-    expect(screen.queryByText(/unknown/i)).toBeNull();
+    expect(screen.queryByText("unknown", { exact: true })).toBeNull();
   });
 
   it("renders a captured external application destination as a link", () => {
@@ -297,5 +297,38 @@ describe("ListingCard — job description preamble", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show more" }));
     const shown = [...container.querySelectorAll("p")].at(-1)!;
     expect(shown.textContent).toBe("We are hiring.\n\nRequirements\n\nFive years.");
+  });
+});
+
+describe("ListingCard — application availability", () => {
+  it("shows the informational notice and its observation date without a closure", () => {
+    show({
+      availability: "unavailable",
+      availability_message: "Not currently accepting applications",
+      availability_observed_at: "2026-10-19T10:15:00Z",
+    });
+    expect(screen.getByText("Applications: Unavailable")).toBeTruthy();
+    expect(screen.getByText("Not currently accepting applications")).toBeTruthy();
+    expect(screen.getByText("Availability observed 19 Oct 2026")).toBeTruthy();
+    expect(screen.queryByText(/^Closed /)).toBeNull();
+  });
+
+  it.each([
+    ["open", "Open"],
+    ["unknown", "Unknown"],
+  ] as const)("shows %s availability", (availability, label) => {
+    show({ availability });
+    expect(screen.getByText(`Applications: ${label}`)).toBeTruthy();
+  });
+
+  it("keeps a recorded closure prominent", () => {
+    show({
+      availability: "closed",
+      closed_at: "2026-10-19T10:15:00Z",
+      availability_message: "No longer accepting applications",
+    });
+    expect(screen.getByText("Closed 19 Oct 2026")).toBeTruthy();
+    expect(screen.getByText("No longer accepting applications")).toBeTruthy();
+    expect(screen.queryByText("Applications: Unknown")).toBeNull();
   });
 });

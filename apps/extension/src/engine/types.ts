@@ -63,7 +63,7 @@ export interface Engine {
   ) => void;
   captureCards: (cards: HTMLElement[]) => void;
   captureCardFromAction: (card: HTMLElement) => void;
-  markListingClosed: (jobId: string) => Promise<void>;
+  markListingClosed: (jobId: string, message?: string) => Promise<void>;
 
   // ── matches ──────────────────────────────────────────────────────────────────
   checkMatches: (jobId: string, title: string | null, company: string | null) => Promise<void>;

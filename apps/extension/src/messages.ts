@@ -6,6 +6,7 @@ import type {
   components,
   JobMatch,
   ListingState,
+  ListingCreate,
   ListingUpsertResult,
 } from "@job-tracker/shared/api";
 import type { NaturalKey } from "./adapters/types";
@@ -17,6 +18,9 @@ export interface ListingRecord extends NaturalKey {
   company?: string | null;
   apply_type?: string | null;
   closed_at?: string;
+  availability?: ListingCreate["availability"];
+  availability_message?: string | null;
+  availability_observed_at?: string;
   via?: string;
   meta?: Record<string, unknown>;
   /** Merge these list-card facts into existing metadata without replacing a full capture. */
