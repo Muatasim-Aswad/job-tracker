@@ -271,8 +271,9 @@ describe("server version monitoring", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url) => {
-        if (!String(url).endsWith("/version.json")) return new Response('{"ok":true}');
-        if (String(url).startsWith("https://next.example.test"))
+        const requestUrl = new URL(url);
+        if (requestUrl.pathname !== "/version.json") return new Response('{"ok":true}');
+        if (requestUrl.origin === "https://next.example.test")
           return new Response(JSON.stringify(extensionBuild));
         return new Promise<Response>((resolve) => {
           finishOld = resolve;
