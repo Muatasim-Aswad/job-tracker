@@ -32,7 +32,7 @@ from app.jobs.schemas import (
     ListingState,
     PrimaryListing,
 )
-from app.listings.models import Listing
+from app.listings.models import Listing, ListingAvailabilitySummary
 from app.listings.repository import ListingRepository
 
 
@@ -77,6 +77,9 @@ class JobService:
                     platforms=rollup.platforms if rollup else [],
                     apply_types=rollup.apply_types if rollup else [],
                     listing_count=rollup.listing_count if rollup else 0,
+                    listing_availability=(
+                        rollup.availability if rollup else ListingAvailabilitySummary()
+                    ),
                     primary_listing=primary,
                     attention=self._attention(job, last_activity.get(job.id), now),
                 )

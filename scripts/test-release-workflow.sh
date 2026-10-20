@@ -30,8 +30,7 @@ grep -A5 '^  publish:' "$WORKFLOW" | grep -Fq 'contents: write' || fail "publica
 [[ "$(grep -Fc 'contents: write' "$WORKFLOW")" == 1 ]] || fail "contents: write must be limited to publication."
 [[ "$(grep -Fc 'persist-credentials: false' "$WORKFLOW")" == 2 ]] || fail "every checkout must disable persisted credentials."
 [[ "$(grep -Fc 'ref: ${{ github.ref }}' "$WORKFLOW")" == 2 ]] || fail "every checkout must select the pushed ref."
-[[ "$(grep -Fc 'astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7' "$WORKFLOW")" == 2 ]] || fail "every job that runs release scripts must install pinned uv."
-[[ "$(grep -Fc 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1' "$WORKFLOW")" == 2 ]] || fail "every job that verifies release contents must install pinned Node."
+[[ "$(grep -Fc 'jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde' "$WORKFLOW")" == 2 ]] || fail "release jobs must install the mise toolchain."
 grep -Fq 'workflow_dispatch:' "$CONTAINER_WORKFLOW" || fail "container workflow lacks manual release recovery."
 [[ "$(grep -Fc "format('refs/tags/{0}', inputs.tag)" "$CONTAINER_WORKFLOW")" == 2 ]] ||
   fail "container recovery must check out the requested tag in both jobs."
@@ -46,15 +45,21 @@ grep -Fq "UPDATE_LATEST: \${{ github.event_name == 'push' || inputs.update_lates
 grep -Fq 'TAGS+=(--tag "$IMAGE:latest")' "$CONTAINER_WORKFLOW" ||
   fail "container publication lacks the current-stable latest alias."
 VERSION="$(tr -d '[:space:]' <"$ROOT/VERSION")"
-grep -Fq "image: \${JOB_TRACKER_IMAGE:-ghcr.io/muatasim-aswad/job-tracker:v$VERSION}" "$COMPOSE" ||
-  fail "Compose default image must match VERSION."
+COMPOSE_VERSION="$(sed -nE 's/^[[:space:]]*image: \$\{JOB_TRACKER_IMAGE:-ghcr\.io\/muatasim-aswad\/job-tracker:v([0-9]+\.[0-9]+\.[0-9]+)\}$/\1/p' "$COMPOSE")"
+[[ -n "$COMPOSE_VERSION" ]] || fail "Compose must pin a canonical public image version."
+python3 - "$VERSION" "$COMPOSE_VERSION" <<'PYVERSIONS'
+import sys
+source, image = (tuple(map(int, value.split("."))) for value in sys.argv[1:])
+assert image <= source, "Compose image cannot be newer than the source version"
+PYVERSIONS
+if [[ "${GITHUB_REF:-}" == "refs/tags/v$VERSION" ]] || [[ -n "$(git -C "$ROOT" tag --points-at HEAD --list "v$VERSION")" ]]; then
+  [[ "$COMPOSE_VERSION" == "$VERSION" ]] || fail "Tagged release Compose image must match VERSION."
+fi
 if grep -Fq 'github.repository_owner' "$CONTAINER_WORKFLOW"; then
   fail "container image path must not preserve mixed-case repository ownership."
 fi
 for required in \
-  'astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7' \
-  'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413' \
-  'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1' \
+  'jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde' \
   'pnpm install --frozen-lockfile' \
   'bash scripts/check.sh' \
   'bash scripts/build-release.sh' \
@@ -72,7 +77,7 @@ for required in \
   'git -C "$ROOT" archive --format=tar HEAD' \
   'git -C "$SOURCE" init -q' \
   'env -i' \
-  'COREPACK_HOME=$WORK/corepack' \
+  'UV_PYTHON=python' \
   'JOB_TRACKER_RELEASE_DIR="$RELEASE_DIR"' \
   'PUBLISHED_DIR' \
   'DOWNLOADED_DIR' \

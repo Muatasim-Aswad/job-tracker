@@ -112,6 +112,12 @@ export function createReadModel(engine: Engine) {
   }
 
   return {
+    resetReadModel: () => {
+      viewState.clear();
+      emitted.clear();
+      writing.clear();
+      inFlight.clear();
+    },
     stateOf,
     emit,
     autoEmit,

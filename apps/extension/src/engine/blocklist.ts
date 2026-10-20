@@ -93,6 +93,9 @@ export function createBlocklist(engine: Engine) {
   }
 
   return {
+    resetBlocklist: () => {
+      blocklist = [];
+    },
     isCompanyBlocked,
     isCardBlocked,
     syncBlocklist,

@@ -3,6 +3,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { KeywordSettings } from "./KeywordSettings";
 import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { EasyApplyToggle } from "./EasyApplyToggle";
+import { ServerSettings } from "./ServerSettings";
 
 // Each preference control owns storage and apply behavior.
 // Keep this keyboard list aligned with Popup, Detail, and the manifest command.
@@ -27,6 +28,7 @@ const SHORTCUTS: { keys: string[]; label: string }[] = [
 export function Settings() {
   return (
     <div className="mt-2.5 flex flex-col gap-2.5">
+      <ServerSettings />
       <div className="flex items-center justify-between gap-2.5">
         <span className="text-[13px] text-popup-fg">Theme</span>
         <ThemeToggle />

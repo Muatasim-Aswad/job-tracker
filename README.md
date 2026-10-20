@@ -55,100 +55,11 @@ Job Tracker is a single-user, self-hosted application designed for localhost use
 
 On Gmail, the extension recognizes supported LinkedIn job messages in the browser and sends only the structured job and action data needed by the tracker; it does not send or store the email body as a job description. See [Privacy](PRIVACY.md) for captured fields, permissions, retention, and deletion, and [Security](SECURITY.md) for the supported localhost threat model.
 
-## Requirements
+## Installation
 
-Every path needs a Chromium browser — Chrome, Edge, or Brave — that can load an unpacked extension. The rest depends on which installation path you pick:
+Run from [source](docs/DEPLOYMENT.md#install-from-source), use [Docker Compose](docs/DEPLOYMENT.md#run-with-docker-compose), or download a [Linux/WSL2 release](docs/DEPLOYMENT.md#install-a-linux-x86_64-release). Open <http://localhost:3456> and [load the matching extension](docs/DEPLOYMENT.md#load-the-extension).
 
-| Path | Get the files | Platforms | Host tools |
-| --- | --- | --- | --- |
-| [Source checkout](#install-from-source) | Clone the repository | Linux, macOS | Git, [Node.js](https://nodejs.org/en/download) as pinned in `.node-version`, [pnpm through Corepack](https://pnpm.io/installation#using-corepack), [uv](https://docs.astral.sh/uv/getting-started/installation/) |
-| [Docker Compose](#run-with-docker-compose) | Download one Compose file and pull the [public GHCR image](https://github.com/Muatasim-Aswad/job-tracker/pkgs/container/job-tracker); no clone or build | Linux/amd64 | Docker Engine with Compose, `curl` |
-| [Linux release](#install-a-linux-x86_64-release) | Download the [latest release](https://github.com/Muatasim-Aswad/job-tracker/releases/latest) | Linux x86_64, including Windows 11 [WSL2](docs/WSL2.md) x86_64 | [uv](https://docs.astral.sh/uv/getting-started/installation/) |
-
-Neither the runtime bundle nor the wheel is a native executable, and neither contains Python: `uv` provisions the pinned Python runtime and dependencies. Native Windows and Git Bash are unsupported, and there is no packaged macOS artifact — on macOS, install from source.
-
-## Run with Docker Compose
-
-Requires Docker with Compose. Download the release's Compose file and start the matching published image; no Git, Node, Python, or local build is needed:
-
-```bash
-mkdir -p job-tracker && cd job-tracker
-curl -fsSLO https://raw.githubusercontent.com/Muatasim-Aswad/job-tracker/v1.2.1/compose.yaml
-docker compose up -d --no-build
-```
-
-Open <http://localhost:3456>. Download `job-tracker-extension-1.2.1.zip` from the [matching release](https://github.com/Muatasim-Aswad/job-tracker/releases/tag/v1.2.1) and follow [Load the extension](#load-the-extension). Linux/amd64 only; no registry login is required. Compose binds to loopback and creates persistent named volumes. [Containers](docs/CONTAINERS.md) covers configuration, backup, upgrades and removal.
-
-### Build the Docker image from source
-
-Requires Git and Docker with Compose; Docker installs all build tools internally:
-
-```bash
-git clone https://github.com/Muatasim-Aswad/job-tracker.git
-cd job-tracker
-export JOB_TRACKER_IMAGE=job-tracker:local
-docker compose build
-docker compose up -d --no-build --pull never
-```
-
-[`compose.yaml`](compose.yaml) owns the build context, platform, and arguments. The exported image selection also applies to subsequent commands; save it in an ignored mode `0600` `.env` beside `compose.yaml` to retain it across shells. Ordinary source builds need no release metadata and report revision `dev`.
-
-## Install from source
-
-```bash
-git clone https://github.com/Muatasim-Aswad/job-tracker.git
-cd job-tracker
-bash scripts/setup.sh
-bash scripts/start.sh
-```
-
-Setup installs the locked dependencies and builds the dashboard and extension. It prints the absolute extension path needed below. The [development guide](docs/DEVELOPMENT.md) covers the contributor launcher, quality gate, and per-component commands.
-
-## Install a Linux x86_64 release
-
-Download the runtime archive, extension ZIP, wheel, and `SHA256SUMS` from the [latest release](https://github.com/Muatasim-Aswad/job-tracker/releases/latest) into a single directory, then verify them:
-
-```bash
-sha256sum -c SHA256SUMS
-```
-
-Install the runtime bundle:
-
-```bash
-mkdir -p job-tracker-app
-tar -xzf job-tracker-<version>-linux-x86_64.tar.gz -C job-tracker-app
-job-tracker-app/job-tracker start
-```
-
-Or install the wheel instead:
-
-```bash
-uv tool install job_tracker-<version>-py3-none-any.whl
-job-tracker start
-```
-
-On Windows 11, run this path inside a WSL2 distribution and follow [WSL2](docs/WSL2.md) for its requirements.
-
-## Load the extension
-
-After starting the server with any method above, open <http://localhost:3456>. Then load the matching extension unpacked:
-
-1. Open `chrome://extensions`.
-2. Enable **Developer mode**.
-3. Select **Load unpacked**.
-4. Choose the `apps/extension/dist` path printed by source setup, or the directory extracted from `job-tracker-extension-<version>.zip` for a release or container installation.
-
-Reload the extension after updating the server. It uses the local address above by default; another address means [reconfiguring](apps/extension/README.md#configure-the-server-address) and rebuilding it from source.
-
-## Update, back up, and uninstall
-
-Stop the server first. Each path then has one authoritative procedure:
-
-- **Source checkout:** run `git pull --ff-only`, `bash scripts/setup.sh`, and reload the extension. This path keeps its database and configuration inside the checkout, so removing the checkout removes them too.
-- **Runtime bundle or wheel:** [Distribution and lifecycle](docs/DISTRIBUTION.md#upgrade-downgrade-and-replacement) for upgrading, removal, and purging; [Packaged CLI](docs/CLI.md) for the `backup`, `restore`, and diagnostic commands.
-- **Docker Compose:** [Containers](docs/CONTAINERS.md).
-
-The [API guide](apps/api/README.md#backup--restore) holds the tested backup and restore procedure for every local and Turso mode.
+[Deployment](docs/DEPLOYMENT.md) covers requirements, setup, updates, backups, and optional [srvr home-server management](docs/DEPLOYMENT.md#optional-manage-a-home-server-with-srvr).
 
 ## Project documentation
 

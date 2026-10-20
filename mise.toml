@@ -1,0 +1,66 @@
+[tools]
+node = "26.12.0"
+python = "3.14.7"
+pnpm = "11.15.0"
+uv = "0.13.1"
+
+[tool_alias.pnpm]
+backend = "npm:pnpm"
+
+[tool_config]
+locked = true
+
+[env]
+UV_PYTHON = "python"
+
+[tasks.setup]
+description = "Install locked dependencies and build the dashboard and extension"
+run = "bash scripts/setup.sh"
+
+[tasks.start]
+description = "Start Job Tracker"
+run = "bash scripts/start.sh"
+
+[tasks.dev]
+description = "Start the assembled app with API reload"
+run = "bash scripts/dev.sh"
+
+[tasks."dev:web"]
+description = "Start the dashboard with hot reload"
+run = "pnpm run dev:web"
+
+[tasks.check]
+description = "Run the complete repository gate"
+run = "bash scripts/check.sh"
+
+[tasks.test]
+description = "Run TypeScript and API tests"
+run = ["pnpm exec vp run test", "uv run --directory apps/api pytest -q"]
+
+[tasks."test:api"]
+description = "Run API tests"
+run = "uv run --directory apps/api pytest"
+
+[tasks."test:web"]
+description = "Run dashboard tests"
+run = "pnpm --filter web test --run"
+
+[tasks."test:extension"]
+description = "Run extension tests"
+run = "pnpm --filter job-tracker-extension test --run"
+
+[tasks.build]
+description = "Build the dashboard and extension"
+run = "pnpm run build:all"
+
+[tasks."build:extension"]
+description = "Build the browser extension"
+run = "pnpm run build:ext"
+
+[tasks."api:generate"]
+description = "Regenerate TypeScript API types"
+run = "pnpm --filter @job-tracker/shared gen:api"
+
+[tasks."container:smoke"]
+description = "Build and smoke-test an isolated container deployment"
+run = "bash scripts/test-container.sh"

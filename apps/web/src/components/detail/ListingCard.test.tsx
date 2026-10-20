@@ -307,18 +307,18 @@ describe("ListingCard — application availability", () => {
       availability_message: "Not currently accepting applications",
       availability_observed_at: "2026-10-19T10:15:00Z",
     });
-    expect(screen.getByText("Applications: Unavailable")).toBeTruthy();
-    expect(screen.getByText("Not currently accepting applications")).toBeTruthy();
-    expect(screen.getByText("Availability observed 19 Oct 2026")).toBeTruthy();
+    expect(screen.getByText("Unavailable 19 Oct 2026")).toBeTruthy();
+    expect(screen.queryByText("Not currently accepting applications")).toBeNull();
+    expect(screen.queryByText(/Availability observed/)).toBeNull();
     expect(screen.queryByText(/^Closed /)).toBeNull();
   });
 
   it.each([
     ["open", "Open"],
     ["unknown", "Unknown"],
-  ] as const)("shows %s availability", (availability, label) => {
+  ] as const)("hides %s availability", (availability, label) => {
     show({ availability });
-    expect(screen.getByText(`Applications: ${label}`)).toBeTruthy();
+    expect(screen.queryByText(`Applications: ${label}`)).toBeNull();
   });
 
   it("keeps a recorded closure prominent", () => {
@@ -328,7 +328,7 @@ describe("ListingCard — application availability", () => {
       availability_message: "No longer accepting applications",
     });
     expect(screen.getByText("Closed 19 Oct 2026")).toBeTruthy();
-    expect(screen.getByText("No longer accepting applications")).toBeTruthy();
+    expect(screen.queryByText("No longer accepting applications")).toBeNull();
     expect(screen.queryByText("Applications: Unknown")).toBeNull();
   });
 });

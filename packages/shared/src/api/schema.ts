@@ -1833,6 +1833,7 @@ export interface components {
             hidden: boolean;
             /** Id */
             id: string;
+            listing_availability?: components["schemas"]["ListingAvailabilitySummary"];
             /**
              * Listing Count
              * @default 0
@@ -1940,6 +1941,28 @@ export interface components {
          * @enum {string}
          */
         ListingAvailability: "unknown" | "open" | "unavailable" | "closed";
+        /** ListingAvailabilitySummary */
+        ListingAvailabilitySummary: {
+            /** Closed At */
+            closed_at?: string | null;
+            /**
+             * Closed Count
+             * @default 0
+             */
+            closed_count: number;
+            /**
+             * Linkedin Open Count
+             * @default 0
+             */
+            linkedin_open_count: number;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+            /** Unavailable Observed At */
+            unavailable_observed_at?: string | null;
+        };
         /**
          * ListingCreate
          * @description Capture observations; missing, null, or empty facts preserve stored values.

@@ -120,6 +120,81 @@ def test_legacy_closed_at_capture_and_explicit_reopening_remain_consistent(
     assert detail(client, ids["job_id"])["listings"][0]["availability"] == "unknown"
 
 
+@pytest.mark.parametrize("legacy", [False, True])
+def test_recapture_preserves_first_closure_until_reopened(client: TestClient, legacy: bool) -> None:
+    def close(at: str) -> dict[str, object]:
+        return capture(
+            client,
+            closed_at=at,
+            **(
+                {}
+                if legacy
+                else {
+                    "availability": "closed",
+                    "availability_message": RED,
+                    "availability_observed_at": at,
+                }
+            ),
+        )
+
+    ids = close(EARLIER)
+    close(LATER)
+    listing = detail(client, ids["job_id"])["listings"][0]
+    assert listing["closed_at"] == EARLIER
+    if not legacy:
+        assert listing["availability_observed_at"] == LATER
+    capture(client, availability="open", availability_observed_at=LATER)
+    close("2026-10-19T12:00:00+00:00")
+    listing = detail(client, ids["job_id"])["listings"][0]
+    assert listing["closed_at"] == "2026-10-19T12:00:00+00:00"
+
+
+def test_job_cards_summarize_listing_availability_without_changing_status(
+    client: TestClient,
+) -> None:
+    ids = capture(client, availability="unavailable", availability_observed_at=EARLIER)
+    client.post(
+        "/api/listings",
+        json={
+            "platform": "linkedin",
+            "platform_id": "2",
+            "job_id": ids["job_id"],
+            "availability": "closed",
+            "closed_at": EARLIER,
+        },
+    )
+    card = client.get("/api/jobs").json()[0]
+    assert card["status"] == "new"
+    assert card["listing_availability"] == {
+        "linkedin_open_count": 0,
+        "unavailable_count": 1,
+        "closed_count": 1,
+        "unavailable_observed_at": EARLIER,
+        "closed_at": EARLIER,
+    }
+
+
+@pytest.mark.parametrize("platform", ["linkedin", "other"])
+@pytest.mark.parametrize("availability", ["unknown", "open"])
+def test_card_warning_suppression_requires_a_confirmed_open_linkedin_listing(
+    client: TestClient, platform: str, availability: str
+) -> None:
+    ids = capture(client, availability="unavailable", availability_observed_at=EARLIER)
+    response = client.post(
+        "/api/listings",
+        json={
+            "platform": platform,
+            "platform_id": "2",
+            "job_id": ids["job_id"],
+            "availability": availability,
+        },
+    )
+    assert response.status_code == 200, response.text
+    summary = client.get("/api/jobs").json()[0]["listing_availability"]
+    assert summary["unavailable_count"] == 1
+    assert summary["linkedin_open_count"] == int(platform == "linkedin" and availability == "open")
+
+
 @pytest.mark.parametrize(
     "fields",
     [

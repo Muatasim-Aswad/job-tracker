@@ -13,6 +13,7 @@ export default defineConfig({
       "packages/shared/src/api/schema.ts",
       "packages/shared/src/funnel/funnel.contract.json",
       "packages/shared/src/text/text.golden.json",
+      ".mise/locks/**",
     ],
   },
   lint: {

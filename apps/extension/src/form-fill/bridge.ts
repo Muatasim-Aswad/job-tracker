@@ -1,3 +1,4 @@
+import { SERVER_URL, serverScope } from "../config.js";
 import type {
   BridgeResponse,
   FormFillCaptureRequest,
@@ -16,11 +17,12 @@ export type CaptureBridge = (
 
 export const resolveThroughWorker: ResolutionBridge = (payload) =>
   new Promise((resolve) => {
+    const server = SERVER_URL;
     try {
       chrome.runtime.sendMessage(
-        { type: "form-fill-resolve", payload },
+        { type: "form-fill-resolve", payload, ...serverScope() },
         (response: BridgeResponse | undefined) => {
-          if (chrome.runtime.lastError || !response?.ok) {
+          if (server !== SERVER_URL || chrome.runtime.lastError || !response?.ok) {
             resolve({ ok: false });
             return;
           }
@@ -34,11 +36,12 @@ export const resolveThroughWorker: ResolutionBridge = (payload) =>
 
 export const captureThroughWorker: CaptureBridge = (payload) =>
   new Promise((resolve) => {
+    const server = SERVER_URL;
     try {
       chrome.runtime.sendMessage(
-        { type: "form-fill-capture", payload },
+        { type: "form-fill-capture", payload, ...serverScope() },
         (response: BridgeResponse | undefined) => {
-          if (chrome.runtime.lastError || !response?.ok) {
+          if (server !== SERVER_URL || chrome.runtime.lastError || !response?.ok) {
             resolve({ ok: false });
             return;
           }

@@ -1,20 +1,25 @@
 // The extension origin fetches the API directly; content scripts use the CSP-safe worker proxy.
-import { API_BASE_URL } from "../config.js";
+import { API_BASE_URL, SERVER_URL, serverScope, initializeServerConfig } from "../config.js";
 import type { BridgeRequest } from "../messages.js";
 
-export const BASE_URL = API_BASE_URL;
+export { API_BASE_URL as BASE_URL } from "../config.js";
 
 async function api(path: string, opts?: RequestInit) {
-  const res = await fetch(`${BASE_URL}${path}`, opts);
+  await initializeServerConfig();
+  const server = SERVER_URL;
+  const res = await fetch(`${API_BASE_URL}${path}`, opts);
+  if (server !== SERVER_URL) throw new Error("Server changed; retry this action.");
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  const result = res.status === 204 ? null : await res.json();
+  if (server !== SERVER_URL) throw new Error("Server changed; retry this action.");
   if (opts?.method && opts.method !== "GET") notifyChange();
-  return res.status === 204 ? null : res.json();
+  return result;
 }
 
 // Notify the worker after direct writes so other tabs invalidate their read models.
 // A missed notification cannot turn a successful mutation into an error.
 function notifyChange(): void {
-  const msg: BridgeRequest = { type: "notify-change" };
+  const msg: BridgeRequest = { type: "notify-change", ...serverScope() };
   chrome.runtime.sendMessage(msg).catch(() => {});
 }
 
@@ -76,7 +81,7 @@ export const clearSearchLog = () => api("/search-log", { method: "DELETE" });
 // after teardown; failure must not affect the popup.
 export function logSearch(body: unknown, keepalive = false): void {
   try {
-    fetch(`${BASE_URL}/search-log`, {
+    fetch(`${API_BASE_URL}/search-log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

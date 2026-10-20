@@ -501,7 +501,7 @@ class ListingService:
     ) -> dict[str, object]:
         fields: dict[str, object] = {}
         if data.closed_at is not None:
-            fields["closed_at"] = data.closed_at
+            fields["closed_at"] = (existing.closed_at if existing else None) or data.closed_at
         if data.availability in (None, ListingAvailability.UNKNOWN):
             return fields
         observed_at = data.availability_observed_at or datetime.fromisoformat(now)
@@ -520,8 +520,8 @@ class ListingService:
             fields["closed_at"] = None
         elif data.availability == ListingAvailability.CLOSED:
             fields["closed_at"] = (
-                data.closed_at
-                or (existing.closed_at if existing else None)
+                (existing.closed_at if existing else None)
+                or data.closed_at
                 or observed_at.astimezone(UTC).isoformat()
             )
         # An informational notice alone cannot undo a previously observed closure.

@@ -23,11 +23,11 @@ cat >"$TEST_BIN/node" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-cat >"$TEST_BIN/corepack" <<'EOF'
+cat >"$TEST_BIN/pnpm" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-chmod +x "$TEST_BIN/node" "$TEST_BIN/corepack"
+chmod +x "$TEST_BIN/node" "$TEST_BIN/pnpm"
 
 if output="$(PATH="$TEST_BIN" /bin/bash "$ROOT/scripts/setup.sh" 2>&1)"; then
   fail 'setup succeeded without uv'
@@ -51,7 +51,7 @@ if output="$(SETUP_UV_CALLS_FILE="$calls_file" SETUP_UV_FAIL_FIND=1 PATH="$TEST_
   /bin/bash "$ROOT/scripts/setup.sh" 2>&1)"; then
   fail 'setup succeeded after Python provisioning failed'
 fi
-[[ "$output" == *'setup: uv could not find or download the Python version required by apps/api/.python-version and apps/api/pyproject.toml.'* ]] ||
+[[ "$output" == *'setup: uv could not resolve project Python. Run mise install, then mise run setup.'* ]] ||
   fail 'setup did not explain the Python provisioning failure'
 
 calls_file="$TEST_TMP/success.calls"

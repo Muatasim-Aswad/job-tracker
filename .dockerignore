@@ -9,6 +9,11 @@
 !pnpm-workspace.yaml
 !tsconfig.base.json
 !vite.config.ts
+!mise.toml
+!mise.lock
+!.mise/
+!.mise/locks/
+!.mise/locks/**
 !scripts/
 !scripts/build-metadata.*
 !scripts/third-party-notices.*

@@ -4,7 +4,7 @@ import type { Listing, ListingUpdate } from "@job-tracker/shared/api";
 import { postingUrl } from "@job-tracker/shared/links";
 import { APPLY_TYPE_LABELS } from "@job-tracker/shared/matches";
 import { platformLabel } from "@job-tracker/shared/platforms";
-import { fmtDate, POSTED_META_KEYS, readPosted } from "@job-tracker/shared/time";
+import { POSTED_META_KEYS, readPosted } from "@job-tracker/shared/time";
 import { ExpandableText } from "../ExpandableText";
 import { IconButton } from "../IconButton";
 import { InlineConfirm } from "../InlineConfirm";
@@ -14,6 +14,7 @@ import { Tooltip } from "../Tooltip";
 import { UrlLink } from "../UrlLink";
 import { describeError, toast } from "../../lib/toast";
 import { NEUTRAL } from "./constants";
+import { AvailabilityLabel } from "../ListingAvailability";
 import { ListingEditForm } from "./ListingEditForm";
 
 // Unknown detail keys fall back to title case.
@@ -210,38 +211,19 @@ export function ListingCard({
                   {posted.known ? `Posted ${posted.text}` : "Posting date unknown"}
                 </span>
               </Tooltip>,
-              // Preserve when the listing closed.
-              l.closed_at && (
-                <span key="closed" className="text-red-600 dark:text-red-400">
-                  Closed {fmtDate(l.closed_at)}
-                </span>
-              ),
-              !l.closed_at && (
-                <span key="availability">
-                  Applications:{" "}
-                  {l.availability === "open"
-                    ? "Open"
-                    : l.availability === "unavailable"
-                      ? "Unavailable"
-                      : "Unknown"}
-                </span>
+              (l.closed_at || l.availability === "unavailable") && (
+                <AvailabilityLabel
+                  key="availability"
+                  closed={!!l.closed_at}
+                  date={l.closed_at || l.availability_observed_at}
+                  observedAt={l.availability_observed_at}
+                  message={l.availability_message}
+                />
               ),
               l.apply_type && APPLY_TYPE_LABELS[l.apply_type],
             ]}
           />
 
-          {(l.availability_message || l.availability_observed_at) && (
-            <div className="mt-1 text-micro text-ink-muted">
-              {l.availability_message && <p>{l.availability_message}</p>}
-              {l.availability_observed_at && (
-                <Tooltip label={new Date(l.availability_observed_at).toLocaleString()}>
-                  <time dateTime={l.availability_observed_at} tabIndex={0}>
-                    Availability observed {fmtDate(l.availability_observed_at)}
-                  </time>
-                </Tooltip>
-              )}
-            </div>
-          )}
           {fields.length > 0 && (
             <dl className="mt-1 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1 text-micro">
               {fields.map(([k, v]) => {

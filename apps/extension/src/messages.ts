@@ -46,7 +46,7 @@ export type FormFillCaptureRequest = components["schemas"]["CaptureCreate"];
 export type FormFillCaptureResponse = components["schemas"]["CaptureCreateResponse"];
 
 /** Everything the content script can ask the service worker to do. */
-export type BridgeRequest =
+export type BridgeRequest = { serverUrl?: string } & (
   | { type: "listing"; payload: ListingRecord }
   // `ts` (UTC ISO) is the real time the events happened, when the page exposes it
   // (e.g. a Gmail rejection's received time). Omitted → the server stamps now().
@@ -81,7 +81,8 @@ export type BridgeRequest =
   // "I wrote to the API without going through you" — the popup fetches directly
   // (extension origin, no CSP to dodge), so this puts its write back on the same
   // cross-tab broadcast path relayed writes take. No fetch, no result.
-  | { type: "notify-change" };
+  | { type: "notify-change" }
+);
 
 /** Reachability as of the worker's latest health check or relayed request. */
 export interface ReachabilityState {

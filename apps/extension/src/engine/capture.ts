@@ -167,5 +167,14 @@ export function createCapture(engine: Engine) {
     });
   }
 
-  return { markListingClosed, captureListingOnce, captureCards, captureCardFromAction };
+  return {
+    resetCapture: () => {
+      capturedListings.clear();
+      capturedFromCard.clear();
+    },
+    markListingClosed,
+    captureListingOnce,
+    captureCards,
+    captureCardFromAction,
+  };
 }

@@ -4,7 +4,7 @@ Docker Compose is an optional Linux/amd64 deployment path. It runs the public Jo
 
 ## Start and stop
 
-Follow the root README's [clone-free installation](../README.md#run-with-docker-compose) to download the canonical versioned `compose.yaml`, pull the public GHCR image, and start with `--no-build`. Keep that directory for later commands; Compose uses project name `job-tracker` and reuses its named volumes. Use the matching server/image/extension version. No registry login is required to pull the public image.
+Follow the [clone-free installation](DEPLOYMENT.md#run-with-docker-compose) to download the canonical versioned `compose.yaml`, pull the public GHCR image, and start with `--no-build`. Keep that directory for later commands; Compose uses project name `job-tracker` and reuses its named volumes. Use the matching server/image/extension version. No registry login is required to pull the public image.
 
 In that same shell and directory, inspect or restart the service with:
 
@@ -13,7 +13,7 @@ docker compose ps
 docker compose up -d --no-build
 ```
 
-`JOB_TRACKER_IMAGE=ghcr.io/muatasim-aswad/job-tracker:v<version>` pins a release. Export it again in a new shell before any command that creates a container; Compose otherwise uses its versioned default image. For source builds, follow the README's [build procedure](../README.md#build-the-docker-image-from-source); the same Compose file owns build and runtime settings.
+`JOB_TRACKER_IMAGE=ghcr.io/muatasim-aswad/job-tracker:v<version>` pins a release. Export it again in a new shell before any command that creates a container; Compose otherwise uses its versioned default image. On `main`, the default image remains pinned to the last published artifact while source `VERSION` can advance; a tagged artifact release must align them. For source builds, follow the [source build procedure](DEPLOYMENT.md#build-the-docker-image-from-source); the same Compose file owns build and runtime settings.
 
 The default publication is deliberately loopback-only: `127.0.0.1:3456:3456`. Open <http://127.0.0.1:3456>; do not change it to a public interface. The service runs as UID/GID `10001`, has no added Linux capabilities, and uses its image only for replaceable application files.
 
@@ -30,6 +30,8 @@ docker compose stop
 The image contains no configuration file, `.env`, database, credentials, private overlay, test, or personal fixture. It carries the repository license at `/app/LICENSE`. Local SQLite needs no configuration. For optional Turso settings, supply `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` only at container runtime through your secret-management mechanism; never add them to the Dockerfile, image, or repository. The configuration volume is intentionally persistent and excluded from image layers.
 
 The server listens on all container interfaces solely so Docker can forward the loopback host binding. It is not a supported public service. Keep the published host address at `127.0.0.1` and use the normal API-key and configuration guidance in the API README when applicable.
+
+Compose forwards `TRUSTED_HOSTS` as a JSON array, defaulting to localhost and `127.0.0.1`. Add a private HTTPS hostname when using the [srvr deployment recipe](DEPLOYMENT.md#optional-manage-a-home-server-with-srvr); this allowlist does not provide authentication.
 
 ## Offline backup
 

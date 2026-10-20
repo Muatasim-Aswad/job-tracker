@@ -1,5 +1,6 @@
 // Site-agnostic lifecycle: choose the adapter, observe mutations, process cards,
 // and invoke detail/capture hooks and wall sweeps.
+import { onServerChanged } from "../config.js";
 import type { Engine } from "./types.js";
 import type { Adapter } from "../adapters/types";
 import type { ReachabilityState } from "../messages.js";
@@ -94,6 +95,19 @@ export function createScan(engine: Engine) {
       ladderTimers.forEach(clearTimeout);
       ladderTimers = RESCAN_LADDER_MS.map((ms) => setTimeout(() => scheduleScan(0), ms));
     }
+
+    onServerChanged(() => {
+      engine.resetReadModel();
+      engine.resetCapture();
+      engine.resetMatches();
+      engine.resetBlocklist();
+      engine.resetBars();
+      engine.setOffline(false);
+      engine.renderAll();
+      void engine.syncBlocklist();
+      engine.captureCards([...document.querySelectorAll<HTMLElement>("[data-jh-id]")]);
+      rescanWhileRendering();
+    });
 
     // Platform shortcuts share the adapter's DOM identity rules. Capture lets a
     // claimed chord stop before the host page also interprets it.

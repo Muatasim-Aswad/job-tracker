@@ -1,6 +1,7 @@
 // Off-platform search, status, and note client. The extension origin can call the
 // configured API directly.
 
+import { SERVER_URL } from "../config.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { localDay } from "@job-tracker/shared/time";
 import { BASE_URL, logSearch, noteTitles, searchJobs } from "./api.js";
@@ -82,6 +83,7 @@ export function Popup() {
   }, []);
 
   // Flush one opt-in row on click or close, retaining seed and final-query context.
+  const sessionServer = useRef(SERVER_URL);
   const session = useRef({
     host: "",
     seed: "",
@@ -95,6 +97,7 @@ export function Popup() {
   });
 
   const flushSession = useCallback((keepalive = false) => {
+    if (sessionServer.current !== SERVER_URL) return;
     const s = session.current;
     if (s.logged || !s.attempted) return;
     s.logged = true;

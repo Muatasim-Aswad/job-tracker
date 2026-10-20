@@ -12,10 +12,10 @@ Run this from a prepared checkout:
 
 ```bash
 bash scripts/test-release-workflow.sh
-bash scripts/rehearse-release.sh
+mise exec -- bash scripts/rehearse-release.sh
 ```
 
-The rehearsal computes the canonical tag from `VERSION`, creates no tag, and uses a temporary tracked-only archive plus temporary XDG roots. It makes isolated copy-on-write copies of the prepared frozen module trees where the filesystem supports them and copies Corepack metadata into that temporary checkout, never an environment file or credential. The rehearsal disables Vite+'s automatic dependency installation and makes its dependency-status report-only; commands that repair the isolated module copy may still contact package registries, but cannot mutate the coordinator checkout. It then runs the repository gate, four-file build, exact-content/checksum checks, local artifact handoff/download simulation, and extracted-runtime smoke test on `127.0.0.1:34656`. Its generated artifacts, application paths, data, configuration, state, dependency cache, and simulated publication directories are removed on exit. It neither uploads nor retains an artifact, and it does not read checkout overlays, `.env` files, databases, credentials, or user data.
+The rehearsal computes the canonical tag from `VERSION`, creates no tag, and uses a temporary tracked-only archive plus temporary XDG roots. It makes isolated copy-on-write copies of the prepared frozen module trees where the filesystem supports them without copying environment files or credentials. The rehearsal disables Vite+'s automatic dependency installation and makes its dependency-status report-only; commands that repair the isolated module copy may still contact package registries, but cannot mutate the coordinator checkout. It then runs the repository gate, four-file build, exact-content/checksum checks, local artifact handoff/download simulation, and extracted-runtime smoke test on `127.0.0.1:34656`. Its generated artifacts, application paths, data, configuration, state, dependency cache, and simulated publication directories are removed on exit. It neither uploads nor retains an artifact, and it does not read checkout overlays, `.env` files, databases, credentials, or user data.
 
 Complete the wheel and optional-container gates separately against the prepared working tree; both use isolated roots and ports:
 
