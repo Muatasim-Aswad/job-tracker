@@ -21,6 +21,7 @@ const mockedApi = vi.mocked(api);
 function makeJob(overrides: Partial<JobSummary> = {}): JobSummary {
   return {
     listing_availability: {
+      linkedin_open_count: 0,
       unavailable_count: 0,
       closed_count: 0,
       unavailable_observed_at: null,

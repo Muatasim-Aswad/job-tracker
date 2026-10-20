@@ -31,6 +31,5 @@
     "typescript": "^6.0.3",
     "vite": "catalog:",
     "vitest": "5.0.0"
-  },
-  "packageManager": "pnpm@11.15.0"
+  }
 }

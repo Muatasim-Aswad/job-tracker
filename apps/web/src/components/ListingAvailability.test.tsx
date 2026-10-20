@@ -20,40 +20,42 @@ it("keeps the original notice and precise time in a focusable tooltip", () => {
   expect(screen.getByRole("tooltip").textContent).toContain("Availability observed");
 });
 
-it("counts mixed listings without labelling the whole job unavailable", () => {
-  const job = {
-    listing_count: 3,
-    listing_availability: {
-      unavailable_count: 1,
-      closed_count: 1,
-      closed_at: null,
-      unavailable_observed_at: null,
-    },
-  } as JobSummary;
-  render(<JobListingAvailability job={job} />);
-  expect(screen.getByText("1 unavailable")).toBeTruthy();
-  expect(screen.getByText("1 closed")).toBeTruthy();
-  expect(screen.queryByText(/^Unavailable /)).toBeNull();
-});
-
-it("keeps open and unknown listing summaries quiet", () => {
-  const job = {
-    listing_count: 1,
-    listing_availability: { unavailable_count: 0, closed_count: 0 },
-  } as JobSummary;
-  const { container } = render(<JobListingAvailability job={job} />);
-  expect(container.textContent).toBe("");
-});
+it.each([
+  [0, 1, 0, "Unavailable"],
+  [0, 0, 1, "Closed"],
+  [0, 1, 1, "Unavailable"],
+  [1, 1, 0, ""],
+  [1, 0, 1, ""],
+  [1, 1, 1, ""],
+  [0, 0, 0, ""],
+])(
+  "summarizes LinkedIn open=%i unavailable=%i closed=%i as %s",
+  (open, unavailable, closed, label) => {
+    const job = {
+      listing_count: open + unavailable + closed || 1,
+      listing_availability: {
+        linkedin_open_count: open,
+        unavailable_count: unavailable,
+        closed_count: closed,
+        closed_at: "2026-10-19T10:15:00Z",
+        unavailable_observed_at: "2026-10-19T10:15:00Z",
+      },
+    } as JobSummary;
+    const { container } = render(<JobListingAvailability job={job} />);
+    expect(container.textContent).toBe(label);
+    expect(container.querySelector("time")).toBeNull();
+  },
+);
 
 it("allows tapping availability without opening or dragging its job card", () => {
   const open = vi.fn();
   const drag = vi.fn();
   render(
     <div onClick={open} onPointerDown={drag}>
-      <AvailabilityLabel closed count={1} />
+      <AvailabilityLabel closed />
     </div>,
   );
-  const label = screen.getByText("1 closed");
+  const label = screen.getByText("Closed");
   fireEvent.pointerDown(label, { pointerType: "touch" });
   fireEvent.click(label);
   expect(screen.getByRole("tooltip")).toBeTruthy();

@@ -11,10 +11,11 @@ One version covers the whole product. The extension, the dashboard, and the serv
 ### Added
 
 - Extension Settings can test and save a server address without rebuilding. Saved addresses override the build default, request access only to the selected server, and clear server-specific runtime state when switching.
-- Dashboard cards show compact unavailable/closed listing labels, dates for single listings, and counts for multiple listings. Listing details retain notices and precise observation times in accessible tooltips; Open and Unknown stay quiet.
+- Dashboard cards show one undated availability label, prioritizing Unavailable over Closed and hiding it only for a confirmed Open LinkedIn listing. Listing details retain notices and precise observation times in accessible tooltips; Open and Unknown stay quiet.
 
 ### Changed
 
+- Source setup, CI, and Docker share mise tool pins and tasks; pnpm no longer requires Corepack. Deployment instructions move to a dedicated guide with optional srvr management.
 - Version changes accompany shipped behavior before merging to `main`; artifact publication tags the existing version.
 
 ### Fixed

@@ -8,7 +8,7 @@ Each supported site is a small **adapter**. Built-in ones (LinkedIn, and LinkedI
 
 ## Requirements
 
-- Complete the root [project requirements and setup](../../README.md#requirements).
+- Complete the [project requirements and setup](../../docs/DEPLOYMENT.md).
 - A Chromium browser (Chrome / Edge / Brave).
 - A running Job Tracker server (default `http://localhost:3456`).
 
@@ -22,7 +22,7 @@ pnpm run build:ext
 
 Then in the browser: `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select **`apps/extension/dist/`**. After a source change, rebuild and hit the reload ↻ on the extension card. Commands below also run from the repository root.
 
-For a versioned release ZIP, follow the root [extension loading procedure](../../README.md#load-the-extension). Keep its version matched to the installed server artifact.
+For a versioned release ZIP, follow the [extension loading procedure](../../docs/DEPLOYMENT.md#load-the-extension). Keep its version matched to the installed server artifact.
 
 > The loaded artifact is always `dist/`, never the raw source. The build (Vite + [`@crxjs/vite-plugin`](https://crxjs.dev)) bundles the content script, service worker, and popup, and generates the MV3 `manifest.json`.
 

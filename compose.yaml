@@ -29,6 +29,7 @@ services:
       SCRIPTS_OUTPUT_DIR: /data/script-output
       WEB_DIST_PATH: /app/apps/web/dist
       PORT: "3456"
+      TRUSTED_HOSTS: '${TRUSTED_HOSTS:-["localhost","127.0.0.1"]}'
       TURSO_DATABASE_URL: ${TURSO_DATABASE_URL:-}
       TURSO_AUTH_TOKEN: ${TURSO_AUTH_TOKEN:-}
     volumes:

@@ -49,7 +49,7 @@ export VP_SKIP_INSTALL=1 pnpm_config_verify_deps_before_run=warn
 
 # Tracked public files alone can influence artifacts; ignored overlays and .env stay excluded.
 copy_tracked "$BUILD_SOURCE" \
-  VERSION package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json vite.config.ts \
+  VERSION mise.toml mise.lock .mise/locks package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json vite.config.ts \
   apps/web apps/extension packages \
   scripts/build-metadata.py scripts/build-metadata.mjs scripts/third-party-notices.mjs \
   apps/api/app/core/build_info.py

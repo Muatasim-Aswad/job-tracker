@@ -4,7 +4,7 @@ Repository-wide contributor setup and policy live here; component-specific imple
 
 | Topic | Authority |
 | --- | --- |
-| End-user prerequisites, setup, install, and normal startup | [`README.md`](../README.md) |
+| End-user prerequisites, setup, install, and normal startup | [`docs/DEPLOYMENT.md`](DEPLOYMENT.md) |
 | Distribution artifacts, packaged paths, lifecycle, upgrades, and platform support | [`docs/DISTRIBUTION.md`](DISTRIBUTION.md) |
 | Repository-wide contributor setup, full-app launcher, and quality gate | This guide |
 | User-facing features and workflows | [`docs/FEATURES.md`](FEATURES.md) |
@@ -20,19 +20,25 @@ Repository-wide contributor setup and policy live here; component-specific imple
 
 ## Local development
 
-After cloning or forking the repository, install the prerequisites listed in the root [README](../README.md#requirements), then prepare the whole workspace from the repository root:
+After cloning or forking the repository, install [mise](https://mise.jdx.dev/getting-started.html), then prepare the workspace from its root:
 
 ```bash
-bash scripts/setup.sh
+mise trust
+mise install
+mise run setup
 ```
 
 Start the assembled application for contributor work with:
 
 ```bash
-bash scripts/dev.sh
+mise run dev
 ```
 
 The development launcher performs the same built-dashboard preflight as the normal launcher, binds to `127.0.0.1:3456`, and enables Uvicorn's automatic reload. For a component-only workflow such as Vite hot reload or starting just the API, use the commands in the relevant component README.
+
+`mise.toml` is the sole source for exact Node, Python, pnpm, and uv versions; CI and Docker use it too. Package manifests retain compatibility requirements only where needed. pnpm uses mise’s npm backend for portable binaries, without Corepack. `UV_PYTHON=python` selects mise’s interpreter. Change versions there, run `mise lock --platform linux-x64,macos-x64,macos-arm64`, and commit `mise.lock` plus `.mise/locks/`. Do not edit generated locks.
+
+`mise tasks` lists setup, start, dev, check, test, build, API generation, and container smoke commands. Existing scripts and package commands remain usable with the pinned tools on `PATH`; `mise run check` wraps `bash scripts/check.sh`.
 
 ## Quality gate
 

@@ -37,6 +37,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 PY
 )"
 export JOB_TRACKER_HOST_PORT="$PORT"
+export TRUSTED_HOSTS='["localhost","127.0.0.1","job-tracker.test"]'
 
 cd "$ROOT"
 python3 scripts/build-metadata.py --format shell --output "$WORK/identity.env"
@@ -69,6 +70,9 @@ until curl --fail --silent --show-error "$BASE_URL/health" >"$WORK/health.json";
 done
 
 VERSION="$(tr -d '[:space:]' <VERSION)"
+curl --fail --silent --show-error --header 'Host: job-tracker.test' "$BASE_URL/health" >"$WORK/private-health.json"
+[[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --header 'Host: untrusted.example' "$BASE_URL/health")" == 400 ]] ||
+  fail "container did not reject an untrusted hostname"
 grep -Fq "\"version\":\"$VERSION\"" "$WORK/health.json" || fail "health version differs from VERSION"
 python3 - "$WORK/health.json" "$APP_REVISION" <<'PY'
 import json, sys

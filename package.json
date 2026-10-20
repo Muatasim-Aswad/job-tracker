@@ -25,9 +25,5 @@
     "prettier": "3.9.9",
     "vite": "catalog:",
     "vite-plus": "catalog:"
-  },
-  "engines": {
-    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
-  },
-  "packageManager": "pnpm@11.15.0"
+  }
 }

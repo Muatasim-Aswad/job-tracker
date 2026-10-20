@@ -36,7 +36,6 @@ dev = [
 ]
 
 [tool.mypy]
-python_version = "3.14"
 files = ["app", "scripts"]
 strict = true
 # libsql/pyturso ship no type stubs; treat them as untyped rather than failing the build.

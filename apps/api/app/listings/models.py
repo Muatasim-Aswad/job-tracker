@@ -6,6 +6,7 @@ from app.core.enums import ListingAvailability
 
 
 class ListingAvailabilitySummary(BaseModel):
+    linkedin_open_count: int = 0
     unavailable_count: int = 0
     closed_count: int = 0
     unavailable_observed_at: str | None = None

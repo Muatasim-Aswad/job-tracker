@@ -173,6 +173,8 @@ class ListingRepository:
                         entry.availability.unavailable_observed_at or "",
                         row["availability_observed_at"],
                     )
+            elif row["availability"] == "open" and row["platform"] == "linkedin":
+                entry.availability.linkedin_open_count += 1
             if row["platform"] and row["platform"] not in entry.platforms:
                 entry.platforms.append(row["platform"])
             if row["apply_type"] and row["apply_type"] not in entry.apply_types:

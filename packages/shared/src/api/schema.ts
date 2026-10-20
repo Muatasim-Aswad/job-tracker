@@ -1951,6 +1951,11 @@ export interface components {
              */
             closed_count: number;
             /**
+             * Linkedin Open Count
+             * @default 0
+             */
+            linkedin_open_count: number;
+            /**
              * Unavailable Count
              * @default 0
              */

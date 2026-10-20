@@ -11,7 +11,6 @@ SOURCE="$WORK/source"
 RELEASE_DIR="$WORK/release"
 PUBLISHED_DIR="$WORK/published"
 DOWNLOADED_DIR="$WORK/downloaded"
-COREPACK_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/node/corepack"
 
 cleanup() {
   rm -rf -- "$WORK"
@@ -45,8 +44,6 @@ done
 if [[ -d "$SOURCE/node_modules/.vite/task-cache" ]]; then
   find "$SOURCE/node_modules/.vite/task-cache" -depth -delete
 fi
-[[ -d "$COREPACK_CACHE" ]] || fail "the prepared Corepack cache is missing."
-cp -a "$COREPACK_CACHE" "$WORK/corepack"
 
 safe_env=(
   env -i
@@ -57,7 +54,7 @@ safe_env=(
   "XDG_STATE_HOME=$WORK/state"
   "UV_CACHE_DIR=$WORK/uv-cache"
   "UV_HTTP_RETRIES=5"
-  "COREPACK_HOME=$WORK/corepack"
+  "UV_PYTHON=python"
   "VP_SKIP_INSTALL=1"
   "pnpm_config_verify_deps_before_run=warn"
   "CI=true"
