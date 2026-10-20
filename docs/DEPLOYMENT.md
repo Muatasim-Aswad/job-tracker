@@ -83,7 +83,7 @@ After starting the server with any method above, open <http://localhost:3456>. T
 3. Select **Load unpacked**.
 4. Choose the `apps/extension/dist` path printed by source setup, or the directory extracted from `job-tracker-extension-<version>.zip` for a release or container installation.
 
-Reload the extension after updating the server. It defaults to the build’s `VITE_SERVER_URL`, or `http://localhost:3456`. Change **Server URL** in extension **Settings** for another server; grant the requested origin permission, then test and save. No rebuild is needed.
+Reload the extension after updating the server. It defaults to the build’s `VITE_SERVER_URL`, or `http://localhost:3456`. In extension **Settings**, use the pencil beside **Server** to change the address, then the checkmark to grant access, test, and save. No rebuild is needed.
 
 ## Optional: manage a home server with srvr
 

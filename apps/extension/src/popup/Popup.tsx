@@ -24,6 +24,9 @@ import { Detail, type DetailHandle } from "./Detail";
 import { AddForm, type AddFormHandle } from "./AddForm";
 import type { PopupJob } from "./types";
 import { FOCUS } from "./ui";
+import { buildsDiffer, extensionBuild, type BuildIdentity } from "../version";
+import type { ReachabilityPush, VersionPush } from "../messages";
+import { VersionWarning } from "./VersionWarning";
 
 type Mode = "list" | "detail" | "add" | "settings";
 
@@ -37,6 +40,8 @@ export function Popup() {
   const [titles, setTitles] = useState<string[]>([]);
   // Seed reachability on open and track worker pushes independently of write errors.
   const [offline, setOffline] = useState(false);
+  const [serverBuild, setServerBuild] = useState<BuildIdentity | null>(null);
+  const versionMismatch = !offline && buildsDiffer(extensionBuild, serverBuild);
 
   // Keep the suggested email timestamp separate from its displayed date.
   // Only an untouched picker may adopt the asynchronous email-date suggestion.
@@ -328,15 +333,24 @@ export function Popup() {
   // Seed the standing offline notice from worker reachability and track changes.
   // Per-search failures still report a stale worker flag or request-level failure.
   useEffect(() => {
+    let active = true;
     chrome.runtime.sendMessage({ type: "reachability" }, (resp) => {
-      if (chrome.runtime.lastError || !resp?.ok) return;
+      if (chrome.runtime.lastError || !resp?.ok || !active) return;
       setOffline(!resp.result.reachable);
     });
-    const onMessage = (m: { type?: string; reachable?: boolean }) => {
+    chrome.runtime.sendMessage({ type: "version" }, (resp) => {
+      if (chrome.runtime.lastError || !resp?.ok || !active) return;
+      setServerBuild(resp.result.serverBuild);
+    });
+    const onMessage = (m: ReachabilityPush | VersionPush) => {
       if (m?.type === "reachabilityChanged") setOffline(!m.reachable);
+      if (m?.type === "versionChanged") setServerBuild(m.serverBuild);
     };
     chrome.runtime.onMessage.addListener(onMessage);
-    return () => chrome.runtime.onMessage.removeListener(onMessage);
+    return () => {
+      active = false;
+      chrome.runtime.onMessage.removeListener(onMessage);
+    };
   }, []);
 
   // ── Init: note-title suggestions + seed from the active tab ─────────────────────
@@ -420,18 +434,27 @@ export function Popup() {
             />
             <button
               className={
-                mode === "settings"
-                  ? "flex size-8 shrink-0 items-center justify-center rounded-md border border-popup-primary bg-popup-primary text-white " +
+                versionMismatch
+                  ? "flex size-8 shrink-0 items-center justify-center rounded-md border border-popup-warning-border bg-popup-warning-bg text-popup-warning " +
                     FOCUS +
                     " [&_svg]:size-4"
-                  : "flex size-8 shrink-0 items-center justify-center rounded-md border border-popup-border bg-popup-surface text-popup-button transition-colors hover:bg-popup-hover " +
-                    FOCUS +
-                    " [&_svg]:size-4"
+                  : mode === "settings"
+                    ? "flex size-8 shrink-0 items-center justify-center rounded-md border border-popup-primary bg-popup-primary text-white " +
+                      FOCUS +
+                      " [&_svg]:size-4"
+                    : "flex size-8 shrink-0 items-center justify-center rounded-md border border-popup-border bg-popup-surface text-popup-button transition-colors hover:bg-popup-hover " +
+                      FOCUS +
+                      " [&_svg]:size-4"
               }
-              title="Settings — Easy Apply, theme, and display"
-              aria-label="Settings"
+              title={
+                versionMismatch
+                  ? "Settings — extension and server versions differ"
+                  : "Settings — Easy Apply, theme, and display"
+              }
+              aria-label={versionMismatch ? "Settings — version mismatch" : "Settings"}
+              aria-expanded={mode === "settings"}
               onClick={toggleSettings}
-              dangerouslySetInnerHTML={{ __html: ICON.settings }}
+              dangerouslySetInnerHTML={{ __html: versionMismatch ? ICON.arrowUp : ICON.settings }}
             />
             <button
               id="add-toggle"
@@ -473,7 +496,12 @@ export function Popup() {
         </div>
 
         {mode === "list" && <Results jobs={results} selIndex={selIndex} onPick={onPick} />}
-        {mode === "settings" && <Settings />}
+        {mode === "settings" && (
+          <div className="mt-2.5 border-t border-popup-border-subtle">
+            {versionMismatch && serverBuild && <VersionWarning serverBuild={serverBuild} />}
+            <Settings reachable={!offline} />
+          </div>
+        )}
         {mode === "detail" && current && (
           <Detail
             ref={detailRef}

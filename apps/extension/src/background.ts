@@ -9,22 +9,37 @@ import {
 } from "./config.js";
 import type { BridgeRequest, ReachabilityPush, StatesChangedPush } from "./messages.js";
 import { linkedinJobId } from "./adapters/builtin/linkedin/identity.js";
+import {
+  buildsDiffer,
+  extensionBuild,
+  parseBuildIdentity,
+  toolbarStatus,
+  type BuildIdentity,
+} from "./version.js";
 
 // ── Connectivity badge ───────────────────────────────────────────────────────
 // The toolbar badge reports server reachability. HTTP 4xx responses still prove that
 // the server is reachable and remain request-level errors.
 let serverReachable = true;
+let serverBuild: BuildIdentity | null = null;
+
+function refreshToolbar() {
+  const status = toolbarStatus(serverReachable, buildsDiffer(extensionBuild, serverBuild));
+  void chrome.action.setBadgeText({ text: status.text });
+  void chrome.action.setBadgeBackgroundColor({ color: status.color });
+  void chrome.action.setTitle({ title: status.title });
+}
+
+function setServerBuild(build: BuildIdentity | null) {
+  serverBuild = build;
+  refreshToolbar();
+  chrome.runtime.sendMessage({ type: "versionChanged", serverBuild }).catch(() => {});
+}
 
 function markServerReachable(reachable: boolean) {
   if (reachable === serverReachable) return; // steady state — touch the badge only on change
   serverReachable = reachable;
-  void chrome.action.setBadgeText({ text: reachable ? "" : "!" });
-  void chrome.action.setBadgeBackgroundColor({ color: "#e53e3e" });
-  void chrome.action.setTitle({
-    title: reachable
-      ? "Job Tracker"
-      : "Job Tracker — can't reach the server; changes aren't being saved",
-  });
+  refreshToolbar();
   // Tell the surfaces that show a steady offline state (dimmed bars, popup notice)
   // so they don't wait for their own next failing call to find out.
   broadcastReachability(reachable);
@@ -264,6 +279,8 @@ function handle(msg: BridgeRequest, sender?: chrome.runtime.MessageSender) {
       // From the cached flag, no fetch. The poll below keeps it fresh, and a stale
       // "reachable: true" self-corrects on the asker's own next call.
       return Promise.resolve({ reachable: serverReachable });
+    case "version":
+      return Promise.resolve({ serverBuild });
     case "open-job-tabs":
       return queueBulkTabOperation(() => openJobTabs(msg.urls));
     case "close-bulk-job-tab":
@@ -278,16 +295,41 @@ function handle(msg: BridgeRequest, sender?: chrome.runtime.MessageSender) {
 }
 
 // Browser UI outlives an idle MV3 worker; reset it with the in-memory default.
-void chrome.action.setBadgeText({ text: "" });
+refreshToolbar();
+
+let buildCheck = 0;
+async function checkServerBuild() {
+  const check = ++buildCheck;
+  await initializeServerConfig();
+  const server = SERVER_URL;
+  let build: BuildIdentity | null = null;
+  try {
+    const response = await fetch(`${server}/version.json`, {
+      signal: AbortSignal.timeout(5000),
+      cache: "no-store",
+      credentials: "omit",
+      redirect: "error",
+    });
+    if (response.ok) build = parseBuildIdentity(await response.json());
+  } catch {
+    // Missing or unverifiable identity is independent of API reachability.
+  }
+  if (check === buildCheck && server === SERVER_URL) setServerBuild(build);
+}
+
+function pollServer() {
+  void reportingFetch("/health").catch(() => {});
+  void checkServerBuild();
+}
 
 // ── Health poll ──────────────────────────────────────────────────────────────
 // Poll at Chrome's 30-second MV3 minimum so idle sessions still report outages.
 void chrome.alarms.create("health-poll", { periodInMinutes: 0.5 });
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "health-poll") reportingFetch("/health").catch(() => {});
+  if (alarm.name === "health-poll") pollServer();
 });
 // Initialize reachability immediately instead of waiting for the first alarm.
-reportingFetch("/health").catch(() => {});
+pollServer();
 
 // ── Post-navigation re-injection ─────────────────────────────────────────────
 // Some SPA navigations replace a document without declarative reinjection. Register
@@ -343,7 +385,7 @@ chrome.runtime.onMessage.addListener((msg: BridgeRequest, sender, sendResponse) 
     .then(async () => {
       const server = SERVER_URL;
       if (
-        !["reachability", "open-job-tabs", "close-bulk-job-tab"].includes(msg.type) &&
+        !["reachability", "version", "open-job-tabs", "close-bulk-job-tab"].includes(msg.type) &&
         (msg.serverUrl ?? DEFAULT_SERVER_URL) !== SERVER_URL
       )
         throw new Error("Server changed; retry this action.");
@@ -372,5 +414,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 onServerChanged(() => {
   markServerReachable(false);
-  reportingFetch("/health").catch(() => {});
+  setServerBuild(null);
+  pollServer();
 });

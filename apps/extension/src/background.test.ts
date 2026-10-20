@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { extensionBuild } from "./version";
 
 interface NavigationListener {
   callback: (details: { tabId: number; frameId: number }) => Promise<void>;
@@ -107,6 +108,7 @@ async function setupBulkTabs() {
   let onRemoved!: (tabId: number) => void;
   let storedIds: number[] = [];
   let nextId = 21;
+  let onAlarm!: (alarm: { name: string }) => void;
   const liveTabs: chrome.tabs.Tab[] = [
     {
       id: 11,
@@ -141,7 +143,11 @@ async function setupBulkTabs() {
     },
     alarms: {
       create: vi.fn(async () => {}),
-      onAlarm: { addListener: vi.fn() },
+      onAlarm: {
+        addListener: (listener: typeof onAlarm) => {
+          onAlarm = listener;
+        },
+      },
     },
     runtime: {
       getManifest: () => ({ content_scripts: [] }),
@@ -191,8 +197,104 @@ async function setupBulkTabs() {
     send,
     ids: () => storedIds,
     changeServer: (url: string) => storageChanged({ serverUrl: { newValue: url } }, "local"),
+    poll: () => onAlarm({ name: "health-poll" }),
   };
 }
+
+describe("server version monitoring", () => {
+  const differentBuild = { version: "99.0.0", revision: "b".repeat(40), dev: false };
+
+  it("updates the toolbar and cached popup state, with offline priority", async () => {
+    const { poll, send } = await setupBulkTabs();
+    const fetchRequest = vi.fn(
+      async (url: string) =>
+        new Response(
+          JSON.stringify(String(url).endsWith("/version.json") ? differentBuild : { ok: true }),
+        ),
+    );
+    vi.stubGlobal("fetch", fetchRequest);
+    poll();
+    await vi.waitFor(() =>
+      expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: "↑" }),
+    );
+    expect(await send({ type: "version" })).toEqual({
+      ok: true,
+      result: { serverBuild: differentBuild },
+    });
+    expect(fetchRequest).toHaveBeenCalledWith(
+      expect.stringContaining("/version.json"),
+      expect.objectContaining({ cache: "no-store", credentials: "omit", redirect: "error" }),
+    );
+
+    fetchRequest.mockImplementation(async (url) => {
+      if (String(url).endsWith("/api/health")) throw new Error("offline");
+      return new Response(JSON.stringify(differentBuild));
+    });
+    poll();
+    await vi.waitFor(() =>
+      expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: "!" }),
+    );
+
+    fetchRequest.mockImplementation(async () => new Response(JSON.stringify(extensionBuild)));
+    poll();
+    await vi.waitFor(() =>
+      expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: "" }),
+    );
+  });
+
+  it.each([
+    new Response("missing", { status: 404 }),
+    new Response("{}"),
+    new Response("invalid JSON"),
+  ])("keeps the API connected when identity cannot be checked", async (response) => {
+    const { poll, send } = await setupBulkTabs();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url) =>
+        String(url).endsWith("/version.json") ? response : new Response('{"ok":true}'),
+      ),
+    );
+    poll();
+    await vi.waitFor(() =>
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: "versionChanged",
+        serverBuild: null,
+      }),
+    );
+    expect(await send({ type: "reachability" })).toEqual({ ok: true, result: { reachable: true } });
+    expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: "" });
+  });
+
+  it("discards a pending identity response after switching servers", async () => {
+    const { poll, send, changeServer } = await setupBulkTabs();
+    let finishOld!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url) => {
+        if (!String(url).endsWith("/version.json")) return new Response('{"ok":true}');
+        if (String(url).startsWith("https://next.example.test"))
+          return new Response(JSON.stringify(extensionBuild));
+        return new Promise<Response>((resolve) => {
+          finishOld = resolve;
+        });
+      }),
+    );
+    poll();
+    await vi.waitFor(() => expect(finishOld).toBeTypeOf("function"));
+    changeServer("https://next.example.test");
+    await vi.waitFor(async () =>
+      expect(await send({ type: "version" })).toMatchObject({
+        result: { serverBuild: { version: extensionBuild.version } },
+      }),
+    );
+    finishOld(new Response(JSON.stringify(differentBuild)));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await send({ type: "version" })).toMatchObject({
+      result: { serverBuild: { version: extensionBuild.version } },
+    });
+    expect(chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: "" });
+  });
+});
 
 it("routes scoped requests to the saved server and rejects old default-server writes", async () => {
   const { send, changeServer } = await setupBulkTabs();

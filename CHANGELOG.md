@@ -6,6 +6,16 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-20
+
+### Added
+
+- The extension compares its build with the running server on startup and every 30 seconds. Mismatches show an amber toolbar arrow and replace the popup Settings gear with an amber arrow; opening Settings reveals the version banner. Connection failures retain the red warning and take priority.
+
+### Changed
+
+- Server settings show the active address and connection status in one compact row. A pencil opens editing with icon controls to test and save, cancel, or restore the default address.
+
 ## [1.3.0] - 2026-10-20
 
 ### Added
@@ -135,3 +145,4 @@ Initial public release.
 [1.0.0]: https://github.com/Muatasim-Aswad/job-tracker/releases/tag/v1.0.0
 [1.2.1]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.2.0...v1.2.1
 [1.3.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.2.1...v1.3.0
+[1.4.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.3.0...v1.4.0

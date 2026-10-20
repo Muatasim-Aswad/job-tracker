@@ -10,6 +10,7 @@ import type {
   ListingUpsertResult,
 } from "@job-tracker/shared/api";
 import type { NaturalKey } from "./adapters/types";
+import type { BuildIdentity } from "./version";
 
 /** Natural key plus fields available from either a partial or full capture. */
 export interface ListingRecord extends NaturalKey {
@@ -71,6 +72,7 @@ export type BridgeRequest = { serverUrl?: string } & (
   // paint an offline state up front rather than waiting for the first failed
   // write. Answered from the worker's `serverReachable` flag, so no fetch.
   | { type: "reachability" }
+  | { type: "version" }
   // Open canonical LinkedIn postings from one explicit Gmail-alert bulk action.
   // The worker creates background tabs so Chromium's page popup limit cannot drop
   // every URL after the first.
@@ -92,6 +94,12 @@ export interface ReachabilityState {
 /** Worker push emitted when reachability changes. */
 export type ReachabilityPush = { type: "reachabilityChanged"; reachable: boolean };
 
+export interface VersionState {
+  serverBuild: BuildIdentity | null;
+}
+
+export type VersionPush = { type: "versionChanged" } & VersionState;
+
 /** Invalidate all cached states because merge decisions can re-key multiple jobs. */
 export type StatesChangedPush = { type: "statesChanged" };
 
@@ -107,6 +115,7 @@ export type BridgeResult =
   | FormFillResolutionResponse // "form-fill-resolve"
   | FormFillCaptureResponse // "form-fill-capture"
   | ReachabilityState // "reachability"
+  | VersionState // "version"
   | null; // 204s — "false-match", "unblock-company"
 
 /** The service worker's reply: the ok/error discriminant plus the typed result. */

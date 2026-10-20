@@ -16,6 +16,9 @@ import pencil from "lucide-static/icons/pencil.svg?raw";
 import stickyNote from "lucide-static/icons/sticky-note.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import copy from "lucide-static/icons/copy.svg?raw";
+import arrowUp from "lucide-static/icons/arrow-up.svg?raw";
+import check from "lucide-static/icons/check.svg?raw";
+import rotateCcw from "lucide-static/icons/rotate-ccw.svg?raw";
 
 export const ICON = {
   open: externalLink,
@@ -34,4 +37,7 @@ export const ICON = {
   stickyNote, // popup detail: add a standalone note
   settings, // popup: open the settings panel
   copy, // detail banner: copy the JD (with title/company/url) for an AI prompt
+  arrowUp,
+  check,
+  rotateCcw,
 } as const;

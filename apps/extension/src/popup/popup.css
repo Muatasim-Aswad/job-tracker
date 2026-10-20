@@ -28,6 +28,9 @@
   --danger: #a33;
   --danger-bg: #fdecec;
   --danger-border: #f0b8b8;
+  --warning: #92400e;
+  --warning-bg: #fffbeb;
+  --warning-border: #fcd34d;
   --focus: #6b8fd4;
   --shadow: rgb(0 0 0 / 0.12);
   --shadow-strong: rgb(0 0 0 / 0.2);
@@ -60,6 +63,9 @@
     --danger: #f2938c;
     --danger-bg: #3a2422;
     --danger-border: #5e3330;
+    --warning: #fcd34d;
+    --warning-bg: #342a17;
+    --warning-border: #795720;
     --focus: #6ea8fe;
     --shadow: rgb(0 0 0 / 0.45);
     --shadow-strong: rgb(0 0 0 / 0.55);
@@ -92,6 +98,9 @@
   --danger: #f2938c;
   --danger-bg: #3a2422;
   --danger-border: #5e3330;
+  --warning: #fcd34d;
+  --warning-bg: #342a17;
+  --warning-border: #795720;
   --focus: #6ea8fe;
   --shadow: rgb(0 0 0 / 0.45);
   --shadow-strong: rgb(0 0 0 / 0.55);
@@ -122,6 +131,9 @@
   --color-popup-danger: var(--danger);
   --color-popup-danger-bg: var(--danger-bg);
   --color-popup-danger-border: var(--danger-border);
+  --color-popup-warning: var(--warning);
+  --color-popup-warning-bg: var(--warning-bg);
+  --color-popup-warning-border: var(--warning-border);
   --color-popup-focus: var(--focus);
   --color-popup-shadow: var(--shadow);
   --color-popup-shadow-strong: var(--shadow-strong);
