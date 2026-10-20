@@ -11,7 +11,7 @@ services:
         APP_BUILD_TIME: ${APP_BUILD_TIME:-1980-01-01T00:00:00Z}
         APP_IDENTITY_ATTESTED: ${APP_IDENTITY_ATTESTED:-0}
         SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH:-315532800}
-    image: ${JOB_TRACKER_IMAGE:-ghcr.io/muatasim-aswad/job-tracker:v1.2.1}
+    image: ${JOB_TRACKER_IMAGE:-ghcr.io/muatasim-aswad/job-tracker:v1.4.1}
     platform: linux/amd64
     pull_policy: missing
     init: true
