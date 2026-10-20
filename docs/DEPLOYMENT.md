@@ -16,11 +16,11 @@ Requires Docker with Compose. Download the release's Compose file and start the 
 
 ```bash
 mkdir -p job-tracker && cd job-tracker
-curl -fsSLO https://raw.githubusercontent.com/Muatasim-Aswad/job-tracker/v1.2.1/compose.yaml
+curl -fsSLO https://raw.githubusercontent.com/Muatasim-Aswad/job-tracker/v1.4.1/compose.yaml
 docker compose up -d --no-build
 ```
 
-Open <http://localhost:3456>. Download `job-tracker-extension-1.2.1.zip` from the [matching release](https://github.com/Muatasim-Aswad/job-tracker/releases/tag/v1.2.1) and follow [Load the extension](#load-the-extension). Linux/amd64 only; no registry login is required. Compose binds to loopback and creates persistent named volumes. [Containers](CONTAINERS.md) covers configuration, backup, upgrades and removal.
+Open <http://localhost:3456>. Download `job-tracker-extension-1.4.1.zip` from the [matching release](https://github.com/Muatasim-Aswad/job-tracker/releases/tag/v1.4.1) and follow [Load the extension](#load-the-extension). Linux/amd64 only; no registry login is required. Compose binds to loopback and creates persistent named volumes. [Containers](CONTAINERS.md) covers configuration, backup, upgrades and removal.
 
 ### Build the Docker image from source
 
