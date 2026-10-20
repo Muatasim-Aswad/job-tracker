@@ -42,7 +42,7 @@ The header separates Title/Close from Company/Edit and Star/Hide/Copy. Phone fie
 
 Listings, Custom fields, Documents, and Timeline start expanded and show counts. `jt.collapsedJobSections` stores only collapsed section keys, shared across jobs. Collapsing hides mounted content and preserves drafts; Add expands its section, and attention-driven Add note expands Timeline before focusing the composer. `CollapsibleSection` and `SectionHeader` share disclosure/add controls; the drawer owns persistence.
 
-Captured listing cards show application availability independently of job status, retain the original platform notice, and show the observation date with the precise local time available by hover or focus. Recorded closures keep their closure date.
+Listing details show compact amber `Unavailable <date>` or red `Closed <date>` labels independently of job status. Original notices and precise observation times appear on hover, focus, or tap; Open and Unknown add no label. Board cards show the same label for one listing or unavailable/closed counts for multiple listings. Unavailable dates are observation dates; closure dates remain the first observed closure until reopening.
 
 ## Application header
 

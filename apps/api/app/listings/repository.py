@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass, field
 
 from app.core.db import Conn, Row, execute, hydrate_json, query_all, query_one
-from app.listings.models import Listing
+from app.listings.models import Listing, ListingAvailabilitySummary
 
 
 @dataclass
@@ -20,6 +20,7 @@ class ListingSummary:
     primary_url: str | None = None
     # The primary listing's captured application destination (`meta.apply_url`).
     primary_apply_url: str | None = None
+    availability: ListingAvailabilitySummary = field(default_factory=ListingAvailabilitySummary)
 
 
 _COLUMNS = (
@@ -149,7 +150,8 @@ class ListingRepository:
         placeholders = ", ".join("?" for _ in job_ids)
         rows = query_all(
             self.conn,
-            "SELECT job_id, platform, platform_id, url, apply_type, "
+            "SELECT job_id, platform, platform_id, url, apply_type, availability, "
+            "availability_observed_at, closed_at, "
             "CASE WHEN json_type(meta, '$.apply_url') = 'text' "
             "THEN json_extract(meta, '$.apply_url') END AS apply_url FROM listings "
             f"WHERE job_id IN ({placeholders}) ORDER BY captured_at",
@@ -159,6 +161,18 @@ class ListingRepository:
         for row in rows:
             entry = out.setdefault(row["job_id"], ListingSummary())
             entry.listing_count += 1
+            if row["closed_at"] is not None:
+                entry.availability.closed_count += 1
+                entry.availability.closed_at = max(
+                    entry.availability.closed_at or "", row["closed_at"]
+                )
+            elif row["availability"] == "unavailable":
+                entry.availability.unavailable_count += 1
+                if row["availability_observed_at"]:
+                    entry.availability.unavailable_observed_at = max(
+                        entry.availability.unavailable_observed_at or "",
+                        row["availability_observed_at"],
+                    )
             if row["platform"] and row["platform"] not in entry.platforms:
                 entry.platforms.append(row["platform"])
             if row["apply_type"] and row["apply_type"] not in entry.apply_types:

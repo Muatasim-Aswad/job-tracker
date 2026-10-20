@@ -5,6 +5,13 @@ from pydantic import BaseModel, Field
 from app.core.enums import ListingAvailability
 
 
+class ListingAvailabilitySummary(BaseModel):
+    unavailable_count: int = 0
+    closed_count: int = 0
+    unavailable_observed_at: str | None = None
+    closed_at: str | None = None
+
+
 class Listing(BaseModel):
     id: str
     job_id: str

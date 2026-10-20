@@ -1,12 +1,12 @@
 # Privacy
 
-Job Tracker is a self-hosted personal tool. It has no third-party analytics, advertising SDKs, or developer-operated telemetry service. The browser extension sends data only to the Job Tracker server address compiled into it (localhost by default).
+Job Tracker is a self-hosted personal tool. It has no third-party analytics, advertising SDKs, or developer-operated telemetry service. The browser extension sends data only to the Job Tracker server selected in extension Settings, falling back to the compiled default (localhost by default).
 
 ## Browser permissions
 
 - **Site access for LinkedIn and Gmail** lets the content script identify supported job pages and LinkedIn job emails, add tracker controls, and capture a listing when applicable.
-- **Access to the configured `/api/*` origin** lets the extension read and update your tracker.
-- **Storage** keeps extension preferences, including keyword rules and the diagnostics opt-in.
+- **Access to the configured server origin** lets the extension read and update your tracker. Optional HTTP(S) host patterns let you grant access to a server selected in Settings; they do not grant access to all hosts at installation. Connection testing sends only a health request to that address.
+- **Storage** keeps extension preferences, including the server-address override, keyword rules, and the diagnostics opt-in.
 - **Active tab** lets the popup derive a suggested company search from the page you opened it on.
 - **Scripting** and **web navigation** restore the controls after supported sites replace a page during in-app navigation.
 - **Alarms** periodically check whether your configured server is reachable.

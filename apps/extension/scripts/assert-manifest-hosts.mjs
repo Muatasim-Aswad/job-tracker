@@ -25,4 +25,13 @@ if (unexpected.length || missing.length) {
   process.exit(1);
 }
 
+const optional = manifest.optional_host_permissions ?? [];
+if (
+  optional.length !== 2 ||
+  !optional.includes("http://*/*") ||
+  !optional.includes("https://*/*")
+) {
+  throw new Error("Public extension must declare only optional HTTP(S) server access.");
+}
+
 console.log(`Manifest host allowlist OK (${hosts.length} hosts): ${hosts.join(", ")}`);

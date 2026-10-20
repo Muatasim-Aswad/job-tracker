@@ -9,7 +9,7 @@ const API_ORIGIN = `${SERVER_URL}/api/*`;
 // Local adapter hosts are optional and gitignored.
 const resolve = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
-// The root VERSION file is the product's one release authority; package.json
+// The root VERSION file is the product's one version authority; package.json
 // declares no version so the manifest cannot drift from the server or the tag.
 const VERSION = readFileSync(resolve("../../VERSION"), "utf8").trim();
 const readHosts = (rel: string): string[] =>
@@ -35,6 +35,7 @@ export default defineManifest({
   // Navigation permissions support SPA reinjection; alarms drive health checks.
   permissions: ["storage", "activeTab", "scripting", "webNavigation", "alarms"],
   host_permissions: [API_ORIGIN, ...contentMatches],
+  optional_host_permissions: ["http://*/*", "https://*/*"],
   action: { default_popup: "src/popup/index.html" },
   // Users can rebind this at chrome://extensions/shortcuts.
   commands: {

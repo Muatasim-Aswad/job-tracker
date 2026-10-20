@@ -34,14 +34,11 @@ Use `pnpm --filter job-tracker-extension typecheck` for focused iteration and th
 
 ## Configure the server address
 
-Copy the example environment file, set `VITE_SERVER_URL`, and rebuild:
+The extension uses the server address saved in **Settings → Server URL**, falling back to the build's `VITE_SERVER_URL` or `http://localhost:3456`. Enter an HTTP(S) origin without a path, credentials, query, or fragment. **Test connection** requests browser access to that server and checks its health without switching. **Save server** tests before saving; denial or failure leaves the current server unchanged. **Use default** restores the build address in the field; save to apply it and remove the override.
 
-```bash
-cp apps/extension/.env.example apps/extension/.env
-pnpm run build:ext
-```
+Switching updates requests and dashboard links, clears server-specific runtime caches and form-fill suggestions, and preserves browser preferences. Existing form values remain untouched. Already-issued requests may complete on their original server, but their responses cannot populate the new server's state. Optional HTTP(S) host patterns allow access requests for user-selected servers; they do not grant access to every server at installation.
 
-Set `VITE_SERVER_URL` in that file before rebuilding, for example `https://tracker.example.com`. It feeds both the in-page fetches ([config.ts](src/config.ts)) and the manifest's `host_permissions` ([manifest.config.ts](manifest.config.ts)), defaulting to `http://localhost:3456`. The extension never stores or sends the server's optional `X-API-Key`, so keep `API_KEY` unset for a direct local connection or put a trusted intermediary in front to inject the header — otherwise every API call gets a `401`.
+To customize the build default, copy `.env.example` to `.env`, set `VITE_SERVER_URL`, and rebuild. The extension never stores or sends the optional `X-API-Key`; use an unset `API_KEY` for direct local access or a trusted intermediary that injects it.
 
 ## LinkedIn Easy Apply form fill
 

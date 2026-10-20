@@ -12,7 +12,6 @@ import { ICON } from "../icons.js";
 
 // Dashboard SPA origin, same as the API. Only used for "open this job in the
 // dashboard" deep-links, which are plain navigations, never fetches.
-const DASHBOARD_URL = SERVER_URL;
 
 // List surfaces are for discovery. Once a posting has been selected for application
 // or moved beyond that decision, the display preference may dim/remove its card.
@@ -84,7 +83,7 @@ export function createBars(engine: Engine) {
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        window.open(`${DASHBOARD_URL}/?q=${encodeURIComponent(q)}`, "_blank", "noopener");
+        window.open(`${SERVER_URL}/?q=${encodeURIComponent(q)}`, "_blank", "noopener");
       });
       (bar.querySelector(".jh-group-insight") || bar).appendChild(btn);
     }
@@ -116,7 +115,7 @@ export function createBars(engine: Engine) {
     const key = toNaturalKey(jobId);
     if (!key) return;
     const qs = new URLSearchParams({ platform: key.platform, platform_id: key.platform_id });
-    window.open(`${DASHBOARD_URL}/?${qs}`, "_blank", "noopener");
+    window.open(`${SERVER_URL}/?${qs}`, "_blank", "noopener");
   }
 
   function mkOpenButton(jobId: string) {
@@ -365,6 +364,10 @@ export function createBars(engine: Engine) {
   }
 
   return {
+    resetBars: () => {
+      appliedCounts.clear();
+      appliedCountPending.clear();
+    },
     flagCard,
     loadHideMode,
     mkBtn,

@@ -23,7 +23,13 @@ export function createOffline(engine: Engine) {
       existing?.remove();
       return;
     }
-    if (existing) return;
+    if (existing) {
+      existing.setAttribute(
+        "title",
+        `Job Tracker can't reach the server at ${SERVER_URL} — changes aren't being saved`,
+      );
+      return;
+    }
     const badge = document.createElement("span");
     badge.className = "jh-offline-badge";
     badge.title = `Job Tracker can't reach the server at ${SERVER_URL} — changes aren't being saved`;

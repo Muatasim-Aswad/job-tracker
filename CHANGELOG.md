@@ -2,11 +2,24 @@
 
 All notable user-facing changes to Job Tracker are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
-One version covers the whole product. The extension, the dashboard, and the server ship from the same commit and share the version in the repository root [`VERSION`](VERSION) file, so any user-visible change in any of them determines the next bump: patch for fixes, minor for a new capability, major for a breaking change. Individual commits do not bump it — the bump happens once while preparing a release, and the matching whole-repository commit is tagged `vX.Y.Z`. See the [development guide](docs/DEVELOPMENT.md#releases-and-versions) for the full rule.
+One version covers the whole product. The extension, the dashboard, and the server ship from the same commit and share the version in the repository root [`VERSION`](VERSION) file, so any user-visible change in any of them determines the next bump: patch for fixes, minor for a new capability, major for a breaking change. Each change set affecting shipped behavior bumps it before merging to `main`, so source users receive a meaningful version too. Artifact releases tag and package the existing version as `vX.Y.Z`. See the [development guide](docs/DEVELOPMENT.md#releases-and-versions) for the full rule.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-20
+
+### Added
+
+- Extension Settings can test and save a server address without rebuilding. Saved addresses override the build default, request access only to the selected server, and clear server-specific runtime state when switching.
+- Dashboard cards show compact unavailable/closed listing labels, dates for single listings, and counts for multiple listings. Listing details retain notices and precise observation times in accessible tooltips; Open and Unknown stay quiet.
+
+### Changed
+
+- Version changes accompany shipped behavior before merging to `main`; artifact publication tags the existing version.
+
 ### Fixed
+
+- Repeated closure captures preserve the first closure date until the listing reopens; subsequent confirmations update availability evidence separately.
 
 - Duplicate suggestions use the highest description similarity across a candidate job's listings instead of only its earliest captured description.
 
@@ -120,3 +133,4 @@ Initial public release.
 [1.1.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Muatasim-Aswad/job-tracker/releases/tag/v1.0.0
 [1.2.1]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.2.0...v1.2.1
+[1.3.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.2.1...v1.3.0

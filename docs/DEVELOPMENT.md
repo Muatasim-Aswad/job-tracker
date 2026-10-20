@@ -118,7 +118,7 @@ Decide the bump from user-visible effect, in any component:
 | Minor (`x.Y.0`) | New capability: an adapter surface, a setting, a dashboard or API feature |
 | Major (`X.0.0`) | A breaking change, including a non-additive database change |
 
-Individual commits do not bump the version. Bump once while preparing a release, then tag that same whole-repository commit `vX.Y.Z` and move the `CHANGELOG.md` entry from `Unreleased` to the new version. The gate rejects a tag that disagrees with `VERSION`, and any tag that does not match `vX.Y.Z`.
+Source installs from `main` are a distribution channel. Before merging a change set that affects shipped behavior, bump `VERSION` from the current `main` version and add a dated, versioned `CHANGELOG.md` entry in the same change. Use the largest applicable bump once per change set, not once per intermediate commit. Documentation-only changes need no bump; `Unreleased` may hold planned work. Artifact publication tags and packages the existing version as `vX.Y.Z`; it does not introduce a delayed version bump. Keep Compose and clone-free installation references pinned to the last published artifacts while source advances; align those references with `VERSION` before tagging the next artifact release. The gate rejects a tag that disagrees with `VERSION`, and any tag that does not match `vX.Y.Z`.
 
 ## Platform support
 

@@ -1,5 +1,5 @@
 import type { FormFillCaptureRequest, FormFillResolutionRequest } from "../messages.js";
-import { SERVER_URL } from "../config.js";
+import { SERVER_URL, onServerChanged } from "../config.js";
 import {
   captureThroughWorker,
   resolveThroughWorker,
@@ -360,6 +360,17 @@ export class EasyApplyScanner {
       tree.addEventListener("change", this.onControlEvent, true);
       tree.addEventListener("focusout", this.onControlEvent, true);
     }
+  }
+
+  resetServer(): void {
+    const enabled = this.enabled;
+    this.setEnabled(false);
+    this.ownership.clear();
+    this.lastCaptureSignatures.clear();
+    this.captureFlights.clear();
+    this.notes.clear();
+    this.suppressedWrites.clear();
+    this.setEnabled(enabled);
   }
 
   setEnabled(enabled: boolean): void {
@@ -1319,6 +1330,7 @@ export class EasyApplyScanner {
 
 export function startEasyApplyFormFill(doc: Document = document): EasyApplyScanner {
   const scanner = new EasyApplyScanner(doc);
+  onServerChanged(() => scanner.resetServer());
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes[EASY_APPLY_ENABLED_KEY]) {

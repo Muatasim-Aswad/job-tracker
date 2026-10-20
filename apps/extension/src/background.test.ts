@@ -45,6 +45,10 @@ describe("content-script navigation recovery", () => {
       vi.fn(() => new Promise(() => {})),
     );
     vi.stubGlobal("chrome", {
+      storage: {
+        local: { get: (_key: string, cb: (data: object) => void) => cb({}) },
+        onChanged: { addListener: vi.fn() },
+      },
       action: {
         setBadgeText: vi.fn(async () => {}),
         setBadgeBackgroundColor: vi.fn(async () => {}),
@@ -98,6 +102,7 @@ describe("content-script navigation recovery", () => {
 });
 
 async function setupBulkTabs() {
+  let storageChanged!: (changes: Record<string, { newValue: unknown }>, area: string) => void;
   let onMessage!: RuntimeListener;
   let onRemoved!: (tabId: number) => void;
   let storedIds: number[] = [];
@@ -146,6 +151,12 @@ async function setupBulkTabs() {
     },
     scripting: { executeScript: vi.fn() },
     storage: {
+      local: { get: (_key: string, cb: (data: object) => void) => cb({}) },
+      onChanged: {
+        addListener: (listener: typeof storageChanged) => {
+          storageChanged = listener;
+        },
+      },
       session: {
         get: vi.fn(async () => ({ bulkJobTabIds: [...storedIds] })),
         set: vi.fn(async ({ bulkJobTabIds }: { bulkJobTabIds: number[] }) => {
@@ -171,8 +182,48 @@ async function setupBulkTabs() {
     new Promise<unknown>((resolve) => {
       onMessage(message, { tab: { id: tabId } } as chrome.runtime.MessageSender, resolve);
     });
-  return { onMessage, onRemoved, create, remove, query, send, ids: () => storedIds };
+  return {
+    onMessage,
+    onRemoved,
+    create,
+    remove,
+    query,
+    send,
+    ids: () => storedIds,
+    changeServer: (url: string) => storageChanged({ serverUrl: { newValue: url } }, "local"),
+  };
 }
+
+it("routes scoped requests to the saved server and rejects old default-server writes", async () => {
+  const { send, changeServer } = await setupBulkTabs();
+  const config = await import("./config");
+  await config.initializeServerConfig();
+  const fetchRequest = vi.fn(
+    async (_input: RequestInfo | URL, _init?: RequestInit) => new Response("[]"),
+  );
+  vi.stubGlobal("fetch", fetchRequest);
+  changeServer("https://other.example.test");
+  fetchRequest.mockClear();
+  const stale = await send({
+    type: "listing",
+    payload: { platform: "linkedin", platform_id: "1" },
+  });
+  expect(stale).toMatchObject({ ok: false, error: "Server changed; retry this action." });
+  const response = await send({
+    type: "state-batch",
+    serverUrl: "https://other.example.test",
+    platform: "linkedin",
+    platform_ids: ["1"],
+  });
+  expect(response).toEqual({ ok: true, result: [] });
+  expect(fetchRequest.mock.calls.map(([url]) => url)).not.toContain(
+    `${config.DEFAULT_SERVER_URL}/api/listings`,
+  );
+  expect(fetchRequest).toHaveBeenCalledWith(
+    "https://other.example.test/api/jobs/states?platform=linkedin&platform_ids=1",
+    undefined,
+  );
+});
 
 describe("Gmail alert tab opening", () => {
   it("opens only canonical jobs and closes only their recorded tabs", async () => {

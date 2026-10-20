@@ -5,6 +5,11 @@ import type { Adapter } from "../adapters/types";
 import type { BridgeRequest, BridgeResponse, JobState, ListingRecord } from "../messages.js";
 
 export interface Engine {
+  resetReadModel: () => void;
+  resetCapture: () => void;
+  resetMatches: () => void;
+  resetBlocklist: () => void;
+  resetBars: () => void;
   // ── bridge ─────────────────────────────────────────────────────────────────
   bridge: (msg: BridgeRequest) => Promise<BridgeResponse>;
 

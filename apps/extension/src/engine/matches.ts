@@ -10,8 +10,6 @@ import { SERVER_URL } from "../config.js";
 import { toNaturalKey } from "../registry.js";
 import { ICON } from "../icons.js";
 
-const DASHBOARD_URL = SERVER_URL;
-
 export function createMatches(engine: Engine) {
   const matchState = new Map<string, JobMatch[]>(); // jobId -> candidate jobs
   const matchIdentity = new Map<string, { title: string | null; company: string | null }>();
@@ -208,7 +206,7 @@ export function createMatches(engine: Engine) {
     const view = document.createElement("a");
     view.className = "jh-match-view";
     view.textContent = "view";
-    view.href = `${DASHBOARD_URL}/?job=${encodeURIComponent(m.job_id)}`;
+    view.href = `${SERVER_URL}/?job=${encodeURIComponent(m.job_id)}`;
     view.target = "_blank";
     view.rel = "noopener";
     view.addEventListener("click", (e) => {
@@ -325,6 +323,13 @@ export function createMatches(engine: Engine) {
   }
 
   return {
+    resetMatches: () => {
+      closeMatchPopover();
+      matchState.clear();
+      matchIdentity.clear();
+      queryEpoch.clear();
+      document.querySelectorAll(".jh-btn-match").forEach((node) => node.remove());
+    },
     checkMatches,
     refreshMatches,
     closeMatchPopover,

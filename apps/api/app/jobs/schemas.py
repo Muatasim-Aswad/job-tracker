@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from app.documents.models import Document
 from app.events.models import Event
 from app.jobs.models import Job
-from app.listings.models import Listing
+from app.listings.models import Listing, ListingAvailabilitySummary
 
 
 class JobState(BaseModel):
@@ -53,6 +53,9 @@ class JobSummary(Job):
     listing_count: int = 0
     primary_listing: PrimaryListing | None = None
     attention: Attention | None = None
+    listing_availability: ListingAvailabilitySummary = Field(
+        default_factory=ListingAvailabilitySummary
+    )
 
 
 class JobUpdate(BaseModel):

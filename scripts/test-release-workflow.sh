@@ -46,8 +46,16 @@ grep -Fq "UPDATE_LATEST: \${{ github.event_name == 'push' || inputs.update_lates
 grep -Fq 'TAGS+=(--tag "$IMAGE:latest")' "$CONTAINER_WORKFLOW" ||
   fail "container publication lacks the current-stable latest alias."
 VERSION="$(tr -d '[:space:]' <"$ROOT/VERSION")"
-grep -Fq "image: \${JOB_TRACKER_IMAGE:-ghcr.io/muatasim-aswad/job-tracker:v$VERSION}" "$COMPOSE" ||
-  fail "Compose default image must match VERSION."
+COMPOSE_VERSION="$(sed -nE 's/^[[:space:]]*image: \$\{JOB_TRACKER_IMAGE:-ghcr\.io\/muatasim-aswad\/job-tracker:v([0-9]+\.[0-9]+\.[0-9]+)\}$/\1/p' "$COMPOSE")"
+[[ -n "$COMPOSE_VERSION" ]] || fail "Compose must pin a canonical public image version."
+python3 - "$VERSION" "$COMPOSE_VERSION" <<'PYVERSIONS'
+import sys
+source, image = (tuple(map(int, value.split("."))) for value in sys.argv[1:])
+assert image <= source, "Compose image cannot be newer than the source version"
+PYVERSIONS
+if [[ "${GITHUB_REF:-}" == "refs/tags/v$VERSION" ]] || [[ -n "$(git -C "$ROOT" tag --points-at HEAD --list "v$VERSION")" ]]; then
+  [[ "$COMPOSE_VERSION" == "$VERSION" ]] || fail "Tagged release Compose image must match VERSION."
+fi
 if grep -Fq 'github.repository_owner' "$CONTAINER_WORKFLOW"; then
   fail "container image path must not preserve mixed-case repository ownership."
 fi

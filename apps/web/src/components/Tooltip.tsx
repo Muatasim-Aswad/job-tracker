@@ -14,6 +14,7 @@ interface Props {
   className?: string;
   // Action controls use hover/focus only so a click keeps its existing purpose.
   toggleOnClick?: boolean;
+  stopPropagation?: boolean;
 }
 
 // Portal positioning avoids drawer clipping; descriptions preserve the control name.
@@ -23,6 +24,7 @@ export function Tooltip({
   children,
   className = "inline-flex",
   toggleOnClick = true,
+  stopPropagation = false,
 }: Props) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -82,6 +84,7 @@ export function Tooltip({
           setOpen(false);
         }}
         onPointerDown={(event) => {
+          if (stopPropagation) event.stopPropagation();
           touchRef.current = event.pointerType === "touch";
           if (touchRef.current) setOpen(false);
         }}
@@ -96,13 +99,11 @@ export function Tooltip({
           if (!touchRef.current) setOpen(true);
         }}
         onBlur={() => setOpen(false)}
-        onClick={
-          toggleOnClick
-            ? () => setOpen((v) => !v)
-            : () => {
-                if (touchRef.current) setOpen(false);
-              }
-        }
+        onClick={(event) => {
+          if (stopPropagation) event.stopPropagation();
+          if (toggleOnClick) setOpen((value) => !value);
+          else if (touchRef.current) setOpen(false);
+        }}
       >
         {trigger}
       </span>

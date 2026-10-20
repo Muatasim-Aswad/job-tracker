@@ -1,6 +1,12 @@
 // Service-worker API proxy. Content scripts relay typed requests here to avoid host
 // page CSP restrictions on localhost access.
-import { API_BASE_URL } from "./config.js";
+import {
+  API_BASE_URL,
+  SERVER_URL,
+  DEFAULT_SERVER_URL,
+  initializeServerConfig,
+  onServerChanged,
+} from "./config.js";
 import type { BridgeRequest, ReachabilityPush, StatesChangedPush } from "./messages.js";
 import { linkedinJobId } from "./adapters/builtin/linkedin/identity.js";
 
@@ -66,13 +72,16 @@ function broadcastStatesChanged(excludeTabId?: number) {
 // Network failures and 5xx responses mark the server unreachable; 2xx and 4xx clear
 // the badge. Callers still handle request success separately.
 async function reportingFetch(path: string, init?: RequestInit) {
+  await initializeServerConfig();
+  const server = SERVER_URL;
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, init);
   } catch (e) {
-    markServerReachable(false);
+    if (server === SERVER_URL) markServerReachable(false);
     throw e;
   }
+  if (server !== SERVER_URL) throw new Error("Server changed; retry this action.");
   markServerReachable(res.status < 500);
   return res;
 }
@@ -330,7 +339,18 @@ for (const script of contentScripts) {
 chrome.runtime.onMessage.addListener((msg: BridgeRequest, sender, sendResponse) => {
   if (!msg || typeof msg.type !== "string") return false;
 
-  handle(msg, sender)
+  initializeServerConfig()
+    .then(async () => {
+      const server = SERVER_URL;
+      if (
+        !["reachability", "open-job-tabs", "close-bulk-job-tab"].includes(msg.type) &&
+        (msg.serverUrl ?? DEFAULT_SERVER_URL) !== SERVER_URL
+      )
+        throw new Error("Server changed; retry this action.");
+      const result = await handle(msg, sender);
+      if (server !== SERVER_URL) throw new Error("Server changed; retry this action.");
+      return result;
+    })
     .then((result) => {
       // Only a write that landed invalidates anyone; a rejected call changed
       // nothing. `sender.tab` is undefined for the popup, correctly leaving every
@@ -348,4 +368,9 @@ chrome.runtime.onMessage.addListener((msg: BridgeRequest, sender, sendResponse) 
 // Manual closes and navigation races also retire the temporary ownership marker.
 chrome.tabs.onRemoved.addListener((tabId) => {
   void queueBulkTabOperation(() => forgetBulkJobTab(tabId)).catch(() => {});
+});
+
+onServerChanged(() => {
+  markServerReachable(false);
+  reportingFetch("/health").catch(() => {});
 });

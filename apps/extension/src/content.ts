@@ -1,4 +1,5 @@
 // Assemble built-in and optional local adapters, then start the shared engine.
+import { initializeServerConfig } from "./config.js";
 import type { Adapter } from "./adapters/types";
 import { setAdapters } from "./registry.js";
 import { start } from "./engine.js";
@@ -17,7 +18,8 @@ const localAdapters = Object.values(localAdapterModules).flatMap((mod) =>
 );
 
 // Local adapters take precedence over generic built-in host matches.
-function boot() {
+async function boot() {
+  await initializeServerConfig();
   setAdapters([...localAdapters, linkedinAdapter, gmailAdapter]);
   start();
 }
@@ -27,6 +29,6 @@ function boot() {
 const w = window as Window & { __jobTrackerBooted?: boolean };
 if (!w.__jobTrackerBooted) {
   w.__jobTrackerBooted = true;
-  if (document.body) boot();
+  if (document.body) void boot();
   else document.addEventListener("DOMContentLoaded", boot, { once: true });
 }

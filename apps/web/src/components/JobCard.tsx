@@ -6,6 +6,7 @@ import { STATUS_LABEL, flagEvent, isTerminal, pickableMoves } from "@job-tracker
 import { postingUrl } from "@job-tracker/shared/links";
 import { fmtDate } from "@job-tracker/shared/time";
 import { StatusBadge } from "./StatusBadge";
+import { JobListingAvailability } from "./ListingAvailability";
 
 export type NavDir = "up" | "down" | "left" | "right";
 
@@ -202,8 +203,12 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
         </button>
       </div>
 
-      {(job.platforms.length > 0 || applyBadges.length > 0 || isTerminal(job.status)) && (
-        <div className="mt-2 flex flex-wrap gap-1">
+      {job.platforms.length > 0 ||
+      applyBadges.length > 0 ||
+      isTerminal(job.status) ||
+      job.listing_availability?.closed_count ||
+      job.listing_availability?.unavailable_count ? (
+        <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-micro">
           {isTerminal(job.status) && <StatusBadge status={job.status} />}
           {job.platforms.map((p) => (
             <span
@@ -221,8 +226,9 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
               {a}
             </span>
           ))}
+          <JobListingAvailability job={job} />
         </div>
-      )}
+      ) : null}
 
       {job.attention && (
         <div
