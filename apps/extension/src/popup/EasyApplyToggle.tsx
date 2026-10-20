@@ -18,17 +18,14 @@ export function EasyApplyToggle() {
 
   return (
     <label className="flex items-center justify-between gap-3">
-      <span>
-        <span className="block text-[13px] text-popup-fg">Easy Apply form fill</span>
-        <span className="block text-[11px] text-popup-faint">Fill and remember safe fields</span>
-      </span>
+      <span className="text-[13px] text-popup-fg">LinkedIn Easy Apply Forms</span>
       <input
         className={"size-4 accent-popup-primary " + FOCUS}
         type="checkbox"
         role="switch"
         checked={enabled}
         onChange={(event) => change(event.target.checked)}
-        aria-label="Enable Easy Apply form fill"
+        aria-label="Enable LinkedIn Easy Apply Forms"
       />
     </label>
   );
