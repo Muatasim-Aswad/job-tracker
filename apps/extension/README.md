@@ -30,11 +30,13 @@ For a versioned release ZIP, follow the [extension loading procedure](../../docs
 
 `manifest.config.ts` derives the manifest version from the root `VERSION`, shared by all components. See the [versioning rules](../../docs/DEVELOPMENT.md#releases-and-versions) and [release history](../../CHANGELOG.md).
 
+The worker checks the configured server's `/version.json` on startup and every 30 seconds. Different product versions, or different verified revisions at the same version, show an amber `↑` on the toolbar and replace the popup Settings gear with an amber arrow. Opening Settings shows the mismatch banner below the header divider, with both versions and, when needed, revisions. No update link or blocking dialog is shown. A red `!` connection warning takes priority; failed identity checks and unknown development revisions alone do not imply a mismatch. Checks use only the configured server, with no release-service lookup.
+
 Use `pnpm --filter job-tracker-extension typecheck` for focused iteration and the [repository gate](../../docs/DEVELOPMENT.md#quality-gate) before calling a change done.
 
 ## Configure the server address
 
-The extension uses the server address saved in **Settings → Server URL**, falling back to the build's `VITE_SERVER_URL` or `http://localhost:3456`. Enter an HTTP(S) origin without a path, credentials, query, or fragment. **Test connection** requests browser access to that server and checks its health without switching. **Save server** tests before saving; denial or failure leaves the current server unchanged. **Use default** restores the build address in the field; save to apply it and remove the override.
+The extension uses the server address saved in **Settings → Server**, falling back to the build's `VITE_SERVER_URL` or `http://localhost:3456`. The compact row shows the active host and connection status; its pencil opens the address editor. Enter an HTTP(S) origin without a path, credentials, query, or fragment. The checkmark requests browser access, tests the connection, and saves only on success; denial or failure leaves the current server unchanged and shows an inline error. The cross cancels editing. The reset icon appears when the field differs from the build default and restores that address in the field; save to apply it and remove the override. Every icon has a tooltip and accessible label.
 
 Switching updates requests and dashboard links, clears server-specific runtime caches and form-fill suggestions, and preserves browser preferences. Existing form values remain untouched. Already-issued requests may complete on their original server, but their responses cannot populate the new server's state. Optional HTTP(S) host patterns allow access requests for user-selected servers; they do not grant access to every server at installation.
 

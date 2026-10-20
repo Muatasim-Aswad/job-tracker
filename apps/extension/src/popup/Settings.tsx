@@ -25,10 +25,10 @@ const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ["Esc"], label: "Close the popup" },
 ];
 
-export function Settings() {
+export function Settings({ reachable }: { reachable: boolean }) {
   return (
     <div className="mt-2.5 flex flex-col gap-2.5">
-      <ServerSettings />
+      <ServerSettings reachable={reachable} />
       <div className="flex items-center justify-between gap-2.5">
         <span className="text-[13px] text-popup-fg">Theme</span>
         <ThemeToggle />

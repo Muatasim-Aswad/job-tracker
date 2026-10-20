@@ -95,6 +95,8 @@ The extension popup provides a compact workflow from other browsing contexts. It
 
 The popup does not provide generic editing of every job field. Full record management remains in the dashboard.
 
+Settings shows the connected server in a compact row with a pencil to change it; saving tests the connection before switching. An amber arrow on the toolbar and popup Settings button signals a build mismatch with the running server. Opening Settings reveals both versions below the header divider. Red connection warnings take priority. See the [extension guide](../apps/extension/README.md#versioning) for comparison details.
+
 ## Follow the application through
 
 The dashboard keeps the search visible as a drag-and-drop Kanban workflow. **To apply** cards link to an external application page when it differs from the posting. Each job retains a timeline that records update provenance and time spent at each stage.
