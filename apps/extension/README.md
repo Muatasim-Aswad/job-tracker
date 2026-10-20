@@ -44,7 +44,7 @@ To customize the build default, copy `.env.example` to `.env`, set `VITE_SERVER_
 
 ## LinkedIn Easy Apply form fill
 
-The **Settings → Easy Apply form fill** switch defaults to on. Turning it off removes markers and the panel and cancels pending scans, unsent captures, and suggestion lookups; already-issued saves may finish. Only the switch and summary expanded/collapsed preference are saved in `chrome.storage`, as device-local Booleans. Question and answer values stay in runtime memory. The summary preference survives rerenders; steps without field status have no panel.
+The **Settings → LinkedIn Easy Apply Forms** switch defaults to on. Turning it off removes markers and the panel and cancels pending scans, unsent captures, and suggestion lookups; already-issued saves may finish. Only the switch and summary expanded/collapsed preference are saved in `chrome.storage`, as device-local Booleans. Question and answer values stay in runtime memory. The summary preference survives rerenders; steps without field status have no panel.
 
 The scanner runs in the top document, matching same-origin frames, and open shadow roots. It scans only an open dialog with controls that names Easy Apply in its attributes or first appeared within five seconds of an Easy Apply activation. Legacy and SDUI layouts share accessible-name discovery: labels, `aria-labelledby`, `aria-label`, radio legends/group labels, or LinkedIn's leading per-question text. Matching visible radio prompts retain required `*`; live character counters never become identity-bearing help text. Step title and progress identify forward, backward, and repeated steps. Scanning waits for lazy fields to settle.
 

@@ -8,17 +8,17 @@ type Mode = "dim" | "remove";
 const FACE: Record<Mode, { icon: string; text: string; label: string; title: string }> = {
   dim: {
     icon: ICON.contrast,
-    text: "Dimmed",
-    label: "Triaged, hidden, and blocked listings: dimmed",
+    text: "Dim",
+    label: "Filtered jobs: dimmed",
     title:
-      "To-apply, post-application, closed-out, hidden, and blocked listings are greyed out but stay in discovery lists. Click to remove them instead.",
+      "To-apply, post-application, closed-out, hidden, and blocked jobs are dimmed in job lists. Click to hide them instead.",
   },
   remove: {
     icon: ICON.eyeOff,
-    text: "Removed",
-    label: "Triaged, hidden, and blocked listings: removed",
+    text: "Hide",
+    label: "Filtered jobs: hidden",
     title:
-      "To-apply, post-application, closed-out, hidden, and blocked listings are removed from discovery lists. Click to just grey them out instead.",
+      "To-apply, post-application, closed-out, hidden, and blocked jobs are hidden from job lists. Click to dim them instead.",
   },
 };
 

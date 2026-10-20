@@ -6,6 +6,12 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-20
+
+### Changed
+
+- Popup Settings labels the form-fill switch **LinkedIn Easy Apply Forms** without helper text and renames **Discovery lists** to **Filtered jobs**, with **Dim / Hide** display options.
+
 ## [1.4.0] - 2026-10-20
 
 ### Added
@@ -146,3 +152,4 @@ Initial public release.
 [1.2.1]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.2.0...v1.2.1
 [1.3.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.2.1...v1.3.0
 [1.4.0]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.3.0...v1.4.0
+[1.4.1]: https://github.com/Muatasim-Aswad/job-tracker/compare/v1.4.0...v1.4.1

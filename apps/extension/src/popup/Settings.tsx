@@ -34,7 +34,7 @@ export function Settings({ reachable }: { reachable: boolean }) {
         <ThemeToggle />
       </div>
       <div className="flex items-center justify-between gap-2.5">
-        <span className="text-[13px] text-popup-fg">Discovery lists</span>
+        <span className="text-[13px] text-popup-fg">Filtered jobs</span>
         <HideToggle />
       </div>
 
