@@ -37,6 +37,8 @@ These unofficial integrations depend on third-party page layouts, may require ad
 
 ## See it in action
 
+[Watch the 99-second narrated demo](docs/videos/job-tracker-demo.mp4): follow one job through Gmail alerts, LinkedIn and the dashboard, including saved Easy Apply answers and context for AI.
+
 ### Dashboard
 
 Keep every opportunity and its current stage visible from the local Kanban dashboard.
