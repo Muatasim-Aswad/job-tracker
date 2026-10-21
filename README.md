@@ -37,7 +37,11 @@ These unofficial integrations depend on third-party page layouts, may require ad
 
 ## See it in action
 
-[Watch the 99-second narrated demo](docs/videos/job-tracker-demo.mp4): follow one job through Gmail alerts, LinkedIn and the dashboard, including saved Easy Apply answers and context for AI.
+Watch the 99-second narrated demo: follow one job through Gmail alerts, LinkedIn and the dashboard, including saved Easy Apply answers and context for AI.
+
+https://github.com/user-attachments/assets/d420d411-6884-43f4-a6df-467fd464d972
+
+[Download the MP4](https://github.com/Muatasim-Aswad/job-tracker/raw/refs/heads/main/docs/videos/job-tracker-demo.mp4).
 
 ### Dashboard
 
