@@ -1,21 +1,7 @@
-import { useEffect, useState } from "react";
-import {
-  EASY_APPLY_DEFAULT_ENABLED,
-  loadEasyApplyEnabled,
-  saveEasyApplyEnabled,
-} from "../form-fill/settings.js";
+import type { PreferencesEditor } from "./usePreferences";
 import { FOCUS } from "./ui";
 
-export function EasyApplyToggle() {
-  const [enabled, setEnabled] = useState(EASY_APPLY_DEFAULT_ENABLED);
-
-  useEffect(() => loadEasyApplyEnabled(setEnabled), []);
-
-  function change(next: boolean) {
-    setEnabled(next);
-    saveEasyApplyEnabled(next);
-  }
-
+export function EasyApplyToggle({ editor }: { editor: PreferencesEditor }) {
   return (
     <label className="flex items-center justify-between gap-3">
       <span className="text-[13px] text-popup-fg">LinkedIn Easy Apply Forms</span>
@@ -23,8 +9,9 @@ export function EasyApplyToggle() {
         className={"size-4 accent-popup-primary " + FOCUS}
         type="checkbox"
         role="switch"
-        checked={enabled}
-        onChange={(event) => change(event.target.checked)}
+        checked={editor.settings!.easy_apply_enabled}
+        disabled={editor.saving}
+        onChange={(event) => void editor.save({ easy_apply_enabled: event.target.checked })}
         aria-label="Enable LinkedIn Easy Apply Forms"
       />
     </label>

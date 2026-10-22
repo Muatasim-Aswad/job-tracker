@@ -73,10 +73,6 @@ export const patchEventMeta = (eventId: number, meta: unknown) =>
     body: JSON.stringify({ meta }),
   });
 
-// Delete every stored search-diagnostic row on the server (DELETE /search-log) —
-// the settings panel's "Clear stored data" control.
-export const clearSearchLog = () => api("/search-log", { method: "DELETE" });
-
 // Only opted-in callers send diagnostics. keepalive lets pagehide requests finish
 // after teardown; failure must not affect the popup.
 export function logSearch(body: unknown, keepalive = false): void {

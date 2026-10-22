@@ -1,3 +1,5 @@
+import type { TitleRule } from "@job-tracker/shared/api";
+
 // Pure keyword-policy and matching logic shared by cards and detail banners.
 // Informational banners are enabled by default; highlighting and persistent hiding
 // require explicit opt-in.
@@ -384,4 +386,31 @@ function buildFinding(
   if (from > lineStart) before = "…" + before;
   if (to < lineEnd) after = after + "…";
   return { ruleId, label: deriveLabel(m), before, match: m[0], after };
+}
+
+let activeTitleRules: TitleRule[] = [];
+
+export function setTitleRules(rules: TitleRule[]): void {
+  activeTitleRules = rules;
+  policyRevision++;
+}
+
+export function titleRuleMatches(title: string, rule: TitleRule): boolean {
+  if (!rule.enabled || !title.trim() || !rule.terms.length) return false;
+  const terms = rule.terms.map((term) => term.trim()).filter(Boolean);
+  if (!terms.length) return false;
+  const matches = terms.some((term) => {
+    const start = /^[\p{L}\p{N}_]/u.test(term) ? B_START : "";
+    const end = /[\p{L}\p{N}_]$/u.test(term) ? B_END : "";
+    const prefix = rule.match === "starts_with" ? "^\\s*" : start;
+    return new RegExp(`${prefix}${escapeRegExp(term)}${end}`, "iu").test(title);
+  });
+  return rule.match === "not_contains" ? !matches : matches;
+}
+
+export function matchingTitleRules(
+  title: string,
+  rules: TitleRule[] = activeTitleRules,
+): TitleRule[] {
+  return rules.filter((rule) => titleRuleMatches(title, rule));
 }

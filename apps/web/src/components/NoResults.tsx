@@ -1,4 +1,6 @@
+import type { ListingAvailabilityFilter } from "../lib/jobFilters";
 interface Props {
+  listingAvailability?: ListingAvailabilityFilter;
   query: string;
   showStarred: boolean;
   showAttention: boolean;
@@ -10,6 +12,7 @@ interface Props {
 
 // Filtered-out jobs differ from an empty account, which App handles separately.
 export function NoResults({
+  listingAvailability = "all",
   query,
   showStarred,
   showAttention,
@@ -36,13 +39,15 @@ export function NoResults({
                     ? "No jobs need attention."
                     : showStarred
                       ? "No starred jobs match."
-                      : easyApplyOnly
-                        ? "No Easy Apply jobs match."
-                        : hideBlocked
-                          ? "No jobs from unblocked companies match."
-                          : hideHidden
-                            ? "No non-hidden jobs match."
-                            : "No jobs match."}
+                      : listingAvailability !== "all"
+                        ? `No jobs with ${listingAvailability} listings match.`
+                        : easyApplyOnly
+                          ? "No Easy Apply jobs match."
+                          : hideBlocked
+                            ? "No jobs from unblocked companies match."
+                            : hideHidden
+                              ? "No non-hidden jobs match."
+                              : "No jobs match."}
       </p>
       <button
         type="button"

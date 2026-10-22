@@ -5,9 +5,10 @@ import type { Engine } from "./types.js";
 import type { Adapter } from "../adapters/types";
 import type { ReachabilityState } from "../messages.js";
 import { JobFunnel } from "@job-tracker/shared/funnel";
-import { getAdapters, toNaturalKey } from "../registry.js";
-import { titleAutoHides } from "./keywords.js";
-import { KEYWORD_POLICY_KEY, loadKeywordPolicy } from "./settings.js";
+import { getAdapters } from "../registry.js";
+import { onPreferencesChanged } from "../preferences.js";
+import { applyTitleRules } from "./titleRules.js";
+import { applyKeywordPreferences, loadKeywordPolicy } from "./settings.js";
 
 export function createScan(engine: Engine) {
   // ── Process all cards ────────────────────────────────────────────────────
@@ -18,21 +19,13 @@ export function createScan(engine: Engine) {
       if (adapter.isAppliedCard?.(card)) void engine.autoEmit(card.dataset.jhId!, "applied");
     });
 
-    // Reapply rules to every tagged card: storage may load or change after discovery.
+    // Reapply rules to every tagged card when server settings change.
     const cards = [...document.querySelectorAll("[data-jh-id]")] as HTMLElement[];
-    cards.forEach((card) => {
-      engine.flagCard(card);
-      // A title opening with a `hide` term is feed noise, so fire the same `hidden`
-      // event the manual Hide button emits (bars.ts): it persists server-side and
-      // renders like a manual hide.
-      const key = toNaturalKey(card.dataset.jhId || "");
-      if (key?.platform === "linkedin" && titleAutoHides(card.dataset.jobTitle || "")) {
-        void engine.autoEmit(card.dataset.jhId!, "hidden");
-      }
-    });
+    cards.forEach((card) => engine.flagCard(card));
 
     void engine.refreshStates(cards.map((c) => c.dataset.jhId!)).then((statesAvailable) => {
       engine.renderAll();
+      if (statesAvailable) void applyTitleRules(engine, cards);
       autoWallCards(adapter); // needs resolved states to know which aren't there yet
       adapter.renderPageActions?.(statesAvailable);
     });
@@ -130,23 +123,18 @@ export function createScan(engine: Engine) {
         scheduleScan(0);
       }
     });
-    // chrome.storage holds the UI prefs (hideMode) and the keyword policy; job state
-    // is the API's. A policy edit in the popup lands here, so reload, repaint, and
-    // rescan to apply a newly enabled highlight/auto-hide to the cards on screen.
-    chrome.storage.onChanged.addListener((changes) => {
-      if (changes.hideMode) engine.loadHideMode(engine.renderAll);
-      if (changes[KEYWORD_POLICY_KEY]) {
-        loadKeywordPolicy(() => {
-          engine.renderAll();
-          scheduleScan(0);
-        });
-      }
+    onPreferencesChanged((state) => {
+      applyKeywordPreferences(state);
+      engine.loadHideMode(() => {
+        engine.renderAll();
+        scheduleScan(0);
+      });
     });
 
     // A first document renders as progressively as an in-app route change, so it gets
     // the same ladder rather than a single pass.
     engine.loadHideMode(rescanWhileRendering);
-    // Seed the keyword policy from storage — inert until then, so nothing is marked
+    // Load the keyword policy from the server — inert until then, so nothing is marked
     // or hidden prematurely — then repaint and rescan to apply it to this page.
     loadKeywordPolicy(() => {
       engine.renderAll();

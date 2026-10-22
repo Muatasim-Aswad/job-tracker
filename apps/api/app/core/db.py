@@ -451,11 +451,31 @@ def _add_capture_clear_operation(conn: Conn) -> None:
     )
 
 
+def _create_user_preferences(conn: Conn) -> None:
+    conn.execute("BEGIN")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS user_preferences ("
+        "id INTEGER PRIMARY KEY CHECK (id = 1), "
+        "revision TEXT NOT NULL, settings_json TEXT NOT NULL)"
+    )
+
+
+def _seed_user_preferences_defaults(conn: Conn) -> None:
+    from app.preferences.schemas import DEFAULT_PREFERENCES_REVISION, Preferences
+
+    conn.execute(
+        "INSERT OR IGNORE INTO user_preferences (id, revision, settings_json) VALUES (1, ?, ?)",
+        (DEFAULT_PREFERENCES_REVISION, Preferences().model_dump_json()),
+    )
+
+
 _DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = (
     ("create_form_fill_foundation_v1", _create_form_fill_foundation),
     ("create_job_id_aliases_v1", _create_job_id_aliases),
     ("create_application_workflows_v1", _create_application_workflows),
     ("capture_clear_operation_v1", _add_capture_clear_operation),
+    ("create_user_preferences_v1", _create_user_preferences),
+    ("seed_user_preferences_defaults_v1", _seed_user_preferences_defaults),
 )
 
 

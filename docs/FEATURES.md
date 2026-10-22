@@ -34,6 +34,12 @@ A pre-application job closes automatically only when all of its linked listings 
 
 Jobs from sources without a built-in integration can still be created manually from the extension popup.
 
+## Shared extension settings
+
+Description highlights, title rules, Easy Apply enablement, filtered-job Dim/Hide mode, and search-diagnostic capture are saved on the configured server, included in backups, and synchronized when Turso is enabled. The server initializes missing settings with description-highlight defaults and no title rules, preserving saved choices on later startups. Old browser settings are ignored. The dashboard burger menu’s **Extension settings** manages the same settings; **Save settings** applies valid changes together and preserves drafts on conflicts. Web keyword fields use removable chips; title editing fills the dialog, with **Apply rule** staging edits and **Cancel editing** discarding them.
+
+Popup Settings keeps quick Easy Apply, Dim/Hide, and diagnostic-capture controls. **Manage keyword highlights and rules ↗** opens the configured server’s dashboard settings directly. The web’s collapsible **Description highlights** and **Keyword actions** sections own highlight settings and all title-rule viewing, enablement, creation, editing, and deletion. Title rules match **contains**, **starts with**, or **does not contain** any of one list of alternatives, then **outline job card**, **hide**, **star**, or **skip**. Negative conditions require every alternative to be absent; matching ignores case and respects word boundaries. Skip applies only before application, and removing rules preserves recorded actions. The web’s collapsible **Search diagnostics** section keeps the explanation in a tooltip and offers **Clear stored data**; clearing is unavailable in the popup.
+
 ## Fill supported Easy Apply questions
 
 On LinkedIn Easy Apply, Job Tracker can reuse knowledge you have reviewed without taking control of the application. It supports ordinary text, LinkedIn's **Location (city)** typeahead, numeric, select, and single-choice radio questions when the page supplies enough stable evidence. The Form Fill workspace separates that knowledge into:
@@ -107,7 +113,7 @@ Attention rules identify applications that have waited too long at applied or in
 
 The job drawer’s Listings, Custom fields, Documents, and Timeline sections can be collapsed. Section choices apply to every job and survive browser reloads; section counts stay visible, and add actions reopen their section. Collapsing preserves the current draft.
 
-The Jobs header funnel opens labelled filters for attention, starred jobs, Easy Apply, hidden jobs, and blocked companies. The funnel takes the accent color when filters are active; the result count and clear-filters action stay beside search. The existing filter keyboard shortcuts remain available.
+The Jobs header funnel opens labelled filters for attention, starred jobs, Easy Apply, listing availability, hidden jobs, and blocked companies. The separate Listing group places “Listing:” beside a dropdown offering All, Unavailable, and Closed. Each narrowed choice shows jobs with at least one matching listing; another open listing does not exclude a match. The funnel takes the accent color when filters are active; the result count and clear-filters action stay beside search. The existing filter keyboard shortcuts remain available.
 
 Custom fields support reusable vocabulary suggestions. Structured material records track which CV, cover letter, or other material accompanied an application, including requested and provided states. Job Tracker records the material's role and status; it does not upload or store the file itself.
 

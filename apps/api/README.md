@@ -44,6 +44,14 @@ The [dashboard](../web/README.md) uses relative `/api/...` paths in development 
 
 Job-addressed reads and ordinary writes accept merged aliases, return canonical IDs, and set `Content-Location`. Deletion through an alias returns `409 job_merged` and requires repeating the request against the survivor. See [identity](../../docs/ARCHITECTURE.md#identity) for merge invariants.
 
+### Shared extension settings
+
+Startup seeds one settings row if absent: description highlights enabled with default words, no title rules, Easy Apply on, filtered jobs hidden, and diagnostics Never. The seed uses the existing migration ledger and preserves every existing row, including disabled highlights, empty keyword lists, and an empty highlight collection. Existing browser settings are ignored.
+
+`GET /api/settings` returns the stored `{revision, settings}`. `PATCH /api/settings` takes `{expected_revision, changes}` and merges supplied fields; a stale revision returns `409` with the current state. All settings responses and errors use `Cache-Control: no-store`.
+
+Settings contain `description_highlights`, `title_rules`, `easy_apply_enabled`, `hide_mode` (`dim`/`remove`), and `search_diagnostics` (`scope` and Unix-millisecond `expires_at`). Rules have a stable ID, enabled flag, condition (`contains`, `starts_with`, `not_contains`), alternative `terms`, and action (`outline_job_card`, `hide`, `star`, `skip`). Up to 100 rules and 200 keywords per list are accepted; keywords are trimmed and deduplicated. Lists require unique IDs. Explicit null settings and empty title-rule keyword lists are refused. A temporary diagnostics scope requires an expiry; disabled or expired capture makes search-log submissions a no-op. Settings are ordinary database data, included in backups and optional Turso synchronization.
+
 ### Listing availability
 
 `POST /api/listings` accepts `availability` (`unknown`, `open`, `unavailable`, or `closed`), an optional `availability_message`, and an optional timezone-aware `availability_observed_at` (server time when omitted). `GET /api/jobs/{job_id}` returns these fields on each listing. Omitted or unknown observations preserve prior evidence; older observations are ignored. Notice and timestamp require an availability value. An open observation clears the listing closure; unavailable observations neither close a listing nor undo a recorded closure. Repeated closure captures preserve the first `closed_at` until reopening; explicit closure edits can still replace or clear it. `GET /api/jobs` includes `listing_availability` with unavailable/closed counts and dates plus `linkedin_open_count` for compact cards. Availability is independent of funnel progress; automatic reconciliation and manual-closure safeguards still apply.
@@ -113,6 +121,7 @@ app/
 ├── meta/       /meta/vocabulary, /meta/note-titles
 ├── stats/      /stats
 ├── blocked/    /blocked-companies
+├── preferences/ /settings
 └── search_log/ /search-log, /search-log/report
 ```
 

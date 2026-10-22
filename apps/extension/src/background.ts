@@ -8,6 +8,7 @@ import {
   onServerChanged,
 } from "./config.js";
 import type { BridgeRequest, ReachabilityPush, StatesChangedPush } from "./messages.js";
+import { createPreferencesStore } from "./preferences-store.js";
 import { linkedinJobId } from "./adapters/builtin/linkedin/identity.js";
 import {
   buildsDiffer,
@@ -100,6 +101,12 @@ async function reportingFetch(path: string, init?: RequestInit) {
   markServerReachable(res.status < 500);
   return res;
 }
+
+const preferences = createPreferencesStore(reportingFetch, (state) => {
+  const message = { type: "settingsChanged", serverUrl: SERVER_URL, state };
+  sendToContentTabs(message);
+  chrome.runtime.sendMessage(message).catch(() => {});
+});
 
 async function post(path: string, body: unknown) {
   const res = await reportingFetch(path, {
@@ -279,6 +286,10 @@ function handle(msg: BridgeRequest, sender?: chrome.runtime.MessageSender) {
       // From the cached flag, no fetch. The poll below keeps it fresh, and a stale
       // "reachable: true" self-corrects on the asker's own next call.
       return Promise.resolve({ reachable: serverReachable });
+    case "settings-get":
+      return preferences.get(true);
+    case "settings-update":
+      return preferences.update(msg.changes, msg.expected_revision);
     case "version":
       return Promise.resolve({ serverBuild });
     case "open-job-tabs":
@@ -320,6 +331,9 @@ async function checkServerBuild() {
 function pollServer() {
   void reportingFetch("/health").catch(() => {});
   void checkServerBuild();
+  void initializeServerConfig()
+    .then(() => preferences.get(true))
+    .catch(() => {});
 }
 
 // ── Health poll ──────────────────────────────────────────────────────────────
@@ -379,7 +393,8 @@ for (const script of contentScripts) {
 }
 
 chrome.runtime.onMessage.addListener((msg: BridgeRequest, sender, sendResponse) => {
-  if (!msg || typeof msg.type !== "string") return false;
+  if (!msg || typeof msg.type !== "string" || msg.type === ("settingsChanged" as string))
+    return false;
 
   initializeServerConfig()
     .then(async () => {
@@ -413,6 +428,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 onServerChanged(() => {
+  preferences.reset();
   markServerReachable(false);
   setServerBuild(null);
   pollServer();

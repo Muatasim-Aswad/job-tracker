@@ -60,3 +60,17 @@ export type BlockedCompany = Read<Schemas["BlockedCompany"]>;
 export type CompanyAppliedCount = Read<Schemas["CompanyAppliedCount"]>;
 
 export type Stats = Read<Schemas["Stats"]>;
+
+export type DescriptionHighlight = Required<Schemas["DescriptionHighlight"]>;
+export type TitleRule = Required<Schemas["TitleRule"]>;
+export type SearchDiagnostics = Required<Schemas["SearchDiagnostics"]>;
+export type Preferences = Omit<
+  Required<Schemas["Preferences"]>,
+  "description_highlights" | "title_rules" | "search_diagnostics"
+> & {
+  description_highlights: DescriptionHighlight[];
+  title_rules: TitleRule[];
+  search_diagnostics: SearchDiagnostics;
+};
+export type PreferencesState = { revision: string; settings: Preferences };
+export type PreferencesPatch = Partial<Preferences>;

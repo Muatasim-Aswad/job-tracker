@@ -1,7 +1,7 @@
-// Only an explicit full-context diagnostic scope authorizes capture.
-// Missing, corrupt, or legacy aggregate-only settings default to never.
+import { loadPreferences } from "../preferences.js";
 
-export const DIAGNOSTICS_KEY = "searchDiagnostics";
+// Only an explicit full-context diagnostic scope authorizes capture.
+// Capture stays disabled until the server settings arrive.
 
 // How long the temporary full-context capture window stays open.
 export const TEMPORARY_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
@@ -25,26 +25,6 @@ export interface SearchSession {
   job_id: string | null;
 }
 
-// Legacy aggregate settings cannot authorize full capture. Only an unexpired
-// detailed window migrates to temporary capture.
-export function sanitizeDiagnostics(value: unknown): DiagnosticsSettings {
-  if (!value || typeof value !== "object") return { ...DIAGNOSTICS_DEFAULT };
-  const v = value as Record<string, unknown>;
-  if (v.scope === "always") return { scope: "always", expiresAt: null };
-  if (v.scope === "temporary" && typeof v.expiresAt === "number" && Number.isFinite(v.expiresAt)) {
-    return { scope: "temporary", expiresAt: v.expiresAt };
-  }
-  if (
-    v.enabled === true &&
-    typeof v.detailedUntil === "number" &&
-    Number.isFinite(v.detailedUntil) &&
-    v.detailedUntil > Date.now()
-  ) {
-    return { scope: "temporary", expiresAt: v.detailedUntil };
-  }
-  return { ...DIAGNOSTICS_DEFAULT };
-}
-
 export function activeDiagnosticsScope(s: DiagnosticsSettings, now = Date.now()): DiagnosticsScope {
   if (s.scope === "always") return "always";
   if (s.scope === "temporary" && s.expiresAt != null && s.expiresAt > now) return "temporary";
@@ -62,19 +42,13 @@ export function diagnosticsBody(
   return { ...session };
 }
 
-// Read the stored settings; safe default when nothing is stored or the value is
-// corrupt at rest.
-export function loadDiagnostics(cb: (s: DiagnosticsSettings) => void): void {
-  chrome.storage.local.get(DIAGNOSTICS_KEY, (data) =>
-    cb(sanitizeDiagnostics(data[DIAGNOSTICS_KEY])),
-  );
-}
-
-// Validated writes notify other contexts through chrome.storage.onChanged.
-export function saveDiagnostics(
-  s: DiagnosticsSettings,
-  cb?: (s: DiagnosticsSettings) => void,
-): void {
-  const clean = sanitizeDiagnostics(s);
-  chrome.storage.local.set({ [DIAGNOSTICS_KEY]: clean }, () => cb?.(clean));
+export function loadDiagnostics(callback: (settings: DiagnosticsSettings) => void): void {
+  void loadPreferences()
+    .then(({ settings }) =>
+      callback({
+        scope: settings.search_diagnostics.scope,
+        expiresAt: settings.search_diagnostics.expires_at,
+      }),
+    )
+    .catch(() => callback(DIAGNOSTICS_DEFAULT));
 }

@@ -44,7 +44,7 @@ To customize the build default, copy `.env.example` to `.env`, set `VITE_SERVER_
 
 ## LinkedIn Easy Apply form fill
 
-The **Settings → LinkedIn Easy Apply Forms** switch defaults to on. Turning it off removes markers and the panel and cancels pending scans, unsent captures, and suggestion lookups; already-issued saves may finish. Only the switch and summary expanded/collapsed preference are saved in `chrome.storage`, as device-local Booleans. Question and answer values stay in runtime memory. The summary preference survives rerenders; steps without field status have no panel.
+The **Settings → LinkedIn Easy Apply Forms** switch defaults to on. Turning it off removes markers and the panel and cancels pending scans, unsent captures, and suggestion lookups; already-issued saves may finish. The switch is stored on the configured server; the summary expanded/collapsed Boolean remains in browser-local storage. Scanning waits for shared settings to load. Question and answer values stay in runtime memory. The summary preference survives rerenders; steps without field status have no panel.
 
 The scanner runs in the top document, matching same-origin frames, and open shadow roots. It scans only an open dialog with controls that names Easy Apply in its attributes or first appeared within five seconds of an Easy Apply activation. Legacy and SDUI layouts share accessible-name discovery: labels, `aria-labelledby`, `aria-label`, radio legends/group labels, or LinkedIn's leading per-question text. Matching visible radio prompts retain required `*`; live character counters never become identity-bearing help text. Step title and progress identify forward, backward, and repeated steps. Scanning waits for lazy fields to settle.
 
@@ -93,6 +93,16 @@ Single-letter and digit keys are ignored while a text field is focused, so they 
 
 LinkedIn job-alert, Viewed Jobs reminder, and profile-match recommendation emails opened in Gmail provide an **Open new jobs (N)** action after tracker state loads. The count and opened background tabs include only unaffected jobs; hidden, blocked, **To apply**, applied/later, and terminal jobs are excluded under either display mode. A listing already open in any LinkedIn job tab is not opened again. A tab opened by this action closes itself after LinkedIn reports that the recorded posting no longer accepts applications or was removed and Job Tracker successfully saves that closure; manually opened tabs never auto-close.
 
+## Shared settings and keyword rules
+
+The configured server stores description highlights, title rules, Easy Apply enablement, filtered-job Dim/Hide mode, and search-diagnostic scope/expiry. The worker loads settings on startup and popup access, checks for changes every 30 seconds, and broadcasts successful edits to open content frames and the popup. Settings edits show errors and reject stale revisions rather than overwriting another client's changes. Switching servers clears the active rules and disables form filling until that server's settings arrive; old responses are discarded.
+
+The server stores defaults when its settings row is absent: description highlights enabled, no title rules, Easy Apply on, filtered jobs hidden, and diagnostics Never. Saved choices—including all highlights disabled or cleared—survive restarts. Old browser settings are ignored. Theme, server selection, and summary expansion stay local.
+
+Popup Settings keeps Easy Apply, filtered-job Dim/Hide, and diagnostic capture as immediate controls. **Manage keyword highlights and rules ↗** opens the configured server's dashboard directly at `/?view=jobs&settings=extension`. Search diagnostics follows the link. Manage description highlights and create, view, enable/disable, edit, or delete title rules in the dashboard. The dashboard supports Contains, Starts with, and Does not contain, one list of alternatives, and Outline job card, Hide, Star, or Skip.
+
+Matching is case-insensitive, treats punctuation literally, and uses Unicode word boundaries around words/phrases. Starts with ignores leading whitespace; Does not contain matches only a nonempty title containing none of the alternatives. All matching rules run in saved order. Outline affects presentation; Hide, Star, and Skip use ordinary server events after listing state has loaded. Blocked-company cards are excluded, Skip respects pre-application guards, and automatic Skip never invokes the site's native dismissal. Removing or disabling a rule does not undo prior events.
+
 ## Search seeding & diagnostics
 
 When the popup opens off-platform or on a LinkedIn job page, it tries to pre-fill the search box with the company, tagging each guess with the **rule** that produced it:
@@ -105,7 +115,7 @@ When the popup opens off-platform or on a LinkedIn job page, it tries to pre-fil
 - `typed` — you edited/typed the query yourself
 - `none` — nothing worth seeding (box left empty)
 
-Search diagnostics use one scope under **Settings → Search diagnostics**: **Never**, **30 minutes**, or **Always**. A fresh install is Never and sends no search-log request. Both active scopes store the full debugging context: page host, automatic seed and extraction rule, the seed's result count, final query and result count, and clicked job ID. Seed replacement is derived by comparing seed to final query, and a click from the presence of a job ID. The server keeps the newest 1,000 rows; **Clear stored data** erases them. See [`PRIVACY.md`](../../PRIVACY.md) for the complete data flow.
+Search diagnostics use one scope under **Settings → Search diagnostics**: **Never**, **30 minutes**, or **Always**. A fresh install is Never and sends no search-log request. Both active scopes store the full debugging context: page host, automatic seed and extraction rule, the seed's result count, final query and result count, and clicked job ID. Seed replacement is derived by comparing seed to final query, and a click from the presence of a job ID. Scope and expiry are shared server settings. The server discards submissions when capture is disabled or its temporary window has expired, including submissions from stale clients. It keeps the newest 1,000 rows. The dashboard’s **Extension settings → Search diagnostics → Clear stored data** erases them; clearing is unavailable in the popup. See [`PRIVACY.md`](../../PRIVACY.md) for the complete data flow.
 
 ---
 

@@ -1,3 +1,4 @@
+import { onPreferencesChanged } from "../preferences.js";
 // Off-platform search, status, and note client. The extension origin can call the
 // configured API directly.
 
@@ -7,11 +8,9 @@ import { localDay } from "@job-tracker/shared/time";
 import { BASE_URL, logSearch, noteTitles, searchJobs } from "./api.js";
 import {
   DIAGNOSTICS_DEFAULT,
-  DIAGNOSTICS_KEY,
   type DiagnosticsSettings,
   diagnosticsBody,
   loadDiagnostics,
-  sanitizeDiagnostics,
 } from "../engine/diagnostics.js";
 import { chooseTs, todayDay } from "./eventDate.js";
 import { seedFromTab } from "./seed.js";
@@ -77,14 +76,12 @@ export function Popup() {
   const diag = useRef<DiagnosticsSettings>(DIAGNOSTICS_DEFAULT);
   useEffect(() => {
     loadDiagnostics((s) => (diag.current = s));
-    // Keep the snapshot fresh if the user flips the setting in this same session.
-    const onChanged = (changes: Record<string, { newValue?: unknown }>, area: string) => {
-      if (area === "local" && changes[DIAGNOSTICS_KEY]) {
-        diag.current = sanitizeDiagnostics(changes[DIAGNOSTICS_KEY].newValue);
-      }
-    };
-    chrome.storage.onChanged.addListener(onChanged);
-    return () => chrome.storage.onChanged.removeListener(onChanged);
+    return onPreferencesChanged((state) => {
+      const setting = state?.settings.search_diagnostics;
+      diag.current = setting
+        ? { scope: setting.scope, expiresAt: setting.expires_at }
+        : DIAGNOSTICS_DEFAULT;
+    });
   }, []);
 
   // Flush one opt-in row on click or close, retaining seed and final-query context.

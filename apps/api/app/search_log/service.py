@@ -1,5 +1,8 @@
+import time
+
 from app.core.db import Conn
 from app.core.timeutil import utc_now
+from app.preferences.service import PreferencesService
 from app.search_log.models import SearchLogRow
 from app.search_log.repository import SearchLogRepository
 from app.search_log.schemas import RuleReport, SearchLogCreate, SearchReport
@@ -16,8 +19,14 @@ def _rate(clicks: int, attempts: int) -> float:
 class SearchLogService:
     def __init__(self, conn: Conn) -> None:
         self.repo = SearchLogRepository(conn)
+        self.preferences = PreferencesService(conn)
 
     def record(self, body: SearchLogCreate) -> None:
+        settings = self.preferences.read().settings.search_diagnostics
+        if settings.scope == "never" or (
+            settings.scope == "temporary" and (settings.expires_at or 0) <= time.time() * 1000
+        ):
+            return
         self.repo.insert(
             ts=utc_now(),
             host=body.host,

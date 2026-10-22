@@ -6,6 +6,18 @@ import pytest
 from fastapi.testclient import TestClient
 
 
+@pytest.fixture(autouse=True)
+def enable_diagnostics(client: TestClient) -> None:
+    response = client.patch(
+        "/api/settings",
+        json={
+            "expected_revision": client.get("/api/settings").json()["revision"],
+            "changes": {"search_diagnostics": {"scope": "always"}},
+        },
+    )
+    assert response.status_code == 200
+
+
 def _log(client: TestClient, **body: object) -> None:
     resp = client.post("/api/search-log", json=body)
     assert resp.status_code == 204

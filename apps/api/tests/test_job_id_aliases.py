@@ -45,6 +45,13 @@ def test_merge_keeps_old_id_resolvable_and_moves_form_capture_context(
     client.post("/api/events", json={"job_id": survivor["job_id"], "events": [{"event": "seen"}]})
     loser = _listing(client, "repost", title="Repost")
     _capture(conn, "capture-1", loser["job_id"], loser["listing_id"])
+    client.patch(
+        "/api/settings",
+        json={
+            "expected_revision": client.get("/api/settings").json()["revision"],
+            "changes": {"search_diagnostics": {"scope": "always"}},
+        },
+    )
     client.post("/api/search-log", json={"query": "Repost", "job_id": loser["job_id"]})
 
     merged = client.post(
