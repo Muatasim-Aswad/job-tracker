@@ -709,6 +709,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Settings */
+        get: operations["read_settings_api_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Settings */
+        patch: operations["update_settings_api_settings_patch"];
+        trace?: never;
+    };
     "/api/stats": {
         parameters: {
             query?: never;
@@ -1544,6 +1562,21 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** DescriptionHighlight */
+        DescriptionHighlight: {
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "experience-years" | "language" | "pay" | "custom-words";
+            /** Terms */
+            terms: string[];
+        };
         /** DifferentValues */
         DifferentValues: {
             /** Candidate */
@@ -2214,6 +2247,49 @@ export interface components {
             /** Question Option Id */
             question_option_id: string;
         };
+        /** Preferences */
+        Preferences: {
+            /** Description Highlights */
+            description_highlights?: components["schemas"]["DescriptionHighlight"][];
+            /**
+             * Easy Apply Enabled
+             * @default true
+             */
+            easy_apply_enabled: boolean;
+            /**
+             * Hide Mode
+             * @default remove
+             * @enum {string}
+             */
+            hide_mode: "dim" | "remove";
+            search_diagnostics?: components["schemas"]["SearchDiagnostics"];
+            /** Title Rules */
+            title_rules?: components["schemas"]["TitleRule"][];
+        };
+        /** PreferencesPatch */
+        PreferencesPatch: {
+            /** Description Highlights */
+            description_highlights?: components["schemas"]["DescriptionHighlight"][] | null;
+            /** Easy Apply Enabled */
+            easy_apply_enabled?: boolean | null;
+            /** Hide Mode */
+            hide_mode?: ("dim" | "remove") | null;
+            search_diagnostics?: components["schemas"]["SearchDiagnostics"] | null;
+            /** Title Rules */
+            title_rules?: components["schemas"]["TitleRule"][] | null;
+        };
+        /** PreferencesState */
+        PreferencesState: {
+            /** Revision */
+            revision: string;
+            settings: components["schemas"]["Preferences"];
+        };
+        /** PreferencesUpdate */
+        PreferencesUpdate: {
+            changes: components["schemas"]["PreferencesPatch"];
+            /** Expected Revision */
+            expected_revision: string | null;
+        };
         /**
          * PrimaryListing
          * @description Preferred listing address for a dashboard card.
@@ -2574,6 +2650,17 @@ export interface components {
              */
             is_same: true;
         };
+        /** SearchDiagnostics */
+        SearchDiagnostics: {
+            /** Expires At */
+            expires_at?: number | null;
+            /**
+             * Scope
+             * @default never
+             * @enum {string}
+             */
+            scope: "never" | "temporary" | "always";
+        };
         /**
          * SearchLogCreate
          * @description One full-context search-diagnostics row from an explicitly enabled popup.
@@ -2716,6 +2803,28 @@ export interface components {
             kind: "text";
             /** Value */
             value: string;
+        };
+        /** TitleRule */
+        TitleRule: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "outline_job_card" | "hide" | "star" | "skip";
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Id */
+            id: string;
+            /**
+             * Match
+             * @enum {string}
+             */
+            match: "contains" | "starts_with" | "not_contains";
+            /** Terms */
+            terms: string[];
         };
         /** UnresolvedResult */
         UnresolvedResult: {
@@ -4611,6 +4720,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SearchReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_settings_api_settings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_settings_api_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferencesState"];
                 };
             };
             /** @description Validation Error */

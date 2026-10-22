@@ -1,6 +1,6 @@
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { ViewBar } from "./ViewBar";
 
@@ -55,14 +55,14 @@ describe("ViewBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Filters applied" }));
     expect(screen.getByText("3")).toBeTruthy();
     expect(
-      (screen.getByRole("checkbox", { name: "Needs attention only" }) as HTMLInputElement).checked,
+      (screen.getByRole("checkbox", { name: "Needs attention" }) as HTMLInputElement).checked,
     ).toBe(true);
   });
 
   it("keeps the attention toggle operable without rendering a zero badge", () => {
     renderBar({ attentionCount: 0 });
     fireEvent.click(screen.getByRole("button", { name: "Filters" }));
-    expect(screen.getByRole("checkbox", { name: "Needs attention only" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Needs attention" })).toBeTruthy();
     expect(screen.queryByText("0")).toBeNull();
   });
 
@@ -89,16 +89,16 @@ describe("ViewBar", () => {
     expect(
       (screen.getByRole("checkbox", { name: "Hide hidden jobs" }) as HTMLInputElement).checked,
     ).toBe(true);
-    expect(
-      (screen.getByRole("checkbox", { name: "Starred only" }) as HTMLInputElement).checked,
-    ).toBe(false);
+    expect((screen.getByRole("checkbox", { name: "Starred" }) as HTMLInputElement).checked).toBe(
+      false,
+    );
   });
 
   it("closes on Escape or outside interaction and restores focus on Escape", () => {
     renderBar();
     const trigger = screen.getByRole("button", { name: "Filters" });
     fireEvent.click(trigger);
-    fireEvent.keyDown(screen.getByRole("checkbox", { name: "Needs attention only" }), {
+    fireEvent.keyDown(screen.getByRole("checkbox", { name: "Needs attention" }), {
       key: "Escape",
     });
     expect(screen.queryByRole("group", { name: "Job filters" })).toBeNull();
@@ -120,15 +120,35 @@ describe("ViewBar", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Filters" }));
     expect(screen.getAllByRole("checkbox")).toHaveLength(5);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Needs attention only" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Needs attention" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Hide hidden jobs" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Starred only" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Starred" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Hide blocked companies" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Easy Apply only" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Easy Apply" }));
     expect(onToggleHidden).toHaveBeenCalledTimes(1);
     expect(onToggleStarred).toHaveBeenCalledTimes(1);
     expect(onToggleAttention).toHaveBeenCalledTimes(1);
     expect(onToggleBlocked).toHaveBeenCalledTimes(1);
     expect(onToggleEasyApply).toHaveBeenCalledTimes(1);
   });
+});
+
+it("keeps Listing beside a dropdown in its own group", () => {
+  const onListingAvailabilityChange = vi.fn();
+  renderBar({ listingAvailability: "closed", onListingAvailabilityChange, shownCount: 4 });
+  expect(screen.getByText("4 of 1172")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Filters applied" }));
+  const group = screen.getByRole("group", { name: "Listing" });
+  expect(within(group).getByText("Listing:")).toBeTruthy();
+  const select = within(group).getByRole("combobox", { name: "Listing" });
+  expect((select as HTMLSelectElement).value).toBe("closed");
+  expect(
+    within(select)
+      .getAllByRole("option")
+      .map((option) => option.textContent),
+  ).toEqual(["All", "Unavailable", "Closed"]);
+  fireEvent.change(select, { target: { value: "unavailable" } });
+  expect(onListingAvailabilityChange).toHaveBeenCalledWith("unavailable");
+  fireEvent.change(select, { target: { value: "all" } });
+  expect(onListingAvailabilityChange).toHaveBeenCalledWith("all");
 });

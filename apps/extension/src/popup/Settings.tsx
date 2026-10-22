@@ -1,11 +1,11 @@
 import { HideToggle } from "./HideToggle";
 import { ThemeToggle } from "./ThemeToggle";
+import { usePreferences } from "./usePreferences";
 import { KeywordSettings } from "./KeywordSettings";
 import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { EasyApplyToggle } from "./EasyApplyToggle";
 import { ServerSettings } from "./ServerSettings";
 
-// Each preference control owns storage and apply behavior.
 // Keep this keyboard list aligned with Popup, Detail, and the manifest command.
 // Use a static list: Chrome closes action popups on Escape, preventing a dismissible modal.
 const SHORTCUTS: { keys: string[]; label: string }[] = [
@@ -26,6 +26,7 @@ const SHORTCUTS: { keys: string[]; label: string }[] = [
 ];
 
 export function Settings({ reachable }: { reachable: boolean }) {
+  const editor = usePreferences();
   return (
     <div className="mt-2.5 flex flex-col gap-2.5">
       <ServerSettings reachable={reachable} />
@@ -33,16 +34,28 @@ export function Settings({ reachable }: { reachable: boolean }) {
         <span className="text-[13px] text-popup-fg">Theme</span>
         <ThemeToggle />
       </div>
-      <div className="flex items-center justify-between gap-2.5">
-        <span className="text-[13px] text-popup-fg">Filtered jobs</span>
-        <HideToggle />
-      </div>
-
-      <EasyApplyToggle />
+      {editor.error && (
+        <div role="alert" className="text-xs text-popup-danger">
+          {editor.error}{" "}
+          <button className="underline" onClick={() => void editor.reload()}>
+            Reload settings
+          </button>
+        </div>
+      )}
+      {!editor.settings ? (
+        <p className="text-xs text-popup-faint">Loading shared settings…</p>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-2.5">
+            <span className="text-[13px] text-popup-fg">Filtered jobs</span>
+            <HideToggle editor={editor} />
+          </div>
+          <EasyApplyToggle editor={editor} />
+        </>
+      )}
 
       <KeywordSettings />
-
-      <DiagnosticsSettings />
+      {editor.settings && <DiagnosticsSettings editor={editor} />}
 
       <details className="mt-1 border-t border-popup-border-subtle pt-1.5">
         <summary className="cursor-pointer list-none py-1.5 text-[10px] font-semibold uppercase tracking-wider text-popup-faint marker:hidden before:mr-1.5 before:inline-block before:content-['▸'] open:before:rotate-90">

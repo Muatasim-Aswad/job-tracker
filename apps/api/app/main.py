@@ -33,6 +33,7 @@ from app.form_fill.router import router as form_fill_router
 from app.jobs.router import router as jobs_router
 from app.listings.router import router as listings_router
 from app.meta.router import router as meta_router
+from app.preferences.router import router as preferences_router
 from app.search_log.router import router as search_log_router
 from app.stats.router import router as stats_router
 
@@ -145,6 +146,8 @@ def _private_path(path: str) -> bool:
         path == "/api/form-fill"
         or path.startswith("/api/form-fill/")
         or path.endswith("/application-workflow")
+        or path == "/api/settings"
+        or path.startswith("/api/settings/")
     )
 
 
@@ -274,6 +277,7 @@ for _router in (
     meta_router,
     blocked_router,
     form_fill_router,
+    preferences_router,
 ):
     api_router.include_router(_router)
 app.include_router(api_router, prefix="/api")

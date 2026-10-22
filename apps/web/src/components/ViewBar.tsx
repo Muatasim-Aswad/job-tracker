@@ -1,8 +1,11 @@
-import type { RefObject } from "react";
+import type { ListingAvailabilityFilter } from "../lib/jobFilters";
+import { useId, type RefObject } from "react";
 import { HeaderSearch } from "./HeaderSearch";
 import { FilterPopover } from "./FilterPopover";
 
 interface Props {
+  listingAvailability?: ListingAvailabilityFilter;
+  onListingAvailabilityChange?: (value: ListingAvailabilityFilter) => void;
   search: string;
   onSearchChange: (value: string) => void;
   searchRef: RefObject<HTMLInputElement | null>;
@@ -58,6 +61,8 @@ function FilterOption({
 }
 
 export function ViewBar({
+  listingAvailability = "all",
+  onListingAvailabilityChange,
   search,
   onSearchChange,
   searchRef,
@@ -76,7 +81,14 @@ export function ViewBar({
   totalCount,
   onClearAll,
 }: Props) {
-  const filtersApplied = hideHidden || showStarred || showAttention || hideBlocked || easyApplyOnly;
+  const listingControlId = useId();
+  const filtersApplied =
+    hideHidden ||
+    showStarred ||
+    showAttention ||
+    hideBlocked ||
+    easyApplyOnly ||
+    listingAvailability !== "all";
   const narrowed = search.trim().length > 0 || filtersApplied;
 
   return (
@@ -96,24 +108,46 @@ export function ViewBar({
         <div className="space-y-3">
           <p className="text-xs text-ink-muted">Show only</p>
           <FilterOption
-            label="Needs attention only"
+            label="Needs attention"
             checked={showAttention}
             onChange={onToggleAttention}
             shortcut="A"
             count={attentionCount}
           />
           <FilterOption
-            label="Starred only"
+            label="Starred"
             checked={showStarred}
             onChange={onToggleStarred}
             shortcut="S"
           />
           <FilterOption
-            label="Easy Apply only"
+            label="Easy Apply"
             checked={easyApplyOnly}
             onChange={onToggleEasyApply}
             shortcut="E"
           />
+        </div>
+        <div
+          role="group"
+          aria-label="Listing"
+          className="flex items-center gap-3 border-t border-line pt-3"
+        >
+          <label htmlFor={listingControlId} className="shrink-0">
+            Listing:
+          </label>
+          <select
+            id={listingControlId}
+            aria-label="Listing"
+            value={listingAvailability}
+            onChange={(event) =>
+              onListingAvailabilityChange?.(event.target.value as ListingAvailabilityFilter)
+            }
+            className="min-w-0 flex-1 rounded border border-line bg-surface px-2 py-1.5 text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <option value="all">All</option>
+            <option value="unavailable">Unavailable</option>
+            <option value="closed">Closed</option>
+          </select>
         </div>
         <div className="space-y-3 border-t border-line pt-3">
           <p className="text-xs text-ink-muted">Visibility</p>

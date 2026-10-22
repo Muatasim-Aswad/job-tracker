@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { AddJobDialog } from "./components/AddJobDialog";
+import { ExtensionSettingsDialog } from "./extension-settings/ExtensionSettingsDialog";
 import { AboutDialog } from "./components/AboutDialog";
 import { BlockedCompaniesDialog } from "./components/BlockedCompaniesDialog";
 import { Board } from "./components/Board";
@@ -16,7 +17,7 @@ import { api } from "./api/client";
 import { useBlockedCompanies, useFormFillReviewPresence, useJobEvents, useJobs } from "./hooks";
 import { FormFillWorkspace } from "./form-fill/FormFillWorkspace";
 import { canLeaveFormFill } from "./form-fill/draftGuard";
-import { countAttention, filterJobs } from "./lib/jobFilters";
+import { countAttention, filterJobs, type ListingAvailabilityFilter } from "./lib/jobFilters";
 import { persistPreference, usePersistentBoolean } from "./lib/persist";
 import { DEFAULT_SORT_ORDER, SORT_ORDER_VALUES, sortJobs, type SortOrder } from "./lib/jobSort";
 import { readPersistentChoice, usePersistentChoice } from "./lib/usePersistentChoice";
@@ -42,6 +43,23 @@ function isTypingTarget(t: EventTarget | null): boolean {
 export default function App() {
   const buildCheck = useBuildCheck();
   const { data: jobs, isLoading, isFetching, isError, error, refetch } = useJobs();
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshInFlight = useRef(false);
+  const refreshJobs = async () => {
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    setRefreshing(true);
+    try {
+      await refetch({ throwOnError: true });
+      toast.info("Data refreshed.");
+    } catch {
+      toast.error("Couldn’t refresh data. Check your connection and try again.");
+    } finally {
+      refreshInFlight.current = false;
+      setRefreshing(false);
+    }
+  };
+
   const events = useJobEvents();
   const { pref: themePref, cycle: cycleTheme } = useTheme();
   const reviewPresence = useFormFillReviewPresence();
@@ -68,6 +86,12 @@ export default function App() {
   const [showAttention, setShowAttention] = usePersistentBoolean("jt.showAttention", false);
   const [hideBlocked, setHideBlocked] = usePersistentBoolean("jt.hideBlocked", false);
   const [easyApplyOnly, setEasyApplyOnly] = usePersistentBoolean("jt.easyApplyOnly", false);
+  const [listingAvailability, setListingAvailability] =
+    usePersistentChoice<ListingAvailabilityFilter>(
+      "jt.listingAvailability",
+      ["all", "closed", "unavailable"],
+      "all",
+    );
   const [sortOrder, setSortOrder] = usePersistentChoice(
     "jt.sortOrder",
     SORT_ORDER_VALUES,
@@ -75,6 +99,17 @@ export default function App() {
   );
   const [showHelp, setShowHelp] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showExtensionSettings, setShowExtensionSettings] = useState(
+    () => new URLSearchParams(window.location.search).get("settings") === "extension",
+  );
+  const closeExtensionSettings = useCallback(() => {
+    setShowExtensionSettings(false);
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("settings") === "extension") {
+      url.searchParams.delete("settings");
+      window.history.replaceState(null, "", url);
+    }
+  }, []);
   const [showAdd, setShowAdd] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -116,6 +151,7 @@ export default function App() {
         "attention",
         "unblocked",
         "easy_apply",
+        "listing_availability",
         "sort",
       ])
         url.searchParams.delete(key);
@@ -164,6 +200,9 @@ export default function App() {
     const attention = params.get("attention");
     const unblocked = params.get("unblocked");
     const easyApply = params.get("easy_apply");
+    const availability = params.get("listing_availability");
+    if (availability === "all" || availability === "closed" || availability === "unavailable")
+      setListingAvailability(availability);
     const sort = params.get("sort");
     if (visible != null) setHideHidden(visible === "true");
     if (starred != null) setShowStarred(starred === "true");
@@ -195,6 +234,9 @@ export default function App() {
     else url.searchParams.delete("unblocked");
     if (easyApplyOnly) url.searchParams.set("easy_apply", "true");
     else url.searchParams.delete("easy_apply");
+    if (listingAvailability !== "all")
+      url.searchParams.set("listing_availability", listingAvailability);
+    else url.searchParams.delete("listing_availability");
     if (sortOrder !== DEFAULT_SORT_ORDER) url.searchParams.set("sort", sortOrder);
     else url.searchParams.delete("sort");
     window.history.replaceState(null, "", url);
@@ -208,6 +250,7 @@ export default function App() {
     hideBlocked,
     easyApplyOnly,
     sortOrder,
+    listingAvailability,
   ]);
 
   // Modal-owned keys and editable controls suppress global shortcuts.
@@ -219,6 +262,7 @@ export default function App() {
         selectedJobId ||
         showHelp ||
         showAbout ||
+        showExtensionSettings ||
         showAdd ||
         showBlocked
       )
@@ -274,6 +318,7 @@ export default function App() {
     selectedJobId,
     showHelp,
     showAbout,
+    showExtensionSettings,
     showAdd,
     showBlocked,
     cycleTheme,
@@ -301,7 +346,15 @@ export default function App() {
     () =>
       filterJobs(
         jobs ?? [],
-        { search, hideHidden, showStarred, showAttention, hideBlocked, easyApplyOnly },
+        {
+          search,
+          hideHidden,
+          showStarred,
+          showAttention,
+          hideBlocked,
+          easyApplyOnly,
+          listingAvailability,
+        },
         blockedCompanies,
       ),
     [
@@ -313,6 +366,7 @@ export default function App() {
       hideBlocked,
       easyApplyOnly,
       blockedCompanies,
+      listingAvailability,
     ],
   );
 
@@ -326,6 +380,7 @@ export default function App() {
     setHideHidden(false);
     setHideBlocked(false);
     setEasyApplyOnly(false);
+    setListingAvailability("all");
   }, []);
 
   const noResults = jobs !== undefined && jobs.length > 0 && filtered.length === 0;
@@ -350,11 +405,20 @@ export default function App() {
               </IconButton>
               <IconButton
                 size="field"
-                label="Refresh data"
-                onClick={() => refetch()}
+                label={refreshing ? "Refreshing data…" : "Refresh data"}
+                aria-busy={refreshing}
+                disabled={refreshing}
+                onClick={() => {
+                  void refreshJobs();
+                }}
                 className="shrink-0 text-ink-muted hover:text-ink"
               >
-                <RefreshCw size={16} className={isFetching ? "animate-spin" : ""} />
+                <RefreshCw
+                  size={16}
+                  className={
+                    isFetching || refreshing ? "animate-spin motion-reduce:animate-none" : ""
+                  }
+                />
               </IconButton>
             </>
           )}
@@ -369,6 +433,8 @@ export default function App() {
           {view === "jobs" && (
             <>
               <ViewBar
+                listingAvailability={listingAvailability}
+                onListingAvailabilityChange={setListingAvailability}
                 search={search}
                 onSearchChange={setSearch}
                 searchRef={searchRef}
@@ -392,13 +458,15 @@ export default function App() {
           )}
         </div>
         <HeaderMenu
+          onOpenExtensionSettings={() => setShowExtensionSettings(true)}
+          refreshing={refreshing}
           view={view}
           hasReview={reviewPresence.hasReview}
           onAdd={view === "jobs" ? () => setShowAdd(true) : formFillCreate}
           onRefresh={
             view === "jobs"
               ? () => {
-                  void refetch();
+                  void refreshJobs();
                 }
               : undefined
           }
@@ -428,6 +496,7 @@ export default function App() {
             )}
             {noResults && (
               <NoResults
+                listingAvailability={listingAvailability}
                 query={search}
                 showStarred={showStarred}
                 showAttention={showAttention}
@@ -475,6 +544,7 @@ export default function App() {
         />
       )}
 
+      {showExtensionSettings && <ExtensionSettingsDialog onClose={closeExtensionSettings} />}
       {showBlocked && <BlockedCompaniesDialog onClose={() => setShowBlocked(false)} />}
     </div>
   );

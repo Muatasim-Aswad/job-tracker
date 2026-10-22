@@ -1,3 +1,4 @@
+import { preferencesFixture } from "../test-support/preferences";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   FormFillCaptureRequest,
@@ -315,14 +316,18 @@ describe("generation-based safe form filling", () => {
     > = [];
     (globalThis as unknown as { chrome: unknown }).chrome = {
       runtime: {
+        onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
         lastError: undefined,
         sendMessage: (
-          message: { payload: FormFillResolutionRequest },
+          message: { type: string; payload: FormFillResolutionRequest },
           callback: (result: unknown) => void,
         ) =>
           callback({
             ok: true,
-            result: response(message.payload, [unresolved("field-1")]),
+            result:
+              message.type === "settings-get"
+                ? preferencesFixture()
+                : response(message.payload, [unresolved("field-1")]),
           }),
       },
       storage: {
@@ -343,7 +348,8 @@ describe("generation-based safe form filling", () => {
     const scanner = startEasyApplyFormFill(document);
     changeListeners[0]({ easyApplySummaryOpen: { newValue: false } }, "local");
     gets.get("easyApplySummaryOpen")!({});
-    gets.get("easyApplyEnabled")!({ easyApplyEnabled: true });
+    await Promise.resolve();
+    await Promise.resolve();
     await scanner.scan();
 
     let panel = document.querySelector<HTMLElement>("[data-jh-ff-panel]")!.shadowRoot!;

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HeaderMenu } from "./HeaderMenu";
 
@@ -13,6 +13,7 @@ const props = {
   hasReview: false,
   onChangeView: vi.fn(),
   onOpenBlocked: vi.fn(),
+  onOpenExtensionSettings: vi.fn(),
   onOpenHelp: vi.fn(),
   onOpenAbout: vi.fn(),
   themePref: "system" as const,
@@ -27,6 +28,27 @@ describe("mobile header actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Navigation and settings" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "About" }));
     expect(about).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+  it("groups settings before help and keeps About last", () => {
+    render(<HeaderMenu {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Navigation and settings" }));
+    const labels = screen.getAllByRole("menuitem").map((item) => item.textContent);
+    expect(labels.slice(-5)).toEqual([
+      "Blocked companies…",
+      "Extension settings…",
+      "Theme: Systemt",
+      "Keyboard shortcuts?",
+      "About",
+    ]);
+    expect(
+      within(screen.getByRole("group", { name: "Companies" })).getAllByRole("menuitem"),
+    ).toHaveLength(1);
+    expect(
+      within(screen.getByRole("group", { name: "Settings" })).getAllByRole("menuitem"),
+    ).toHaveLength(2);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Extension settings…" }));
+    expect(props.onOpenExtensionSettings).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menu")).toBeNull();
   });
   it.each([
@@ -44,7 +66,7 @@ describe("mobile header actions", () => {
     fireEvent.click(selected);
     expect(change).not.toHaveBeenCalled();
     expect(screen.getByRole("menu")).toBeTruthy();
-    const divider = screen.getByRole("separator");
+    const divider = screen.getAllByRole("separator")[0];
     const add = screen.getByRole("menuitem", {
       name: view === "jobs" ? "Add a job" : "New answer",
     });
@@ -131,7 +153,7 @@ describe("mobile header actions", () => {
       expect(document.activeElement).toBe(mobile);
       style.textContent = "[data-mobile-navigation] { display: none; }";
       fireEvent.keyDown(mobile, { key: "ArrowUp" });
-      expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: /Theme: System/ }));
+      expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "About" }));
       mobile.focus();
       fireEvent.keyDown(mobile, { key: "Tab" });
       expect(document.activeElement).toBe(

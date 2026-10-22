@@ -393,6 +393,8 @@ def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
         "create_job_id_aliases_v1",
         "create_application_workflows_v1",
         "capture_clear_operation_v1",
+        "create_user_preferences_v1",
+        "seed_user_preferences_defaults_v1",
     )
 
 
@@ -403,6 +405,8 @@ def test_fresh_database_records_append_only_migration_keys(conn: sqlite3.Connect
         ("create_application_workflows_v1",),
         ("create_form_fill_foundation_v1",),
         ("create_job_id_aliases_v1",),
+        ("create_user_preferences_v1",),
+        ("seed_user_preferences_defaults_v1",),
     ]
 
 
@@ -449,7 +453,9 @@ def test_legacy_database_opens_under_the_baseline_without_data_loss(
         "create_application_workflows_v1",
         "create_form_fill_foundation_v1",
         "create_job_id_aliases_v1",
+        "create_user_preferences_v1",
         "drop_notes_documents",
+        "seed_user_preferences_defaults_v1",
     ]
     assert conn.execute("SELECT COUNT(*) FROM listings").fetchone()[0] == 1
     assert conn.execute("SELECT status FROM jobs WHERE id = 'j1'").fetchone()[0] == "closed"

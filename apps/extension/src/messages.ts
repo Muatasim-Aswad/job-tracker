@@ -8,6 +8,8 @@ import type {
   ListingState,
   ListingCreate,
   ListingUpsertResult,
+  PreferencesState,
+  PreferencesPatch,
 } from "@job-tracker/shared/api";
 import type { NaturalKey } from "./adapters/types";
 import type { BuildIdentity } from "./version";
@@ -73,6 +75,8 @@ export type BridgeRequest = { serverUrl?: string } & (
   // write. Answered from the worker's `serverReachable` flag, so no fetch.
   | { type: "reachability" }
   | { type: "version" }
+  | { type: "settings-get" }
+  | { type: "settings-update"; expected_revision: string | null; changes: PreferencesPatch }
   // Open canonical LinkedIn postings from one explicit Gmail-alert bulk action.
   // The worker creates background tabs so Chromium's page popup limit cannot drop
   // every URL after the first.
@@ -116,6 +120,7 @@ export type BridgeResult =
   | FormFillCaptureResponse // "form-fill-capture"
   | ReachabilityState // "reachability"
   | VersionState // "version"
+  | PreferencesState // settings
   | null; // 204s — "false-match", "unblock-company"
 
 /** The service worker's reply: the ok/error discriminant plus the typed result. */

@@ -7,7 +7,8 @@ import { JobFunnel } from "@job-tracker/shared/funnel";
 import { normalizeCompany } from "@job-tracker/shared/text";
 import { SERVER_URL } from "../config.js";
 import { getAdapters, toNaturalKey } from "../registry.js";
-import { titleHighlights } from "./keywords.js";
+import { loadPreferences } from "../preferences.js";
+import { matchingTitleRules } from "./keywords.js";
 import { ICON } from "../icons.js";
 
 // Dashboard SPA origin, same as the API. Only used for "open this job in the
@@ -35,16 +36,23 @@ export function createBars(engine: Engine) {
   // Idempotent, and re-run for every card on each scan: the highlight must also come
   // off a card whose rule the user has just turned off.
   function flagCard(card: HTMLElement) {
-    card.classList.toggle("jh-red", titleHighlights(card.dataset.jobTitle || ""));
+    card.classList.toggle(
+      "jh-red",
+      matchingTitleRules(card.dataset.jobTitle || "").some(
+        (rule) => rule.action === "outline_job_card",
+      ),
+    );
   }
 
-  // ── Hide mode (local UI preference, not job state) ─────────────────────────
+  // ── Filtered-job display mode ─────────────────────────
   let hideMode = "remove";
   function loadHideMode(cb?: () => void) {
-    chrome.storage.local.get("hideMode", (d) => {
-      hideMode = (d.hideMode as string) || "remove";
-      if (cb) cb();
-    });
+    void loadPreferences()
+      .then((state) => {
+        hideMode = state.settings.hide_mode;
+        cb?.();
+      })
+      .catch(() => cb?.());
   }
 
   // Cache applied-job counts by normalized company for the session.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Ban,
+  SlidersHorizontal,
   Keyboard,
   Monitor,
   Moon,
@@ -28,6 +29,7 @@ const KBD = "ml-auto rounded border border-line px-1.5 py-0.5 font-mono text-mic
 interface DropdownProps {
   onClose: () => void;
   onOpenBlocked: () => void;
+  onOpenExtensionSettings: () => void;
   onOpenHelp: () => void;
   onOpenAbout: () => void;
   themePref: ThemePref;
@@ -37,12 +39,14 @@ interface DropdownProps {
   onChangeView: (view: "jobs" | "form-fill") => void;
   onAdd?: (() => void) | null;
   onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 // Mount lifetime equals open lifetime, allowing the focus trap to restore its trigger.
 function HeaderMenuDropdown({
   onClose,
   onOpenBlocked,
+  onOpenExtensionSettings,
   onOpenHelp,
   onOpenAbout,
   themePref,
@@ -52,6 +56,7 @@ function HeaderMenuDropdown({
   onChangeView,
   onAdd,
   onRefresh,
+  refreshing,
 }: DropdownProps) {
   const ref = useRef<HTMLDivElement>(null);
   useFocusTrap(ref, onClose);
@@ -130,27 +135,61 @@ function HeaderMenuDropdown({
             type="button"
             role="menuitem"
             className={ITEM}
+            disabled={refreshing}
             onClick={() => {
               onRefresh();
               onClose();
             }}
           >
-            <RefreshCw size={14} aria-hidden="true" />
-            <span>Refresh data</span>
+            <RefreshCw
+              size={14}
+              aria-hidden="true"
+              className={refreshing ? "animate-spin motion-reduce:animate-none" : ""}
+            />
+            <span>{refreshing ? "Refreshing…" : "Refresh data"}</span>
           </button>
         )}
       </div>
-      <button
-        role="menuitem"
-        onClick={() => {
-          onOpenBlocked();
-          onClose();
-        }}
-        className={ITEM}
-      >
-        <Ban size={14} className="text-ink-muted" />
-        <span>Blocked companies…</span>
-      </button>
+      <div role="group" aria-label="Companies">
+        <button
+          role="menuitem"
+          onClick={() => {
+            onOpenBlocked();
+            onClose();
+          }}
+          className={ITEM}
+        >
+          <Ban size={14} className="text-ink-muted" />
+          <span>Blocked companies…</span>
+        </button>
+      </div>
+      <hr className="my-1 border-line" />
+      <div role="group" aria-label="Settings">
+        <button
+          role="menuitem"
+          onClick={() => {
+            onOpenExtensionSettings();
+            onClose();
+          }}
+          className={ITEM}
+        >
+          <SlidersHorizontal size={14} className="text-ink-muted" />
+          <span>Extension settings…</span>
+        </button>
+        <button
+          role="menuitem"
+          onClick={() => {
+            cycleTheme();
+            onClose();
+          }}
+          className={ITEM}
+        >
+          {face.icon}
+          <span>Theme: {face.label}</span>
+          <kbd className={KBD}>t</kbd>
+        </button>
+      </div>
+      <hr className="my-1 border-line" />
       <button
         role="menuitem"
         onClick={() => {
@@ -173,18 +212,6 @@ function HeaderMenuDropdown({
       >
         <Info size={14} className="text-ink-muted" />
         <span>About</span>
-      </button>
-      <button
-        role="menuitem"
-        onClick={() => {
-          cycleTheme();
-          onClose();
-        }}
-        className={ITEM}
-      >
-        {face.icon}
-        <span>Theme: {face.label}</span>
-        <kbd className={KBD}>t</kbd>
       </button>
     </div>
   );

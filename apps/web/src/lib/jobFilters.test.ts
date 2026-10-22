@@ -96,3 +96,42 @@ describe("blocked and easy apply filtering", () => {
     ]);
   });
 });
+
+describe("listing availability filtering", () => {
+  const jobs = [
+    job({
+      id: "closed-with-open",
+      listing_availability: { closed_count: 1, unavailable_count: 0, linkedin_open_count: 1 },
+    }),
+    job({
+      id: "unavailable-with-open",
+      listing_availability: { closed_count: 0, unavailable_count: 1, linkedin_open_count: 1 },
+    }),
+    job({
+      id: "both",
+      listing_availability: { closed_count: 1, unavailable_count: 1, linkedin_open_count: 0 },
+      starred: true,
+    }),
+    job({
+      id: "unknown",
+      listing_availability: { closed_count: 0, unavailable_count: 0, linkedin_open_count: 0 },
+    }),
+  ];
+  it("shows jobs with at least one closed listing regardless of another open listing", () => {
+    expect(
+      filterJobs(jobs, { ...defaults, listingAvailability: "closed" }).map((item) => item.id),
+    ).toEqual(["closed-with-open", "both"]);
+  });
+  it("distinguishes unavailable listings from closed ones", () => {
+    expect(
+      filterJobs(jobs, { ...defaults, listingAvailability: "unavailable" }).map((item) => item.id),
+    ).toEqual(["unavailable-with-open", "both"]);
+  });
+  it("combines availability with the other job filters", () => {
+    expect(
+      filterJobs(jobs, { ...defaults, listingAvailability: "closed", showStarred: true }).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["both"]);
+  });
+});

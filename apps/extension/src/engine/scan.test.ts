@@ -44,6 +44,7 @@ function makeScan({
     },
     renderAll: vi.fn(),
     refreshStates: vi.fn(async () => true),
+    isCardBlocked: () => false,
     stateOf: () => ({ status: "untracked", hidden: false, starred: false }),
     invalidateStates: vi.fn(),
     setOffline: vi.fn(),

@@ -1,7 +1,10 @@
 import type { BlockedCompany, JobSummary } from "@job-tracker/shared/api";
 import { normalizeCompany } from "@job-tracker/shared/text";
 
+export type ListingAvailabilityFilter = "all" | "closed" | "unavailable";
+
 export interface JobViewFilters {
+  listingAvailability?: ListingAvailabilityFilter;
   search: string;
   hideHidden: boolean;
   showStarred: boolean;
@@ -37,6 +40,13 @@ export function filterJobs(
     if (filters.showAttention && (job.hidden || job.attention == null)) return false;
     if (filters.hideBlocked && isJobBlocked(job, blocked)) return false;
     if (filters.easyApplyOnly && !isEasyApply(job)) return false;
+    if (filters.listingAvailability === "closed" && !(job.listing_availability?.closed_count > 0))
+      return false;
+    if (
+      filters.listingAvailability === "unavailable" &&
+      !(job.listing_availability?.unavailable_count > 0)
+    )
+      return false;
     if (!query) return true;
     return (
       (job.title ?? "").toLowerCase().includes(query) ||

@@ -1,3 +1,4 @@
+import { onPreferencesChanged } from "../preferences.js";
 import type { FormFillCaptureRequest, FormFillResolutionRequest } from "../messages.js";
 import { SERVER_URL, onServerChanged } from "../config.js";
 import {
@@ -32,7 +33,6 @@ import { clearPresentation, isPresentationMutation, renderPresentation } from ".
 import { EasyApplyRootFinder, isDialogMutation, openShadowRoots, type SearchTree } from "./root.js";
 import { chooseSuggestion, isSuggestionTarget, waitForExactSuggestion } from "./suggestions.js";
 import {
-  EASY_APPLY_ENABLED_KEY,
   EASY_APPLY_SUMMARY_OPEN_KEY,
   loadEasyApplyEnabled,
   loadEasyApplySummaryOpen,
@@ -1331,11 +1331,9 @@ export class EasyApplyScanner {
 export function startEasyApplyFormFill(doc: Document = document): EasyApplyScanner {
   const scanner = new EasyApplyScanner(doc);
   onServerChanged(() => scanner.resetServer());
+  onPreferencesChanged((state) => scanner.setEnabled(state?.settings.easy_apply_enabled ?? false));
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (changes[EASY_APPLY_ENABLED_KEY]) {
-      scanner.setEnabled(changes[EASY_APPLY_ENABLED_KEY].newValue !== false);
-    }
     if (changes[EASY_APPLY_SUMMARY_OPEN_KEY]) {
       const value = changes[EASY_APPLY_SUMMARY_OPEN_KEY].newValue;
       scanner.setSummaryOpenPreference(typeof value === "boolean" ? value : undefined);

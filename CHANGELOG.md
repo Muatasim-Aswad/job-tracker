@@ -6,6 +6,20 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-22
+
+### Added
+
+- Shared server settings for description highlights, title rules, Easy Apply enablement, filtered-job Dim/Hide mode, and search-diagnostic capture, initialized with stored defaults and no import of old browser preferences.
+- Dashboard Extension settings manages shared preferences with guarded drafts and revision checks; the menu separates Blocked companies, groups Extension settings with Theme, and places About last. Web keyword fields use chips, rule editing fills the dialog, and refresh reports progress and completion.
+- The extension keeps quick switches and links to the configured dashboard for all highlight and rule management. Title rules support Contains, Starts with, Does not contain, alternative keywords, and Outline job card, Hide, Star, or Skip.
+- Web Search diagnostics has its own collapsible section, a tooltip explanation, and the web-only Clear stored data action with confirmation and feedback.
+- Dashboard Listing filters have their own group with “Listing:” beside an All / Unavailable / Closed dropdown; other filters omit “only” beneath Show only.
+
+### Changed
+
+- Search-diagnostic capture and temporary expiry are enforced by the server; shared settings participate in database backups and optional Turso synchronization.
+
 ## [1.4.1] - 2026-10-20
 
 ### Changed

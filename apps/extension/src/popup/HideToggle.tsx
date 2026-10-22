@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import type { PreferencesEditor } from "./usePreferences";
 import { ICON } from "../icons.js";
 import { ACTION_BUTTON, ICON as ICON_CLASS } from "./ui";
 
@@ -22,28 +22,21 @@ const FACE: Record<Mode, { icon: string; text: string; label: string; title: str
   },
 };
 
-export function HideToggle() {
-  const [mode, setMode] = useState<Mode>("remove");
-
-  useEffect(() => {
-    chrome.storage.local.get("hideMode", (data) => {
-      setMode((data.hideMode as Mode) || "remove");
-    });
-  }, []);
-
+export function HideToggle({ editor }: { editor: PreferencesEditor }) {
+  const mode = editor.settings!.hide_mode;
   const toggle = () => {
-    const next: Mode = mode === "dim" ? "remove" : "dim";
-    setMode(next);
-    void chrome.storage.local.set({ hideMode: next });
-    // Tell the active tab's content script to re-apply the new mode live.
-    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-      if (tab?.id) void chrome.tabs.sendMessage(tab.id, { type: "modeChanged" });
-    });
+    void editor.save({ hide_mode: mode === "dim" ? "remove" : "dim" });
   };
 
   const f = FACE[mode];
   return (
-    <button className={ACTION_BUTTON} title={f.title} aria-label={f.label} onClick={toggle}>
+    <button
+      disabled={editor.saving}
+      className={ACTION_BUTTON}
+      title={f.title}
+      aria-label={f.label}
+      onClick={toggle}
+    >
       <span className={ICON_CLASS} dangerouslySetInnerHTML={{ __html: f.icon }} />
       {f.text}
     </button>
