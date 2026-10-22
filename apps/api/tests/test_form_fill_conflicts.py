@@ -81,8 +81,14 @@ def test_competing_captures_fill_nothing_and_expose_only_ids_in_resolution(conn:
     result = service.resolve(_request("scan-2")).results[0]
     assert result.status == "conflict"
     assert set(result.capture_ids) == {first_id, second_id}
-    assert "100" not in result.model_dump_json()
-    assert "200" not in result.model_dump_json()
+    assert result.model_dump() == {
+        "client_field_id": "field-1",
+        "question_id": question_id,
+        "option_mappings": [],
+        "status": "conflict",
+        "capture_ids": result.capture_ids,
+        "reason": "capture_conflict",
+    }
     assert service.get_question(question_id).capture_conflict is True
 
 
