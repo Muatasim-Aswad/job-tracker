@@ -18,6 +18,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Changed
 
+- Update the locked virtualenv development dependency and its packaging requirement to address the Python dependency-audit findings.
 - Search-diagnostic capture and temporary expiry are enforced by the server; shared settings participate in database backups and optional Turso synchronization.
 
 ## [1.4.1] - 2026-10-20
