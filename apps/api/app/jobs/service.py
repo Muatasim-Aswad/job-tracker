@@ -147,22 +147,35 @@ class JobService:
         row. Excludes the current listing's own job and anything already marked NOT a
         match (`meta.false_matches`), so a dismissed candidate never comes back. Empty
         when either key is missing — one field alone is too broad to suggest on."""
+        listing = self.listings.get_by_platform(platform, platform_id)
+        job = self.jobs.get(listing.job_id) if listing is not None else None
+        return self._matches(title, company, [listing] if listing is not None else [], job)
+
+    def matches_for_job(self, job_id: str) -> tuple[str, list[JobMatch]]:
+        canonical_job_id = self.jobs.resolve_id(job_id)
+        job = self.jobs.get(canonical_job_id) if canonical_job_id is not None else None
+        if job is None:
+            raise NotFoundError(f"job {job_id} not found")
+        return job.id, self._matches(
+            job.title, job.company, self.listings.list_for_job(job.id), job
+        )
+
+    def _matches(
+        self, title: str | None, company: str | None, current: list[Listing], job: Job | None
+    ) -> list[JobMatch]:
         company_key = normalize_company(company)
         title_key = normalize_title(title)
         if not company_key or not title_key:
             return []
         exclude: set[str] = set()
-        listing = self.listings.get_by_platform(platform, platform_id)
-        if listing is not None:
-            exclude.add(listing.job_id)
-            current = self.jobs.get(listing.job_id)
-            if current is not None:
-                exclude.update(
-                    canonical
-                    for excluded_id in current.meta.get("false_matches", [])
-                    if (canonical := self.jobs.resolve_id(excluded_id)) is not None
-                )
-        has_apply_url = listing is not None and bool(listing.meta.get("apply_url"))
+        if job is not None:
+            exclude.add(job.id)
+            exclude.update(
+                canonical
+                for excluded_id in job.meta.get("false_matches", [])
+                if (canonical := self.jobs.resolve_id(excluded_id)) is not None
+            )
+        has_apply_url = any(listing.meta.get("apply_url") for listing in current)
         rows = [
             row
             for row in self.jobs.match_candidates(company_key)
@@ -170,10 +183,10 @@ class JobService:
         ]
         listings = self.listings.list_for_jobs([row["job_id"] for row in rows])
         out = [
-            self._job_match(row, listing, listings.get(row["job_id"], []))
+            self._job_match(row, current, listings.get(row["job_id"], []))
             for row in rows
             if row["title_key"] == title_key
-            or shares_apply_url(listing, listings.get(row["job_id"], []))
+            or shares_apply_url(current, listings.get(row["job_id"], []))
         ]
         # Strongest duplicate first, unscored candidates last. The stable sort keeps
         # the SQL's created_at-desc order as the tie-breaker.
@@ -181,7 +194,7 @@ class JobService:
         return out
 
     @staticmethod
-    def _job_match(row: Row, current: Listing | None, candidates: list[Listing]) -> JobMatch:
+    def _job_match(row: Row, current: list[Listing], candidates: list[Listing]) -> JobMatch:
         return JobMatch(
             job_id=row["job_id"],
             title=row["title"],
@@ -260,21 +273,15 @@ def _description(listing: Listing) -> str | None:
     return description if isinstance(description, str) and description else None
 
 
-def _similarity(current: Listing | None, candidates: list[Listing]) -> float | None:
-    """Highest Jaccard JD overlap across the candidate's listings. None whenever
+def _similarity(current: list[Listing], candidates: list[Listing]) -> float | None:
+    """Highest Jaccard JD overlap across both jobs' listings. None whenever
     either side is uncaptured: a real 0.0, where the JDs share nothing, is distinct
     from having no JD to compare, and the popover shows a % only for real comparisons."""
-    current_jd = _description(current) if current is not None else None
-    if current_jd is None:
+    current_tokens = [tokenize(jd) for jd in filter(None, map(_description, current))]
+    if not current_tokens:
         return None
-    current_tokens = tokenize(current_jd)
-    return max(
-        (
-            jaccard(current_tokens, tokenize(jd))
-            for jd in filter(None, map(_description, candidates))
-        ),
-        default=None,
-    )
+    candidate_tokens = [tokenize(jd) for jd in filter(None, map(_description, candidates))]
+    return max((jaccard(a, b) for a in current_tokens for b in candidate_tokens), default=None)
 
 
 def _state(job: Job) -> JobState:

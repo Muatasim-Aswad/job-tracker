@@ -4,19 +4,23 @@ from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.config import Settings, get_settings
 from app.core.db import Conn
-from app.core.deps import get_conn
+from app.core.deps import get_conn, service_factory
 from app.jobs.models import Job, JobFilters
 from app.jobs.schemas import (
     CompanyAppliedCount,
     JobDetail,
+    JobLinkCreate,
     JobMatch,
+    JobMergeResult,
     JobSummary,
     JobUpdate,
     ListingState,
 )
 from app.jobs.service import JobService
+from app.listings.service import ListingService
 
 router = APIRouter(tags=["jobs"])
+get_merge_service = service_factory(ListingService)
 
 
 def get_service(
@@ -73,6 +77,16 @@ def get_job(
     return detail
 
 
+@router.get("/jobs/{job_id}/matches", response_model=list[JobMatch])
+def match_job(
+    job_id: str, response: Response, service: JobService = Depends(get_service)
+) -> list[JobMatch]:
+    """Return duplicate candidates using the stored job and all its listings."""
+    canonical_job_id, matches = service.matches_for_job(job_id)
+    response.headers["Content-Location"] = f"/api/jobs/{canonical_job_id}/matches"
+    return matches
+
+
 @router.patch("/jobs/{job_id}", response_model=Job)
 def update_job(
     job_id: str, body: JobUpdate, response: Response, service: JobService = Depends(get_service)
@@ -80,6 +94,19 @@ def update_job(
     job = service.update(job_id, body)
     response.headers["Content-Location"] = f"/api/jobs/{job.id}"
     return job
+
+
+@router.post("/jobs/{job_id}/link-job", response_model=JobMergeResult)
+def link_job(
+    job_id: str,
+    body: JobLinkCreate,
+    response: Response,
+    service: ListingService = Depends(get_merge_service),
+) -> JobMergeResult:
+    """Merge two complete stored jobs under the standard survivor rules."""
+    merged = service.merge_jobs(job_id, body.other_job_id)
+    response.headers["Content-Location"] = f"/api/jobs/{merged.job_id}"
+    return merged
 
 
 @router.delete("/jobs/{job_id}", status_code=204)

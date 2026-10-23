@@ -6,6 +6,12 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-23
+
+### Added
+
+- Job-ID endpoints for duplicate suggestions across all source and candidate listings and for merging two complete jobs, reusing existing matching rules, exclusions, survivor selection, and merge safeguards.
+
 ## [1.5.0] - 2026-10-22
 
 ### Added

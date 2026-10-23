@@ -44,6 +44,14 @@ The [dashboard](../web/README.md) uses relative `/api/...` paths in development 
 
 Job-addressed reads and ordinary writes accept merged aliases, return canonical IDs, and set `Content-Location`. Deletion through an alias returns `409 job_merged` and requires repeating the request against the survivor. See [identity](../../docs/ARCHITECTURE.md#identity) for merge invariants.
 
+### Duplicate suggestions and merging
+
+`GET /api/jobs/{job_id}/matches` needs only a stored job ID. It uses the job's canonical title/company and compares all its listings with each candidate's listings, returning the existing `JobMatch[]` shape once per candidate. Missing title/company yields an empty list; an unknown ID returns `404`. Merged aliases resolve to the survivor, and `Content-Location` names `/api/jobs/{canonical_job_id}/matches`. Matching is read-only and retains false-match exclusions. The [architecture](../../docs/ARCHITECTURE.md#identity) defines candidate selection and evidence aggregation.
+
+`POST /api/jobs/{job_id}/link-job` accepts `{"other_job_id": "..."}` and merges both complete jobs using the existing survivor rules and conflict safeguards. Both IDs accept merged aliases. It returns `{"job_id": "<survivor>", "merged_from": ["<loser>"]}` with `Content-Location: /api/jobs/{survivor}`. Linking a job to itself, including a retry through an alias, is a no-op with an empty `merged_from`; an unknown ID returns `404`. The source path does not determine the survivor.
+
+The extension's existing `GET /api/jobs/matches` and `POST /api/listings/link-job` retain their listing-based inputs and responses. These additions require no UI changes.
+
 ### Shared extension settings
 
 Startup seeds one settings row if absent: description highlights enabled with default words, no title rules, Easy Apply on, filtered jobs hidden, and diagnostics Never. The seed uses the existing migration ledger and preserves every existing row, including disabled highlights, empty keyword lists, and an empty highlight collection. Existing browser settings are ignored.

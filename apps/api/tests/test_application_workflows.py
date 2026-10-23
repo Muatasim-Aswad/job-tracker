@@ -304,10 +304,16 @@ def test_merge_and_relink_refuse_two_workflow_records(client: TestClient) -> Non
     assert client.get(f"/api/jobs/{first['job_id']}").status_code == 200
     assert client.get(f"/api/jobs/{second['job_id']}").status_code == 200
 
+    job_merge = client.post(
+        f"/api/jobs/{second['job_id']}/link-job", json={"other_job_id": first["job_id"]}
+    )
+    assert job_merge.status_code == 409
+    assert job_merge.json()["detail"] == "application_workflow_conflict"
+
     relink = client.patch(f"/api/listings/{second['listing_id']}", json={"job_id": first["job_id"]})
     assert relink.status_code == 409
     assert relink.json()["detail"] == "application_workflow_conflict"
-    for conflict in (merge, relink):
+    for conflict in (merge, job_merge, relink):
         assert conflict.headers.get("cache-control") == "no-store"
         assert (
             conflict.json()["current"]["source"]["references"]

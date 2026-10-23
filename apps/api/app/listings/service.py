@@ -28,6 +28,7 @@ from app.events.repository import EventRepository
 from app.form_fill.repository import FormFillRepository
 from app.jobs.models import Job
 from app.jobs.repository import JobRepository
+from app.jobs.schemas import JobMergeResult
 from app.listings.automatic_closure import AutomaticClosure
 from app.listings.models import Listing
 from app.listings.repository import ListingRepository
@@ -236,15 +237,25 @@ class ListingService:
         if other is None:
             raise NotFoundError(f"job {requested_job_id} not found")
         current_job_id, _ = self.ensure_listing(platform, platform_id, via="link")
-        merged_from: list[str] = []
-        if current_job_id != other_job_id:
-            current = self.jobs.get(current_job_id)
-            assert current is not None
-            survivor, loser = _pick_survivor(current, other)
-            self._merge_jobs(loser.id, survivor.id)
-            merged_from.append(loser.id)
+        merged = self.merge_jobs(current_job_id, other_job_id)
         result = self.lookup(platform, platform_id)
-        return result.model_copy(update={"merged_from": merged_from})
+        return result.model_copy(update={"merged_from": merged.merged_from})
+
+    def merge_jobs(self, job_id: str, other_job_id: str) -> JobMergeResult:
+        """Merge stored jobs, resolving aliases and retaining the standard survivor rules."""
+        jobs: list[Job] = []
+        for requested_id in (job_id, other_job_id):
+            canonical_id = self.jobs.resolve_id(requested_id)
+            job = self.jobs.get(canonical_id) if canonical_id is not None else None
+            if job is None:
+                raise NotFoundError(f"job {requested_id} not found")
+            jobs.append(job)
+        current, other = jobs
+        if current.id == other.id:
+            return JobMergeResult(job_id=current.id)
+        survivor, loser = _pick_survivor(current, other)
+        self._merge_jobs(loser.id, survivor.id)
+        return JobMergeResult(job_id=survivor.id, merged_from=[loser.id])
 
     def _merge_jobs(self, loser_id: str, survivor_id: str) -> None:
         """Move all dependent records to the survivor, then delete the empty job."""

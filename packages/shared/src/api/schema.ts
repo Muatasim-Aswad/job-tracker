@@ -442,6 +442,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs/{job_id}/link-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link Job
+         * @description Merge two complete stored jobs under the standard survivor rules.
+         */
+        post: operations["link_job_api_jobs__job_id__link_job_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Match Job
+         * @description Return duplicate candidates using the stored job and all its listings.
+         */
+        get: operations["match_job_api_jobs__job_id__matches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/{job_id}/status/revert": {
         parameters: {
             query?: never;
@@ -1804,6 +1844,11 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
+        /** JobLinkCreate */
+        JobLinkCreate: {
+            /** Other Job Id */
+            other_job_id: string;
+        };
         /**
          * JobMatch
          * @description Duplicate-suggestion candidate after false-match filtering.
@@ -1830,6 +1875,13 @@ export interface components {
             timing?: components["schemas"]["MatchTiming"] | null;
             /** Title */
             title?: string | null;
+        };
+        /** JobMergeResult */
+        JobMergeResult: {
+            /** Job Id */
+            job_id: string;
+            /** Merged From */
+            merged_from?: string[];
         };
         /**
          * JobMutationState
@@ -2159,8 +2211,8 @@ export interface components {
         MatchInsight: components["schemas"]["SameValue"] | components["schemas"]["DifferentValues"];
         /**
          * MatchInsights
-         * @description Field checks between the viewed listing and a candidate job. A check is null
-         *     unless both sides captured the field.
+         * @description Field checks across source and candidate listings. A check is null unless
+         *     both sides captured the field; any agreeing pair counts as the same value.
          */
         MatchInsights: {
             apply_type?: components["schemas"]["MatchInsight"] | null;
@@ -2173,8 +2225,8 @@ export interface components {
         };
         /**
          * MatchTiming
-         * @description `overlapping` means a candidate listing is not known closed before the viewed
-         *     posting appeared; otherwise `gap_days` counts the days between them.
+         * @description `overlapping` means a candidate listing is not known closed before the earliest
+         *     source posting appeared; otherwise `gap_days` counts the days between them.
          */
         MatchTiming: {
             /** Gap Days */
@@ -4189,6 +4241,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Document"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    link_job_api_jobs__job_id__link_job_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobMergeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    match_job_api_jobs__job_id__matches_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobMatch"][];
                 };
             };
             /** @description Validation Error */

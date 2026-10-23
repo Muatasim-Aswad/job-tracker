@@ -66,6 +66,15 @@ class JobUpdate(BaseModel):
     meta: dict[str, Any] | None = None
 
 
+class JobLinkCreate(BaseModel):
+    other_job_id: str
+
+
+class JobMergeResult(BaseModel):
+    job_id: str
+    merged_from: list[str] = Field(default_factory=list)
+
+
 class JobDetail(Job):
     listings: list[Listing] = []
     events: list[Event] = []
@@ -93,8 +102,8 @@ type MatchInsight = SameValue | DifferentValues
 
 
 class MatchInsights(BaseModel):
-    """Field checks between the viewed listing and a candidate job. A check is null
-    unless both sides captured the field."""
+    """Field checks across source and candidate listings. A check is null unless
+    both sides captured the field; any agreeing pair counts as the same value."""
 
     apply_url: MatchInsight | None = None
     company_url: MatchInsight | None = None
@@ -106,8 +115,8 @@ class MatchInsights(BaseModel):
 
 
 class MatchTiming(BaseModel):
-    """`overlapping` means a candidate listing is not known closed before the viewed
-    posting appeared; otherwise `gap_days` counts the days between them."""
+    """`overlapping` means a candidate listing is not known closed before the earliest
+    source posting appeared; otherwise `gap_days` counts the days between them."""
 
     overlapping: bool
     gap_days: int | None = None
@@ -123,7 +132,7 @@ class JobMatch(BaseModel):
     created_at: str
     closed_at: str | None = None  # latest listing closed_at, if any posting closed
     listing_count: int = 0
-    # Jaccard JD-overlap (0..1) with the viewed listing — the popover's "N% match".
+    # Highest Jaccard JD-overlap (0..1) across source and candidate listing pairs.
     # None when either side has no captured JD yet, so the popover degrades to a
     # plain candidate list rather than a misleading 0%.
     similarity: float | None = None

@@ -1,9 +1,8 @@
-"""Evidence comparing a viewed listing with one duplicate candidate.
+"""Evidence comparing source listings with one duplicate candidate.
 
 Evidence explains a suggestion and never excludes a candidate. A field is compared
-only when both sides captured it, and a candidate job has the same value when any of
-its listings carries the viewed listing's value; a differing candidate value comes
-from its earliest-captured listing.
+only when both sides captured it. A field agrees when any pair of listings agrees;
+otherwise each side supplies its earliest-captured comparable value.
 """
 
 from collections.abc import Callable, Sequence
@@ -119,32 +118,35 @@ _CHECKS: dict[str, _Check] = {
 }
 
 
-def _insight(check: _Check, current: Listing, candidates: Sequence[Listing]) -> MatchInsight | None:
-    current_value = check.display(current)
+def _insight(
+    check: _Check, current: Sequence[Listing], candidates: Sequence[Listing]
+) -> MatchInsight | None:
+    sources = [listing for listing in current if check.display(listing) is not None]
     comparable = [listing for listing in candidates if check.display(listing) is not None]
-    if current_value is None or not comparable:
+    if not sources or not comparable:
         return None
-    if any(check.same(current, listing) for listing in comparable):
+    if any(check.same(source, candidate) for source in sources for candidate in comparable):
         return SameValue(is_same=True)
+    current_value = check.display(sources[0])
     candidate_value = check.display(comparable[0])
-    assert candidate_value is not None
+    assert current_value is not None and candidate_value is not None
     return DifferentValues(is_same=False, current=current_value, candidate=candidate_value)
 
 
-def match_insights(current: Listing | None, candidates: Sequence[Listing]) -> MatchInsights:
-    """Field checks for one candidate; `candidates` are its listings by capture time."""
-    if current is None:
-        return MatchInsights()
+def match_insights(current: Sequence[Listing], candidates: Sequence[Listing]) -> MatchInsights:
+    """Field checks for one candidate; both listing sets are ordered by capture time."""
     return MatchInsights(
         **{name: _insight(check, current, candidates) for name, check in _CHECKS.items()}
     )
 
 
-def shares_apply_url(current: Listing | None, candidates: Sequence[Listing]) -> bool:
-    """Whether a candidate listing applies at the viewed listing's destination."""
-    if current is None:
-        return False
-    return any(_CHECKS["apply_url"].same(current, listing) for listing in candidates)
+def shares_apply_url(current: Sequence[Listing], candidates: Sequence[Listing]) -> bool:
+    """Whether any pair of listings shares an application destination."""
+    return any(
+        _CHECKS["apply_url"].same(source, candidate)
+        for source in current
+        for candidate in candidates
+    )
 
 
 def _instant(value: object) -> datetime | None:
@@ -157,13 +159,19 @@ def _instant(value: object) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def match_timing(current: Listing | None, candidates: Sequence[Listing]) -> MatchTiming | None:
-    """When the viewed posting appeared relative to the candidate's last closure. The
+def match_timing(current: Sequence[Listing], candidates: Sequence[Listing]) -> MatchTiming | None:
+    """Earliest source appearance relative to the candidate's last closure. Each
     posting date falls back to capture time, its latest possible appearance."""
-    if current is None or not candidates:
-        return None
-    appeared = _instant(current.meta.get("posted_at")) or _instant(current.captured_at)
-    if appeared is None:
+    appeared = min(
+        (
+            date
+            for listing in current
+            if (date := _instant(listing.meta.get("posted_at")) or _instant(listing.captured_at))
+            is not None
+        ),
+        default=None,
+    )
+    if appeared is None or not candidates:
         return None
     closures = [_instant(listing.closed_at) for listing in candidates]
     if any(closed is None for closed in closures):
