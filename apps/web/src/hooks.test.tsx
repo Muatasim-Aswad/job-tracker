@@ -49,6 +49,7 @@ describe("form-fill review presence", () => {
 
 function makeJob(overrides: Partial<JobSummary> = {}): JobSummary {
   return {
+    availability: "unknown",
     listing_availability: {
       linkedin_open_count: 0,
       unavailable_count: 0,

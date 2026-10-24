@@ -42,7 +42,7 @@ The header separates Title/Close from Company/Edit and Star/Hide/Copy. Phone fie
 
 Listings, Custom fields, Documents, and Timeline start expanded and show counts. `jt.collapsedJobSections` stores only collapsed section keys, shared across jobs. Collapsing hides mounted content and preserves drafts; Add expands its section, and attention-driven Add note expands Timeline before focusing the composer. `CollapsibleSection` and `SectionHeader` share disclosure/add controls; the drawer owns persistence.
 
-Listing details show compact amber `Unavailable <date>` or red `Closed <date>` labels independently of job status. Original notices and precise observation times appear on hover, focus, or tap; Open and Unknown add no label. Board cards show one undated label: Unavailable takes precedence over Closed. A confirmed Open LinkedIn listing hides that label; Unknown and Open listings on other platforms do not suppress it. Unavailable dates are observation dates; closure dates remain the first observed closure until reopening.
+Listing details show compact amber `Unavailable <date>` or red `Closed <date>` labels independently of job status. Original notices and precise observation times appear on hover, focus, or tap; Open and Unknown add no label. Board cards display one undated label from the API's job-level `availability`: amber Unavailable or red Closed; Open and Unknown add no label. The [API guide](../api/README.md#listing-availability) owns the aggregation rule. Unavailable dates are observation dates; closure dates remain the first observed closure until reopening.
 
 ## Application header
 

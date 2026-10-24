@@ -206,8 +206,8 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
       {job.platforms.length > 0 ||
       applyBadges.length > 0 ||
       isTerminal(job.status) ||
-      job.listing_availability?.closed_count ||
-      job.listing_availability?.unavailable_count ? (
+      job.availability === "closed" ||
+      job.availability === "unavailable" ? (
         <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-micro">
           {isTerminal(job.status) && <StatusBadge status={job.status} />}
           {job.platforms.map((p) => (

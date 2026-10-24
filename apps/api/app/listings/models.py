@@ -12,6 +12,16 @@ class ListingAvailabilitySummary(BaseModel):
     unavailable_observed_at: str | None = None
     closed_at: str | None = None
 
+    @property
+    def state(self) -> ListingAvailability:
+        if self.linkedin_open_count > 0:
+            return ListingAvailability.OPEN
+        if self.unavailable_count > 0:
+            return ListingAvailability.UNAVAILABLE
+        if self.closed_count > 0:
+            return ListingAvailability.CLOSED
+        return ListingAvailability.UNKNOWN
+
 
 class Listing(BaseModel):
     id: str

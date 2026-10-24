@@ -37,11 +37,9 @@ export function AvailabilityLabel({
 }
 
 export function JobListingAvailability({ job }: { job: JobSummary }) {
-  const availability = job.listing_availability;
-  if (!availability || availability.linkedin_open_count > 0) return null;
-  if (availability.unavailable_count > 0)
+  if (job.availability === "unavailable")
     return <AvailabilityLabel closed={false} message="A listing is unavailable" />;
-  if (availability.closed_count > 0)
+  if (job.availability === "closed")
     return <AvailabilityLabel closed message="A listing is closed" />;
   return null;
 }

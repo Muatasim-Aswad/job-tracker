@@ -61,6 +61,7 @@ class JobService:
         out: list[JobSummary] = []
         for job in jobs:
             rollup = summaries.get(job.id)
+            availability = rollup.availability if rollup else ListingAvailabilitySummary()
             primary = (
                 PrimaryListing(
                     platform=rollup.primary_platform,
@@ -77,9 +78,8 @@ class JobService:
                     platforms=rollup.platforms if rollup else [],
                     apply_types=rollup.apply_types if rollup else [],
                     listing_count=rollup.listing_count if rollup else 0,
-                    listing_availability=(
-                        rollup.availability if rollup else ListingAvailabilitySummary()
-                    ),
+                    availability=availability.state,
+                    listing_availability=availability,
                     primary_listing=primary,
                     attention=self._attention(job, last_activity.get(job.id), now),
                 )
@@ -116,8 +116,11 @@ class JobService:
         job = self.jobs.get(job_id) if job_id else None
         if job is None:
             raise NotFoundError(f"job {requested_job_id} not found")
+        rollup = self.listings.summaries_for_jobs([job_id]).get(job_id)
+        availability = rollup.availability if rollup else ListingAvailabilitySummary()
         return JobDetail(
             **job.model_dump(),
+            availability=availability.state,
             listings=self.listings.list_for_job(job_id),
             events=self.events.list_for_job(job_id),
             documents=self.documents.list_for_job(job_id),

@@ -2,6 +2,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.core.enums import ListingAvailability
 from app.documents.models import Document
 from app.events.models import Event
 from app.jobs.models import Job
@@ -51,6 +52,7 @@ class JobSummary(Job):
     platforms: list[str] = []
     apply_types: list[str] = []
     listing_count: int = 0
+    availability: ListingAvailability = ListingAvailability.UNKNOWN
     primary_listing: PrimaryListing | None = None
     attention: Attention | None = None
     listing_availability: ListingAvailabilitySummary = Field(
@@ -76,6 +78,7 @@ class JobMergeResult(BaseModel):
 
 
 class JobDetail(Job):
+    availability: ListingAvailability = ListingAvailability.UNKNOWN
     listings: list[Listing] = []
     events: list[Event] = []
     documents: list[Document] = []

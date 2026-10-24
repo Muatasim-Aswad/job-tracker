@@ -1804,6 +1804,8 @@ export interface components {
         };
         /** JobDetail */
         JobDetail: {
+            /** @default unknown */
+            availability: components["schemas"]["ListingAvailability"];
             /** Company */
             company?: string | null;
             /** Company Key */
@@ -1908,6 +1910,8 @@ export interface components {
              */
             apply_types: string[];
             attention?: components["schemas"]["Attention"] | null;
+            /** @default unknown */
+            availability: components["schemas"]["ListingAvailability"];
             /** Company */
             company?: string | null;
             /** Company Key */
