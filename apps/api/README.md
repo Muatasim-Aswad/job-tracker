@@ -60,6 +60,12 @@ Startup seeds one settings row if absent: description highlights enabled with de
 
 Settings contain `description_highlights`, `title_rules`, `easy_apply_enabled`, `hide_mode` (`dim`/`remove`), and `search_diagnostics` (`scope` and Unix-millisecond `expires_at`). Rules have a stable ID, enabled flag, condition (`contains`, `starts_with`, `not_contains`), alternative `terms`, and action (`outline_job_card`, `hide`, `star`, `skip`). Up to 100 rules and 200 keywords per list are accepted; keywords are trimmed and deduplicated. Lists require unique IDs. Explicit null settings and empty title-rule keyword lists are refused. A temporary diagnostics scope requires an expiry; disabled or expired capture makes search-log submissions a no-op. Settings are ordinary database data, included in backups and optional Turso synchronization.
 
+### Listing capture timestamps
+
+Listings in `GET /api/jobs/{job_id}` expose `captured_at` (first capture) and `last_captured_at` (latest successful `POST /api/listings`, including partial or unchanged captures). Both use server UTC time; neither is a caller-supplied field. Manual edits, relinks, and merges preserve them. `updated_at` records broader listing changes, while `availability_observed_at` records availability evidence only.
+
+Uncaptured stubs have null capture timestamps. Existing listings retain their original `captured_at` and start with null `last_captured_at` until their next capture; historical refresh times are not inferred from `updated_at`. The additive migration preserves existing data and is safe to rerun.
+
 ### Listing availability
 
 `POST /api/listings` accepts `availability` (`unknown`, `open`, `unavailable`, or `closed`), an optional `availability_message`, and an optional timezone-aware `availability_observed_at` (server time when omitted). `GET /api/jobs/{job_id}` returns these fields on each listing. Omitted or unknown observations preserve prior evidence; older observations are ignored. Notice and timestamp require an availability value. An open observation clears the listing closure; unavailable observations neither close a listing nor undo a recorded closure. Repeated closure captures preserve the first `closed_at` until reopening; explicit closure edits can still replace or clear it. `GET /api/jobs` includes `listing_availability` with unavailable/closed counts and dates plus `linkedin_open_count` for compact cards. Availability is independent of funnel progress; automatic reconciliation and manual-closure safeguards still apply.

@@ -2010,6 +2010,8 @@ export interface components {
             id: string;
             /** Job Id */
             job_id: string;
+            /** Last Captured At */
+            last_captured_at?: string | null;
             /** Meta */
             meta?: {
                 [key: string]: unknown;

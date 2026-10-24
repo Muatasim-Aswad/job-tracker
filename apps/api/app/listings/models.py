@@ -34,6 +34,7 @@ class Listing(BaseModel):
     apply_type: str | None = None
     meta: dict[str, Any] = Field(default_factory=dict)
     captured_at: str | None = None
+    last_captured_at: str | None = None
     closed_at: str | None = None
     availability: ListingAvailability = ListingAvailability.UNKNOWN
     availability_message: str | None = None

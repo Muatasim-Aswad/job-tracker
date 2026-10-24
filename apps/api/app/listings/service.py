@@ -393,6 +393,7 @@ class ListingService:
                 self._scraped_fields(
                     data,
                     captured_at=existing.captured_at or now,
+                    last_captured_at=now,
                     existing_meta=existing.meta,
                     existing_apply_type=existing.apply_type,
                 ),
@@ -542,12 +543,16 @@ class ListingService:
     def _scraped_fields(
         data: ListingCreate,
         captured_at: str,
+        last_captured_at: str,
         existing_meta: dict[str, object],
         existing_apply_type: str | None,
     ) -> dict[str, object]:
         # Only overwrite columns the caller actually provided, so a partial
         # recapture never wipes existing scraped values.
-        fields: dict[str, object] = {"captured_at": captured_at}
+        fields: dict[str, object] = {
+            "captured_at": captured_at,
+            "last_captured_at": last_captured_at,
+        }
         for col in ("url", "title", "company"):
             value = getattr(data, col)
             if _observed(value):

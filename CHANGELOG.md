@@ -12,6 +12,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 - Job-ID endpoints for duplicate suggestions across all source and candidate listings and for merging two complete jobs, reusing existing matching rules, exclusions, survivor selection, and merge safeguards.
 - Job summaries and full details expose computed availability; dashboard cards display the API result using the existing precedence.
+- Listings expose `last_captured_at` for the latest accepted capture, preserving the first capture time and leaving historical refresh times unknown until recapture.
 
 ## [1.5.0] - 2026-10-22
 
