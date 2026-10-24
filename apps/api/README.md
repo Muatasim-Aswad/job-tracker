@@ -62,9 +62,9 @@ Settings contain `description_highlights`, `title_rules`, `easy_apply_enabled`, 
 
 ### Listing capture timestamps
 
-Listings in `GET /api/jobs/{job_id}` expose `captured_at` (first capture) and `last_captured_at` (latest successful `POST /api/listings`, including partial or unchanged captures). Both use server UTC time; neither is a caller-supplied field. Manual edits, relinks, and merges preserve them. `updated_at` records broader listing changes, while `availability_observed_at` records availability evidence only.
+Listings in `GET /api/jobs/{job_id}` expose `captured_at` (first capture of any kind) and `last_detail_captured_at` (latest successful full-detail capture). `POST /api/listings` accepts `capture_kind: "detail" | "partial"`, defaulting to `partial`. Detail requests must supply a nonblank title and string `meta.description`; stored fields and `meta_patch` cannot satisfy that requirement. Each accepted detail capture advances `last_detail_captured_at`, including identical recaptures. Partial card captures, availability-only updates, manual edits, relinks, and merges preserve it.
 
-Uncaptured stubs have null capture timestamps. Existing listings retain their original `captured_at` and start with null `last_captured_at` until their next capture; historical refresh times are not inferred from `updated_at`. The additive migration preserves existing data and is safe to rerun.
+Both capture timestamps use server UTC time and are not caller-supplied fields. `updated_at` records broader listing changes, while `availability_observed_at` records availability evidence only. Uncaptured stubs have null capture timestamps. Existing listings retain their original `captured_at` and start with null `last_detail_captured_at` until a marked detail capture; older clients without the marker cannot advance it. The former `last_captured_at` database column is retained without further updates for additive migration compatibility; its values are neither exposed nor copied into the detail timestamp. The migration preserves existing data and is safe to rerun.
 
 ### Listing availability
 

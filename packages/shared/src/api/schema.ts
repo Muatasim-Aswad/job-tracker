@@ -2010,8 +2010,8 @@ export interface components {
             id: string;
             /** Job Id */
             job_id: string;
-            /** Last Captured At */
-            last_captured_at?: string | null;
+            /** Last Detail Captured At */
+            last_detail_captured_at?: string | null;
             /** Meta */
             meta?: {
                 [key: string]: unknown;
@@ -2065,6 +2065,12 @@ export interface components {
             availability_message?: string | null;
             /** Availability Observed At */
             availability_observed_at?: string | null;
+            /**
+             * Capture Kind
+             * @default partial
+             * @enum {string}
+             */
+            capture_kind: "partial" | "detail";
             /** Closed At */
             closed_at?: string | null;
             /** Company */

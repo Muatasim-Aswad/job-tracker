@@ -31,6 +31,7 @@ export function AddJobDialog({
     create.mutate(
       {
         platform: "manual",
+        capture_kind: "partial",
         platform_id: crypto.randomUUID(),
         via: "manual",
         title: title.trim() || undefined,

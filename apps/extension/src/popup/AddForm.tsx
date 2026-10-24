@@ -44,6 +44,7 @@ export const AddForm = forwardRef<AddFormHandle, AddFormProps>(function AddForm(
     try {
       const res = await createListing({
         platform: "manual",
+        capture_kind: "partial",
         platform_id: platformId,
         via: "manual",
         title: t || undefined,

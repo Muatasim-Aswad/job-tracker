@@ -388,6 +388,7 @@ def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
         ("listings", "availability_message"),
         ("listings", "availability_observed_at"),
         ("listings", "last_captured_at"),
+        ("listings", "last_detail_captured_at"),
     )
     assert tuple(key for key, _migration in _DATA_MIGRATIONS) == (
         "create_form_fill_foundation_v1",

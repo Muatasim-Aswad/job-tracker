@@ -16,6 +16,7 @@ import type { BuildIdentity } from "./version";
 
 /** Natural key plus fields available from either a partial or full capture. */
 export interface ListingRecord extends NaturalKey {
+  capture_kind?: ListingCreate["capture_kind"];
   url?: string | null;
   title?: string | null;
   company?: string | null;

@@ -68,6 +68,8 @@ Controls with up to 512 choices retain complete option identity; larger controls
 
 ## Listing availability
 
+The shared capture engine sends `capture_kind: "detail"` only after the current detail pane supplies a nonblank title and description. Card and closure-only updates use `partial`. The API assigns `last_detail_captured_at` from its own clock only when a full-detail capture succeeds; adapters do not supply that timestamp. Full captures retain their existing per-document deduplication and retry behavior.
+
 LinkedIn’s current job header supplies availability evidence. The gray “Not currently accepting applications” notice records **Unavailable** without changing the job’s funnel status; the red “No longer accepting applications” notice retains closure handling. Captures retain the exact notice and observation time, and repeat when availability changes. A visible, enabled Apply control records **Open**; missing, hidden, disabled, or unrelated controls do not. The detail banner presents unavailable applications as a neutral chip.
 
 ## Keyboard

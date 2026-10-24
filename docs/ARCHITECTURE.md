@@ -157,7 +157,7 @@ The main boundaries are:
 
 `POST /listings` merges observed fields from `meta`, then `meta_patch`, into stored metadata, including nested objects. Omitted fields, nulls, blank strings, and empty arrays or objects preserve existing values; zero and false are observations. Blank identity fields and `apply_type: "unknown"` cannot overwrite known values. Posting date, precision, and raw age form one evidence group: missing dates and weaker precision preserve the stored group, while an equally precise or stronger date replaces it without borrowing the old raw age. Explicit `PATCH /listings/{listing_id}` metadata edits still replace the complete bag and can clear fields.
 
-Listing `captured_at` remains the first capture for posting-age and match-timing fallbacks. `last_captured_at` records the latest accepted capture independently of manual edits, relinks, and merges; the [API guide](../apps/api/README.md#listing-capture-timestamps) owns timestamp semantics and upgrade behavior.
+Listing `captured_at` remains the first capture for posting-age and match-timing fallbacks. `last_detail_captured_at` records server acceptance time only for explicitly marked full-detail captures carrying fresh title/description evidence. Partial captures, manual edits, relinks, and merges preserve it; the [API guide](../apps/api/README.md#listing-capture-timestamps) owns timestamp semantics and upgrade behavior.
 
 The shared TypeScript API schema is generated from FastAPI's OpenAPI output. Repository checks fail if the generated file differs from the server contract.
 
