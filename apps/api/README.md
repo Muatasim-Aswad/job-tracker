@@ -72,6 +72,10 @@ Both capture timestamps use server UTC time and are not caller-supplied fields. 
 
 `GET /api/jobs` and `GET /api/jobs/{job_id}` also return top-level `availability`, calculated from the current listings on each read: `open` when any LinkedIn listing is confirmed open, otherwise `unavailable` when any listing is unavailable, otherwise `closed` when any listing is closed, otherwise `unknown`. Open listings on other platforms do not override warnings or establish job-level `open`. The field is read-only, is not a database column, and remains separate from funnel `status`; the dashboard displays this result without recalculating it. Existing listing counts remain available for filters.
 
+### Duplicate exclusions
+
+`POST /api/jobs/{job_id}/false-match` accepts `{ "other_job_id": "..." }` and mutually excludes two stored jobs from duplicate suggestions without a listing address. Both IDs resolve merged aliases; repeated exclusions and self-pairs are no-ops. Missing jobs return `404`. Success returns `204` with the canonical source job in `Content-Location`. The listing-addressed endpoint remains available for uncaptured postings.
+
 ### Application-workflow analytics
 
 Agents can use `GET` and `PUT /api/jobs/{job_id}/application-workflow` after submission has been explicitly confirmed by an effective `applied` or `corrected:applied` event. The singular record captures a typed preparation lane, submission actor and channel, narrative kinds and provenance, an optional measured human-time duration in integer seconds, and bounded opaque references to canonical agent artifacts or submission evidence. Use `unknown` when a required workflow fact is unknown, `null` only when human time was not measured, and an empty narrative list only when no narrative was used; do not infer or estimate missing facts.

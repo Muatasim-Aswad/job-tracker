@@ -241,3 +241,68 @@ def test_unknown_job_operations_do_not_create_data(
     response = client.post(f"/api/jobs/{source['job_id']}/link-job", json={})
     assert response.status_code == 422
     assert conn.total_changes == before
+
+
+def test_job_false_match_is_mutual_idempotent_and_preserves_metadata(
+    client: TestClient, conn: sqlite3.Connection
+) -> None:
+    first = _listing(client, "first")
+    second = _listing(client, "second")
+    for job in (first, second):
+        client.patch(f"/api/jobs/{job['job_id']}", json={"meta": {"annotation": "keep"}})
+    url = f"/api/jobs/{first['job_id']}/false-match"
+    body = {"other_job_id": second["job_id"]}
+    response = client.post(url, json=body)
+    assert response.status_code == 204
+    assert response.headers["content-location"] == f"/api/jobs/{first['job_id']}"
+    before = conn.total_changes
+    assert client.post(url, json=body).status_code == 204
+    assert conn.total_changes == before
+    for job, other in ((first, second), (second, first)):
+        assert _matches(client, job["job_id"]) == []
+        detail = client.get(f"/api/jobs/{job['job_id']}").json()
+        assert detail["meta"] == {"annotation": "keep", "false_matches": [other["job_id"]]}
+
+
+def test_job_false_match_resolves_both_aliases_and_self_is_noop(
+    client: TestClient, conn: sqlite3.Connection
+) -> None:
+    first = _listing(client, "first")
+    first_alias = _listing(client, "first-alias")
+    second = _listing(client, "second")
+    second_alias = _listing(client, "second-alias")
+    _event(client, first["job_id"], "seen")
+    _event(client, second["job_id"], "seen")
+    _link(client, first["job_id"], first_alias["job_id"])
+    _link(client, second["job_id"], second_alias["job_id"])
+    response = client.post(
+        f"/api/jobs/{first_alias['job_id']}/false-match",
+        json={"other_job_id": second_alias["job_id"]},
+    )
+    assert response.status_code == 204
+    assert response.headers["content-location"] == f"/api/jobs/{first['job_id']}"
+    detail = client.get(f"/api/jobs/{first['job_id']}").json()
+    assert detail["meta"]["false_matches"] == [second["job_id"]]
+    before = conn.total_changes
+    assert (
+        client.post(
+            f"/api/jobs/{first['job_id']}/false-match", json={"other_job_id": first_alias["job_id"]}
+        ).status_code
+        == 204
+    )
+    assert conn.total_changes == before
+
+
+def test_job_false_match_missing_job_changes_nothing(
+    client: TestClient, conn: sqlite3.Connection
+) -> None:
+    first = _listing(client, "first")
+    before = conn.total_changes
+    for source, target in ((first["job_id"], "missing"), ("missing", first["job_id"])):
+        assert (
+            client.post(
+                f"/api/jobs/{source}/false-match", json={"other_job_id": target}
+            ).status_code
+            == 404
+        )
+    assert conn.total_changes == before

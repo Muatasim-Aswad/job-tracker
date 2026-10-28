@@ -209,10 +209,22 @@ class ListingService:
         if not other_job_id:
             raise NotFoundError(f"job {requested_job_id} not found")
         job_id, _ = self.ensure_listing(platform, platform_id, via="false_match")
+        self.mark_jobs_false_match(job_id, other_job_id)
+
+    def mark_jobs_false_match(self, job_id: str, other_job_id: str) -> str:
+        """Exclude two canonical jobs and return the resolved source identity."""
+        resolved = []
+        for requested_id in (job_id, other_job_id):
+            canonical_id = self.jobs.resolve_id(requested_id)
+            if canonical_id is None:
+                raise NotFoundError(f"job {requested_id} not found")
+            resolved.append(canonical_id)
+        job_id, other_job_id = resolved
         if job_id == other_job_id:
-            return  # a listing can't be "not the same job" as its own job
+            return job_id
         self._add_false_match(job_id, other_job_id)
         self._add_false_match(other_job_id, job_id)
+        return job_id
 
     def _add_false_match(self, job_id: str, other_id: str) -> None:
         """Add an exclusion while preserving the rest of the metadata bag."""

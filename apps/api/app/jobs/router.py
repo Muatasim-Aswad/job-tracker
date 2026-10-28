@@ -109,6 +109,15 @@ def link_job(
     return merged
 
 
+@router.post("/jobs/{job_id}/false-match", status_code=204)
+def false_match_job(
+    job_id: str, body: JobLinkCreate, service: ListingService = Depends(get_merge_service)
+) -> Response:
+    """Mutually exclude two stored jobs from duplicate suggestions."""
+    canonical_id = service.mark_jobs_false_match(job_id, body.other_job_id)
+    return Response(status_code=204, headers={"Content-Location": f"/api/jobs/{canonical_id}"})
+
+
 @router.delete("/jobs/{job_id}", status_code=204)
 def delete_job(job_id: str, service: JobService = Depends(get_service)) -> Response:
     """Delete a job and all of its listings, events, and documents."""

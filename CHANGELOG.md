@@ -10,6 +10,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Added
 
+- Job-ID false-match dismissal without a platform listing address.
 - Job-ID endpoints for duplicate suggestions across all source and candidate listings and for merging two complete jobs, reusing existing matching rules, exclusions, survivor selection, and merge safeguards.
 - Job summaries and full details expose computed availability; dashboard cards display the API result using the existing precedence.
 - Listings expose server-stamped `last_detail_captured_at` for the latest explicitly marked full-detail capture. Partial cards and availability-only updates do not advance it; first-capture time is preserved and historical detail refresh times remain unknown until recapture.
