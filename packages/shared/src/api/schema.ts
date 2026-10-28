@@ -1672,6 +1672,8 @@ export interface components {
         DocumentCreate: {
             /** Content */
             content?: string | null;
+            /** Creation Key */
+            creation_key?: string | null;
             /**
              * Provided
              * @default false

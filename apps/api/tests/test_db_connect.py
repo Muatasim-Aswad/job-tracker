@@ -397,6 +397,7 @@ def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
         "capture_clear_operation_v1",
         "create_user_preferences_v1",
         "seed_user_preferences_defaults_v1",
+        "create_document_creations_v1",
     )
 
 
@@ -405,6 +406,7 @@ def test_fresh_database_records_append_only_migration_keys(conn: sqlite3.Connect
     assert conn.execute("SELECT key FROM schema_migrations ORDER BY key").fetchall() == [
         ("capture_clear_operation_v1",),
         ("create_application_workflows_v1",),
+        ("create_document_creations_v1",),
         ("create_form_fill_foundation_v1",),
         ("create_job_id_aliases_v1",),
         ("create_user_preferences_v1",),
@@ -453,6 +455,7 @@ def test_legacy_database_opens_under_the_baseline_without_data_loss(
         "capture_clear_operation_v1",
         "classify_legacy_automatic_closures",
         "create_application_workflows_v1",
+        "create_document_creations_v1",
         "create_form_fill_foundation_v1",
         "create_job_id_aliases_v1",
         "create_user_preferences_v1",

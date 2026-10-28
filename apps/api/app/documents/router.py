@@ -17,7 +17,8 @@ def create_document(
     response: Response,
     service: DocumentService = Depends(get_service),
 ) -> Document:
-    document = service.add(job_id, body)
+    document, created = service.add(job_id, body)
+    response.status_code = 201 if created else 200
     response.headers["Content-Location"] = f"/api/jobs/{document.job_id}"
     return document
 

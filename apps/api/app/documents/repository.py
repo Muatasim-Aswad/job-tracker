@@ -12,6 +12,20 @@ class DocumentRepository:
     def __init__(self, conn: Conn) -> None:
         self.conn = conn
 
+    def creation(self, key: str) -> Row | None:
+        return query_one(
+            self.conn,
+            "SELECT document_id, request_hash FROM document_creations WHERE creation_key = ?",
+            (key,),
+        )
+
+    def remember_creation(self, key: str, document_id: int, request_hash: str) -> None:
+        execute(
+            self.conn,
+            "INSERT INTO document_creations (creation_key, document_id, request_hash) VALUES (?, ?, ?)",
+            (key, document_id, request_hash),
+        )
+
     def insert(
         self,
         job_id: str,
