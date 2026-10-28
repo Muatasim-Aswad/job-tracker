@@ -80,6 +80,10 @@ Event batches and corrections return `event_ids`: the exact inserted IDs in subm
 
 `POST /api/events`, `POST /api/jobs/{job_id}/corrections`, and the optional body of `POST /api/jobs/{job_id}/status/revert` accept `expected_status`. The server compares it with the canonical job’s initial status inside the request transaction, before any events, flags, notes, or corrections. Mismatch returns `409 stale_status` with the current job ID, status, and flags; the whole request rolls back, including newly materialized stubs. A batch checks once before its first event. Omitted/null preconditions retain ordinary funnel behavior. An uncaptured listing materializes as `new` for this check.
 
+### Document metadata
+
+Documents accept and return a `meta` JSON object for document-specific context such as language, source, or an artifact reference. It defaults to `{}`. `PATCH /api/documents/{document_id}` replaces the entire object when supplied, clears it with `null` or `{}`, and preserves it when omitted. Metadata follows the document through relinks and merges and participates in keyed creation’s original request fingerprint. Existing documents read as `{}` after the additive migration. Values are retained private data alongside document content; workflow-wide analytics remain in the application-workflow resource.
+
 ### Document creation retries
 
 `POST /api/jobs/{job_id}/documents` accepts an optional globally unique `creation_key` (1–200 characters, not whitespace-only). A new key returns `201`; an identical retry returns `200` with the same document ID and its current representation, even after edits or a merge. The key retains a hash of the original normalized creation payload; reuse with different fields or another canonical job returns `409 document_creation_key_conflict`. Omitting the key keeps ordinary independent creation. Keys and hashes are internal and removed when their document is deleted; retrying after deletion creates a new document. Document creation and key retention commit together.

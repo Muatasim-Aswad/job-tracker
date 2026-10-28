@@ -33,7 +33,7 @@ class DocumentService:
                 return document, False
         now = utc_now()
         document_id = self.documents.insert(
-            job_id, str(data.type), data.requested, data.provided, data.content, now, now
+            job_id, str(data.type), data.requested, data.provided, data.content, now, now, data.meta
         )
         document = self.documents.get(document_id)
         assert document is not None

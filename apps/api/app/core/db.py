@@ -206,6 +206,7 @@ _COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("listings", "availability_observed_at", "availability_observed_at TEXT"),
     ("listings", "last_captured_at", "last_captured_at TEXT"),
     ("listings", "last_detail_captured_at", "last_detail_captured_at TEXT"),
+    ("documents", "meta", "meta TEXT"),
 )
 
 DataMigration = str | Callable[[Conn], None]

@@ -1660,6 +1660,10 @@ export interface components {
             id: number;
             /** Job Id */
             job_id: string;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            };
             /** Provided */
             provided: boolean;
             /** Requested */
@@ -1675,6 +1679,10 @@ export interface components {
             content?: string | null;
             /** Creation Key */
             creation_key?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            };
             /**
              * Provided
              * @default false
@@ -1696,6 +1704,10 @@ export interface components {
         DocumentUpdate: {
             /** Content */
             content?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
             /** Provided */
             provided?: boolean | null;
             /** Requested */

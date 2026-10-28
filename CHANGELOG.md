@@ -6,10 +6,11 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
-## [1.6.0] - 2026-10-24
+## [1.6.0] - 2026-10-28
 
 ### Added
 
+- Documents accept and return JSON metadata with replace/preserve/clear update semantics.
 - Event writes return exact inserted event IDs, and status reverts identify deleted events.
 - Conditional event, correction, and revert writes reject stale statuses atomically; extension Skip actions carry their observed status.
 - Optional document creation keys prevent duplicates after lost responses and reject conflicting reuse.
