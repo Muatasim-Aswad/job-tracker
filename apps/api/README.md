@@ -72,6 +72,10 @@ Both capture timestamps use server UTC time and are not caller-supplied fields. 
 
 `GET /api/jobs` and `GET /api/jobs/{job_id}` also return top-level `availability`, calculated from the current listings on each read: `open` when any LinkedIn listing is confirmed open, otherwise `unavailable` when any listing is unavailable, otherwise `closed` when any listing is closed, otherwise `unknown`. Open listings on other platforms do not override warnings or establish job-level `open`. The field is read-only, is not a database column, and remains separate from funnel `status`; the dashboard displays this result without recalculating it. Existing listing counts remain available for filters.
 
+### Conditional status writes
+
+`POST /api/events`, `POST /api/jobs/{job_id}/corrections`, and the optional body of `POST /api/jobs/{job_id}/status/revert` accept `expected_status`. The server compares it with the canonical job’s initial status inside the request transaction, before any events, flags, notes, or corrections. Mismatch returns `409 stale_status` with the current job ID, status, and flags; the whole request rolls back, including newly materialized stubs. A batch checks once before its first event. Omitted/null preconditions retain ordinary funnel behavior. An uncaptured listing materializes as `new` for this check.
+
 ### Document creation retries
 
 `POST /api/jobs/{job_id}/documents` accepts an optional globally unique `creation_key` (1–200 characters, not whitespace-only). A new key returns `201`; an identical retry returns `200` with the same document ID and its current representation, even after edits or a merge. The key retains a hash of the original normalized creation payload; reuse with different fields or another canonical job returns `409 document_creation_key_conflict`. Omitting the key keeps ordinary independent creation. Keys and hashes are internal and removed when their document is deleted; retrying after deletion creates a new document. Document creation and key retention commit together.

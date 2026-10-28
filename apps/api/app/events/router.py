@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Response
 
 from app.core.deps import service_factory
 from app.events.models import Event
-from app.events.schemas import CorrectionCreate, EventCreate, EventUpdate
+from app.events.schemas import CorrectionCreate, EventCreate, EventUpdate, StatusPrecondition
 from app.events.service import EventService
 from app.jobs.schemas import JobMutationState
 
@@ -45,16 +45,19 @@ def correct_status(
     service: EventService = Depends(get_service),
 ) -> JobMutationState:
     """Set any status and record the deliberate correction."""
-    state = service.correct(job_id, body.status, body.reason)
+    state = service.correct(job_id, body.status, body.reason, body.expected_status)
     response.headers["Content-Location"] = f"/api/jobs/{state.job_id}"
     return state
 
 
 @router.post("/jobs/{job_id}/status/revert", response_model=JobMutationState)
 def revert_status(
-    job_id: str, response: Response, service: EventService = Depends(get_service)
+    job_id: str,
+    response: Response,
+    body: StatusPrecondition | None = None,
+    service: EventService = Depends(get_service),
 ) -> JobMutationState:
     """Remove the latest status-setting event and reproject the prior state."""
-    state = service.revert_last_status(job_id)
+    state = service.revert_last_status(job_id, body.expected_status if body else None)
     response.headers["Content-Location"] = f"/api/jobs/{state.job_id}"
     return state

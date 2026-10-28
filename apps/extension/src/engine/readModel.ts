@@ -27,10 +27,14 @@ export function createReadModel(engine: Engine) {
     if (writing.has(jobId)) return null; // a write is already in flight for this job
     writing.add(jobId);
     try {
+      const status = stateOf(jobId).status;
+      const precondition = events.some(({ event }) => event === "skipped")
+        ? { expected_status: status === "untracked" ? "new" : status }
+        : {};
       // Omit ts when the surface provides no authoritative event time.
       const resp = await engine.bridge({
         type: "event",
-        payload: { ...key, events, ...(ts ? { ts } : {}) },
+        payload: { ...key, events, ...precondition, ...(ts ? { ts } : {}) },
       });
       if (!resp.ok) {
         console.warn(`[job-tracker] emit failed for ${jobId}:`, resp.error);

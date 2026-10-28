@@ -125,6 +125,32 @@ describe("emit", () => {
   });
 });
 
+describe("conditional Skip", () => {
+  it.each(["untracked", "seen", "to_apply"])(
+    "sends the observed %s state as a precondition",
+    async (status) => {
+      const { readModel, bridge } = makeEngine(async () => ({
+        ok: true,
+        result: [{ platform_id: "1", status, hidden: false, starred: false }],
+      }));
+      await readModel.refreshStates(["LI-1"]);
+      bridge.mockImplementation(async () => ({ ok: false, error: "stale_status" }));
+      bridge.mockClear();
+      await readModel.emit("LI-1", "skipped");
+      expect(bridge).toHaveBeenCalledWith({
+        type: "event",
+        payload: {
+          platform: "linkedin",
+          platform_id: "1",
+          events: [{ event: "skipped", meta: undefined }],
+          expected_status: status === "untracked" ? "new" : status,
+        },
+      });
+      expect(readModel.stateOf("LI-1").status).toBe(status);
+    },
+  );
+});
+
 describe("autoEmit", () => {
   it("emits only once per job+event for the session", async () => {
     const { readModel, bridge } = makeEngine(async () => ({

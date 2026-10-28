@@ -93,6 +93,8 @@ Ordinary status events move forward. They may skip stages, but they cannot move 
 
 Application-workflow analytics require both a current applied-or-later status and a specific effective event that set `applied`; an implied post-application status alone is insufficient. Reverting or deleting that submitted event removes its workflow record through the foreign key. A correction or relink whose settled projection no longer carries applied evidence also removes the record. This is deliberate lifecycle cleanup, not a public workflow-delete operation.
 
+Mutating API requests begin their transaction before precondition reads. Event batches, corrections, and reverts can require an expected initial status; mismatch rolls back the complete request and returns the current canonical state. This protects queued actions from subsequent application activity without changing the ordinary transition rules.
+
 Flags do not change funnel status. Flag events without metadata update the projected flag without adding repetitive audit rows. A metadata-bearing flag event is logged only when its metadata differs from the latest event of that kind. Notes are dated activity records that change neither status nor flags.
 
 An uncaptured listing can read as `untracked`. This is a client-facing projection, not a stored status or a valid transition target.

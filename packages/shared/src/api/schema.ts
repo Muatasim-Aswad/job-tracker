@@ -1556,6 +1556,7 @@ export interface components {
          * @description A deliberate status override, logged as `corrected:<status>`.
          */
         CorrectionCreate: {
+            expected_status?: components["schemas"]["Status"] | null;
             /** Reason */
             reason?: string | null;
             status: components["schemas"]["Status"];
@@ -1730,6 +1731,7 @@ export interface components {
         EventCreate: {
             /** Events */
             events: components["schemas"]["EventItem"][];
+            expected_status?: components["schemas"]["Status"] | null;
             /** Job Id */
             job_id?: string | null;
             /** Platform */
@@ -2880,6 +2882,10 @@ export interface components {
          * @enum {string}
          */
         Status: "new" | "seen" | "to_apply" | "applied" | "in_process" | "offered" | "skipped" | "closed" | "withdrawn" | "rejected" | "ghosted";
+        /** StatusPrecondition */
+        StatusPrecondition: {
+            expected_status?: components["schemas"]["Status"] | null;
+        };
         /** TextValue */
         TextValue: {
             /**
@@ -4404,7 +4410,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StatusPrecondition"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

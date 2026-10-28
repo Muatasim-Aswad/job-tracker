@@ -27,6 +27,7 @@ class EventCreate(BaseModel):
     platform_id: str | None = None
     job_id: str | None = None
     ts: str | None = None  # defaults to now (UTC) server-side; shared by all events
+    expected_status: Status | None = None
 
     @model_validator(mode="after")
     def _check_addressing(self) -> EventCreate:
@@ -49,7 +50,11 @@ class EventUpdate(BaseModel):
     ts: str | None = None
 
 
-class CorrectionCreate(BaseModel):
+class StatusPrecondition(BaseModel):
+    expected_status: Status | None = None
+
+
+class CorrectionCreate(StatusPrecondition):
     """A deliberate status override, logged as `corrected:<status>`."""
 
     status: Status

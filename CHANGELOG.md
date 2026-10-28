@@ -10,6 +10,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Added
 
+- Conditional event, correction, and revert writes reject stale statuses atomically; extension Skip actions carry their observed status.
 - Optional document creation keys prevent duplicates after lost responses and reject conflicting reuse.
 - Job-ID false-match dismissal without a platform listing address.
 - Job-ID endpoints for duplicate suggestions across all source and candidate listings and for merging two complete jobs, reusing existing matching rules, exclusions, survivor selection, and merge safeguards.

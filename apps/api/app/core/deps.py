@@ -50,6 +50,10 @@ def get_conn(request: Request, _slot: None = Depends(_database_slot)) -> Iterato
         )
     try:
         try:
+            if request.method not in {"GET", "HEAD", "OPTIONS"}:
+                # SQLite otherwise begins only on the first write, leaving
+                # precondition reads outside the transaction they protect.
+                db.conn.execute("BEGIN")
             yield db.conn
             start = time.perf_counter()
             db.conn.commit()

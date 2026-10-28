@@ -12,7 +12,7 @@ from app.core.enums import (
     target_status,
 )
 from app.core.enums import Event as EventType
-from app.core.errors import NotFoundError, ValidationError
+from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.core.hashing import stable_hash
 from app.core.timeutil import utc_now
 from app.events.automation import is_automatic_close, is_effective_status_event
@@ -37,6 +37,7 @@ class EventService:
         # Resolve the address, and any stub it materializes, once; every event in the
         # submission then applies against that same job/listing, in order.
         job_id, listing_id = self._resolve_target(data)
+        self._check_expected_status(job_id, data.expected_status)
         ts = data.ts or utc_now()
 
         for item in data.events:
@@ -60,7 +61,9 @@ class EventService:
 
     # --- dashboard corrections --------------------------------------------
 
-    def correct(self, job_id: str, status: Status, reason: str | None) -> JobMutationState:
+    def correct(
+        self, job_id: str, status: Status, reason: str | None, expected_status: Status | None = None
+    ) -> JobMutationState:
         """Force a job to `status`, bypassing every funnel guard, and log a
         `corrected:<status>` row marking the override deliberate and carrying the
         optional `reason`. Correcting to the status the job already holds is a
@@ -70,6 +73,7 @@ class EventService:
         job = self.jobs.get(job_id) if job_id else None
         if job is None:
             raise NotFoundError(f"job {requested_job_id} not found")
+        self._check_expected_status(job_id, expected_status)
         self.listings.automatic_closure.invalidate(job_id, "manual_correction")
         job = self.jobs.get(job_id)
         assert job is not None
@@ -89,7 +93,9 @@ class EventService:
         self._reproject_status(job_id)
         return self._state(job_id)
 
-    def revert_last_status(self, job_id: str) -> JobMutationState:
+    def revert_last_status(
+        self, job_id: str, expected_status: Status | None = None
+    ) -> JobMutationState:
         """Remove the latest status-setting event and reproject the prior state.
 
         Flags and the server-generated `created` event are never affected.
@@ -99,6 +105,7 @@ class EventService:
         job = self.jobs.get(job_id) if job_id else None
         if job is None:
             raise NotFoundError(f"job {requested_job_id} not found")
+        self._check_expected_status(job_id, expected_status)
         status_events = [
             e
             for e in self.events.list_for_job(job_id)
@@ -168,6 +175,13 @@ class EventService:
         return JobMutationState(
             job_id=job.id, status=job.status, hidden=job.hidden, starred=job.starred
         )
+
+    def _check_expected_status(self, job_id: str, expected: Status | None) -> None:
+        if expected is None:
+            return
+        current = self._state(job_id)
+        if current.status != expected.value:
+            raise ConflictError("stale_status", current.model_dump())
 
     # --- target resolution ------------------------------------------------
 
