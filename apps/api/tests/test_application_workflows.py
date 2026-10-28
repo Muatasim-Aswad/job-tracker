@@ -21,8 +21,8 @@ def _event(client: TestClient, job_id: str, event: str, *, by_listing: str | Non
         body = {"platform": "linkedin", "platform_id": by_listing, "events": [{"event": event}]}
     response = client.post("/api/events", json=body)
     assert response.status_code == 200, response.text
-    events = client.get(f"/api/jobs/{job_id}").json()["events"]
-    return next(row["id"] for row in reversed(events) if row["event"] == event)
+    [event_id] = response.json()["event_ids"]
+    return event_id
 
 
 def _payload(event_id: int, **changes: Any) -> dict[str, Any]:

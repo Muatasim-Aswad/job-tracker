@@ -32,7 +32,7 @@ export type JobMatch = Omit<Read<Schemas["JobMatch"]>, "status"> & { status: Sta
 export type JobMutationState = Omit<Read<Schemas["JobMutationState"]>, "status"> & {
   status: Status;
 };
-export type JobState = Omit<JobMutationState, "job_id">;
+export type JobState = Pick<JobMutationState, "status" | "hidden" | "starred">;
 
 export type PrimaryListing = Read<Schemas["PrimaryListing"]>;
 export type Attention = Read<Schemas["Attention"]>;

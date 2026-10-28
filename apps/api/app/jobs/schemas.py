@@ -21,6 +21,8 @@ class JobMutationState(JobState):
     """Result of a job-state write, carrying the resolved canonical identity."""
 
     job_id: str
+    event_ids: list[int] = Field(default_factory=list)
+    deleted_event_ids: list[int] = Field(default_factory=list)
 
 
 class ListingState(JobState):

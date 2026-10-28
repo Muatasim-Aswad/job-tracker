@@ -72,6 +72,10 @@ Both capture timestamps use server UTC time and are not caller-supplied fields. 
 
 `GET /api/jobs` and `GET /api/jobs/{job_id}` also return top-level `availability`, calculated from the current listings on each read: `open` when any LinkedIn listing is confirmed open, otherwise `unavailable` when any listing is unavailable, otherwise `closed` when any listing is closed, otherwise `unknown`. Open listings on other platforms do not override warnings or establish job-level `open`. The field is read-only, is not a database column, and remains separate from funnel `status`; the dashboard displays this result without recalculating it. Existing listing counts remain available for filters.
 
+### Event write results
+
+Event batches and corrections return `event_ids`: the exact inserted IDs in submission order, obtained with `INSERT ... RETURNING`. No-op transitions, metadata-free flag changes, and duplicate flag metadata return no IDs; server-generated stub creation is excluded. IDs describe accepted history writes even when backdated events do not change the projected status. Revert returns the removed row in `deleted_event_ids`; invalidating an automatic closure keeps that row and returns no deleted IDs. Metadata/timestamp edits already return the exact updated event. These response fields accompany the canonical job ID and settled status/flags.
+
 ### Conditional status writes
 
 `POST /api/events`, `POST /api/jobs/{job_id}/corrections`, and the optional body of `POST /api/jobs/{job_id}/status/revert` accept `expected_status`. The server compares it with the canonical job’s initial status inside the request transaction, before any events, flags, notes, or corrections. Mismatch returns `409 stale_status` with the current job ID, status, and flags; the whole request rolls back, including newly materialized stubs. A batch checks once before its first event. Omitted/null preconditions retain ordinary funnel behavior. An uncaptured listing materializes as `new` for this check.

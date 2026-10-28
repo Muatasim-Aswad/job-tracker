@@ -10,6 +10,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Added
 
+- Event writes return exact inserted event IDs, and status reverts identify deleted events.
 - Conditional event, correction, and revert writes reject stale statuses atomically; extension Skip actions carry their observed status.
 - Optional document creation keys prevent duplicates after lost responses and reject conflicting reuse.
 - Job-ID false-match dismissal without a platform listing address.

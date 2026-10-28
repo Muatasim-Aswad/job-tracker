@@ -191,6 +191,8 @@ describe("useJobEvents rollback", () => {
     await waitFor(() => expect(result.current.jobs.data?.[0].status).toBe("new"));
 
     mockedApi.postEvents.mockResolvedValue({
+      event_ids: [42],
+      deleted_event_ids: [],
       job_id: "job-1",
       status: "applied",
       hidden: false,

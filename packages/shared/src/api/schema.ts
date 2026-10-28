@@ -1914,6 +1914,10 @@ export interface components {
          * @description Result of a job-state write, carrying the resolved canonical identity.
          */
         JobMutationState: {
+            /** Deleted Event Ids */
+            deleted_event_ids?: number[];
+            /** Event Ids */
+            event_ids?: number[];
             /** Hidden */
             hidden: boolean;
             /** Job Id */
