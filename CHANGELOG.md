@@ -19,6 +19,10 @@ One version covers the whole product. The extension, the dashboard, and the serv
 - Job summaries and full details expose computed availability; dashboard cards display the API result using the existing precedence.
 - Listings expose server-stamped `last_detail_captured_at` for the latest explicitly marked full-detail capture. Partial cards and availability-only updates do not advance it; first-capture time is preserved and historical detail refresh times remain unknown until recapture.
 
+### Changed
+
+- Update the locked development file-locking dependency and virtual environment tooling to clear the Python dependency audit.
+
 ## [1.5.0] - 2026-10-22
 
 ### Added
