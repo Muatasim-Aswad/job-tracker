@@ -16,6 +16,7 @@ import type { BuildIdentity } from "./version";
 
 /** Natural key plus fields available from either a partial or full capture. */
 export interface ListingRecord extends NaturalKey {
+  capture_kind?: ListingCreate["capture_kind"];
   url?: string | null;
   title?: string | null;
   company?: string | null;
@@ -53,7 +54,10 @@ export type BridgeRequest = { serverUrl?: string } & (
   | { type: "listing"; payload: ListingRecord }
   // `ts` (UTC ISO) is the real time the events happened, when the page exposes it
   // (e.g. a Gmail rejection's received time). Omitted → the server stamps now().
-  | { type: "event"; payload: NaturalKey & { events: JobEvent[]; ts?: string } }
+  | {
+      type: "event";
+      payload: NaturalKey & { events: JobEvent[]; ts?: string; expected_status?: string };
+    }
   | { type: "state-batch"; platform: string; platform_ids: string[] }
   // Duplicate-suggestion lookup for the posting on screen (title/company scraped
   // live, since a just-materialized stub's stored keys are still NULL).

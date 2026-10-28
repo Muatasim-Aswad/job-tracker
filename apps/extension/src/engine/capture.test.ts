@@ -50,10 +50,22 @@ beforeEach(() => {
 });
 
 describe("captureListingOnce", () => {
-  it("skips a pane whose description has not rendered yet", () => {
+  it.each([undefined, "", "   ", 42])(
+    "skips an incomplete detail description %s",
+    (description) => {
+      const { bridge, capture } = makeCapture();
+      capture.captureListingOnce("LI-1", () => record({ meta: { description } }));
+      expect(bridge).not.toHaveBeenCalled();
+    },
+  );
+
+  it("marks a complete detail capture explicitly without supplying a timestamp", () => {
     const { bridge, capture } = makeCapture();
-    capture.captureListingOnce("LI-1", () => record({ meta: {} }));
-    expect(bridge).not.toHaveBeenCalled();
+    capture.captureListingOnce("LI-1", () => record());
+    expect(bridge).toHaveBeenCalledWith({
+      type: "listing",
+      payload: { ...record(), capture_kind: "detail" },
+    });
   });
 
   // Refresh duplicate evidence after the description capture lands.
@@ -97,6 +109,7 @@ describe("captureCards", () => {
       payload: {
         platform: "linkedin",
         platform_id: "1",
+        capture_kind: "partial",
         url: "https://www.linkedin.com/jobs/view/1/",
         title: "Backend Engineer",
         company: "Example Labs",
@@ -123,6 +136,7 @@ describe("markListingClosed", () => {
         payload: {
           platform: "linkedin",
           platform_id: "1",
+          capture_kind: "partial",
           closed_at: expect.any(String),
         },
       },

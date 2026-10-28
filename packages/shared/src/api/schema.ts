@@ -442,6 +442,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jobs/{job_id}/false-match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * False Match Job
+         * @description Mutually exclude two stored jobs from duplicate suggestions.
+         */
+        post: operations["false_match_job_api_jobs__job_id__false_match_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/link-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Link Job
+         * @description Merge two complete stored jobs under the standard survivor rules.
+         */
+        post: operations["link_job_api_jobs__job_id__link_job_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Match Job
+         * @description Return duplicate candidates using the stored job and all its listings.
+         */
+        get: operations["match_job_api_jobs__job_id__matches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/{job_id}/status/revert": {
         parameters: {
             query?: never;
@@ -1496,6 +1556,7 @@ export interface components {
          * @description A deliberate status override, logged as `corrected:<status>`.
          */
         CorrectionCreate: {
+            expected_status?: components["schemas"]["Status"] | null;
             /** Reason */
             reason?: string | null;
             status: components["schemas"]["Status"];
@@ -1599,6 +1660,10 @@ export interface components {
             id: number;
             /** Job Id */
             job_id: string;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            };
             /** Provided */
             provided: boolean;
             /** Requested */
@@ -1612,6 +1677,12 @@ export interface components {
         DocumentCreate: {
             /** Content */
             content?: string | null;
+            /** Creation Key */
+            creation_key?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            };
             /**
              * Provided
              * @default false
@@ -1633,6 +1704,10 @@ export interface components {
         DocumentUpdate: {
             /** Content */
             content?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
             /** Provided */
             provided?: boolean | null;
             /** Requested */
@@ -1668,6 +1743,7 @@ export interface components {
         EventCreate: {
             /** Events */
             events: components["schemas"]["EventItem"][];
+            expected_status?: components["schemas"]["Status"] | null;
             /** Job Id */
             job_id?: string | null;
             /** Platform */
@@ -1764,6 +1840,8 @@ export interface components {
         };
         /** JobDetail */
         JobDetail: {
+            /** @default unknown */
+            availability: components["schemas"]["ListingAvailability"];
             /** Company */
             company?: string | null;
             /** Company Key */
@@ -1804,6 +1882,11 @@ export interface components {
             /** Updated At */
             updated_at: string;
         };
+        /** JobLinkCreate */
+        JobLinkCreate: {
+            /** Other Job Id */
+            other_job_id: string;
+        };
         /**
          * JobMatch
          * @description Duplicate-suggestion candidate after false-match filtering.
@@ -1831,11 +1914,22 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** JobMergeResult */
+        JobMergeResult: {
+            /** Job Id */
+            job_id: string;
+            /** Merged From */
+            merged_from?: string[];
+        };
         /**
          * JobMutationState
          * @description Result of a job-state write, carrying the resolved canonical identity.
          */
         JobMutationState: {
+            /** Deleted Event Ids */
+            deleted_event_ids?: number[];
+            /** Event Ids */
+            event_ids?: number[];
             /** Hidden */
             hidden: boolean;
             /** Job Id */
@@ -1856,6 +1950,8 @@ export interface components {
              */
             apply_types: string[];
             attention?: components["schemas"]["Attention"] | null;
+            /** @default unknown */
+            availability: components["schemas"]["ListingAvailability"];
             /** Company */
             company?: string | null;
             /** Company Key */
@@ -1954,6 +2050,8 @@ export interface components {
             id: string;
             /** Job Id */
             job_id: string;
+            /** Last Detail Captured At */
+            last_detail_captured_at?: string | null;
             /** Meta */
             meta?: {
                 [key: string]: unknown;
@@ -2007,6 +2105,12 @@ export interface components {
             availability_message?: string | null;
             /** Availability Observed At */
             availability_observed_at?: string | null;
+            /**
+             * Capture Kind
+             * @default partial
+             * @enum {string}
+             */
+            capture_kind: "partial" | "detail";
             /** Closed At */
             closed_at?: string | null;
             /** Company */
@@ -2159,8 +2263,8 @@ export interface components {
         MatchInsight: components["schemas"]["SameValue"] | components["schemas"]["DifferentValues"];
         /**
          * MatchInsights
-         * @description Field checks between the viewed listing and a candidate job. A check is null
-         *     unless both sides captured the field.
+         * @description Field checks across source and candidate listings. A check is null unless
+         *     both sides captured the field; any agreeing pair counts as the same value.
          */
         MatchInsights: {
             apply_type?: components["schemas"]["MatchInsight"] | null;
@@ -2173,8 +2277,8 @@ export interface components {
         };
         /**
          * MatchTiming
-         * @description `overlapping` means a candidate listing is not known closed before the viewed
-         *     posting appeared; otherwise `gap_days` counts the days between them.
+         * @description `overlapping` means a candidate listing is not known closed before the earliest
+         *     source posting appeared; otherwise `gap_days` counts the days between them.
          */
         MatchTiming: {
             /** Gap Days */
@@ -2794,6 +2898,10 @@ export interface components {
          * @enum {string}
          */
         Status: "new" | "seen" | "to_apply" | "applied" | "in_process" | "offered" | "skipped" | "closed" | "withdrawn" | "rejected" | "ghosted";
+        /** StatusPrecondition */
+        StatusPrecondition: {
+            expected_status?: components["schemas"]["Status"] | null;
+        };
         /** TextValue */
         TextValue: {
             /**
@@ -4202,7 +4310,79 @@ export interface operations {
             };
         };
     };
-    revert_status_api_jobs__job_id__status_revert_post: {
+    false_match_job_api_jobs__job_id__false_match_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    link_job_api_jobs__job_id__link_job_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobMergeResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    match_job_api_jobs__job_id__matches_get: {
         parameters: {
             query?: never;
             header?: {
@@ -4214,6 +4394,43 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobMatch"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revert_status_api_jobs__job_id__status_revert_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StatusPrecondition"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -26,13 +26,15 @@ class EventRepository:
         listing_id: str | None,
         meta: dict[str, object] | None,
         meta_hash: str | None,
-    ) -> None:
-        execute(
+    ) -> int:
+        row = query_one(
             self.conn,
             "INSERT INTO events (job_id, event, ts, listing_id, meta, meta_hash) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
             (job_id, event, ts, listing_id, json.dumps(meta) if meta else None, meta_hash),
         )
+        assert row is not None
+        return int(row["id"])
 
     def latest_meta_hash(self, job_id: str, event: str) -> str | None:
         """Hash of the newest event of this kind for the job — the novelty baseline

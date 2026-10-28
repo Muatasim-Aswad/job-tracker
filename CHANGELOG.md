@@ -6,6 +6,23 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-28
+
+### Added
+
+- Documents accept and return JSON metadata with replace/preserve/clear update semantics.
+- Event writes return exact inserted event IDs, and status reverts identify deleted events.
+- Conditional event, correction, and revert writes reject stale statuses atomically; extension Skip actions carry their observed status.
+- Optional document creation keys prevent duplicates after lost responses and reject conflicting reuse.
+- Job-ID false-match dismissal without a platform listing address.
+- Job-ID endpoints for duplicate suggestions across all source and candidate listings and for merging two complete jobs, reusing existing matching rules, exclusions, survivor selection, and merge safeguards.
+- Job summaries and full details expose computed availability; dashboard cards display the API result using the existing precedence.
+- Listings expose server-stamped `last_detail_captured_at` for the latest explicitly marked full-detail capture. Partial cards and availability-only updates do not advance it; first-capture time is preserved and historical detail refresh times remain unknown until recapture.
+
+### Changed
+
+- Update the locked development file-locking dependency and virtual environment tooling to clear the Python dependency audit.
+
 ## [1.5.0] - 2026-10-22
 
 ### Added

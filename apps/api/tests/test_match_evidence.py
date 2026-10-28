@@ -97,7 +97,7 @@ def test_insights_report_same_and_different_values() -> None:
         apply_type="external",
     )
 
-    insights = match_insights(current, [candidate])
+    insights = match_insights([current], [candidate])
 
     assert insights.location == SameValue(is_same=True)
     assert insights.workplace == SameValue(is_same=True)
@@ -106,11 +106,11 @@ def test_insights_report_same_and_different_values() -> None:
 
 
 def test_insight_is_null_unless_both_sides_captured_the_field() -> None:
-    insights = match_insights(_listing({"salary": "€60k"}), [_listing({"location": "Utrecht"})])
+    insights = match_insights([_listing({"salary": "€60k"})], [_listing({"location": "Utrecht"})])
 
     assert insights.salary is None
     assert insights.location is None
-    assert match_insights(None, [_listing({"salary": "€60k"})]).salary is None
+    assert match_insights([], [_listing({"salary": "€60k"})]).salary is None
 
 
 def test_any_candidate_listing_with_the_value_counts_as_same() -> None:
@@ -118,8 +118,8 @@ def test_any_candidate_listing_with_the_value_counts_as_same() -> None:
     earliest = _listing({"location": "Amsterdam"})
     later = _listing({"location": "Utrecht"})
 
-    assert match_insights(current, [earliest, later]).location == SameValue(is_same=True)
-    assert match_insights(current, [earliest]).location == DifferentValues(
+    assert match_insights([current], [earliest, later]).location == SameValue(is_same=True)
+    assert match_insights([current], [earliest]).location == DifferentValues(
         is_same=False, current="Utrecht", candidate="Amsterdam"
     )
 
@@ -129,20 +129,20 @@ def test_poster_prefers_profile_urls_over_names() -> None:
     renamed = _listing({"poster": "Jane D.", "poster_url": "https://linkedin.com/in/jane/"})
     named_only = _listing({"poster": "jane doe"})
 
-    assert match_insights(current, [renamed]).poster == SameValue(is_same=True)
-    assert match_insights(current, [named_only]).poster == SameValue(is_same=True)
+    assert match_insights([current], [renamed]).poster == SameValue(is_same=True)
+    assert match_insights([current], [named_only]).poster == SameValue(is_same=True)
 
 
 def test_shares_apply_url_compares_normalized_destinations() -> None:
     current = _listing({"apply_url": "https://jobs.example.com/apply?jobId=7&utm_source=li"})
 
     assert shares_apply_url(
-        current, [_listing({"apply_url": "https://jobs.example.com/apply?jobId=7"})]
+        [current], [_listing({"apply_url": "https://jobs.example.com/apply?jobId=7"})]
     )
     assert not shares_apply_url(
-        current, [_listing({"apply_url": "https://jobs.example.com/apply?jobId=8"})]
+        [current], [_listing({"apply_url": "https://jobs.example.com/apply?jobId=8"})]
     )
-    assert not shares_apply_url(None, [_listing({"apply_url": "https://jobs.example.com/a"})])
+    assert not shares_apply_url([], [_listing({"apply_url": "https://jobs.example.com/a"})])
 
 
 def test_timing_counts_days_after_the_last_candidate_closure() -> None:
@@ -152,7 +152,7 @@ def test_timing_counts_days_after_the_last_candidate_closure() -> None:
         _listing(closed_at="2026-09-01T12:00:00+00:00"),
     ]
 
-    timing = match_timing(current, candidates)
+    timing = match_timing([current], candidates)
 
     assert timing is not None
     assert (timing.overlapping, timing.gap_days) == (False, 14)
@@ -161,8 +161,8 @@ def test_timing_counts_days_after_the_last_candidate_closure() -> None:
 def test_timing_overlaps_while_a_candidate_listing_is_open_or_closed_later() -> None:
     current = _listing({"posted_at": "2026-09-15T08:00:00Z"})
 
-    still_open = match_timing(current, [_listing(closed_at=None)])
-    closed_after = match_timing(current, [_listing(closed_at="2026-09-20T00:00:00+00:00")])
+    still_open = match_timing([current], [_listing(closed_at=None)])
+    closed_after = match_timing([current], [_listing(closed_at="2026-09-20T00:00:00+00:00")])
 
     assert still_open is not None and (still_open.overlapping, still_open.gap_days) == (True, None)
     assert closed_after is not None and closed_after.overlapping
@@ -172,8 +172,38 @@ def test_timing_falls_back_to_capture_time_and_needs_both_sides() -> None:
     current = _listing(captured_at="2026-09-10T00:00:00+00:00")
     closed = [_listing(closed_at="2026-09-03T00:00:00+00:00")]
 
-    timing = match_timing(current, closed)
+    timing = match_timing([current], closed)
 
     assert timing is not None and timing.gap_days == 7
-    assert match_timing(None, closed) is None
-    assert match_timing(current, []) is None
+    assert match_timing([], closed) is None
+    assert match_timing([current], []) is None
+
+
+def test_any_source_listing_can_agree_with_any_candidate_listing() -> None:
+    sources = [
+        _listing({"location": "Amsterdam", "salary": "€60k"}),
+        _listing({"location": "Utrecht", "salary": "€65k"}),
+    ]
+    candidates = [
+        _listing({"location": "Rotterdam", "salary": "€55k"}),
+        _listing({"location": "Utrecht", "salary": "€50k"}),
+    ]
+
+    insights = match_insights(sources, candidates)
+
+    assert insights.location == SameValue(is_same=True)
+    assert insights.salary == DifferentValues(is_same=False, current="€60k", candidate="€55k")
+    assert insights.workplace is None
+
+
+def test_timing_uses_earliest_source_appearance_for_overlap_and_smallest_gap() -> None:
+    earlier = _listing({"posted_at": "2026-09-01T00:00:00Z"})
+    later = _listing({"posted_at": "2026-09-15T00:00:00Z"})
+    candidates = [_listing(closed_at="2026-09-03T00:00:00Z")]
+
+    timing = match_timing([later, earlier], candidates)
+
+    assert timing is not None and timing.overlapping
+    candidates = [_listing(closed_at="2026-08-30T00:00:00Z")]
+    timing = match_timing([later, earlier], candidates)
+    assert timing is not None and (timing.overlapping, timing.gap_days) == (False, 2)

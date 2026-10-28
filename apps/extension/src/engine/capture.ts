@@ -18,6 +18,7 @@ export function createCapture(engine: Engine) {
         type: "listing",
         payload: {
           ...key,
+          capture_kind: "partial",
           closed_at: observedAt,
           ...(message
             ? {
@@ -52,7 +53,8 @@ export function createCapture(engine: Engine) {
     if (!jobId) return;
     const rec = buildRecord(jobId);
     // Wait for stable detail content; later scans retry incomplete panes.
-    if (!rec || !rec.title || !rec.meta?.description) return;
+    const description = rec?.meta?.description;
+    if (!rec?.title?.trim() || typeof description !== "string" || !description.trim()) return;
     // Blocks suppress new jobs without freezing enrichment of tracked jobs.
     if (
       engine.isCompanyBlocked(rec.company, rec.platform) &&
@@ -75,19 +77,21 @@ export function createCapture(engine: Engine) {
       availability: availability ?? previous?.availability ?? null,
     };
     capturedListings.set(jobId, captured);
-    void engine.bridge({ type: "listing", payload: rec }).then((resp) => {
-      if (!resp.ok) {
-        console.warn(`[job-tracker] listing capture failed for ${jobId}:`, resp.error);
-        if (capturedListings.get(jobId) === captured) capturedListings.delete(jobId);
-        return;
-      }
-      if (rec.availability === "open" && capturedListings.get(jobId) === captured) {
-        engine.unmarkEmitted(`${jobId}:closed`);
-      }
-      // This is the moment the JD reaches the server, which is what the duplicate
-      // popover scores its rows against — see refreshMatches.
-      void engine.refreshMatches(jobId);
-    });
+    void engine
+      .bridge({ type: "listing", payload: { ...rec, capture_kind: "detail" } })
+      .then((resp) => {
+        if (!resp.ok) {
+          console.warn(`[job-tracker] listing capture failed for ${jobId}:`, resp.error);
+          if (capturedListings.get(jobId) === captured) capturedListings.delete(jobId);
+          return;
+        }
+        if (rec.availability === "open" && capturedListings.get(jobId) === captured) {
+          engine.unmarkEmitted(`${jobId}:closed`);
+        }
+        // This is the moment the JD reaches the server, which is what the duplicate
+        // popover scores its rows against — see refreshMatches.
+        void engine.refreshMatches(jobId);
+      });
   }
 
   // ── Listing capture (list card, partial) ────────────────────────────────────
@@ -125,6 +129,7 @@ export function createCapture(engine: Engine) {
     const metaPatch = cardMetaPatch(card);
     return {
       ...key,
+      capture_kind: "partial",
       url,
       title,
       company,

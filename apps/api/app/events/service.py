@@ -12,7 +12,7 @@ from app.core.enums import (
     target_status,
 )
 from app.core.enums import Event as EventType
-from app.core.errors import NotFoundError, ValidationError
+from app.core.errors import ConflictError, NotFoundError, ValidationError
 from app.core.hashing import stable_hash
 from app.core.timeutil import utc_now
 from app.events.automation import is_automatic_close, is_effective_status_event
@@ -37,17 +37,22 @@ class EventService:
         # Resolve the address, and any stub it materializes, once; every event in the
         # submission then applies against that same job/listing, in order.
         job_id, listing_id = self._resolve_target(data)
+        self._check_expected_status(job_id, data.expected_status)
         ts = data.ts or utc_now()
+        event_ids = []
 
         for item in data.events:
             job = self.jobs.get(job_id)  # re-read: a prior event may have moved state
             assert job is not None
+            event_id = None
             if status_for_event(str(item.event)) is not None:
-                self._apply_funnel(job, str(item.event), ts, listing_id, item.meta)
+                event_id = self._apply_funnel(job, str(item.event), ts, listing_id, item.meta)
             elif flag_for_event(str(item.event)) is not None:
-                self._apply_flag(job, str(item.event), ts, listing_id, item.meta)
+                event_id = self._apply_flag(job, str(item.event), ts, listing_id, item.meta)
             elif str(item.event) == EventType.NOTE.value:
-                self._apply_note(job, ts, listing_id, item.meta)
+                event_id = self._apply_note(job, ts, listing_id, item.meta)
+            if event_id is not None:
+                event_ids.append(event_id)
 
         refreshed = self.jobs.get(job_id)
         assert refreshed is not None
@@ -56,11 +61,14 @@ class EventService:
             status=refreshed.status,
             hidden=refreshed.hidden,
             starred=refreshed.starred,
+            event_ids=event_ids,
         )
 
     # --- dashboard corrections --------------------------------------------
 
-    def correct(self, job_id: str, status: Status, reason: str | None) -> JobMutationState:
+    def correct(
+        self, job_id: str, status: Status, reason: str | None, expected_status: Status | None = None
+    ) -> JobMutationState:
         """Force a job to `status`, bypassing every funnel guard, and log a
         `corrected:<status>` row marking the override deliberate and carrying the
         optional `reason`. Correcting to the status the job already holds is a
@@ -70,6 +78,7 @@ class EventService:
         job = self.jobs.get(job_id) if job_id else None
         if job is None:
             raise NotFoundError(f"job {requested_job_id} not found")
+        self._check_expected_status(job_id, expected_status)
         self.listings.automatic_closure.invalidate(job_id, "manual_correction")
         job = self.jobs.get(job_id)
         assert job is not None
@@ -77,7 +86,7 @@ class EventService:
             return self._state(job_id)
         ts = utc_now()
         meta: dict[str, object] | None = {"reason": reason} if reason else None
-        self.events.insert(
+        event_id = self.events.insert(
             job_id,
             correction_event(status),
             ts,
@@ -87,9 +96,11 @@ class EventService:
         )
         # A current timestamp makes this correction the latest projection input.
         self._reproject_status(job_id)
-        return self._state(job_id)
+        return self._state(job_id, event_ids=[event_id])
 
-    def revert_last_status(self, job_id: str) -> JobMutationState:
+    def revert_last_status(
+        self, job_id: str, expected_status: Status | None = None
+    ) -> JobMutationState:
         """Remove the latest status-setting event and reproject the prior state.
 
         Flags and the server-generated `created` event are never affected.
@@ -99,6 +110,7 @@ class EventService:
         job = self.jobs.get(job_id) if job_id else None
         if job is None:
             raise NotFoundError(f"job {requested_job_id} not found")
+        self._check_expected_status(job_id, expected_status)
         status_events = [
             e
             for e in self.events.list_for_job(job_id)
@@ -112,7 +124,7 @@ class EventService:
             return self._state(job_id)
         self.events.delete_by_id(latest.id)
         self._reproject_status(job_id)
-        return self._state(job_id)
+        return self._state(job_id, deleted_event_ids=[latest.id])
 
     def delete_note(self, event_id: int) -> None:
         """Delete a note; state-changing events must use correction or revert."""
@@ -162,12 +174,32 @@ class EventService:
         if job.status not in APPLIED_EVIDENCE:
             self.application_workflows.delete_for_job(job_id)
 
-    def _state(self, job_id: str) -> JobMutationState:
+    def _state(
+        self,
+        job_id: str,
+        *,
+        event_ids: list[int] | None = None,
+        deleted_event_ids: list[int] | None = None,
+    ) -> JobMutationState:
         job = self.jobs.get(job_id)
         assert job is not None
         return JobMutationState(
-            job_id=job.id, status=job.status, hidden=job.hidden, starred=job.starred
+            job_id=job.id,
+            status=job.status,
+            hidden=job.hidden,
+            starred=job.starred,
+            event_ids=event_ids or [],
+            deleted_event_ids=deleted_event_ids or [],
         )
+
+    def _check_expected_status(self, job_id: str, expected: Status | None) -> None:
+        if expected is None:
+            return
+        current = self._state(job_id)
+        if current.status != expected.value:
+            raise ConflictError(
+                "stale_status", current.model_dump(exclude={"event_ids", "deleted_event_ids"})
+            )
 
     # --- target resolution ------------------------------------------------
 
@@ -188,23 +220,24 @@ class EventService:
 
     def _apply_funnel(
         self, job: Job, event: str, ts: str, listing_id: str | None, meta: dict[str, object] | None
-    ) -> None:
+    ) -> int | None:
         target = target_status(event, job.status)
         if target is None or target == job.status:
-            return  # guard blocked it, or already there → no-op, no log
+            return None  # guard blocked it, or already there → no-op, no log
         # Log the accepted transition, then reproject: a backdated terminal still gets
         # recorded for the audit trail, but a newer-ts event keeps the projected status.
-        self.events.insert(
+        event_id = self.events.insert(
             job.id, event, ts, listing_id=listing_id, meta=meta, meta_hash=stable_hash(meta)
         )
         self._reproject_status(job.id)
+        return event_id
 
     def _apply_note(
         self, job: Job, ts: str, listing_id: str | None, meta: dict[str, object] | None
-    ) -> None:
+    ) -> int:
         """Log a manual note. Sets no status and no flag — it's pure history — so
         it's always logged (no novelty gate) and never affects projected state."""
-        self.events.insert(
+        return self.events.insert(
             job.id,
             EventType.NOTE.value,
             ts,
@@ -215,7 +248,7 @@ class EventService:
 
     def _apply_flag(
         self, job: Job, event: str, ts: str, listing_id: str | None, meta: dict[str, object] | None
-    ) -> None:
+    ) -> int | None:
         field, value = flag_for_event(event)  # type: ignore[misc]
         if getattr(job, field) != value:
             self.jobs.set_flags(
@@ -227,6 +260,7 @@ class EventService:
         # Log only when the toggle carries meta not already on the last one.
         new_hash = stable_hash(meta)
         if new_hash is not None and new_hash != self.events.latest_meta_hash(job.id, event):
-            self.events.insert(
+            return self.events.insert(
                 job.id, event, ts, listing_id=listing_id, meta=meta, meta_hash=new_hash
             )
+        return None

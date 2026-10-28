@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 
 class Document(BaseModel):
@@ -8,5 +10,6 @@ class Document(BaseModel):
     requested: str | None = None
     provided: bool
     content: str | None = None
+    meta: dict[str, Any] = Field(default_factory=dict)
     created_at: str
     updated_at: str

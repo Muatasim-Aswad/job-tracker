@@ -165,6 +165,8 @@ def test_job_cards_summarize_listing_availability_without_changing_status(
     )
     card = client.get("/api/jobs").json()[0]
     assert card["status"] == "new"
+    assert card["availability"] == "unavailable"
+    assert detail(client, ids["job_id"])["availability"] == "unavailable"
     assert card["listing_availability"] == {
         "linkedin_open_count": 0,
         "unavailable_count": 1,
@@ -193,6 +195,80 @@ def test_card_warning_suppression_requires_a_confirmed_open_linkedin_listing(
     summary = client.get("/api/jobs").json()[0]["listing_availability"]
     assert summary["unavailable_count"] == 1
     assert summary["linkedin_open_count"] == int(platform == "linkedin" and availability == "open")
+
+
+@pytest.mark.parametrize(
+    ("observations", "expected"),
+    [
+        ([], "unknown"),
+        ([("linkedin", "unknown")], "unknown"),
+        ([("other", "open")], "unknown"),
+        ([("linkedin", "open")], "open"),
+        ([("other", "unavailable")], "unavailable"),
+        ([("other", "closed")], "closed"),
+        ([("linkedin", "closed"), ("other", "unavailable")], "unavailable"),
+        ([("linkedin", "closed"), ("other", "open")], "closed"),
+        ([("other", "unavailable"), ("other", "open")], "unavailable"),
+        ([("other", "closed"), ("linkedin", "unknown")], "closed"),
+        ([("other", "closed"), ("linkedin", "open")], "open"),
+        ([("other", "unavailable"), ("linkedin", "open")], "open"),
+        ([("other", "closed"), ("other", "unavailable"), ("linkedin", "open")], "open"),
+    ],
+)
+def test_job_availability_is_the_same_read_only_projection_in_summary_and_detail(
+    client: TestClient, conn: sqlite3.Connection, observations: list[tuple[str, str]], expected: str
+) -> None:
+    ids = capture(client)
+    for index, (platform, availability) in enumerate(observations, start=2):
+        response = client.post(
+            "/api/listings",
+            json={
+                "platform": platform,
+                "platform_id": str(index),
+                "job_id": ids["job_id"],
+                "availability": availability,
+            },
+        )
+        assert response.status_code == 200, response.text
+    before = conn.total_changes
+
+    assert client.get("/api/jobs").json()[0]["availability"] == expected
+    assert detail(client, ids["job_id"])["availability"] == expected
+    assert conn.total_changes == before
+
+
+@pytest.mark.parametrize("operation", ["merge", "relink"])
+def test_job_availability_refreshes_after_topology_changes_and_reopening(
+    client: TestClient, operation: str
+) -> None:
+    first = capture(client, availability="unavailable", availability_observed_at=EARLIER)
+    second = capture(client, platform_id="2", availability="open")
+    if operation == "merge":
+        response = client.post(
+            f"/api/jobs/{second['job_id']}/link-job", json={"other_job_id": first["job_id"]}
+        )
+    else:
+        response = client.patch(
+            f"/api/listings/{second['listing_id']}", json={"job_id": first["job_id"]}
+        )
+    assert response.status_code == 200, response.text
+    survivor_id = response.json()["job_id"]
+
+    def assert_availability(expected: str) -> None:
+        assert client.get("/api/jobs").json()[0]["availability"] == expected
+        assert detail(client, survivor_id)["availability"] == expected
+        assert detail(client, first["job_id"])["availability"] == expected
+        assert detail(client, second["job_id"])["availability"] == expected
+
+    assert_availability("open")
+    deleted = client.delete(f"/api/listings/{second['listing_id']}")
+    assert deleted.status_code == 204
+    assert_availability("unavailable")
+    closed = client.patch(f"/api/listings/{first['listing_id']}", json={"closed_at": EARLIER})
+    assert closed.status_code == 200, closed.text
+    assert_availability("closed")
+    capture(client, availability="open")
+    assert_availability("open")
 
 
 @pytest.mark.parametrize(

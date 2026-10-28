@@ -112,3 +112,17 @@ def test_closing_an_unfinished_transaction_rolls_back_and_releases_lock() -> Non
     db.conn.rollback.assert_called_once()
     db.conn.commit.assert_not_called()
     assert not db.lock.locked()
+
+
+def test_write_preconditions_start_inside_transaction_before_any_query() -> None:
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    db = Database(conn=conn)
+    gen = get_conn(_request("POST", "/api/events", db))
+    assert next(gen) is conn
+    assert conn.in_transaction
+    gen.close()
+    assert not conn.in_transaction
+    assert not db.lock.locked()
+    conn.close()

@@ -204,6 +204,9 @@ _COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("listings", "availability", "availability TEXT NOT NULL DEFAULT 'unknown'"),
     ("listings", "availability_message", "availability_message TEXT"),
     ("listings", "availability_observed_at", "availability_observed_at TEXT"),
+    ("listings", "last_captured_at", "last_captured_at TEXT"),
+    ("listings", "last_detail_captured_at", "last_detail_captured_at TEXT"),
+    ("documents", "meta", "meta TEXT"),
 )
 
 DataMigration = str | Callable[[Conn], None]
@@ -476,6 +479,13 @@ _DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = (
     ("capture_clear_operation_v1", _add_capture_clear_operation),
     ("create_user_preferences_v1", _create_user_preferences),
     ("seed_user_preferences_defaults_v1", _seed_user_preferences_defaults),
+    (
+        "create_document_creations_v1",
+        "CREATE TABLE IF NOT EXISTS document_creations ("
+        "creation_key TEXT PRIMARY KEY NOT NULL, "
+        "document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE, "
+        "request_hash TEXT NOT NULL)",
+    ),
 )
 
 

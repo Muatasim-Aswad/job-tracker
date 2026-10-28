@@ -21,8 +21,8 @@ def _event(client: TestClient, job_id: str, event: str, *, by_listing: str | Non
         body = {"platform": "linkedin", "platform_id": by_listing, "events": [{"event": event}]}
     response = client.post("/api/events", json=body)
     assert response.status_code == 200, response.text
-    events = client.get(f"/api/jobs/{job_id}").json()["events"]
-    return next(row["id"] for row in reversed(events) if row["event"] == event)
+    [event_id] = response.json()["event_ids"]
+    return event_id
 
 
 def _payload(event_id: int, **changes: Any) -> dict[str, Any]:
@@ -304,10 +304,16 @@ def test_merge_and_relink_refuse_two_workflow_records(client: TestClient) -> Non
     assert client.get(f"/api/jobs/{first['job_id']}").status_code == 200
     assert client.get(f"/api/jobs/{second['job_id']}").status_code == 200
 
+    job_merge = client.post(
+        f"/api/jobs/{second['job_id']}/link-job", json={"other_job_id": first["job_id"]}
+    )
+    assert job_merge.status_code == 409
+    assert job_merge.json()["detail"] == "application_workflow_conflict"
+
     relink = client.patch(f"/api/listings/{second['listing_id']}", json={"job_id": first["job_id"]})
     assert relink.status_code == 409
     assert relink.json()["detail"] == "application_workflow_conflict"
-    for conflict in (merge, relink):
+    for conflict in (merge, job_merge, relink):
         assert conflict.headers.get("cache-control") == "no-store"
         assert (
             conflict.json()["current"]["source"]["references"]

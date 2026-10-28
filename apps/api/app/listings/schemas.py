@@ -1,4 +1,4 @@
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
@@ -10,6 +10,7 @@ class ListingCreate(BaseModel):
 
     platform: str
     platform_id: str
+    capture_kind: Literal["partial", "detail"] = "partial"
     url: str | None = None
     title: str | None = None
     company: str | None = None
@@ -24,6 +25,19 @@ class ListingCreate(BaseModel):
     job_id: str | None = None  # explicit link; otherwise a new listing auto-creates a job
     # Recorded on `created` only when this listing creates its job.
     via: str = "capture"
+
+    @model_validator(mode="after")
+    def detail_capture_content(self) -> Self:
+        if self.capture_kind == "detail":
+            description = self.meta.get("description")
+            if (
+                not self.title
+                or not self.title.strip()
+                or not isinstance(description, str)
+                or not description.strip()
+            ):
+                raise ValueError("detail captures require a nonblank title and description")
+        return self
 
     @model_validator(mode="after")
     def availability_evidence(self) -> Self:

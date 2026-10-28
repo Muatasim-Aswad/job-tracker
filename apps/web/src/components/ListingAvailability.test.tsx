@@ -21,31 +21,16 @@ it("keeps the original notice and precise time in a focusable tooltip", () => {
 });
 
 it.each([
-  [0, 1, 0, "Unavailable"],
-  [0, 0, 1, "Closed"],
-  [0, 1, 1, "Unavailable"],
-  [1, 1, 0, ""],
-  [1, 0, 1, ""],
-  [1, 1, 1, ""],
-  [0, 0, 0, ""],
-])(
-  "summarizes LinkedIn open=%i unavailable=%i closed=%i as %s",
-  (open, unavailable, closed, label) => {
-    const job = {
-      listing_count: open + unavailable + closed || 1,
-      listing_availability: {
-        linkedin_open_count: open,
-        unavailable_count: unavailable,
-        closed_count: closed,
-        closed_at: "2026-10-19T10:15:00Z",
-        unavailable_observed_at: "2026-10-19T10:15:00Z",
-      },
-    } as JobSummary;
-    const { container } = render(<JobListingAvailability job={job} />);
-    expect(container.textContent).toBe(label);
-    expect(container.querySelector("time")).toBeNull();
-  },
-);
+  ["unavailable", "Unavailable"],
+  ["closed", "Closed"],
+  ["open", ""],
+  ["unknown", ""],
+] as const)("displays API availability %s as %s", (availability, label) => {
+  const job = { availability } as JobSummary;
+  const { container } = render(<JobListingAvailability job={job} />);
+  expect(container.textContent).toBe(label);
+  expect(container.querySelector("time")).toBeNull();
+});
 
 it("allows tapping availability without opening or dragging its job card", () => {
   const open = vi.fn();

@@ -2,6 +2,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.core.enums import ListingAvailability
 from app.documents.models import Document
 from app.events.models import Event
 from app.jobs.models import Job
@@ -20,6 +21,8 @@ class JobMutationState(JobState):
     """Result of a job-state write, carrying the resolved canonical identity."""
 
     job_id: str
+    event_ids: list[int] = Field(default_factory=list)
+    deleted_event_ids: list[int] = Field(default_factory=list)
 
 
 class ListingState(JobState):
@@ -51,6 +54,7 @@ class JobSummary(Job):
     platforms: list[str] = []
     apply_types: list[str] = []
     listing_count: int = 0
+    availability: ListingAvailability = ListingAvailability.UNKNOWN
     primary_listing: PrimaryListing | None = None
     attention: Attention | None = None
     listing_availability: ListingAvailabilitySummary = Field(
@@ -66,7 +70,17 @@ class JobUpdate(BaseModel):
     meta: dict[str, Any] | None = None
 
 
+class JobLinkCreate(BaseModel):
+    other_job_id: str
+
+
+class JobMergeResult(BaseModel):
+    job_id: str
+    merged_from: list[str] = Field(default_factory=list)
+
+
 class JobDetail(Job):
+    availability: ListingAvailability = ListingAvailability.UNKNOWN
     listings: list[Listing] = []
     events: list[Event] = []
     documents: list[Document] = []
@@ -93,8 +107,8 @@ type MatchInsight = SameValue | DifferentValues
 
 
 class MatchInsights(BaseModel):
-    """Field checks between the viewed listing and a candidate job. A check is null
-    unless both sides captured the field."""
+    """Field checks across source and candidate listings. A check is null unless
+    both sides captured the field; any agreeing pair counts as the same value."""
 
     apply_url: MatchInsight | None = None
     company_url: MatchInsight | None = None
@@ -106,8 +120,8 @@ class MatchInsights(BaseModel):
 
 
 class MatchTiming(BaseModel):
-    """`overlapping` means a candidate listing is not known closed before the viewed
-    posting appeared; otherwise `gap_days` counts the days between them."""
+    """`overlapping` means a candidate listing is not known closed before the earliest
+    source posting appeared; otherwise `gap_days` counts the days between them."""
 
     overlapping: bool
     gap_days: int | None = None
@@ -123,7 +137,7 @@ class JobMatch(BaseModel):
     created_at: str
     closed_at: str | None = None  # latest listing closed_at, if any posting closed
     listing_count: int = 0
-    # Jaccard JD-overlap (0..1) with the viewed listing — the popover's "N% match".
+    # Highest Jaccard JD-overlap (0..1) across source and candidate listing pairs.
     # None when either side has no captured JD yet, so the popover degrades to a
     # plain candidate list rather than a misleading 0%.
     similarity: float | None = None

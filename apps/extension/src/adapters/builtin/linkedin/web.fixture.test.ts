@@ -212,6 +212,7 @@ describe("linkedin adapter — unavailable detail", () => {
           payload: {
             platform: "linkedin",
             platform_id: jobId,
+            capture_kind: "partial",
             closed_at: expect.any(String),
           },
         },
@@ -261,6 +262,7 @@ describe("linkedin adapter — detail capture", () => {
       payload: {
         platform: "linkedin",
         platform_id: "100001",
+        capture_kind: "detail",
         url: "https://www.linkedin.com/jobs/view/100001/",
         title: "Example Backend Engineer",
         company: "Example Labs",

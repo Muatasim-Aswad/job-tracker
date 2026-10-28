@@ -68,6 +68,8 @@ Controls with up to 512 choices retain complete option identity; larger controls
 
 ## Listing availability
 
+The shared capture engine sends `capture_kind: "detail"` only after the current detail pane supplies a nonblank title and description. Card and closure-only updates use `partial`. The API assigns `last_detail_captured_at` from its own clock only when a full-detail capture succeeds; adapters do not supply that timestamp. Full captures retain their existing per-document deduplication and retry behavior.
+
 LinkedIn’s current job header supplies availability evidence. The gray “Not currently accepting applications” notice records **Unavailable** without changing the job’s funnel status; the red “No longer accepting applications” notice retains closure handling. Captures retain the exact notice and observation time, and repeat when availability changes. A visible, enabled Apply control records **Open**; missing, hidden, disabled, or unrelated controls do not. The detail banner presents unavailable applications as a neutral chip.
 
 ## Keyboard
@@ -101,7 +103,7 @@ The server stores defaults when its settings row is absent: description highligh
 
 Popup Settings keeps Easy Apply, filtered-job Dim/Hide, and diagnostic capture as immediate controls. **Manage keyword highlights and rules ↗** opens the configured server's dashboard directly at `/?view=jobs&settings=extension`. Search diagnostics follows the link. Manage description highlights and create, view, enable/disable, edit, or delete title rules in the dashboard. The dashboard supports Contains, Starts with, and Does not contain, one list of alternatives, and Outline job card, Hide, Star, or Skip.
 
-Matching is case-insensitive, treats punctuation literally, and uses Unicode word boundaries around words/phrases. Starts with ignores leading whitespace; Does not contain matches only a nonempty title containing none of the alternatives. All matching rules run in saved order. Outline affects presentation; Hide, Star, and Skip use ordinary server events after listing state has loaded. Blocked-company cards are excluded, Skip respects pre-application guards, and automatic Skip never invokes the site's native dismissal. Removing or disabling a rule does not undo prior events.
+Matching is case-insensitive, treats punctuation literally, and uses Unicode word boundaries around words/phrases. Starts with ignores leading whitespace; Does not contain matches only a nonempty title containing none of the alternatives. All matching rules run in saved order. Outline affects presentation; Hide, Star, and Skip use ordinary server events after listing state has loaded. Blocked-company cards are excluded, Skip respects pre-application guards and sends its observed status as a server-side transaction precondition, and automatic Skip never invokes the site's native dismissal. Removing or disabling a rule does not undo prior events.
 
 ## Search seeding & diagnostics
 

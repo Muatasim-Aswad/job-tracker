@@ -44,6 +44,14 @@ The [dashboard](../web/README.md) uses relative `/api/...` paths in development 
 
 Job-addressed reads and ordinary writes accept merged aliases, return canonical IDs, and set `Content-Location`. Deletion through an alias returns `409 job_merged` and requires repeating the request against the survivor. See [identity](../../docs/ARCHITECTURE.md#identity) for merge invariants.
 
+### Duplicate suggestions and merging
+
+`GET /api/jobs/{job_id}/matches` needs only a stored job ID. It uses the job's canonical title/company and compares all its listings with each candidate's listings, returning the existing `JobMatch[]` shape once per candidate. Missing title/company yields an empty list; an unknown ID returns `404`. Merged aliases resolve to the survivor, and `Content-Location` names `/api/jobs/{canonical_job_id}/matches`. Matching is read-only and retains false-match exclusions. The [architecture](../../docs/ARCHITECTURE.md#identity) defines candidate selection and evidence aggregation.
+
+`POST /api/jobs/{job_id}/link-job` accepts `{"other_job_id": "..."}` and merges both complete jobs using the existing survivor rules and conflict safeguards. Both IDs accept merged aliases. It returns `{"job_id": "<survivor>", "merged_from": ["<loser>"]}` with `Content-Location: /api/jobs/{survivor}`. Linking a job to itself, including a retry through an alias, is a no-op with an empty `merged_from`; an unknown ID returns `404`. The source path does not determine the survivor.
+
+The extension's existing `GET /api/jobs/matches` and `POST /api/listings/link-job` retain their listing-based inputs and responses. These additions require no UI changes.
+
 ### Shared extension settings
 
 Startup seeds one settings row if absent: description highlights enabled with default words, no title rules, Easy Apply on, filtered jobs hidden, and diagnostics Never. The seed uses the existing migration ledger and preserves every existing row, including disabled highlights, empty keyword lists, and an empty highlight collection. Existing browser settings are ignored.
@@ -52,9 +60,37 @@ Startup seeds one settings row if absent: description highlights enabled with de
 
 Settings contain `description_highlights`, `title_rules`, `easy_apply_enabled`, `hide_mode` (`dim`/`remove`), and `search_diagnostics` (`scope` and Unix-millisecond `expires_at`). Rules have a stable ID, enabled flag, condition (`contains`, `starts_with`, `not_contains`), alternative `terms`, and action (`outline_job_card`, `hide`, `star`, `skip`). Up to 100 rules and 200 keywords per list are accepted; keywords are trimmed and deduplicated. Lists require unique IDs. Explicit null settings and empty title-rule keyword lists are refused. A temporary diagnostics scope requires an expiry; disabled or expired capture makes search-log submissions a no-op. Settings are ordinary database data, included in backups and optional Turso synchronization.
 
+### Listing capture timestamps
+
+Listings in `GET /api/jobs/{job_id}` expose `captured_at` (first capture of any kind) and `last_detail_captured_at` (latest successful full-detail capture). `POST /api/listings` accepts `capture_kind: "detail" | "partial"`, defaulting to `partial`. Detail requests must supply a nonblank title and string `meta.description`; stored fields and `meta_patch` cannot satisfy that requirement. Each accepted detail capture advances `last_detail_captured_at`, including identical recaptures. Partial card captures, availability-only updates, manual edits, relinks, and merges preserve it.
+
+Both capture timestamps use server UTC time and are not caller-supplied fields. `updated_at` records broader listing changes, while `availability_observed_at` records availability evidence only. Uncaptured stubs have null capture timestamps. Existing listings retain their original `captured_at` and start with null `last_detail_captured_at` until a marked detail capture; older clients without the marker cannot advance it. The former `last_captured_at` database column is retained without further updates for additive migration compatibility; its values are neither exposed nor copied into the detail timestamp. The migration preserves existing data and is safe to rerun.
+
 ### Listing availability
 
 `POST /api/listings` accepts `availability` (`unknown`, `open`, `unavailable`, or `closed`), an optional `availability_message`, and an optional timezone-aware `availability_observed_at` (server time when omitted). `GET /api/jobs/{job_id}` returns these fields on each listing. Omitted or unknown observations preserve prior evidence; older observations are ignored. Notice and timestamp require an availability value. An open observation clears the listing closure; unavailable observations neither close a listing nor undo a recorded closure. Repeated closure captures preserve the first `closed_at` until reopening; explicit closure edits can still replace or clear it. `GET /api/jobs` includes `listing_availability` with unavailable/closed counts and dates plus `linkedin_open_count` for compact cards. Availability is independent of funnel progress; automatic reconciliation and manual-closure safeguards still apply.
+
+`GET /api/jobs` and `GET /api/jobs/{job_id}` also return top-level `availability`, calculated from the current listings on each read: `open` when any LinkedIn listing is confirmed open, otherwise `unavailable` when any listing is unavailable, otherwise `closed` when any listing is closed, otherwise `unknown`. Open listings on other platforms do not override warnings or establish job-level `open`. The field is read-only, is not a database column, and remains separate from funnel `status`; the dashboard displays this result without recalculating it. Existing listing counts remain available for filters.
+
+### Event write results
+
+Event batches and corrections return `event_ids`: the exact inserted IDs in submission order, obtained with `INSERT ... RETURNING`. No-op transitions, metadata-free flag changes, and duplicate flag metadata return no IDs; server-generated stub creation is excluded. IDs describe accepted history writes even when backdated events do not change the projected status. Revert returns the removed row in `deleted_event_ids`; invalidating an automatic closure keeps that row and returns no deleted IDs. Metadata/timestamp edits already return the exact updated event. These response fields accompany the canonical job ID and settled status/flags.
+
+### Conditional status writes
+
+`POST /api/events`, `POST /api/jobs/{job_id}/corrections`, and the optional body of `POST /api/jobs/{job_id}/status/revert` accept `expected_status`. The server compares it with the canonical job’s initial status inside the request transaction, before any events, flags, notes, or corrections. Mismatch returns `409 stale_status` with the current job ID, status, and flags; the whole request rolls back, including newly materialized stubs. A batch checks once before its first event. Omitted/null preconditions retain ordinary funnel behavior. An uncaptured listing materializes as `new` for this check.
+
+### Document metadata
+
+Documents accept and return a `meta` JSON object for document-specific context such as language, source, or an artifact reference. It defaults to `{}`. `PATCH /api/documents/{document_id}` replaces the entire object when supplied, clears it with `null` or `{}`, and preserves it when omitted. Metadata follows the document through relinks and merges and participates in keyed creation’s original request fingerprint. Existing documents read as `{}` after the additive migration. Values are retained private data alongside document content; workflow-wide analytics remain in the application-workflow resource.
+
+### Document creation retries
+
+`POST /api/jobs/{job_id}/documents` accepts an optional globally unique `creation_key` (1–200 characters, not whitespace-only). A new key returns `201`; an identical retry returns `200` with the same document ID and its current representation, even after edits or a merge. The key retains a hash of the original normalized creation payload; reuse with different fields or another canonical job returns `409 document_creation_key_conflict`. Omitting the key keeps ordinary independent creation. Keys and hashes are internal and removed when their document is deleted; retrying after deletion creates a new document. Document creation and key retention commit together.
+
+### Duplicate exclusions
+
+`POST /api/jobs/{job_id}/false-match` accepts `{ "other_job_id": "..." }` and mutually excludes two stored jobs from duplicate suggestions without a listing address. Both IDs resolve merged aliases; repeated exclusions and self-pairs are no-ops. Missing jobs return `404`. Success returns `204` with the canonical source job in `Content-Location`. The listing-addressed endpoint remains available for uncaptured postings.
 
 ### Application-workflow analytics
 
