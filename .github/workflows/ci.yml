@@ -18,7 +18,7 @@ jobs:
         working-directory: apps/api
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5
       - run: uv sync
       - run: uv run ruff format --check
       - run: uv run ruff check
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --prod --audit-level=high
       # Audit privileged development tooling too; transitive findings remain advisory.
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde # v5
+      - uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5
       - run: pnpm install --frozen-lockfile
       - run: uv sync
         working-directory: apps/api
