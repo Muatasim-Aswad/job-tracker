@@ -1,13 +1,22 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.deps import service_factory
 from app.documents.models import Document
-from app.documents.schemas import DocumentCreate, DocumentUpdate
+from app.documents.schemas import DocumentCreate, DocumentOperation, DocumentUpdate
 from app.documents.service import DocumentService
 
 router = APIRouter(tags=["documents"])
 
 get_service = service_factory(DocumentService)
+
+
+@router.get("/document-operations", response_model=DocumentOperation)
+def get_document_operation(
+    operation_key: str = Query(min_length=1, max_length=200, pattern=r"\S"),
+    service: DocumentService = Depends(get_service),
+) -> DocumentOperation:
+    """Look up a durable creation receipt without creating or restoring a document."""
+    return service.operation(operation_key)
 
 
 @router.post("/jobs/{job_id}/documents", response_model=Document, status_code=201)

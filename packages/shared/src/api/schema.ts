@@ -48,6 +48,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/document-operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Document Operation
+         * @description Look up a durable creation receipt without creating or restoring a document.
+         */
+        get: operations["get_document_operation_api_document_operations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{document_id}": {
         parameters: {
             query?: never;
@@ -67,6 +87,26 @@ export interface paths {
          * @description Update only the supplied document fields.
          */
         patch: operations["update_document_api_documents__document_id__patch"];
+        trace?: never;
+    };
+    "/api/event-operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Event Operation
+         * @description Return the original committed result, including completed no-op batches.
+         */
+        get: operations["get_event_operation_api_event_operations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/events": {
@@ -1683,6 +1723,8 @@ export interface components {
             meta?: {
                 [key: string]: unknown;
             };
+            /** Operation Key */
+            operation_key?: string | null;
             /**
              * Provided
              * @default false
@@ -1691,6 +1733,22 @@ export interface components {
             /** Requested */
             requested?: ("required" | "optional") | null;
             type: components["schemas"]["DocumentType"];
+        };
+        /** DocumentOperation */
+        DocumentOperation: {
+            /** Created At */
+            created_at: string;
+            /** Document Id */
+            document_id: number;
+            /** Job Id */
+            job_id: string;
+            /** Operation Key */
+            operation_key: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "present" | "deleted";
         };
         /**
          * DocumentType
@@ -1746,6 +1804,8 @@ export interface components {
             expected_status?: components["schemas"]["Status"] | null;
             /** Job Id */
             job_id?: string | null;
+            /** Operation Key */
+            operation_key?: string | null;
             /** Platform */
             platform?: string | null;
             /** Platform Id */
@@ -1763,6 +1823,14 @@ export interface components {
             meta?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** EventOperation */
+        EventOperation: {
+            /** Created At */
+            created_at: string;
+            /** Operation Key */
+            operation_key: string;
+            result: components["schemas"]["JobMutationState"];
         };
         /**
          * EventUpdate
@@ -3119,6 +3187,39 @@ export interface operations {
             };
         };
     };
+    get_document_operation_api_document_operations_get: {
+        parameters: {
+            query: {
+                operation_key: string;
+            };
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentOperation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_document_api_documents__document_id__delete: {
         parameters: {
             query?: never;
@@ -3174,6 +3275,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Document"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_event_operation_api_event_operations_get: {
+        parameters: {
+            query: {
+                operation_key: string;
+            };
+            header?: {
+                "x-api-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventOperation"];
                 };
             };
             /** @description Validation Error */

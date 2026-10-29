@@ -306,3 +306,75 @@ def test_job_false_match_missing_job_changes_nothing(
             == 404
         )
     assert conn.total_changes == before
+
+
+@pytest.mark.parametrize("route", ["job", "listing", "patch", "capture"])
+@pytest.mark.parametrize("exclusion_side", ["source", "target"])
+def test_excluded_jobs_cannot_be_merged_or_relinked(
+    client: TestClient, conn: sqlite3.Connection, route: str, exclusion_side: str
+) -> None:
+    source = _listing(client, "source")
+    target = _listing(client, "target")
+    # Simulate a client that already fetched duplicate suggestions before a
+    # different client excludes the pair. A one-sided legacy exclusion suffices.
+    assert _matches(client, source["job_id"])
+    job, other = (source, target) if exclusion_side == "source" else (target, source)
+    client.patch(f"/api/jobs/{job['job_id']}", json={"meta": {"false_matches": [other["job_id"]]}})
+    client.post(f"/api/jobs/{source['job_id']}/documents", json={"type": "cv"})
+    before = [client.get(f"/api/jobs/{j['job_id']}").json() for j in (source, target)]
+    changes = conn.total_changes
+    if route == "job":
+        response = client.post(
+            f"/api/jobs/{source['job_id']}/link-job", json={"other_job_id": target["job_id"]}
+        )
+    elif route == "listing":
+        response = client.post(
+            "/api/listings/link-job",
+            json={
+                "platform": "linkedin",
+                "platform_id": "source",
+                "other_job_id": target["job_id"],
+            },
+        )
+    elif route == "patch":
+        response = client.patch(
+            f"/api/listings/{source['listing_id']}", json={"job_id": target["job_id"]}
+        )
+    else:
+        response = client.post(
+            "/api/listings",
+            json={
+                "platform": "linkedin",
+                "platform_id": "source",
+                "job_id": target["job_id"],
+                "title": "Changed",
+            },
+        )
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "false_match_conflict"
+    assert [client.get(f"/api/jobs/{j['job_id']}").json() for j in (source, target)] == before
+    # Capture may update observations before the relink guard; the request rollback
+    # above must restore those too. SQLite total_changes includes rolled-back writes.
+    if route != "capture":
+        assert conn.total_changes == changes
+
+
+def test_merge_guard_resolves_aliases_inside_exclusions(
+    client: TestClient, conn: sqlite3.Connection
+) -> None:
+    source = _listing(client, "source")
+    target = _listing(client, "target")
+    alias = _listing(client, "alias")
+    _event(client, target["job_id"], "seen")
+    _link(client, target["job_id"], alias["job_id"])
+    client.patch(
+        f"/api/jobs/{source['job_id']}", json={"meta": {"false_matches": [alias["job_id"]]}}
+    )
+    before = conn.total_changes
+    response = client.post(
+        f"/api/jobs/{source['job_id']}/link-job", json={"other_job_id": alias["job_id"]}
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "false_match_conflict"
+    assert conn.total_changes == before
+    assert _link(client, target["job_id"], alias["job_id"])["merged_from"] == []

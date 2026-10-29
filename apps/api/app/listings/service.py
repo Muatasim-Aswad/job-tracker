@@ -161,6 +161,7 @@ class ListingService:
         if source_job_id == job_id:
             return
         source_will_dissolve = len(self.listings.list_for_job(source_job_id)) == 1
+        self._guard_false_match_merge(source_job_id, job_id)
         self._guard_workflow_relink(
             source_job_id, job_id, listing_id_, source_will_dissolve=source_will_dissolve
         )
@@ -271,6 +272,7 @@ class ListingService:
 
     def _merge_jobs(self, loser_id: str, survivor_id: str) -> None:
         """Move all dependent records to the survivor, then delete the empty job."""
+        self._guard_false_match_merge(loser_id, survivor_id)
         self._guard_workflow_merge(loser_id, survivor_id)
         now = utc_now()
         survivor = self.jobs.get(survivor_id)
@@ -308,6 +310,20 @@ class ListingService:
                 "application_workflow_conflict",
                 {"source": source.model_dump(), "target": target.model_dump()},
             )
+
+    def _guard_false_match_merge(self, first_id: str, second_id: str) -> None:
+        """Recheck both exclusions inside the write transaction, resolving old aliases."""
+        for job_id, other_id in ((first_id, second_id), (second_id, first_id)):
+            job = self.jobs.get(job_id)
+            assert job is not None
+            if any(
+                self.jobs.resolve_id(excluded) == other_id
+                for excluded in job.meta.get("false_matches", [])
+                if isinstance(excluded, str)
+            ):
+                raise ConflictError(
+                    "false_match_conflict", {"job_id": first_id, "other_job_id": second_id}
+                )
 
     def _guard_workflow_merge(self, loser_id: str, survivor_id: str) -> None:
         """A merge cannot silently choose between two recorded workflows."""

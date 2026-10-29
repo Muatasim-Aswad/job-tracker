@@ -61,7 +61,9 @@ The API uses three identifiers:
 
 Clients never construct `listing_id` or `job_id`. Listing-oriented extension operations use the natural key; dashboard operations use stored job or listing IDs. Legacy rows may retain older readable listing IDs, but no current code parses or recreates them.
 
-Document creation can carry a globally unique retry key. Its immutable request fingerprint and document reference are stored atomically; the reference follows document ownership through merges and relinks and is deleted with the document. An identical retry returns the current document, while changed input or a different canonical owner conflicts.
+Document creation can carry a globally unique `creation_key`. Its immutable request fingerprint and document reference are stored atomically; the reference follows document ownership through merges and relinks and is deleted with the document. An identical retry returns the current document, while changed input or a different canonical owner conflicts.
+
+Opt-in `operation_key` receipts have a separate durable lifecycle. Document receipts follow ownership moves and retain a tombstone after deletion. Event receipts preserve the original batch result, even for no-ops, independently of later history and identity changes. Receipt lookup is read-only; write retries cannot recreate deleted work or reapply reverted events. Each feature owns its receipt table, with no cascading foreign keys, and stores only request hashes and minimal result data. Request writes and receipts commit atomically. Existing `creation_key` deletion semantics remain unchanged; the [API guide](../apps/api/README.md#durable-automation-operations) owns retry and conflict details.
 
 A merged job ID remains a durable alias of the surviving job. Reads and ordinary writes addressed with an alias resolve to the canonical ID; responses carry the canonical ID and job-addressed responses identify its URL with `Content-Location`. Destructive deletion through an alias is refused with a conflict so a stale caller cannot silently delete the survivor. Alias rows always point directly to a live job: when that survivor is merged again, every prior alias is flattened to the new survivor. A deliberate hard deletion removes its aliases.
 
@@ -72,6 +74,8 @@ The first complete capture seeds the job's title and company. Later captures upd
 Creating or updating a listing and deciding which job it belongs to are separate operations. Explicit linking moves the listing and its attributed events. If the source job then has no listings, its remaining events and documents move to the target before the empty job is deleted.
 
 The duplicate-suggestion flow can merge two complete jobs, addressed by either a source listing or two stored job IDs. Both routes share the merge implementation in `ListingService`. The job further along the funnel survives; ties preserve the older job. Listings, events, documents, form-capture job context, and false-match exclusions are consolidated under the survivor before the losing ID becomes an alias. State is reprojected from the merged event history without allowing an ordinary backdated event to undo the survivor's stronger status.
+
+Merges and explicit listing relinks refuse a pair excluded by either job’s `false_matches`, including exclusions addressed through merged aliases. The guard runs inside the mutating request transaction before moving records, so prior suggestion reads confer no authority to bypass a subsequent exclusion.
 
 An application workflow is anchored to the exact applied or corrected-applied event that confirmed submission. Its composite event/job foreign key makes it follow that evidence when a listing is relinked or a job is merged, including through repeated merges and old aliases. A merge or relink that would collapse two workflow records is refused with a conflict rather than choosing one and losing data.
 

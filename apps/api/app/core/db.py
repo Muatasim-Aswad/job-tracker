@@ -486,6 +486,19 @@ _DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = (
         "document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE, "
         "request_hash TEXT NOT NULL)",
     ),
+    (
+        "create_document_operations_v1",
+        "CREATE TABLE IF NOT EXISTS document_operations ("
+        "operation_key TEXT PRIMARY KEY NOT NULL, "
+        "document_id INTEGER NOT NULL, job_id TEXT NOT NULL, "
+        "request_hash TEXT NOT NULL, created_at TEXT NOT NULL)",
+    ),
+    (
+        "create_event_operations_v1",
+        "CREATE TABLE IF NOT EXISTS event_operations ("
+        "operation_key TEXT PRIMARY KEY NOT NULL, request_hash TEXT NOT NULL, "
+        "result TEXT NOT NULL, created_at TEXT NOT NULL)",
+    ),
 )
 
 
