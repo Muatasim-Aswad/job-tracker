@@ -19,7 +19,7 @@ from app.events.automation import is_automatic_close, is_effective_status_event
 from app.events.models import Event
 from app.events.projection import reproject_status
 from app.events.repository import EventRepository
-from app.events.schemas import EventCreate
+from app.events.schemas import EventCreate, EventOperation
 from app.jobs.models import Job
 from app.jobs.repository import JobRepository
 from app.jobs.schemas import JobMutationState
@@ -34,6 +34,17 @@ class EventService:
         self.listings = ListingService(conn)
 
     def record(self, data: EventCreate) -> JobMutationState:
+        request_hash = stable_hash(data.model_dump(mode="json", exclude={"operation_key"}))
+        assert request_hash is not None
+        if data.operation_key is not None:
+            prior = self.events.operation(data.operation_key)
+            if prior is not None:
+                receipt = self.operation(data.operation_key)
+                if prior["request_hash"] != request_hash:
+                    raise ConflictError("event_operation_key_conflict", receipt.model_dump())
+                # Replay before resolving addresses or checking current status. Even a
+                # no-op or a subsequently reverted/deleted event has already completed.
+                return receipt.result
         # Resolve the address, and any stub it materializes, once; every event in the
         # submission then applies against that same job/listing, in order.
         job_id, listing_id = self._resolve_target(data)
@@ -56,12 +67,27 @@ class EventService:
 
         refreshed = self.jobs.get(job_id)
         assert refreshed is not None
-        return JobMutationState(
+        result = JobMutationState(
             job_id=refreshed.id,
             status=refreshed.status,
             hidden=refreshed.hidden,
             starred=refreshed.starred,
             event_ids=event_ids,
+        )
+        if data.operation_key is not None:
+            self.events.remember_operation(
+                data.operation_key, request_hash, result.model_dump_json(), utc_now()
+            )
+        return result
+
+    def operation(self, key: str) -> EventOperation:
+        prior = self.events.operation(key)
+        if prior is None:
+            raise NotFoundError("event operation not found")
+        return EventOperation(
+            operation_key=key,
+            result=JobMutationState.model_validate_json(prior["result"]),
+            created_at=str(prior["created_at"]),
         )
 
     # --- dashboard corrections --------------------------------------------

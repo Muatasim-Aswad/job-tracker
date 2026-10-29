@@ -17,6 +17,19 @@ class EventRepository:
     def __init__(self, conn: Conn) -> None:
         self.conn = conn
 
+    def operation(self, key: str) -> Row | None:
+        return query_one(
+            self.conn, "SELECT * FROM event_operations WHERE operation_key = ?", (key,)
+        )
+
+    def remember_operation(self, key: str, request_hash: str, result: str, created_at: str) -> None:
+        execute(
+            self.conn,
+            "INSERT INTO event_operations (operation_key, request_hash, result, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (key, request_hash, result, created_at),
+        )
+
     def insert(
         self,
         job_id: str,

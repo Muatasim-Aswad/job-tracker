@@ -1,14 +1,29 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from app.core.deps import service_factory
 from app.events.models import Event
-from app.events.schemas import CorrectionCreate, EventCreate, EventUpdate, StatusPrecondition
+from app.events.schemas import (
+    CorrectionCreate,
+    EventCreate,
+    EventOperation,
+    EventUpdate,
+    StatusPrecondition,
+)
 from app.events.service import EventService
 from app.jobs.schemas import JobMutationState
 
 router = APIRouter(tags=["events"])
 
 get_service = service_factory(EventService)
+
+
+@router.get("/event-operations", response_model=EventOperation)
+def get_event_operation(
+    operation_key: str = Query(min_length=1, max_length=200, pattern=r"\S"),
+    service: EventService = Depends(get_service),
+) -> EventOperation:
+    """Return the original committed result, including completed no-op batches."""
+    return service.operation(operation_key)
 
 
 @router.post("/events", response_model=JobMutationState)

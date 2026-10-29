@@ -6,6 +6,16 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-29
+
+### Added
+
+- Optional durable operation keys and read-only receipt lookups for document creation and event batches, including event no-ops. Document tombstones prevent recreation after deletion; event retries recover their original result after later edits, reverts, merges, or deletion. Existing document creation-key semantics remain unchanged.
+
+### Fixed
+
+- Merge and listing-relink writes now reject either job’s false-match exclusion inside the write transaction, including exclusions stored as merged aliases.
+
 ## [1.6.0] - 2026-10-28
 
 ### Added

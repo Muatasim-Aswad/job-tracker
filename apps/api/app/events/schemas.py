@@ -1,9 +1,10 @@
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, StringConstraints, model_validator
 
 from app.core.enums import Event as EventType
 from app.core.enums import Status
+from app.jobs.schemas import JobMutationState
 
 
 class EventItem(BaseModel):
@@ -23,6 +24,9 @@ class EventCreate(BaseModel):
     """Ordered events addressed by one listing natural key or one job id."""
 
     events: list[EventItem]
+    operation_key: (
+        Annotated[str, StringConstraints(min_length=1, max_length=200, pattern=r"\S")] | None
+    ) = None
     platform: str | None = None
     platform_id: str | None = None
     job_id: str | None = None
@@ -38,6 +42,12 @@ class EventCreate(BaseModel):
         if not self.events:
             raise ValueError("events must be non-empty")
         return self
+
+
+class EventOperation(BaseModel):
+    operation_key: str
+    result: JobMutationState
+    created_at: str
 
 
 class EventUpdate(BaseModel):

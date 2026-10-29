@@ -22,6 +22,22 @@ class DocumentRepository:
             (key,),
         )
 
+    def operation(self, key: str) -> Row | None:
+        return query_one(
+            self.conn, "SELECT * FROM document_operations WHERE operation_key = ?", (key,)
+        )
+
+    def remember_operation(
+        self, key: str, document_id: int, job_id: str, request_hash: str, created_at: str
+    ) -> None:
+        # Deliberately no cascading foreign keys: deletion must leave a receipt.
+        execute(
+            self.conn,
+            "INSERT INTO document_operations "
+            "(operation_key, document_id, job_id, request_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+            (key, document_id, job_id, request_hash, created_at),
+        )
+
     def remember_creation(self, key: str, document_id: int, request_hash: str) -> None:
         execute(
             self.conn,
@@ -97,6 +113,11 @@ class DocumentRepository:
     def move_all(self, old_job_id: str, new_job_id: str) -> None:
         execute(
             self.conn, "UPDATE documents SET job_id = ? WHERE job_id = ?", (new_job_id, old_job_id)
+        )
+        execute(
+            self.conn,
+            "UPDATE document_operations SET job_id = ? WHERE job_id = ?",
+            (new_job_id, old_job_id),
         )
 
     def delete_for_job(self, job_id: str) -> None:
