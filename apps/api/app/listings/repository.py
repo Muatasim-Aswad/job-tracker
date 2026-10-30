@@ -12,9 +12,7 @@ class ListingSummary:
     platforms: list[str] = field(default_factory=list)
     apply_types: list[str] = field(default_factory=list)
     listing_count: int = 0
-    # The natural key + url of the listing a card links to. Prefers a listing
-    # that actually has a captured url; falls back to the first one otherwise, so
-    # a pure-stub job still exposes its (platform, platform_id) for link rebuild.
+    primary_listing_id: str | None = None
     primary_platform: str | None = None
     primary_platform_id: str | None = None
     primary_url: str | None = None
@@ -152,8 +150,14 @@ class ListingRepository:
         placeholders = ", ".join("?" for _ in job_ids)
         rows = query_all(
             self.conn,
-            "SELECT job_id, platform, platform_id, url, apply_type, availability, "
+            "SELECT id, job_id, platform, platform_id, url, apply_type, availability, "
             "availability_observed_at, closed_at, "
+            "ROW_NUMBER() OVER (PARTITION BY job_id ORDER BY "
+            "CASE WHEN closed_at IS NOT NULL THEN 3 ELSE CASE availability "
+            "WHEN 'open' THEN 0 WHEN 'unavailable' THEN 2 WHEN 'closed' THEN 3 ELSE 1 END END, "
+            "CASE WHEN NULLIF(TRIM(url), '') IS NOT NULL THEN 0 ELSE 1 END, "
+            "(platform = 'linkedin') DESC, (last_detail_captured_at IS NOT NULL) DESC, "
+            "captured_at DESC, id) AS primary_rank, "
             "CASE WHEN json_type(meta, '$.apply_url') = 'text' "
             "THEN json_extract(meta, '$.apply_url') END AS apply_url FROM listings "
             f"WHERE job_id IN ({placeholders}) ORDER BY captured_at",
@@ -181,9 +185,8 @@ class ListingRepository:
                 entry.platforms.append(row["platform"])
             if row["apply_type"] and row["apply_type"] not in entry.apply_types:
                 entry.apply_types.append(row["apply_type"])
-            # First listing seeds the primary; a later one with a real url upgrades
-            # it (a captured link beats a stub's reconstructed one).
-            if entry.primary_platform_id is None or (entry.primary_url is None and row["url"]):
+            if row["primary_rank"] == 1:
+                entry.primary_listing_id = row["id"]
                 entry.primary_platform = row["platform"]
                 entry.primary_platform_id = row["platform_id"]
                 entry.primary_url = row["url"]

@@ -197,6 +197,7 @@ describe("Board drag interaction", () => {
 
 describe("Board — application link", () => {
   const listing = {
+    listing_id: "listing-1",
     platform: "linkedin",
     platform_id: "1",
     url: "https://www.linkedin.com/jobs/view/1/",

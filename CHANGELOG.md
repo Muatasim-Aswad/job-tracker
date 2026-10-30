@@ -6,6 +6,16 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-30
+
+### Added
+
+- Job details expose computed `primary_listing_id`; compact job-summary primary listings include their stored listing ID.
+
+### Changed
+
+- Primary listing selection now prefers availability, a saved URL, LinkedIn, full-detail capture, and newest first capture, with stable listing-ID ties. Details and dashboard summaries share the same selection without a database migration.
+
 ## [1.7.0] - 2026-10-29
 
 ### Added

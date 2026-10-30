@@ -64,12 +64,16 @@ class JobService:
             availability = rollup.availability if rollup else ListingAvailabilitySummary()
             primary = (
                 PrimaryListing(
+                    listing_id=rollup.primary_listing_id,
                     platform=rollup.primary_platform,
                     platform_id=rollup.primary_platform_id,
                     url=rollup.primary_url,
                     apply_url=rollup.primary_apply_url,
                 )
-                if rollup and rollup.primary_platform and rollup.primary_platform_id
+                if rollup
+                and rollup.primary_listing_id
+                and rollup.primary_platform
+                and rollup.primary_platform_id
                 else None
             )
             out.append(
@@ -121,6 +125,7 @@ class JobService:
         return JobDetail(
             **job.model_dump(),
             availability=availability.state,
+            primary_listing_id=rollup.primary_listing_id if rollup else None,
             listings=self.listings.list_for_job(job_id),
             events=self.events.list_for_job(job_id),
             documents=self.documents.list_for_job(job_id),

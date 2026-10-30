@@ -53,7 +53,10 @@ def test_primary_listing_prefers_captured_url_over_stub(client: TestClient) -> N
     ).json()
     # The stub-only job first: primary is the stub, url is null (card reconstructs).
     (job,) = client.get("/api/jobs").json()
+    detail = client.get(f"/api/jobs/{job['id']}").json()
+    assert detail["primary_listing_id"] == detail["listings"][0]["id"]
     assert job["primary_listing"] == {
+        "listing_id": detail["primary_listing_id"],
         "platform": "exampleboard",
         "platform_id": "JR_1",
         "url": None,
@@ -83,6 +86,147 @@ def test_primary_listing_carries_captured_apply_url(client: TestClient) -> None:
 
     (job,) = client.get("/api/jobs").json()
     assert job["primary_listing"]["apply_url"] == apply_url
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "winner"),
+    [
+        ({"availability": "open"}, {"platform": "linkedin"}, 0),
+        ({}, {"availability": "unavailable", "platform": "linkedin"}, 0),
+        ({"availability": "unavailable"}, {"availability": "closed"}, 0),
+        ({}, {"availability": "closed"}, 0),
+        ({}, {"platform": "linkedin", "url": None, "capture_kind": "detail"}, 0),
+        ({}, {"platform": "linkedin", "url": "   "}, 0),
+        ({"platform": "linkedin"}, {"capture_kind": "detail"}, 0),
+        ({"capture_kind": "detail"}, {}, 0),
+        ({}, {}, 1),
+    ],
+    ids=[
+        "open-before-unknown",
+        "unknown-before-unavailable",
+        "unavailable-before-closed",
+        "unknown-before-closed",
+        "url-before-linkedin-and-detail",
+        "blank-url-is-not-usable",
+        "linkedin-before-detail-and-recency",
+        "detail-before-recency",
+        "newest-first-capture",
+    ],
+)
+def test_primary_listing_selection_agrees_between_summary_and_detail(
+    client: TestClient, conn: Conn, first: dict[str, Any], second: dict[str, Any], winner: int
+) -> None:
+    listings = []
+    for index, fields in enumerate((first, second)):
+        data = {
+            "platform": "exampleboard",
+            "url": f"https://jobs.example.com/{index}",
+            "title": "Synthetic role",
+            "meta": {
+                "description": "Synthetic job description",
+                "apply_url": f"https://apply.example.com/{index}",
+            },
+            **fields,
+        }
+        listing = _listing(
+            client,
+            platform_id=str(index),
+            **data,
+            **({"job_id": listings[0]["job_id"]} if listings else {}),
+        )
+        conn.execute(
+            "UPDATE listings SET captured_at = ? WHERE id = ?",
+            (f"2026-10-0{index + 1}T00:00:00+00:00", listing["listing_id"]),
+        )
+        conn.commit()
+        listings.append(listing)
+
+    (summary,) = client.get("/api/jobs").json()
+    detail = client.get(f"/api/jobs/{listings[0]['job_id']}").json()
+    assert detail["primary_listing_id"] == listings[winner]["listing_id"]
+    selected = next(row for row in detail["listings"] if row["id"] == detail["primary_listing_id"])
+    assert summary["primary_listing"] == {
+        "listing_id": selected["id"],
+        "platform": selected["platform"],
+        "platform_id": selected["platform_id"],
+        "url": selected["url"],
+        "apply_url": selected["meta"]["apply_url"],
+    }
+    assert "primary_listing" not in detail
+
+
+def test_primary_listing_ties_are_stable_across_recaptures(client: TestClient, conn: Conn) -> None:
+    capture = {
+        "title": "Synthetic role",
+        "capture_kind": "detail",
+        "meta": {"description": "Synthetic description"},
+    }
+    first = _listing(client, "linkedin", "tie-1", url="https://example.com/1", **capture)
+    second = _listing(
+        client, "linkedin", "tie-2", url="https://example.com/2", job_id=first["job_id"], **capture
+    )
+    conn.execute("UPDATE listings SET captured_at = ?", ("2026-10-01T00:00:00+00:00",))
+    conn.commit()
+    expected = min(first["listing_id"], second["listing_id"])
+    for platform_id in ("tie-1", "tie-2"):
+        _listing(client, "linkedin", platform_id, **capture)
+        detail = client.get(f"/api/jobs/{first['job_id']}").json()
+        assert detail["primary_listing_id"] == expected
+        (summary,) = client.get("/api/jobs").json()
+        assert summary["primary_listing"]["listing_id"] == expected
+
+
+@pytest.mark.parametrize("operation", ["merge", "relink"])
+def test_primary_listing_follows_current_membership_and_job_aliases(
+    client: TestClient, operation: str
+) -> None:
+    preferred = _listing(client, "linkedin", "preferred", url="https://example.com/linkedin")
+    other = _listing(client, "exampleboard", "other", url="https://example.com/other")
+    if operation == "merge":
+        response = client.post(
+            f"/api/jobs/{preferred['job_id']}/link-job", json={"other_job_id": other["job_id"]}
+        )
+    else:
+        response = client.patch(
+            f"/api/listings/{preferred['listing_id']}", json={"job_id": other["job_id"]}
+        )
+    assert response.status_code == 200, response.text
+    (summary,) = client.get("/api/jobs").json()
+    assert summary["primary_listing"]["listing_id"] == preferred["listing_id"]
+    for job_id in (preferred["job_id"], other["job_id"]):
+        detail = client.get(f"/api/jobs/{job_id}").json()
+        assert detail["id"] == summary["id"]
+        assert detail["primary_listing_id"] == preferred["listing_id"]
+        assert {row["id"] for row in detail["listings"]} == {
+            preferred["listing_id"],
+            other["listing_id"],
+        }
+
+
+def test_primary_listing_uses_legacy_closure_and_reselects_after_deletion(
+    client: TestClient, conn: Conn
+) -> None:
+    first = _listing(
+        client, "linkedin", "closed", url="https://example.com/closed", availability="open"
+    )
+    second = _listing(
+        client, "exampleboard", "unknown", url="https://example.com/open", job_id=first["job_id"]
+    )
+    conn.execute(
+        "UPDATE listings SET closed_at = ? WHERE id = ?",
+        ("2026-10-01T00:00:00+00:00", first["listing_id"]),
+    )
+    conn.commit()
+    job_id = first["job_id"]
+    detail = client.get(f"/api/jobs/{job_id}").json()
+    assert detail["primary_listing_id"] == second["listing_id"]
+    assert detail["availability"] == "closed"
+    response = client.delete(f"/api/listings/{second['listing_id']}")
+    assert response.status_code == 204
+    detail = client.get(f"/api/jobs/{job_id}").json()
+    assert detail["primary_listing_id"] == first["listing_id"]
+    (summary,) = client.get("/api/jobs").json()
+    assert summary["primary_listing"]["listing_id"] == first["listing_id"]
 
 
 @pytest.mark.parametrize(

@@ -107,6 +107,8 @@ Settings shows the connected server in a compact row with a pencil to change it;
 
 The dashboard keeps the search visible as a drag-and-drop Kanban workflow. **To apply** cards link to an external application page when it differs from the posting. Each job retains a timeline that records update provenance and time spent at each stage.
 
+For jobs with several listings, the card's posting and application links come from one automatically selected primary listing. Availability takes priority, followed by a saved posting URL, LinkedIn preference, full-detail capture, and newest first capture. An open employer posting therefore beats a closed LinkedIn listing. Every linked listing remains available in job details.
+
 History remains correctable rather than disposable. You can undo a transition, reopen a job, and edit an event's timestamp or comment without erasing the rest of the record.
 
 Attention rules identify applications that have waited too long at applied or in-process stages. Adding a note can reset attention, and the dashboard can filter the queue or mark a job ghosted.
