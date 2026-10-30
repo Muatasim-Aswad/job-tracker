@@ -1939,6 +1939,8 @@ export interface components {
             meta?: {
                 [key: string]: unknown;
             };
+            /** Primary Listing Id */
+            primary_listing_id?: string | null;
             /** Starred */
             starred: boolean;
             /** Status */
@@ -2469,6 +2471,8 @@ export interface components {
         PrimaryListing: {
             /** Apply Url */
             apply_url?: string | null;
+            /** Listing Id */
+            listing_id: string;
             /** Platform */
             platform: string;
             /** Platform Id */

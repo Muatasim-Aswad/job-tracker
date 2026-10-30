@@ -230,7 +230,7 @@ def test_jobs_read_uses_one_batched_activity_query(client: TestClient, conn: Any
     conn.set_trace_callback(None)
 
     select_queries = [sql for sql in statements if sql.lstrip().upper().startswith("SELECT")]
-    activity_queries = [sql for sql in statements if "ROW_NUMBER() OVER" in sql]
+    activity_queries = [sql for sql in select_queries if "FROM events" in sql]
     assert len(select_queries) == 3
     assert len(activity_queries) == 1
 

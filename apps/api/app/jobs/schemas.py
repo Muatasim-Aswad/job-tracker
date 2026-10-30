@@ -34,6 +34,7 @@ class ListingState(JobState):
 class PrimaryListing(BaseModel):
     """Preferred listing address for a dashboard card."""
 
+    listing_id: str
     platform: str
     platform_id: str
     url: str | None = None
@@ -81,6 +82,7 @@ class JobMergeResult(BaseModel):
 
 class JobDetail(Job):
     availability: ListingAvailability = ListingAvailability.UNKNOWN
+    primary_listing_id: str | None = None
     listings: list[Listing] = []
     events: list[Event] = []
     documents: list[Document] = []

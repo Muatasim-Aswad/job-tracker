@@ -51,6 +51,8 @@ A tracked opportunity and a scraped posting are separate entities:
 
 This separation prevents a repost on another platform from creating a second application history while preserving platform-specific URLs and scraped fields.
 
+The primary listing is a read-only navigation preference computed from current listings, never stored on the job. Selection ranks availability (Open, Unknown, Unavailable, Closed, with `closed_at` overriding older evidence), a nonblank saved URL, LinkedIn over other platforms, a recorded full-detail capture, and newest first-capture time, then ascending listing ID for stable ties. Detail refresh times do not affect recency. Details expose `primary_listing_id` referencing their existing listings array; summaries retain a compact `primary_listing` address with `listing_id`. Both use the same selection. This preference changes neither canonical job identity, funnel state, application provenance, nor the separate job-level availability projection.
+
 ### Identity
 
 The API uses three identifiers:
