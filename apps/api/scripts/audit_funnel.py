@@ -14,8 +14,8 @@ from typing import Any
 
 import httpx
 
-from app.core.config import get_settings
-from app.core.enums import Status, parse_correction, status_set_by, target_status
+from app.config import get_settings
+from app.shared.enums import Status, parse_correction, status_set_by, target_status
 
 Job = dict[str, Any]
 Event = dict[str, Any]

@@ -8,8 +8,8 @@ from unittest.mock import patch
 import pytest
 
 from app import cli
+from app.config import get_settings
 from app.core import paths as core_paths
-from app.core.config import get_settings
 
 
 def _app_tree(tmp_path: Path) -> tuple[Path, Path]:

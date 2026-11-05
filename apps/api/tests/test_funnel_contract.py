@@ -8,7 +8,7 @@ test until the TypeScript implementation is reviewed and updated.
 import json
 from pathlib import Path
 
-from app.core.enums import Status, active_rank, is_terminal, status_for_event, target_status
+from app.shared.enums import Status, active_rank, is_terminal, status_for_event, target_status
 
 # The shared package asserts its tables against this generated contract.
 CONTRACT_PATH = (

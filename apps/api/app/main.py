@@ -1,289 +1,71 @@
-"""FastAPI routing, profile-locked database lifecycle, and built-dashboard hosting."""
+"""Compose the configured API, runtime resources and built dashboard."""
 
-import json
-import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import APIRouter, Depends, FastAPI, Request
-from fastapi.encoders import jsonable_encoder
-from fastapi.exceptions import RequestValidationError
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.datastructures import MutableHeaders
-from starlette.responses import Response
-from starlette.types import ASGIApp, Message, Receive, Scope, Send
+from fastapi import APIRouter, Depends, FastAPI
 
-from app.application_workflows.router import router as application_workflows_router
-from app.blocked.router import router as blocked_router
+from app.config import Settings, get_settings
 from app.core.build_info import installed_info
-from app.core.config import get_settings
-from app.core.db import Database, connect, init_schema
-from app.core.deps import require_api_key
-from app.core.errors import ConflictError, InvalidCursorError, NotFoundError, ValidationError
-from app.core.lifecycle import ServerLock, private_creation_mask, protect_new_database
 from app.core.paths import settings_paths
-from app.core.sync import PushScheduler
 from app.core.version import PRODUCT_VERSION
-from app.documents.router import router as documents_router
-from app.events.router import router as events_router
-from app.form_fill.router import router as form_fill_router
-from app.jobs.router import router as jobs_router
-from app.listings.router import router as listings_router
-from app.meta.router import router as meta_router
-from app.preferences.router import router as preferences_router
-from app.search_log.router import router as search_log_router
-from app.stats.router import router as stats_router
-
-# uvicorn's logger is the one with a console handler attached, so app lines — errors,
-# the per-write commit log — render alongside access logs.
-logger = logging.getLogger("uvicorn.error")
-
-
-class DashboardStaticFiles(StaticFiles):
-    """Keep the SPA entry document fresh across dashboard rebuilds."""
-
-    async def get_response(self, path: str, scope: Scope) -> Response:
-        response = await super().get_response(path, scope)
-        if response.headers.get("content-type", "").startswith("text/html"):
-            response.headers["Cache-Control"] = "no-cache"
-        return response
+from app.modules.application_workflows.router import router as application_workflows_router
+from app.modules.blocked.router import router as blocked_router
+from app.modules.documents.router import router as documents_router
+from app.modules.events.router import router as events_router
+from app.modules.form_fill.router import router as form_fill_router
+from app.modules.jobs.router import router as jobs_router
+from app.modules.listings.router import router as listings_router
+from app.modules.meta.router import router as meta_router
+from app.modules.preferences.router import router as preferences_router
+from app.modules.search_log.router import router as search_log_router
+from app.modules.stats.router import router as stats_router
+from app.platform.dependencies import require_api_key
+from app.platform.http import DashboardStaticFiles, configure_http
+from app.platform.logging import timestamp_uvicorn_logs
+from app.platform.runtime import RuntimeResources, open_runtime
 
 
-def _timestamp_uvicorn_logs() -> None:
-    """Add timestamps to Uvicorn handlers after they are installed, preserving their format so requests, commits, and background sync can be correlated."""
-    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
-        for handler in logging.getLogger(name).handlers:
-            fmt = handler.formatter
-            if fmt is None:
-                continue
-            base = getattr(fmt, "_fmt", None)
-            if not base or "asctime" in base:
-                continue
-            try:
-                handler.setFormatter(type(fmt)(f"%(asctime)s {base}", datefmt="%Y-%m-%d %H:%M:%S"))
-            except Exception:  # never let log cosmetics break startup
-                logger.debug("could not add timestamp to %s handler", name, exc_info=True)
+def create_app(settings: Settings, *, resources: RuntimeResources | None = None) -> FastAPI:
+    """Build an isolated app; its lifespan owns the selected profile's resources."""
+    resources = resources or RuntimeResources(settings_paths(settings))
+    paths = resources.paths
+    build_info = installed_info(paths.app_dir, packaged=paths.profile == "packaged")
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    _timestamp_uvicorn_logs()
-    settings = get_settings()
-    paths = settings_paths(settings)
-    logger.info("running build %s", json.dumps(BUILD_INFO, sort_keys=True))
-    lock = ServerLock(paths, port=settings.port, version=PRODUCT_VERSION)
-    with private_creation_mask():
-        lock.acquire()  # before open/pull/init; direct Uvicorn cannot bypass it
-        conn = None
-        db = None
-        scheduler = None
-        live_path = (
-            paths.database.with_name(f"{paths.database.name}.sync")
-            if settings.turso_local_first and settings.turso_database_url
-            else paths.database
-        )
-        existed_before_open = live_path.exists()
-        cleanup_complete = True
-        try:
-            conn = connect(settings)  # pyturso mode already pulled the latest remote state
-            protect_new_database(live_path, existed_before_open=existed_before_open)
-            init_schema(conn, paths.schema_file)
-            db = Database(conn)
-            app.state.db = db
-
-            # In local-first mode, a debounced background push keeps local writes off the
-            # request path, and a periodic pull surfaces another laptop's writes without a
-            # restart.
-            scheduler = (
-                PushScheduler(
-                    db, settings.turso_push_debounce_seconds, settings.turso_pull_interval_seconds
-                )
-                if db.syncable
-                else None
-            )
-            app.state.push_scheduler = scheduler
-            if scheduler is not None:
-                scheduler.start()
-
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        timestamp_uvicorn_logs()
+        with open_runtime(settings, resources, build_info):
             yield
-        finally:
-            try:
-                if scheduler is not None:
-                    cleanup_complete = scheduler.stop()
-            finally:
-                try:
-                    if conn is not None and cleanup_complete:
-                        # Uvicorn can cancel an ASGI request while its synchronous
-                        # worker still owns the connection. Never close under it.
-                        if db is None:
-                            conn.close()
-                        elif db.lock.acquire(blocking=False):
-                            try:
-                                conn.close()
-                            finally:
-                                db.lock.release()
-                        else:
-                            cleanup_complete = False
-                finally:
-                    if cleanup_complete:
-                        lock.release()
-                    else:
-                        logger.warning(
-                            "leaving the database connection and server lock for process exit "
-                            "because database work is still active"
-                        )
+
+    app = FastAPI(title="Job Tracker API", version=PRODUCT_VERSION, lifespan=lifespan)
+    app.state.settings = settings
+    app.state.resources = resources
+    app.state.build_info = build_info
+    configure_http(app, settings)
+
+    # API authentication excludes public identity, OpenAPI and documentation.
+    api_router = APIRouter(dependencies=[Depends(require_api_key)])
+    for router in (
+        jobs_router,
+        application_workflows_router,
+        listings_router,
+        events_router,
+        documents_router,
+        stats_router,
+        search_log_router,
+        meta_router,
+        blocked_router,
+        form_fill_router,
+        preferences_router,
+    ):
+        api_router.include_router(router)
+    app.include_router(api_router, prefix="/api")
+
+    # API and identity routes win over the optional dashboard.
+    if paths.web_dist.is_dir():
+        app.mount("/", DashboardStaticFiles(directory=paths.web_dist, html=True), name="dashboard")
+    return app
 
 
-app = FastAPI(title="Job Tracker API", version=PRODUCT_VERSION, lifespan=lifespan)
-
-
-def _private_path(path: str) -> bool:
-    path = path.rstrip("/")
-    return (
-        path == "/api/form-fill"
-        or path.startswith("/api/form-fill/")
-        or path.endswith("/application-workflow")
-        or path == "/api/settings"
-        or path.startswith("/api/settings/")
-        or path == "/api/document-operations"
-        or path == "/api/event-operations"
-    )
-
-
-def _private_headers(request: Request) -> dict[str, str]:
-    return {"Cache-Control": "no-store"} if _private_path(request.url.path) else {}
-
-
-class PrivateResponseHeaders:
-    """Apply the private policy to framework and security responses without buffering bodies."""
-
-    def __init__(self, app: ASGIApp) -> None:
-        self.app = app
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not _private_path(scope["path"]):
-            await self.app(scope, receive, send)
-            return
-
-        async def send_private(message: Message) -> None:
-            if message["type"] == "http.response.start":
-                MutableHeaders(scope=message)["Cache-Control"] = "no-store"
-            await send(message)
-
-        await self.app(scope, receive, send_private)
-
-
-settings = get_settings()
-paths = settings_paths(settings)
-BUILD_INFO = installed_info(paths.app_dir, packaged=paths.profile == "packaged")
-
-# Browser-facing allowlist: only the Vite dev server and the extension's fixed
-# chrome-extension:// origin ever legitimately call this API from a browser. Prod
-# serves the SPA same-origin, which CORS doesn't gate at all.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.web_dev_origin, f"chrome-extension://{settings.extension_id}"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-# Reject untrusted hosts before CORS; neither check replaces authentication.
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
-# Wrap security middleware too, since it can reject requests before routing.
-app.add_middleware(PrivateResponseHeaders)
-
-
-@app.get("/health", include_in_schema=False)
-async def health() -> dict[str, str]:
-    return {"status": "ok", "version": PRODUCT_VERSION, "revision": BUILD_INFO["revision"]}
-
-
-@app.api_route("/version.json", methods=["GET", "HEAD"], include_in_schema=False)
-async def version_json(request: Request) -> Response:
-    response = JSONResponse(BUILD_INFO, headers={"Cache-Control": "no-store"})
-    if request.method == "HEAD":
-        return Response(headers=dict(response.headers), media_type="application/json")
-    return response
-
-
-# 404 is routine here — the deep-link `/listings/lookup` misses by design — so logging
-# it would be noise. 400 and 500 are logged with request context.
-@app.exception_handler(NotFoundError)
-async def not_found_handler(request: Request, exc: NotFoundError) -> JSONResponse:
-    return JSONResponse(
-        status_code=404, content={"detail": exc.message}, headers=_private_headers(request)
-    )
-
-
-@app.exception_handler(ValidationError)
-async def validation_handler(request: Request, exc: ValidationError) -> JSONResponse:
-    # A client error worth seeing: a refused funnel move, a non-note event delete.
-    # WARNING carries the reason and the request, but no stack trace — it isn't a bug.
-    logger.warning("400 %s %s — %s", request.method, request.url.path, exc.message)
-    return JSONResponse(
-        status_code=400, content={"detail": exc.message}, headers=_private_headers(request)
-    )
-
-
-@app.exception_handler(ConflictError)
-async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse:
-    # Conflicts carry current state, which may be private even on listing routes.
-    return JSONResponse(
-        status_code=409,
-        content={"detail": exc.message, "current": exc.current},
-        headers={"Cache-Control": "no-store"},
-    )
-
-
-@app.exception_handler(InvalidCursorError)
-async def invalid_cursor_handler(request: Request, exc: InvalidCursorError) -> JSONResponse:
-    return JSONResponse(
-        status_code=422, content={"detail": exc.message}, headers=_private_headers(request)
-    )
-
-
-@app.exception_handler(RequestValidationError)
-async def request_validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-    return JSONResponse(
-        status_code=422,
-        content={"detail": jsonable_encoder(exc.errors())},
-        headers=_private_headers(request),
-    )
-
-
-@app.exception_handler(Exception)
-async def unhandled_handler(request: Request, exc: Exception) -> JSONResponse:
-    # Anything uncaught is a bug. Log the full traceback *with* the request that
-    # triggered it, since uvicorn alone logs the trace but not the path, and return a
-    # consistent JSON body instead of Starlette's plain-text default.
-    logger.error("500 %s %s", request.method, request.url.path, exc_info=exc)
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal Server Error"},
-        headers=_private_headers(request),
-    )
-
-
-# The parent /api router owns the optional key gate; /docs and /openapi.json stay outside it.
-api_router = APIRouter(dependencies=[Depends(require_api_key)])
-for _router in (
-    jobs_router,
-    application_workflows_router,
-    listings_router,
-    events_router,
-    documents_router,
-    stats_router,
-    search_log_router,
-    meta_router,
-    blocked_router,
-    form_fill_router,
-    preferences_router,
-):
-    api_router.include_router(_router)
-app.include_router(api_router, prefix="/api")
-
-# Mount a built dashboard after API routes so they win; absent builds leave an API-only server.
-if paths.web_dist.is_dir():
-    app.mount("/", DashboardStaticFiles(directory=paths.web_dist, html=True), name="dashboard")
+app = create_app(get_settings())

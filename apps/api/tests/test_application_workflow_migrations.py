@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.core import db
+from app.infra import database as db
 
 
 def test_migration_upgrades_the_released_shape_once() -> None:
@@ -95,7 +95,8 @@ def test_migration_is_atomic_and_retries_after_failure() -> None:
 
     with (
         patch(
-            "app.core.db._DATA_MIGRATIONS", (("create_application_workflows_v1", fail_after_ddl),)
+            "app.infra.database._DATA_MIGRATIONS",
+            (("create_application_workflows_v1", fail_after_ddl),),
         ),
         pytest.raises(RuntimeError, match="injected failure"),
     ):

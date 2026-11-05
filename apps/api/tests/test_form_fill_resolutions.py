@@ -10,17 +10,17 @@ import pytest
 from fastapi import Response
 from pydantic import ValidationError as PydanticValidationError
 
-from app.core.db import Conn, query_one
-from app.form_fill.router import resolve_questions
-from app.form_fill.schemas import (
+from app.infra.database import Conn, query_one
+from app.main import app
+from app.modules.form_fill.router import resolve_questions
+from app.modules.form_fill.schemas import (
     CaptureCreate,
     MappingUpdate,
     QuestionAnswerCreate,
     QuestionReviewUpdate,
     ResolutionRequest,
 )
-from app.form_fill.service import FormFillService
-from app.main import app
+from app.modules.form_fill.service import FormFillService
 
 
 def _field(client_field_id: str = "field-1", **updates: Any) -> dict[str, Any]:
@@ -309,9 +309,9 @@ def test_value_bearing_route_is_no_store_and_request_bodies_are_not_logged(
     response = Response()
     with caplog.at_level(logging.INFO, logger="uvicorn.error"):
         result = resolve_questions(
-            ResolutionRequest.model_validate(_request(_field(prompt=sentinel))),
-            response,
-            FormFillService(conn),
+            body=ResolutionRequest.model_validate(_request(_field(prompt=sentinel))),
+            response=response,
+            service=FormFillService(conn),
         )
     assert result.results[0].status == "unresolved"
     assert response.headers["cache-control"] == "no-store"

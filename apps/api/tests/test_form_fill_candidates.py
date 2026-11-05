@@ -5,9 +5,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.db import Conn
-from app.core.errors import ConflictError, InvalidCursorError
-from app.form_fill.schemas import (
+from app.infra.database import Conn
+from app.modules.form_fill.schemas import (
     AnswerChoiceInput,
     AnswerCreate,
     AnswerUpdate,
@@ -16,7 +15,8 @@ from app.form_fill.schemas import (
     ResolutionRequest,
     TextValue,
 )
-from app.form_fill.service import FormFillService
+from app.modules.form_fill.service import FormFillService
+from app.shared.errors import ConflictError, InvalidCursorError
 
 
 def question(service: FormFillService, **updates: Any) -> str:

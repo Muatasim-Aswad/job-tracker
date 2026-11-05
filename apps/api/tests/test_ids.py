@@ -4,7 +4,7 @@ the collision property proven end-to-end through the upsert path."""
 
 from __future__ import annotations
 
-from app.core.ids import new_job_id, new_listing_id
+from app.shared.ids import new_job_id, new_listing_id
 
 
 def test_new_listing_id_is_unique_and_opaque() -> None:

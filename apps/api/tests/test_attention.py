@@ -6,8 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError as PydanticValidationError
 
-from app.core.config import Settings, get_settings
+from app.config import Settings
 from app.main import app
+from app.platform.dependencies import get_settings
 
 NOW = "2026-07-19T12:00:00+00:00"
 
@@ -35,7 +36,7 @@ def _summary(client: TestClient, job_id: str) -> dict[str, Any]:
 
 @pytest.fixture(autouse=True)
 def fixed_attention_clock(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.jobs.service.utc_now", lambda: NOW)
+    monkeypatch.setattr("app.modules.job_queries.service.utc_now", lambda: NOW)
 
 
 @pytest.mark.parametrize(

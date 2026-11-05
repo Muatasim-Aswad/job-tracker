@@ -22,6 +22,28 @@ pnpm exec vp run -F web typecheck
 pnpm run build:web
 ```
 
+## Source ownership
+
+`src/main.tsx` bootstraps the dashboard. Source owners are:
+
+| Path | Responsibility |
+| --- | --- |
+| `src/app/` | Workspaces, navigation, global shortcuts, build checks, and application dialogs |
+| `src/features/` | Jobs, Documents, Blocked companies, Extension settings, and Form Fill |
+| Feature `client.ts` | Endpoint adapters |
+| Feature `queries.ts` | Query keys/options, mutations, polling, invalidation, and cache cleanup |
+| `src/infra/http.ts` | Shared HTTP transport bound to `/api` |
+| `src/shared/` | Reusable UI, browser hooks, and pure utilities with no feature owner |
+| `src/platforms/` | Platform metadata and the [private-overlay discovery path](../../docs/PRIVATE.md#overlay-locations) |
+
+Feature code does not import the application shell; shared code and transport do not import features. Documents invalidate the Jobs detail key after writes.
+
+Each owner keeps typed UI text in `copy.ts`. `shared/format.ts` centralizes browser-local date/time display, preserving the browser's locale and time zone and the Form Fill invalid-date fallback. Protocol timestamps and build identity are separate from display formatting.
+
+### Drafts and review helpers
+
+Form Fill keeps draft/value and request construction in `answerDraft.ts` and `captureDraft.ts`; pure review fingerprints track revision dependencies in `captureReview.ts` and `questionReview.ts`. `usePrivateAnswers.ts` tracks opened Answer details for drawer cleanup. Draft state remains with the drawer; background refresh does not replace its base or approve a changed review context. The [editing/review](#editing-and-review) and [private client state](#private-client-state) sections own the reconciliation and retention rules.
+
 ## Installable app
 
 Production builds include a PWA manifest, app icons, and a Workbox service worker through `vite-plugin-pwa`. Use the browser's **Install app** or **Add to Home Screen** action on HTTPS or localhost; plain HTTP on a remote host cannot register the worker. Installation keeps the existing server and database. The app shell can reopen offline, but reads and writes still need the server.
@@ -48,11 +70,15 @@ Listing details show compact amber `Unavailable <date>` or red `Closed <date>` l
 
 Jobs and Form Fill share search/count, filters, and order controls, including 38px sizing, keyboard focus, and narrow-screen wrapping. Desktop Add/Refresh sit beside the app name. Manual refresh disables repeat clicks, shows progress, and reports success or failure in a toast. On phones they move into the burger menu after workspace navigation; the current workspace is marked and disabled. Search/filter/order remain together below branding. Menu arrow and Tab navigation use visible, enabled controls; Escape restores the menu trigger. Collapsed drawer content stays outside focus-trap boundaries.
 
-The funnel highlights changed filters or display options. Jobs groups attention, starred, Easy Apply, listing availability, hidden, and blocked-company filters, with A/S/E/H/B shortcuts and attention count. Clear filters empties search and restores collection defaults while preserving order. Workspace, collection, filter, order, and display preferences persist locally; explicit URL state wins, and extension job links open Jobs. Search text and drafts are not stored. Under Show only, checkbox labels omit “only”; a separate Listing group places “Listing:” beside an All / Unavailable / Closed dropdown. Each narrowed choice requires at least one matching listing, even when another listing is open or the card warning is suppressed. The choices combine with other filters, persist as `jt.listingAvailability`, use the `listing_availability` URL parameter, and reset with Clear filters.
+The funnel highlights changed filters or display options. Jobs groups attention, starred, Easy Apply, listing availability, hidden, and blocked-company filters, with A/S/E/H/B shortcuts and attention count. Clear filters empties search and restores collection defaults while preserving order. Workspace, collection, filter, order, and display preferences persist locally; explicit URL state wins, and extension job links open Jobs. Search text and drafts are not stored.
+
+Under Show only, checkbox labels omit “only”; a separate Listing group places “Listing:” beside an All / Unavailable / Closed dropdown. Each narrowed choice requires at least one matching listing, even when another listing is open or the card warning is suppressed. The choices combine with other filters, persist as `jt.listingAvailability`, use the `listing_availability` URL parameter, and reset with Clear filters.
 
 ## Extension settings
 
-The burger menu groups workspace actions, Blocked companies, Extension settings with Theme, then Keyboard shortcuts and About last. **Extension settings** manages the server's Easy Apply switch, filtered-job Dim/Hide mode, diagnostic scope/expiry, description highlights, and title rules from either workspace. Browsing controls sit beside their labels. Description highlights and Keyword actions have explanation tooltips beside their titles. Description highlights, Keyword actions, and Search diagnostics start collapsed; folding them preserves unsaved edits. Browsing controls have no section title, and rule rows show “If title … any of these, then …” with alphabetically sorted keyword chips below, and open editing without a pen icon. Keyword fields wrap removable chips and accept Enter, comma, or pasted lists; pending text participates in saving and unsaved-change guards. Buttons use accent text or a filled primary style, distinct from bordered input fields.
+The burger menu groups workspace actions, Blocked companies, Extension settings with Theme, then Keyboard shortcuts and About last. **Extension settings** manages the server's Easy Apply switch, filtered-job Dim/Hide mode, diagnostic scope/expiry, description highlights, and title rules from either workspace. Browsing controls sit beside their labels. Description highlights and Keyword actions have explanation tooltips beside their titles. Description highlights, Keyword actions, and Search diagnostics start collapsed; folding them preserves unsaved edits.
+
+Browsing controls have no section title, and rule rows show “If title … any of these, then …” with alphabetically sorted keyword chips below, and open editing without a pen icon. Keyword fields wrap removable chips and accept Enter, comma, or pasted lists; pending text participates in saving and unsaved-change guards. Buttons use accent text or a filled primary style, distinct from bordered input fields.
 
 The extension's **Manage keyword highlights and rules ↗** link opens `/?view=jobs&settings=extension`, showing the dialog immediately; closing it removes the settings parameter. The popup keeps quick switches and the management link; all highlight and rule controls stay here. Search diagnostics explains captured data in a tooltip and offers the web-only **Clear stored data** action. Clearing confirms first, reports progress and success/failure, and neither saves nor discards preference drafts.
 

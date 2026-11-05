@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import argparse
 
-from app.core.config import get_settings
-from app.core.db import Conn, connect, execute, query_all
-from app.core.text import normalize_company, normalize_title
+from app.config import get_settings
+from app.infra.database import Conn, connect, execute, query_all
+from app.shared.text import normalize_company, normalize_title
 
 
 def _plan_jobs(conn: Conn) -> list[tuple[str, str | None, str | None, str | None, str | None]]:

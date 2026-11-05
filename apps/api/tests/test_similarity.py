@@ -1,7 +1,7 @@
 """JD-similarity primitives behind the repost popover's "N% match".
 Ported from scripts/merge_duplicates.py; see app/core/similarity.py."""
 
-from app.core.similarity import jaccard, tokenize
+from app.shared.similarity import jaccard, tokenize
 
 
 def test_tokenize_strips_html_and_short_and_stop_words() -> None:

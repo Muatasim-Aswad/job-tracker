@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 
-from app.core.config import get_settings
+from app.config import get_settings
 
 # Rank within the lifecycle. A lower rank must carry a strictly earlier timestamp
 # than a higher one. Post-application outcomes share rank 6: they are mutually

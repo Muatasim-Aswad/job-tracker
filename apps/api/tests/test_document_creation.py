@@ -4,7 +4,7 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
-from app.core.db import init_schema
+from app.infra.database import init_schema
 
 
 def _job(client: TestClient, key: str) -> str:

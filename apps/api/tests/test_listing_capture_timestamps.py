@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.db import _COLUMN_MIGRATIONS, init_schema
+from app.infra.database import _COLUMN_MIGRATIONS, init_schema
 
 FIRST = "2026-10-20T10:00:00+00:00"
 SECOND = "2026-10-21T10:00:00+00:00"
@@ -43,12 +43,12 @@ def _detail_capture(client: TestClient, **fields: Any) -> dict[str, Any]:
 def test_detail_capture_advances_server_time_without_replacing_first_or_availability_time(
     client: TestClient, description: str
 ) -> None:
-    with patch("app.listings.service.utc_now", return_value=FIRST):
+    with patch("app.modules.listings.service.utc_now", return_value=FIRST):
         address = _detail_capture(client, availability="open")
     listing = _listing(client, address)
     assert listing["captured_at"] == listing["last_detail_captured_at"] == FIRST
     assert "last_captured_at" not in listing
-    with patch("app.listings.service.utc_now", return_value=SECOND):
+    with patch("app.modules.listings.service.utc_now", return_value=SECOND):
         _detail_capture(client, meta={"description": description})
 
     listing = _listing(client, address)
@@ -71,9 +71,9 @@ def test_detail_capture_advances_server_time_without_replacing_first_or_availabi
 def test_partial_captures_do_not_advance_detail_timestamp(
     client: TestClient, partial: dict[str, Any]
 ) -> None:
-    with patch("app.listings.service.utc_now", return_value=FIRST):
+    with patch("app.modules.listings.service.utc_now", return_value=FIRST):
         address = _detail_capture(client)
-    with patch("app.listings.service.utc_now", return_value=SECOND):
+    with patch("app.modules.listings.service.utc_now", return_value=SECOND):
         _capture(client, **partial)
 
     listing = _listing(client, address)
@@ -83,10 +83,10 @@ def test_partial_captures_do_not_advance_detail_timestamp(
 
 
 def test_partial_first_capture_waits_for_a_detail_capture(client: TestClient) -> None:
-    with patch("app.listings.service.utc_now", return_value=FIRST):
+    with patch("app.modules.listings.service.utc_now", return_value=FIRST):
         address = _capture(client, title="Engineer")
     assert _listing(client, address)["last_detail_captured_at"] is None
-    with patch("app.listings.service.utc_now", return_value=SECOND):
+    with patch("app.modules.listings.service.utc_now", return_value=SECOND):
         _detail_capture(client)
     listing = _listing(client, address)
     assert listing["captured_at"] == FIRST
@@ -103,7 +103,7 @@ def test_stub_has_no_capture_times_until_first_capture(client: TestClient) -> No
     assert job["listings"][0]["captured_at"] is None
     assert job["listings"][0]["last_detail_captured_at"] is None
 
-    with patch("app.listings.service.utc_now", return_value=FIRST):
+    with patch("app.modules.listings.service.utc_now", return_value=FIRST):
         address = _detail_capture(client)
 
     listing = _listing(client, address)
@@ -111,7 +111,7 @@ def test_stub_has_no_capture_times_until_first_capture(client: TestClient) -> No
 
 
 def test_edits_relinks_and_merges_preserve_last_detail_capture_time(client: TestClient) -> None:
-    with patch("app.listings.service.utc_now", return_value=FIRST):
+    with patch("app.modules.listings.service.utc_now", return_value=FIRST):
         address = _detail_capture(client)
     edited = client.patch(
         f"/api/listings/{address['listing_id']}", json={"meta": {"location": "Amsterdam"}}
@@ -137,9 +137,9 @@ def test_edits_relinks_and_merges_preserve_last_detail_capture_time(client: Test
 
 
 def test_failed_capture_rolls_back_last_detail_capture_time(client: TestClient) -> None:
-    with patch("app.listings.service.utc_now", return_value=FIRST):
+    with patch("app.modules.listings.service.utc_now", return_value=FIRST):
         address = _detail_capture(client)
-    with patch("app.listings.service.utc_now", return_value=SECOND):
+    with patch("app.modules.listings.service.utc_now", return_value=SECOND):
         response = client.post(
             "/api/listings",
             json={
@@ -172,7 +172,7 @@ def test_failed_capture_rolls_back_last_detail_capture_time(client: TestClient) 
 def test_detail_marker_requires_fresh_title_and_description_in_the_request(
     client: TestClient, conn: sqlite3.Connection, fields: dict[str, Any]
 ) -> None:
-    with patch("app.listings.service.utc_now", return_value=FIRST):
+    with patch("app.modules.listings.service.utc_now", return_value=FIRST):
         address = _detail_capture(client)
     before = conn.total_changes
     response = client.post(
@@ -190,7 +190,7 @@ def test_captures_no_longer_update_the_retired_generic_timestamp(
     address = _capture(client)
     conn.execute("UPDATE listings SET last_captured_at = ?", (FIRST,))
     conn.commit()
-    with patch("app.listings.service.utc_now", return_value=SECOND):
+    with patch("app.modules.listings.service.utc_now", return_value=SECOND):
         _detail_capture(client)
     assert conn.execute("SELECT last_captured_at FROM listings").fetchone() == (FIRST,)
     assert _listing(client, address)["last_detail_captured_at"] == SECOND
@@ -202,7 +202,7 @@ def test_capture_timestamp_migration_preserves_history_and_reruns_without_change
         old_columns = tuple(
             entry for entry in _COLUMN_MIGRATIONS if entry[1] != "last_detail_captured_at"
         )
-        with patch("app.core.db._COLUMN_MIGRATIONS", old_columns):
+        with patch("app.infra.database._COLUMN_MIGRATIONS", old_columns):
             init_schema(conn)
         conn.execute(
             "INSERT INTO jobs (id, status, created_at, updated_at) VALUES ('j', 'seen', ?, ?)",

@@ -8,9 +8,9 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app.core.config import Settings, get_settings
-from app.core.deps import get_conn
+from app.config import Settings
 from app.main import app
+from app.platform.dependencies import get_conn, get_settings
 
 
 def test_allowed_origin_gets_cors_header(client: TestClient) -> None:
@@ -28,7 +28,7 @@ def test_disallowed_origin_gets_no_cors_header(client: TestClient) -> None:
 
 
 def test_extension_origin_is_allowed(client: TestClient) -> None:
-    settings = get_settings()
+    settings = app.state.settings
     origin = f"chrome-extension://{settings.extension_id}"
     resp = client.get("/api/jobs", headers={"Origin": origin})
     assert resp.headers.get("access-control-allow-origin") == origin

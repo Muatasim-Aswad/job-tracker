@@ -8,7 +8,7 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-from app.core.config import Settings
+from app.config import Settings
 from app.core.paths import ResolvedPaths, resolve_paths
 from app.maintenance.backup import snapshot_database
 from app.maintenance.base import MaintenanceError, ensure_private_directory, profile_lock

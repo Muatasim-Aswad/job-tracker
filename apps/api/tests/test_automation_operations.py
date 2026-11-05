@@ -6,9 +6,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.db import init_schema
-from app.documents.repository import DocumentRepository
-from app.events.repository import EventRepository
+from app.infra.database import init_schema
+from app.modules.documents.repository import DocumentRepository
+from app.modules.events.repository import EventRepository
 
 
 def _job(client: TestClient, key: str) -> str:
@@ -301,9 +301,11 @@ def test_simultaneous_retries_commit_one_operation(kind: str) -> None:
     import httpx
     from fastapi import FastAPI
 
-    from app.core.db import Database
-    from app.documents.router import router as documents_router
-    from app.events.router import router as events_router
+    from app.core.paths import resolve_paths
+    from app.infra.database import Database
+    from app.modules.documents.router import router as documents_router
+    from app.modules.events.router import router as events_router
+    from app.platform.runtime import RuntimeResources
 
     async def exercise() -> None:
         conn = sqlite3.connect(":memory:", check_same_thread=False)
@@ -312,7 +314,9 @@ def test_simultaneous_retries_commit_one_operation(kind: str) -> None:
             conn.execute("INSERT INTO jobs (id, created_at, updated_at) VALUES ('j1', 't', 't')")
             conn.commit()
             app = FastAPI()
-            app.state.db = Database(conn)
+            app.state.resources = RuntimeResources(
+                paths=resolve_paths(environ={}), db=Database(conn)
+            )
             app.include_router(documents_router, prefix="/api")
             app.include_router(events_router, prefix="/api")
             url = "/api/jobs/j1/documents" if kind == "document" else "/api/events"

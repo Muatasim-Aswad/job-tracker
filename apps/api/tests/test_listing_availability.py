@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.db import _SCHEMA_PATH, init_schema
+from app.infra.database import _SCHEMA_PATH, init_schema
 
 GRAY = "Not currently accepting applications"
 RED = "No longer accepting applications"
@@ -293,7 +293,7 @@ def test_additive_availability_migration_upgrades_old_shape_once() -> None:
     conn = sqlite3.connect(":memory:")
     try:
         # Construct the released baseline before additive columns were introduced.
-        with patch("app.core.db._COLUMN_MIGRATIONS", ()):
+        with patch("app.infra.database._COLUMN_MIGRATIONS", ()):
             init_schema(conn, _SCHEMA_PATH)
         conn.execute(
             "INSERT INTO jobs (id, status, created_at, updated_at) VALUES ('j1', 'seen', 't', 't')"

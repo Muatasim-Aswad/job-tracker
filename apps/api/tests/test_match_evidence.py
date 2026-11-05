@@ -4,9 +4,14 @@ from typing import Any
 
 import pytest
 
-from app.jobs.match_evidence import match_insights, match_timing, normalize_url, shares_apply_url
-from app.jobs.schemas import DifferentValues, SameValue
-from app.listings.models import Listing
+from app.modules.jobs.match_evidence import (
+    match_insights,
+    match_timing,
+    normalize_url,
+    shares_apply_url,
+)
+from app.modules.jobs.schemas import DifferentValues, SameValue
+from app.modules.listings.models import Listing
 
 
 def _listing(

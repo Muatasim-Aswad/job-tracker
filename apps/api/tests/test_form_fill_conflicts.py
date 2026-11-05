@@ -7,9 +7,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.db import Conn
-from app.core.errors import ConflictError
-from app.form_fill.schemas import (
+from app.infra.database import Conn
+from app.modules.form_fill.schemas import (
     AnswerCreate,
     CaptureConflictResolve,
     CaptureCreate,
@@ -17,7 +16,8 @@ from app.form_fill.schemas import (
     MappingPut,
     ResolutionRequest,
 )
-from app.form_fill.service import FormFillService
+from app.modules.form_fill.service import FormFillService
+from app.shared.errors import ConflictError
 
 
 def _request(scan_id: str = "scan-1") -> ResolutionRequest:

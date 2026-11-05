@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.config import Settings
-from app.core.db import Conn, connect, init_schema
-from app.core.deps import get_conn
+from app.config import Settings
+from app.infra.database import Conn, connect, init_schema
 from app.main import app
+from app.platform.dependencies import get_conn
 
 
 @pytest.fixture

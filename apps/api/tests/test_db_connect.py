@@ -13,8 +13,8 @@ import pytest
 import turso.lib_sync
 import turso.sync
 
-from app.core.config import Settings
-from app.core.db import (
+from app.config import Settings
+from app.infra.database import (
     _COLUMN_MIGRATIONS,
     _DATA_MIGRATIONS,
     Conn,
@@ -26,7 +26,7 @@ from app.core.db import (
     connect,
     init_schema,
 )
-from app.core.errors import DataIntegrityError
+from app.shared.errors import DataIntegrityError
 
 
 def _settings(tmp_path: Path, **overrides: object) -> Settings:
@@ -47,7 +47,7 @@ def _settings(tmp_path: Path, **overrides: object) -> Settings:
 def test_connect_plain_file_mode_when_no_turso_vars(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     fake_conn = MagicMock()
-    with patch("app.core.db.libsql.connect", return_value=fake_conn) as libsql_connect:
+    with patch("app.infra.database.libsql.connect", return_value=fake_conn) as libsql_connect:
         result = connect(settings)
 
     libsql_connect.assert_called_once_with(settings.db_path, _check_same_thread=False)
@@ -59,7 +59,7 @@ def test_connect_creates_a_not_yet_existing_db_dir(tmp_path: Path) -> None:
     nested = tmp_path / "sub" / "dir"
     settings = _settings(tmp_path, db_path=str(nested / "jobtracker.db"))
     assert not nested.exists()
-    with patch("app.core.db.libsql.connect", return_value=MagicMock()):
+    with patch("app.infra.database.libsql.connect", return_value=MagicMock()):
         connect(settings)
     assert nested.is_dir()
 
@@ -72,7 +72,7 @@ def test_connect_embedded_replica_mode_pulls_on_startup(tmp_path: Path) -> None:
         turso_pull_interval_seconds=30,
     )
     fake_conn = MagicMock()
-    with patch("app.core.db.libsql.connect", return_value=fake_conn) as libsql_connect:
+    with patch("app.infra.database.libsql.connect", return_value=fake_conn) as libsql_connect:
         result = connect(settings)
 
     libsql_connect.assert_called_once_with(
@@ -96,7 +96,7 @@ def test_connect_pyturso_local_first_mode_bootstraps_and_pulls(tmp_path: Path) -
     fake_conn = MagicMock()
     with (
         patch.object(turso.sync, "connect", return_value=fake_conn) as sync_connect,
-        patch("app.core.db._install_pyturso_http_timeout") as install_timeout,
+        patch("app.infra.database._install_pyturso_http_timeout") as install_timeout,
     ):
         result = connect(settings)
 
@@ -176,7 +176,7 @@ def test_apply_data_migrations_runs_each_key_at_most_once(conn: sqlite3.Connecti
     conn.execute("CREATE TABLE migration_probe (value TEXT)")
     migration = (("probe_once", "INSERT INTO migration_probe VALUES ('applied')"),)
 
-    with patch("app.core.db._DATA_MIGRATIONS", migration):
+    with patch("app.infra.database._DATA_MIGRATIONS", migration):
         _apply_data_migrations(conn)
         _apply_data_migrations(conn)
 
@@ -362,8 +362,8 @@ def test_failed_data_migration_rolls_back_data_and_ledger(conn: sqlite3.Connecti
 
     failing = (("boom", "DELETE FROM documents"),)
     with (
-        patch("app.core.db._DATA_MIGRATIONS", failing),
-        patch("app.core.db.utc_now", side_effect=RuntimeError("clock exploded")),
+        patch("app.infra.database._DATA_MIGRATIONS", failing),
+        patch("app.infra.database.utc_now", side_effect=RuntimeError("clock exploded")),
         pytest.raises(RuntimeError),
     ):
         _apply_data_migrations(conn)
@@ -487,8 +487,8 @@ def test_appended_post_release_migrations_apply_through_init_schema(
     conn.commit()
 
     with (
-        patch("app.core.db._COLUMN_MIGRATIONS", columns),
-        patch("app.core.db._DATA_MIGRATIONS", data),
+        patch("app.infra.database._COLUMN_MIGRATIONS", columns),
+        patch("app.infra.database._DATA_MIGRATIONS", data),
     ):
         init_schema(conn)
 

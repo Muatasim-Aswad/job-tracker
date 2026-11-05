@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from app.core.config import Settings
-from app.core.db import _SCHEMA_PATH
+from app.config import Settings
 from app.core.lifecycle import ServerLock
 from app.core.paths import ResolvedPaths, resolve_paths
+from app.infra.database import _SCHEMA_PATH
 from app.maintenance.base import MaintenanceError
 from app.maintenance.migrate_checkout import migrate_checkout
 

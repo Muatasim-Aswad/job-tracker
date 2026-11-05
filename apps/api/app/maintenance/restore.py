@@ -7,9 +7,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
-from app.core.config import Settings
-from app.core.db import Conn, init_schema
+from app.config import Settings
 from app.core.paths import ResolvedPaths
+from app.infra.database import Conn, init_schema
 from app.maintenance.backup import snapshot_database
 from app.maintenance.base import MaintenanceError, ensure_private_directory, profile_lock
 

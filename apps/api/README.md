@@ -40,7 +40,7 @@ The CLI and source launchers give Uvicorn 15 seconds to drain active requests be
 The [dashboard](../web/README.md) uses relative `/api/...` paths in development and production.
 
 - **Dev** (hot reload): follow the [dashboard development procedure](../web/README.md#development). Vite proxies API requests to this server; keep the API running in a separate terminal.
-- **Prod / one process**: from the repository root, `pnpm run build:web` produces `apps/web/dist`, which FastAPI serves at the root on startup ([main.py](app/main.py)) via `Settings.web_dist_path`. Then the whole thing is just <http://localhost:3456>. The mount is skipped when that directory is absent, so the API still runs without a build.
+- **Prod / one process**: from the repository root, `pnpm run build:web` produces `apps/web/dist`, which FastAPI serves at the root on startup ([app composition](app/main.py) and [static serving](app/platform/http.py)) via `Settings.web_dist_path`. Then the whole thing is just <http://localhost:3456>. The mount is skipped when that directory is absent, so the API still runs without a build.
 
 Job-addressed reads and ordinary writes accept merged aliases, return canonical IDs, and set `Content-Location`. Deletion through an alias returns `409 job_merged` and requires repeating the request against the survivor. See [identity](../../docs/ARCHITECTURE.md#identity) for merge invariants.
 
@@ -50,7 +50,7 @@ Job-addressed reads and ordinary writes accept merged aliases, return canonical 
 
 `POST /api/jobs/{job_id}/link-job` accepts `{"other_job_id": "..."}` and merges both complete jobs using the existing survivor rules and conflict safeguards. Both IDs accept merged aliases. It returns `{"job_id": "<survivor>", "merged_from": ["<loser>"]}` with `Content-Location: /api/jobs/{survivor}`. Linking a job to itself, including a retry through an alias, is a no-op with an empty `merged_from`; an unknown ID returns `404`. The source path does not determine the survivor.
 
-The extension's existing `GET /api/jobs/matches` and `POST /api/listings/link-job` retain their listing-based inputs and responses. These additions require no UI changes.
+The extension's existing `GET /api/jobs/matches` and `POST /api/listings/link-job` retain their listing-based inputs and responses. The endpoint and payload contract is available in OpenAPI.
 
 ### Shared extension settings
 
@@ -155,25 +155,68 @@ uv run mypy            # strict
 
 ## Layout
 
-Feature modules follow the same `router → service → repository` dependency direction. Shared helpers such as `core.deps.service_factory` and `core.db.hydrate_json` keep repeated wiring and row hydration out of individual modules.
+`main.create_app(settings, resources=...)` composes an isolated FastAPI application. `app.main:app` remains the normal Uvicorn entry point; the CLI establishes profile roots before importing application configuration or runtime code.
 
-```
+```text
 app/
-├── core/       paths, config, lifecycle/process lock, db, schema.sql, enums,
-│               ids, text, timeutil, similarity, hashing, sync, errors, deps
-├── cli.py      delayed-import start/status/paths/version entry point
-├── jobs/       /jobs, /jobs/states, /jobs/matches, /jobs/{id}
-├── listings/   /listings, /listings/{id}  (link_listing_to_job cascade lives here)
-├── events/     /events, /jobs/{id}/corrections, /jobs/{id}/status/revert
-├── documents/  /jobs/{id}/documents, /documents/{id}
-├── application_workflows/  /jobs/{id}/application-workflow
-├── form_fill/  /form-fill resolutions, answers, questions/matches, captures
-├── meta/       /meta/vocabulary, /meta/note-titles
-├── stats/      /stats
-├── blocked/    /blocked-companies
-├── preferences/ /settings
-└── search_log/ /search-log, /search-log/report
+├── main.py       HTTP composition and app factory
+├── cli.py        delayed-import lifecycle and maintenance commands
+├── config.py     typed Settings and profile-selected configuration loading
+├── modules/      business features and explicit application/query owners
+├── infra/        driver-neutral database access, migrations, transactions, sync
+├── platform/     HTTP mechanisms, request dependencies, runtime and logging
+├── shared/       pure enums, errors, identity, text, time, hashing and similarity
+├── maintenance/  offline snapshots, restore and checkout adoption
+└── core/         retained resource/CLI anchors and compatibility exports
 ```
+
+### Features and application owners
+
+Routers translate HTTP; use-case functions and configured services enforce domain rules; repositories and feature operations own SQL. Shared resource access lives in `platform.dependencies`. Configured services keep providers and reusable `Annotated` aliases in the feature's `dependencies.py`; simple functions receive the connection directly.
+
+Application code receives ordinary typed arguments. Use `infra.database.hydrate_json` for driver-neutral row hydration.
+
+Application owners keep cross-feature coordination acyclic:
+
+| Owner | Responsibility |
+| --- | --- |
+| `modules/job_lifecycle/service.py` | Merge, relink, listing/job deletion, and listing writes that may relink. Feature-owned `operations.py` functions move history, document receipts, aliases and ownership; `form_fill/context.py` preserves Capture context. The caller owns the single transaction. |
+| `modules/job_activity/service.py` | Event batches, corrections, reverts and resulting workflow lifecycle. Event operation receipts remain with Events. |
+| `modules/job_queries/service.py` | Batched job summaries, details, states and duplicate evidence. `JobQueries` receives Settings explicitly; reads use batched queries. |
+| `modules/listings/service.py` | Natural-key materialization and evidence-preserving capture. Coordinated callers explicitly supply the relink operation. |
+
+Jobs owns identity edits and false-match exclusions; Events owns history moves and status restoration; Application workflows owns singular-record guards and eligibility cleanup. Routers/providers may compose these owners; lower features never import application owners. Their DTO/model imports express response composition rather than inward business calls.
+
+### Form-fill operations
+
+Form-fill exposes a connection-bound `FormFillService` API while focused module functions receive its repository explicitly:
+
+| Module | Responsibility |
+| --- | --- |
+| `resolution.py`, `actions.py` | Question observation, Match/Capture priority and request-local fill actions |
+| `queries.py`, `pagination.py` | Collections, details, compatible candidates and filter/order-bound cursor identities |
+| `answers.py` | Answer creation, revision-checked edits, vocabulary and deletion |
+| `mappings.py` | Question review, Match approval and atomic Question-context Answer creation |
+| `captures.py`, `capture_apply.py` | Capture lifecycle, conflict selection and named apply-action handlers |
+| `projections.py`, `validation.py`, `values.py`, `storage.py` | Value-free summaries, revision/type/binding checks, typed value adapters and savepoints |
+
+Capture apply checks revisions before its savepoint; one selected handler and Capture consumption share that savepoint inside the request transaction. Typed feature conflict codes subclass the public exception boundaries and map to HTTP messages, statuses and current-state payloads. Collection/conflict summaries remain value-free; explicit details may return retained private values as described in [form-fill knowledge](#form-fill-knowledge).
+
+### Runtime and transactions
+
+The lifespan opens resources through `platform.runtime.open_runtime`. Its typed `RuntimeResources` holds the resolved paths, database and optional scheduler; supply disposable paths when composing test applications. Startup acquires the profile lock before database open/pull/schema initialization. Cleanup stops sync before closing the connection and releases the profile lock last; active work retains the connection and lock for process exit. The [busy requests and shutdown](#busy-requests-and-shutdown) section owns deadlines and recovery.
+
+`platform.dependencies` admits requests asynchronously before a worker waits for the shared connection lock. `infra.transactions.transaction` is framework-independent: explicit BEGIN precedes write preconditions, related writes share one commit or rollback, and callbacks run only after successful commit. The HTTP callback preserves commit logging and scheduler notification. Background synchronization uses the same connection lock.
+
+### Compatibility and dependency checks
+
+`core.paths`, `core.lifecycle`, `core.build_info`, `core.version` and `core.diagnostics` own resource, delayed CLI and tooling contracts. `core/schema.sql` remains the baseline at its installed path; `infra.database` owns append-only migrations. Other `core` modules re-export supported settings, database, dependency and pure-helper symbols for existing tools and optional scrapers; new code imports their owning layer.
+
+Database startup deliberately calls the maintenance recovery hook before driver construction and loads preference defaults in its released seed migration. These are the two exact startup exceptions checked by `tests/test_layers.py`. Released migration keys and installed resource paths are compatibility boundaries.
+
+`tests/test_layers.py` enforces layer direction, pure shared dependencies, and HTTP ownership: FastAPI/Starlette and platform dependencies stay in routers/providers rather than application and repository logic. It also checks acyclic business dependencies, forbids lower features from importing application owners, and checks form-fill's module graph. HTTP composition and DTO imports are distinguished from business calls. Retained core implementation anchors are named explicitly. Repository-wide invariants remain in [architecture](../../docs/ARCHITECTURE.md).
+
+### Maintenance tools
 
 `scripts/` holds standalone maintenance tools (`merge_duplicates.py`, `audit_funnel.py`, `dump_openapi.py`, `scan_event_order.py`), typed and covered by the same ruff/mypy/pytest gate as `app/`. Run them as modules from here: `uv run python -m scripts.merge_duplicates`. Private scrapers live in the gitignored `scripts/local/` overlay — see [../../docs/PRIVATE.md](../../docs/PRIVATE.md).
 
