@@ -199,6 +199,15 @@ The engine doesn't care either way: `import.meta.glob` picks up whatever local a
 
 ---
 
+## Source ownership
+
+- `content.ts` installs built-in and automatically discovered local adapters; `registry.ts` resolves their natural keys. Adapters own host selectors and extraction.
+- `engine/create.ts` composes the existing engine concerns. `scan.ts` owns mutation/navigation scheduling and card/detail dispatch; `capture.ts` owns listing deduplication and enrichment; `readModel.ts` owns cached state and event guards. Bars, matches, blocklist, and title rules retain their respective presentation and action responsibilities.
+- `form-fill/scanner.ts` owns enabled generations, observed trees, step baselines, live identity checks, write ownership, confirmation/revert actions, and field notes. `captureQueue.ts` owns pending edits, debounce timers, numeric validation checkpoints, capture payload projection, per-Question save ordering, and completion ownership. Disabling discards unsent captures while issued saves retain their ordering; switching servers also resets capture deduplication and flights. Queue completions reach presentation only through the scanner's live root/step/control checks.
+- `form-fill/root.ts`, `linkedin.ts`, and `controls.ts` own root eligibility, field discovery/identity, and native control writes. `suggestions.ts` finds exact options; the scanner authorizes delayed selection and rollback. `presentation.ts` owns injected markers, summary counts, and panel DOM/CSS.
+- `background.ts` owns the typed API proxy, reachability/build polling, successful-write broadcasts, reinjection, and serialized ownership of bulk-opened tabs. `preferences-store.ts` owns revisioned settings and stale-response rejection.
+- `popup/Popup.tsx` owns search/seed diagnostics, navigation, keyboard dispatch, and worker status subscriptions. `Detail`, `AddForm`, `Results`, and `Settings` own their existing panels; detail keeps status/comment/note state and imperative keyboard actions together. `api.ts` owns direct extension-origin requests; `usePreferences.ts` owns settings subscriptions and saves.
+
 ## Layout
 
 ```text

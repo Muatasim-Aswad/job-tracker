@@ -367,4 +367,27 @@ describe("QuestionDrawer", () => {
       },
     });
   });
+  it("keeps an unsaved selection through refresh and protects it on close", () => {
+    const replacement: AnswerDetail = {
+      ...testAnswer,
+      id: "answer-2",
+      label: "Replacement answer",
+      value: { kind: "text", value: "Replacement value" },
+    };
+    mocks.answersById = { [testAnswer.id]: testAnswer, [replacement.id]: replacement };
+    const close = vi.fn();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const props = { questionId: question.id, onClose: close, onCreateAnswer: vi.fn() };
+    const view = render(<QuestionDrawer {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel answer selection" }));
+    fireEvent.click(screen.getByRole("button", { name: /Replacement answer/ }));
+    mocks.question = { ...question, revision: 2 };
+    view.rerender(<QuestionDrawer {...props} />);
+    expect(screen.getByText("Replacement value")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
+    expect(screen.getByText("Replacement value")).toBeTruthy();
+    confirm.mockRestore();
+  });
 });

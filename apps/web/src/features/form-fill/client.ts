@@ -84,13 +84,11 @@ async function formFillRequest<T>(path: string, init?: RequestInit): Promise<T> 
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     let current: unknown;
-    if (error.status === 409) {
-      try {
-        const parsed = JSON.parse(error.message) as { detail?: unknown };
-        current = parsed.detail ?? parsed;
-      } catch {
-        current = undefined;
-      }
+    if (error.status === 409 && error.payload != null) {
+      const payload = error.payload;
+      const detail =
+        typeof payload === "object" && "detail" in payload ? payload.detail : undefined;
+      current = detail ?? payload;
     }
     throw new FormFillApiError(
       error.status,

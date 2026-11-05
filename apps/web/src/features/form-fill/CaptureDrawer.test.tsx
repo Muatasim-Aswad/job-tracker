@@ -318,4 +318,41 @@ describe("CaptureDrawer", () => {
     expect(screen.queryByRole("button", { name: /Reopen remembered/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Review changes" })).toBeNull();
   });
+  it("keeps edited metadata and focus across refresh, and preserves the draft after a failed apply", async () => {
+    const close = vi.fn();
+    mocks.apply.mutateAsync.mockRejectedValueOnce(new Error("Synthetic apply failure"));
+    const props = { captureId: testCapture.id, onClose: close, onOpenQuestion: vi.fn() };
+    const view = render(<CaptureDrawer {...props} />);
+    const name = screen.getByLabelText<HTMLInputElement>("Answer name");
+    const key = screen.getByLabelText<HTMLInputElement>("Stable key");
+    name.focus();
+    fireEvent.change(name, { target: { value: "Edited answer" } });
+    expect(document.activeElement).toBe(name);
+    expect(key.value).toBe("edited_answer");
+    fireEvent.change(key, { target: { value: "custom_key" } });
+    fireEvent.change(name, { target: { value: "Edited answer again" } });
+    expect(key.value).toBe("custom_key");
+    mocks.capture = { ...testCapture, revision: 2 };
+    mocks.question = { ...mocks.question!, current_captures: [mocks.capture] };
+    view.rerender(<CaptureDrawer {...props} />);
+    expect(screen.getByLabelText<HTMLInputElement>("Answer name").value).toBe(
+      "Edited answer again",
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Stable key").value).toBe("custom_key");
+    fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByRole("button", { name: "Review changes" });
+    expect(close).not.toHaveBeenCalled();
+    expect(screen.getByLabelText<HTMLInputElement>("Answer name").value).toBe(
+      "Edited answer again",
+    );
+    expect(mocks.apply.mutateAsync).toHaveBeenCalledWith({
+      captureId: testCapture.id,
+      body: expect.objectContaining({
+        expected_capture_revision: 2,
+        label: "Edited answer again",
+        answer_key: "custom_key",
+      }),
+    });
+  });
 });

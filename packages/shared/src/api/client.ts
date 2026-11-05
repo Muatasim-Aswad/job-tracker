@@ -1,12 +1,31 @@
 // Typed FastAPI fetch primitive. `baseUrl` supports relative same-origin calls or an
 // explicitly configured API origin.
 
+export type ApiErrorPayload =
+  | null
+  | boolean
+  | number
+  | string
+  | ApiErrorPayload[]
+  | { [key: string]: ApiErrorPayload };
+
+function parseErrorPayload(message: string): ApiErrorPayload | undefined {
+  try {
+    return JSON.parse(message) as ApiErrorPayload;
+  } catch {
+    return undefined;
+  }
+}
+
 export class ApiError extends Error {
   status: number;
+  readonly payload: ApiErrorPayload | undefined;
+
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
     this.name = "ApiError";
+    this.payload = parseErrorPayload(message);
   }
 }
 

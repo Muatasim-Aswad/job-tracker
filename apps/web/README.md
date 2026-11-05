@@ -36,13 +36,17 @@ pnpm run build:web
 | `src/shared/` | Reusable UI, browser hooks, and pure utilities with no feature owner |
 | `src/platforms/` | Platform metadata and the [private-overlay discovery path](../../docs/PRIVATE.md#overlay-locations) |
 
-Feature code does not import the application shell; shared code and transport do not import features. Documents invalidate the Jobs detail key after writes.
+Feature code does not import the application shell; shared code and transport do not import features. `src/app/sourceBoundaries.test.ts` enforces these directions for public production imports, re-exports, import types, and literal dynamic imports. Platform metadata remains a lower integration surface; its private discovery stays intact and installed overlay files are excluded from this source check. Documents invalidate the Jobs detail key after writes.
+
+The shared transport reads failed response bodies once. `ApiError` keeps the raw message and parses its JSON payload centrally, including for direct construction. Form Fill retains its `detail ?? payload` conflict projection, maps JSON null to no summary, and creates a feature error with safe global wording and no transport payload field. Other features keep their existing error handling.
 
 Each owner keeps typed UI text in `copy.ts`. `shared/format.ts` centralizes browser-local date/time display, preserving the browser's locale and time zone and the Form Fill invalid-date fallback. Protocol timestamps and build identity are separate from display formatting.
 
 ### Drafts and review helpers
 
-Form Fill keeps draft/value and request construction in `answerDraft.ts` and `captureDraft.ts`; pure review fingerprints track revision dependencies in `captureReview.ts` and `questionReview.ts`. `usePrivateAnswers.ts` tracks opened Answer details for drawer cleanup. Draft state remains with the drawer; background refresh does not replace its base or approve a changed review context. The [editing/review](#editing-and-review) and [private client state](#private-client-state) sections own the reconciliation and retention rules.
+Form Fill keeps draft/value and request construction in `answerDraft.ts` and `captureDraft.ts`. `useQuestionDraft.ts` and `useCaptureDraft.ts` own their drawer's in-memory fields, initial baseline, query snapshots, approval fingerprint, binding suggestions, review scrolling, and private-detail lifetime. Pure eligibility and revision fingerprints live in `questionReview.ts` and `captureReview.ts`; selected and current Answer revisions remain distinct. `usePrivateAnswers.ts` tracks every opened Answer detail for cleanup. Background refresh does not replace the draft base or approve changed context.
+
+`useQuestionActions.ts` owns Match/Question/conflict mutations; `useCaptureActions.ts` owns Capture apply/status mutations. They retain revision guards, mutation order, safe announcements, and close/advance outcomes. Each drawer visibly composes its loading state, dirty guard, conflict reconciliation, history, and named panels. Question panels separate remembered values, Answer selection/change review, management/details, and footer actions. Capture panels separate the remembered value, change review, action/Answer selection, new-Answer metadata, and footer actions; source and management disclosures stay beside their parent flow. Panels receive explicit typed fields and callbacks, add no DOM wrappers, and own no draft state. The [editing/review](#editing-and-review) and [private client state](#private-client-state) sections own reconciliation and retention rules.
 
 ## Installable app
 
