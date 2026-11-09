@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createListing } from "./api.js";
 import type { PopupJob } from "./types";
@@ -35,7 +36,7 @@ export const AddForm = forwardRef<AddFormHandle, AddFormProps>(function AddForm(
     const t = title.trim();
     const c = company.trim();
     if (!t && !c) {
-      showError("Give the job at least a title or a company.");
+      showError(copy.addForm.giveTheJobAtLeastATitleOrA);
       return;
     }
     if (saving) return;
@@ -70,7 +71,7 @@ export const AddForm = forwardRef<AddFormHandle, AddFormProps>(function AddForm(
       });
       showOk();
     } catch {
-      showError("Couldn't add the job — is the tracker running?");
+      showError(copy.addForm.couldnTAddTheJobIsTheTrackerRunning);
       setSaving(false);
     }
   }
@@ -84,40 +85,42 @@ export const AddForm = forwardRef<AddFormHandle, AddFormProps>(function AddForm(
   return (
     <div id="add-form" className="mt-2.5">
       <div className="mb-2">
-        <label className="mb-1 block text-[11px] text-popup-muted">Title</label>
+        <label className="mb-1 block text-[11px] text-popup-muted">{copy.addForm.title}</label>
         <input
           ref={titleRef}
           className={INPUT}
-          placeholder="e.g. Senior Backend Engineer"
+          placeholder={copy.addForm.eGSeniorBackendEngineer}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
       </div>
       <div className="mb-2">
-        <label className="mb-1 block text-[11px] text-popup-muted">Company</label>
+        <label className="mb-1 block text-[11px] text-popup-muted">{copy.addForm.company}</label>
         <input
           className={INPUT}
-          placeholder="e.g. Example Company"
+          placeholder={copy.addForm.eGExampleCompany}
           value={company}
           onChange={(e) => setCompany(e.target.value)}
         />
       </div>
       <div className="mb-2">
-        <label className="mb-1 block text-[11px] text-popup-muted">Posting URL</label>
+        <label className="mb-1 block text-[11px] text-popup-muted">{copy.addForm.postingURL}</label>
         <input
           className={INPUT}
           type="url"
-          placeholder="https://… (optional)"
+          placeholder={copy.addForm.httpsOptional}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
       </div>
       <div className="mb-2">
-        <label className="mb-1 block text-[11px] text-popup-muted">Job description</label>
+        <label className="mb-1 block text-[11px] text-popup-muted">
+          {copy.addForm.jobDescription}
+        </label>
         <textarea
           className={INPUT + " resize-y"}
           rows={4}
-          placeholder="Paste the JD (optional)"
+          placeholder={copy.addForm.pasteTheJDOptional}
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
         />
@@ -128,10 +131,10 @@ export const AddForm = forwardRef<AddFormHandle, AddFormProps>(function AddForm(
           disabled={saving}
           onClick={() => void save()}
         >
-          Add job
+          {copy.addForm.addJob}
         </button>
         <button className={BUTTON + " " + FOCUS} onClick={onCancel}>
-          Cancel
+          {copy.addForm.cancel}
         </button>
       </div>
     </div>

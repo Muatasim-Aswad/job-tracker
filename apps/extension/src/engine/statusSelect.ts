@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 // The shared funnel supplies labels and valid forward moves. Corrections remain a
 // dashboard-only action.
 import type { Engine } from "./types.js";
@@ -15,7 +16,7 @@ export function createStatusSelect(engine: Engine) {
   function makeStatusSelect(jobId: string, card?: HTMLElement) {
     const select = document.createElement("select");
     select.className = "jh-btn jh-status";
-    select.title = "Application status";
+    select.title = copy.statusSelect.applicationStatus;
     pinSelectTheme(select, JobFunnel.isResolved(engine.stateOf(jobId).status));
     select.addEventListener("click", (e) => e.stopPropagation());
     select.addEventListener("mousedown", (e) => e.stopPropagation());

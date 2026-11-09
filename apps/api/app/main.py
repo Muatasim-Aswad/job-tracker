@@ -21,8 +21,9 @@ from app.modules.preferences.router import router as preferences_router
 from app.modules.search_log.router import router as search_log_router
 from app.modules.stats.router import router as stats_router
 from app.platform.dependencies import require_api_key
+from app.platform.errors import ErrorResponse
 from app.platform.http import DashboardStaticFiles, configure_http
-from app.platform.logging import timestamp_uvicorn_logs
+from app.platform.logging import configure_logging
 from app.platform.runtime import RuntimeResources, open_runtime
 
 
@@ -34,11 +35,19 @@ def create_app(settings: Settings, *, resources: RuntimeResources | None = None)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        timestamp_uvicorn_logs()
+        configure_logging()
         with open_runtime(settings, resources, build_info):
             yield
 
-    app = FastAPI(title="Job Tracker API", version=PRODUCT_VERSION, lifespan=lifespan)
+    app = FastAPI(
+        title="Job Tracker API",
+        version=PRODUCT_VERSION,
+        lifespan=lifespan,
+        responses={
+            status: {"model": ErrorResponse}
+            for status in (400, 401, 403, 404, 405, 409, 413, 422, 429, 500, 503)
+        },
+    )
     app.state.settings = settings
     app.state.resources = resources
     app.state.build_info = build_info

@@ -35,7 +35,7 @@ export function CaptureChangeReview({
 }: Props) {
   const before = currentAnswer.data
     ? `${currentAnswer.data.label}: ${valueText(currentAnswer.data.value, currentAnswer.data.choices)}`
-    : "No saved answer for this question";
+    : copy.captureChangeReview.noSavedAnswerForThisQuestion;
   const afterValue =
     action === "retarget_mapping" || action === "replace_option_bindings"
       ? selectedAnswer.data?.value
@@ -44,7 +44,7 @@ export function CaptureChangeReview({
     action === "create_answer_and_map" ? newChoices : (selectedAnswer.data?.choices ?? []);
   const behavior =
     question?.review_state === "ignored"
-      ? "This question is dismissed. Reopen it before filling."
+      ? copy.captureChangeReview.thisQuestionIsDismissedReopenItBeforeFilling
       : fillExplanation(
           action === "create_answer_and_map"
             ? fillPolicy

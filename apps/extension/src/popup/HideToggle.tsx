@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import type { PreferencesEditor } from "./usePreferences";
 import { ICON } from "../icons.js";
 import { ACTION_BUTTON, ICON as ICON_CLASS } from "./ui";
@@ -9,16 +10,14 @@ const FACE: Record<Mode, { icon: string; text: string; label: string; title: str
   dim: {
     icon: ICON.contrast,
     text: "Dim",
-    label: "Filtered jobs: dimmed",
-    title:
-      "To-apply, post-application, closed-out, hidden, and blocked jobs are dimmed in job lists. Click to hide them instead.",
+    label: copy.hideToggle.filteredJobsDimmed,
+    title: copy.hideToggle.dimmedJobsHelp,
   },
   remove: {
     icon: ICON.eyeOff,
     text: "Hide",
-    label: "Filtered jobs: hidden",
-    title:
-      "To-apply, post-application, closed-out, hidden, and blocked jobs are hidden from job lists. Click to dim them instead.",
+    label: copy.hideToggle.filteredJobsHidden,
+    title: copy.hideToggle.hiddenJobsHelp,
   },
 };
 

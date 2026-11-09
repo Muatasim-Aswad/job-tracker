@@ -87,13 +87,17 @@ export function QuestionManagementPanels({
         <dl className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
             <dt className="text-xs">{copy.questionDrawer.section}</dt>
-            <dd className="mt-1 text-ink">{question.raw_section || "Application form"}</dd>
+            <dd className="mt-1 text-ink">
+              {question.raw_section || copy.questionDetails.applicationForm}
+            </dd>
           </div>
           <div>
             <dt className="text-xs">{copy.questionDrawer.fieldType}</dt>
             <dd className="mt-1 text-ink">
               {CONTROL_LABEL[question.control_kind]}
-              {question.option_count ? ` · ${question.option_count} choices` : ""}
+              {question.option_count
+                ? copy.questionManagementPanels.choices(question.option_count)
+                : ""}
             </dd>
           </div>
           <div>

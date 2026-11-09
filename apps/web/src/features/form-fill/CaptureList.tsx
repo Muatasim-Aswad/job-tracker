@@ -33,16 +33,18 @@ export function CaptureList({ onOpen }: Props) {
       isLoading={query.isLoading}
       isError={query.isError && !query.data}
       onRetry={() => void query.refetch()}
-      loadingLabel="Loading cleared value history…"
-      errorLabel="Couldn’t load cleared value history."
-      emptyTitle={q ? "No cleared values match your search." : "No cleared values."}
-      emptyBody="Values you dismiss appear here with their question and activity history."
+      loadingLabel={copy.captureList.loadingClearedValueHistory}
+      errorLabel={copy.captureList.couldnTLoadClearedValueHistory}
+      emptyTitle={
+        q ? copy.captureList.noClearedValuesMatchYourSearch : copy.captureList.noClearedValues
+      }
+      emptyBody={copy.captureList.valuesYouDismissAppearHereWithTheirQuestionAnd}
       rows={items.map((capture) => ({
         id: capture.id,
         title: capture.question_label,
         meta: SOURCE_LABEL[capture.source],
-        badge: "Value cleared",
-        aside: "View question",
+        badge: copy.captureList.valueCleared,
+        aside: copy.captureList.viewQuestion,
       }))}
       onOpen={onOpen}
       hasNextPage={query.hasNextPage}

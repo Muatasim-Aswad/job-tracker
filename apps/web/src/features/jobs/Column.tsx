@@ -41,7 +41,7 @@ export function Column({
     return (
       <button
         onClick={onToggleCollapse}
-        title={`Expand ${label}`}
+        title={copy.column.expand(label)}
         className="flex w-10 shrink-0 cursor-pointer flex-col items-center gap-2 rounded-lg bg-sunken py-3 text-ink-muted transition hover:bg-surface-hover"
       >
         <span className={`h-2 w-2 rounded-full ${accentDot}`} />
@@ -63,7 +63,7 @@ export function Column({
         <span className="text-xs text-ink-muted">{jobs.length}</span>
         <button
           onClick={onToggleCollapse}
-          title={`Collapse ${label}`}
+          title={copy.column.collapse(label)}
           className="ml-auto rounded px-1 text-ink-muted hover:bg-surface-hover hover:text-ink-soft"
         >
           «

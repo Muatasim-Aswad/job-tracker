@@ -127,7 +127,7 @@ export function ListingCard({
       await navigator.clipboard.writeText(payload);
       toast.info(copy.listingCardMessages.copiedTheJobDescription);
     } catch (err) {
-      toast.error(`Could not copy the job description. ${describeError(err)}`);
+      toast.error(copy.listingCard.couldNotCopyTheJobDescription(describeError(err)));
     }
   }
 
@@ -169,8 +169,10 @@ export function ListingCard({
           </IconButton>
           <InlineConfirm
             trigger={<Trash2 size={14} />}
-            triggerLabel="Delete listing"
-            confirmLabel={isOnly ? "Delete listing (removes job)?" : "Delete listing?"}
+            triggerLabel={copy.listingCard.deleteListing2}
+            confirmLabel={
+              isOnly ? copy.listingCard.deleteListingRemovesJob : copy.listingCard.deleteListing
+            }
             onConfirm={onDelete}
           />
         </span>
@@ -201,7 +203,11 @@ export function ListingCard({
                 <UrlLink
                   key="link"
                   href={link}
-                  label={isStubLink ? `find ${l.platform_id}` : copy.listingCardMessages.posting}
+                  label={
+                    isStubLink
+                      ? copy.listingCard.find(l.platform_id)
+                      : copy.listingCardMessages.posting
+                  }
                   title={
                     isStubLink ? copy.listingCardMessages.reconstructedLinkNotYetCaptured : link
                   }
@@ -214,7 +220,7 @@ export function ListingCard({
               <Tooltip key="posted" label={posted.tooltip}>
                 <span tabIndex={0} className={posted.known ? "" : "text-ink-faint"}>
                   {posted.known
-                    ? `Posted ${posted.text}`
+                    ? copy.listingCard.posted(posted.text)
                     : copy.listingCardMessages.postingDateUnknown}
                 </span>
               </Tooltip>,

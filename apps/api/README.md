@@ -27,6 +27,28 @@ uv run python -m app.cli --profile direct restore /safe/path/job-tracker.sqlite
 
 `start` binds only to `127.0.0.1` and runs in the foreground. `status` never opens or mutates the database. `doctor` reports redacted path, version, mode, lock/health, permission, and safe integrity diagnostics. Backup, restore, and checkout adoption are offline-only and refuse while the selected server lock is held. Source launchers and packaged operation select their profile explicitly; see the authoritative [distribution and lifecycle contract](../../docs/DISTRIBUTION.md).
 
+## HTTP errors and logs
+
+Every HTTP failure uses this envelope, including request validation, routing, host/origin rejection, and unexpected failures:
+
+```json
+{
+  "error": {
+    "status": 409,
+    "code": "stale_revision",
+    "message": "stale_revision",
+    "request_id": "00000000-0000-4000-8000-000000000001",
+    "details": { "current": { "revision": 2 } }
+  }
+}
+```
+
+Use `code` for decisions and `message` as a safe display fallback. Conflict state is in `details.current`; only request-validation failures include `issues`, each with `path`, `code`, and a safe `message`, without input values or validator context. Error responses are `Cache-Control: no-store`. OpenAPI describes the envelope; regenerate shared types through the [development procedure](../../docs/DEVELOPMENT.md#source-and-generated-files). Version 2 replaces the former top-level `detail` and `current` fields; successful responses and database formats are unchanged.
+
+Every response includes `X-Request-ID`, exposed to allowed browser origins and repeated in error bodies. A valid caller-supplied UUID is normalized and reused; other values are replaced with a generated UUID. Use opaque UUIDs without private text. Request context is isolated across concurrent requests and worker threads.
+
+Startup configures JSON operational logs with timestamp, level, logger, message, and request ID (`null` outside a request). HTTP completion records add method, route template, status, code, and duration; transaction commits and build identity have their own events. The HTTP boundary handles and logs unexpected failures once. It replaces Uvicorn access logging to exclude query strings, resource IDs, headers, request bodies, and conflict details. Failure traces contain exception types and file/function/line locations without exception text, source lines, or frame values. The separate rate-limited thread diagnostic below retains its value-free stack dump.
+
 ## Busy requests and shutdown
 
 Database requests wait in an asynchronous admission queue, preserving worker slots for the request holding the connection. Admission and connection-lock waits each expire after 30 seconds with `503`, `Retry-After: 1`, and `Cache-Control: no-store`. Retrying a rejected request is safe: it has not entered its transaction. A DB-free health response proves reachability, not database readiness.

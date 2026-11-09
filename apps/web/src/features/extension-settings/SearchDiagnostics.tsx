@@ -6,8 +6,7 @@ import { Tooltip } from "../../shared/ui/Tooltip";
 import { FIELD, type SettingsDraft } from "./model";
 
 type Settings = SettingsDraft["search_diagnostics"];
-const INFO =
-  "When active, stores the page host, automatic search seed and extraction rule, result counts, replacement query, and opened job on this server. Keeps the newest 1,000 diagnostic rows.";
+const INFO = copy.searchDiagnostics.whenActiveStoresThePageHostAutomaticSearchSeed;
 
 export function SearchDiagnostics({
   settings,
@@ -51,10 +50,10 @@ export function SearchDiagnostics({
     setStatus(null);
     try {
       await api.clearSearchLog();
-      setStatus({ message: "Stored search diagnostics cleared.", error: false });
+      setStatus({ message: copy.searchDiagnostics.storedSearchDiagnosticsCleared, error: false });
     } catch {
       setStatus({
-        message: "Couldn’t clear search diagnostics. Check your connection and try again.",
+        message: copy.searchDiagnostics.couldnTClearSearchDiagnosticsCheckYourConnectionAnd,
         error: true,
       });
     } finally {

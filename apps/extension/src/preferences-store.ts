@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import type { PreferencesPatch, PreferencesState } from "@job-tracker/shared/api";
 
 export function createPreferencesStore(
@@ -18,14 +19,14 @@ export function createPreferencesStore(
     if (!response.ok)
       throw new Error(
         response.status === 409
-          ? "Settings changed elsewhere. Reload and save again."
-          : `Could not save or load settings (HTTP ${response.status}).`,
+          ? copy.preferencesStore.settingsChangedElsewhereReloadAndSaveAgain
+          : copy.preferencesStore.couldNotSaveOrLoadSettingsHTTP(response.status),
       );
     return response.json();
   }
 
   function accept(state: PreferencesState, epoch: number): PreferencesState {
-    if (epoch !== generation) throw new Error("Server changed; reload settings.");
+    if (epoch !== generation) throw new Error(copy.preferencesStore.serverChangedReloadSettings);
     const changed = JSON.stringify(cached) !== JSON.stringify(state);
     cached = state;
     if (changed) publish(state);
@@ -51,12 +52,13 @@ export function createPreferencesStore(
     changes: PreferencesPatch,
     expected_revision: string | null,
   ): Promise<PreferencesState> {
-    if (writing) return Promise.reject(new Error("Settings are being saved; try again shortly."));
+    if (writing)
+      return Promise.reject(new Error(copy.preferencesStore.settingsAreBeingSavedTryAgainShortly));
     const epoch = generation;
     const preceding = pending;
     const operation = (async () => {
       await preceding?.catch(() => {});
-      if (epoch !== generation) throw new Error("Server changed; reload settings.");
+      if (epoch !== generation) throw new Error(copy.preferencesStore.serverChangedReloadSettings);
       const state = await api("/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

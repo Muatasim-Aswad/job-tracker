@@ -43,6 +43,46 @@ export function fillExplanation(policy: keyof typeof POLICY_LABEL, status = "act
 }
 
 export const copy = {
+  collectionOrder: "Order",
+  questionDetails: {
+    applicationForm: "Application form",
+    status: { active: "active", disabled: "disabled", retired: "retired" },
+  },
+  answerUsage: {
+    questions: (count: number) => `${count} ${count === 1 ? "question" : "questions"}`,
+    seen: (site: string, count: number) =>
+      `${site} • Seen ${count} ${count === 1 ? "time" : "times"}`,
+    choiceValue: (label: string, index: number) =>
+      `Use ${label || `choice ${index + 1}`} as the value`,
+  },
+  collectionSearch: {
+    description: (
+      count: number | null,
+      loading: boolean,
+      item: "question" | "answer",
+      more: boolean,
+    ) => {
+      if (count === null)
+        return loading
+          ? item === "question"
+            ? "Loading questions"
+            : "Loading answers"
+          : "Count unavailable";
+      const noun =
+        item === "question"
+          ? count === 1
+            ? "question"
+            : "questions"
+          : count === 1
+            ? "answer"
+            : "answers";
+      return `${count} ${noun} ${more ? "loaded; more available" : "shown"}.`;
+    },
+  },
+  client: {
+    conflict: "This changed while you were looking at it. Your change was not applied.",
+    failed: "The form-fill request could not be completed.",
+  },
   answerDrawer: {
     answerName: "Answer name",
     done: "Done",
@@ -64,6 +104,7 @@ export const copy = {
     questionsUsingThisAnswer: (count: number) => `Questions using this answer (${count})`,
     noQuestionsUseThisAnswer: "No Questions use this Answer.",
     match: " · Match ",
+    noSavedAnswerForThisQuestion: "No saved answer for this question",
   },
   answerEditor: {
     answerName: "Answer name",
@@ -81,6 +122,14 @@ export const copy = {
     generatedFromTheLabelChangeItOnlyToDistinguish:
       "Generated from the label. Change it only to distinguish answers with the same label.",
     description: "Description",
+    choice: (value: number) => `Choice ${value}`,
+    noValueSelected: "No value selected",
+    selected: (value: string) => `Selected: ${value}`,
+    selectedCount: (count: number) => `${count} selected`,
+    choices: (count: number, selectedSummary: string) => `${count} choices · ${selectedSummary}`,
+
+    choiceLabel: (value: number) => `Choice ${value} label`,
+    choiceStatus: (value: number) => `Choice ${value} status`,
   },
   answerFillBehavior: {
     fillBehavior: "Fill behavior",
@@ -104,6 +153,10 @@ export const copy = {
     loadingAnswers: "Loading Answers…",
     couldntLoadAnswers: "Couldn’t load Answers.",
     retry: "Retry",
+    mostRecent: "Most recent",
+    mostMatchedQuestions: "Most matched questions",
+    aZ: "A–Z",
+    orderSavedAnswers: "Order saved answers",
   },
   answerPicker: {
     noCandidates: (searching: boolean, canCreate: boolean) => {
@@ -183,6 +236,14 @@ export const copy = {
   captureList: {
     clearedValueHistory: "Cleared value history",
     searchClearedValueHistory: "Search cleared value history",
+    noClearedValuesMatchYourSearch: "No cleared values match your search.",
+    noClearedValues: "No cleared values.",
+    valueCleared: "Value cleared",
+    viewQuestion: "View question",
+    loadingClearedValueHistory: "Loading cleared value history…",
+    couldnTLoadClearedValueHistory: "Couldn’t load cleared value history.",
+    valuesYouDismissAppearHereWithTheirQuestionAnd:
+      "Values you dismiss appear here with their question and activity history.",
   },
   changeReview: {
     affected: (count: number) =>
@@ -199,6 +260,12 @@ export const copy = {
   },
   formFillWorkspace: {
     formFillSections: "Form Fill sections",
+    reviewInbox: "Review inbox",
+    reviewARememberedValueOrChooseWhatShouldFill:
+      "Review a remembered value or choose what should fill this question. Each question appears once.",
+    savedAnswers: "Saved answers",
+    reusableAnswersAndTheQuestionsThatUseThemPaused:
+      "Reusable answers and the questions that use them. Paused answers are hidden by default.",
   },
   knowledgeHistory: {
     activityHistory: "Activity history",
@@ -224,6 +291,9 @@ export const copy = {
     onlyUnmatchedChoices: "Only unmatched choices",
     formChoice: "Form choice",
     savedChoice: "Saved choice",
+    meaningOf: (rawLabel: string) => `Meaning of ${rawLabel}`,
+    ofChoicesMatched: (selectedCount: number, count: number) =>
+      `${selectedCount} of ${count} choices matched`,
   },
   questionDrawer: {
     reviewQuestion: "Review question",
@@ -271,6 +341,31 @@ export const copy = {
     includeDismissedQuestionsOpenOneToReopenIt:
       "Include dismissed questions. Open one to reopen it.",
     dismissed: "Dismissed",
+    mostRecent: "Most recent",
+    mostSeen: "Most seen",
+    aZ: "A–Z",
+    searchQuestions: "Search questions",
+    searchQuestionsSectionsOrHelp: "Search questions, sections or help",
+    orderQuestions: "Order questions",
+    noQuestionsMatchYourSearch: "No questions match your search.",
+    youReAllCaughtUp: "You’re all caught up.",
+    noQuestionsHere: "No questions here.",
+    tryAnotherSearch: "Try another search.",
+    newQuestionsAndRememberedValuesWillAppearHereAfter:
+      "New questions and remembered values will appear here after you use a supported application form.",
+    questionsObservedByTheExtensionWillAppearHere:
+      "Questions observed by the extension will appear here.",
+    conflictingValues: "Conflicting values",
+    rememberedValue: "Remembered value",
+    chooseAnAnswer: "Choose an answer",
+    fillingPaused: "Filling paused",
+    valueCleared: "Value cleared",
+    valuesCleared: (ignoredCaptureCount: number) => `${ignoredCaptureCount} values cleared`,
+
+    choices: (optionCount: number) => `${optionCount} choices`,
+    rememberedValues: (currentCaptureCount: number) => `${currentCaptureCount} remembered values`,
+    loadingQuestions: "Loading questions…",
+    couldnTLoadQuestions: "Couldn’t load questions.",
   },
   reviewList: {
     listOptions: "List options",
@@ -313,8 +408,7 @@ export const copy = {
     clearAFilterToSeeMore: "Clear a filter to see more.",
     createOneHereOrPromoteARememberedValueFrom:
       "Create one here or promote a remembered value from Needs review.",
-    question: "question",
-    questions: "questions",
+
     paused: "Paused",
   },
   answerPickerMessages: {
@@ -338,7 +432,7 @@ export const copy = {
     question: "question",
     questions: "questions",
   },
-  changeReviewMessages: {},
+
   drawerMessages: {
     close: "Close",
   },
@@ -376,5 +470,29 @@ export const copy = {
   },
   draftGuardMessages: {
     discardYourUnsavedChanges: "Discard your unsaved changes?",
+  },
+  captureActionPanel: {
+    newAnswer: "New answer",
+    updateSavedValue: "Update saved value",
+    useAnotherAnswer: "Use another answer",
+    changeChoiceMatches: "Change choice matches",
+  },
+  captureChangeReview: {
+    noSavedAnswerForThisQuestion: "No saved answer for this question",
+    thisQuestionIsDismissedReopenItBeforeFilling:
+      "This question is dismissed. Reopen it before filling.",
+  },
+  questionManagementPanels: {
+    choices: (optionCount: number) => ` · ${optionCount} choices`,
+  },
+  questionMatchPanel: {
+    noSavedAnswerMatched: "No saved answer matched",
+    thisQuestionStaysDismissedAndWillNotFillUntil:
+      "This question stays dismissed and will not fill until reopened.",
+  },
+  model: {
+    noRetainedValue: "No retained value",
+    linkedInEasyApply: "LinkedIn Easy Apply",
+    optionNoLongerAvailable: "Option no longer available",
   },
 } as const;

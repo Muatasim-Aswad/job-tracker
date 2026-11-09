@@ -199,6 +199,8 @@ Listing `captured_at` remains the first capture for posting-age and match-timing
 
 The shared TypeScript API schema is generated from FastAPI's OpenAPI output. Repository checks fail if the generated file differs from the server contract.
 
+`shared.errors.AppError` carries a stable code, optional safe message, and explicitly separated public/private details and diagnostics. Boundary handlers serialize only the public projection. The outer HTTP request boundary covers host/origin rejections and unexpected failures, carries one isolated correlation ID through responses and logs, and logs route templates rather than resource IDs or query strings. The [API guide](../apps/api/README.md#http-errors-and-logs) owns the wire contract, logging fields, and version-2 migration.
+
 ## API organization
 
 `main.create_app(settings, resources=...)` composes the API; `app.main:app` is the Uvicorn entry point. The delayed-import CLI selects profile roots before importing configuration or runtime code.

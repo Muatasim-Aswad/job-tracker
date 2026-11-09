@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDownUp, Check } from "lucide-react";
 import { SORT_OPTIONS, type SortOrder } from "./jobSort";
@@ -119,7 +120,7 @@ export function SortChoiceMenu<T extends string>({
   return (
     <div ref={wrapperRef} className="relative shrink-0">
       <IconButton
-        label={`${actionLabel}: ${label}`}
+        label={copy.sortMenu.message(actionLabel, label)}
         size={size}
         active={open}
         activeMeans="expanded"
@@ -148,7 +149,7 @@ export function SortMenu({ value, onChange }: Props) {
       value={value}
       onChange={onChange}
       options={SORT_OPTIONS}
-      menuLabel="Sort jobs"
+      menuLabel={copy.sortMenu.sortJobs}
       size="field"
     />
   );

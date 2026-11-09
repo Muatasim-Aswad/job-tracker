@@ -9,9 +9,9 @@ import { HelpTip } from "./HelpTip";
 import { SortChoiceMenu } from "../jobs/SortMenu";
 
 const ORDER_OPTIONS = [
-  { value: "last_seen", label: "Most recent" },
-  { value: "seen_count", label: "Most seen" },
-  { value: "prompt", label: "A–Z" },
+  { value: "last_seen", label: copy.questionList.mostRecent },
+  { value: "seen_count", label: copy.questionList.mostSeen },
+  { value: "prompt", label: copy.questionList.aZ },
 ] as const;
 
 interface Props {
@@ -66,8 +66,8 @@ export function QuestionList({
           : copy.questionListMessages.questionsToReview
       }
       search={{
-        label: "Search questions",
-        placeholder: "Search questions, sections or help",
+        label: copy.questionList.searchQuestions,
+        placeholder: copy.questionList.searchQuestionsSectionsOrHelp,
         value: search,
         onChange: setSearch,
         count: query.isLoading || (query.isError && !query.data) ? null : items.length,
@@ -85,8 +85,8 @@ export function QuestionList({
           value={sort}
           onChange={setSort}
           options={ORDER_OPTIONS}
-          menuLabel="Order questions"
-          actionLabel="Order"
+          menuLabel={copy.questionList.orderQuestions}
+          actionLabel={copy.collectionOrder}
           size="field"
         />
       }
@@ -118,21 +118,21 @@ export function QuestionList({
       isLoading={query.isLoading}
       isError={query.isError && !query.data}
       onRetry={() => void query.refetch()}
-      loadingLabel="Loading questions…"
-      errorLabel="Couldn’t load questions."
+      loadingLabel={copy.questionList.loadingQuestions}
+      errorLabel={copy.questionList.couldnTLoadQuestions}
       emptyTitle={
         q
-          ? "No questions match your search."
+          ? copy.questionList.noQuestionsMatchYourSearch
           : !includeMatched && !includeDismissed
-            ? "You’re all caught up."
-            : "No questions here."
+            ? copy.questionList.youReAllCaughtUp
+            : copy.questionList.noQuestionsHere
       }
       emptyBody={
         q
-          ? "Try another search."
+          ? copy.questionList.tryAnotherSearch
           : !includeMatched && !includeDismissed
-            ? "New questions and remembered values will appear here after you use a supported application form."
-            : "Questions observed by the extension will appear here."
+            ? copy.questionList.newQuestionsAndRememberedValuesWillAppearHereAfter
+            : copy.questionList.questionsObservedByTheExtensionWillAppearHere
       }
       rows={items.map((question) => ({
         id: question.id,
@@ -141,32 +141,32 @@ export function QuestionList({
           question.review_state === "ignored"
             ? "Dismissed"
             : question.capture_conflict
-              ? "Conflicting values"
+              ? copy.questionList.conflictingValues
               : question.current_capture_count
-                ? "Remembered value"
+                ? copy.questionList.rememberedValue
                 : !question.mapping
-                  ? "Choose an answer"
+                  ? copy.questionList.chooseAnAnswer
                   : question.mapping.status === "active"
                     ? "Matched"
-                    : "Filling paused",
+                    : copy.questionList.fillingPaused,
         secondaryBadge: question.ignored_capture_count
           ? question.ignored_capture_count === 1
-            ? "Value cleared"
-            : `${question.ignored_capture_count} values cleared`
+            ? copy.questionList.valueCleared
+            : copy.questionList.valuesCleared(question.ignored_capture_count)
           : undefined,
         warning: question.review_state !== "ignored" && question.capture_conflict,
-        meta: `${siteLabel(question.site_scope)} • Seen ${question.seen_count} ${question.seen_count === 1 ? "time" : "times"}`,
+        meta: copy.answerUsage.seen(siteLabel(question.site_scope), question.seen_count),
         context: [
           question.raw_section,
           CONTROL_LABEL[question.control_kind],
           question.raw_help,
-          question.option_count ? `${question.option_count} choices` : null,
+          question.option_count ? copy.questionList.choices(question.option_count) : null,
         ]
           .filter(Boolean)
           .join(" • "),
         aside:
           question.current_capture_count > 1
-            ? `${question.current_capture_count} remembered values`
+            ? copy.questionList.rememberedValues(question.current_capture_count)
             : "",
       }))}
       onOpen={onOpen}

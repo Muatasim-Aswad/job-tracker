@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { retainedDateTime } from "../../shared/format";
 import type { components } from "@job-tracker/shared/api";
 
@@ -32,12 +33,13 @@ export function valueText(
   value: AnswerValue | CaptureValue | null | undefined,
   labels: ValueLabel[] = [],
 ): string {
-  if (!value) return "No retained value";
+  if (!value) return copy.model.noRetainedValue;
   if (value.kind === "boolean") return value.value ? "Yes" : "No";
   const choiceLabel = (key: string) =>
-    labels.find((label) => label.choice_key === key)?.display_label ?? "Option no longer available";
+    labels.find((label) => label.choice_key === key)?.display_label ??
+    copy.model.optionNoLongerAvailable;
   const optionLabel = (id: string) =>
-    labels.find((label) => label.id === id)?.raw_label ?? "Option no longer available";
+    labels.find((label) => label.id === id)?.raw_label ?? copy.model.optionNoLongerAvailable;
   if (value.kind === "single_choice")
     return "choice_key" in value
       ? choiceLabel(value.choice_key)
@@ -52,7 +54,7 @@ export function valueText(
 }
 
 export function siteLabel(scope: string): string {
-  return scope === "linkedin:easy-apply" ? "LinkedIn Easy Apply" : scope;
+  return scope === "linkedin:easy-apply" ? copy.model.linkedInEasyApply : scope;
 }
 
 export function isChoiceKind(kind: AnswerValueKind): boolean {

@@ -1,4 +1,33 @@
 export const copy = {
+  shortcuts: {
+    global: "Global",
+    jumpToSearch: "Jump to search",
+    addAJob: "Add a job",
+    toggleStarredOnlyView: "Toggle starred-only view",
+    toggleNeedsAttentionView: "Toggle needs-attention view",
+    toggleHideHiddenFilter: "Toggle hide-hidden filter",
+    toggleHideBlockedCompaniesFilter: "Toggle hide-blocked-companies filter",
+    toggleEasyApplyOnlyView: "Toggle Easy Apply-only view",
+    cycleThemeSystemLightDark: "Cycle theme (system / light / dark)",
+    showThisHelp: "Show this help",
+    closeAMenuDialogOrClearSearch: "Close a menu / dialog, or clear search",
+    board: "Board",
+    enterTheBoardThenMoveBetweenCards: "Enter the board, then move between cards",
+    openDetails: "Open details",
+    openThePostingLink: "Open the posting link",
+    starUnstar: "Star / unstar",
+    hideUnhide: "Hide / unhide",
+    changeStatusOpensTheMenu: "Change status (opens the menu)",
+    fromACardButtonBackToTheCard: "From a card button, back to the card",
+    changeStatusMenu: "Change-status menu",
+    moveBetweenOptions: "Move between options",
+    applyTheHighlightedMove: "Apply the highlighted move",
+    closeTheMenu: "Close the menu",
+    formsEditingAJobNoteOrCustomField: "Forms — editing a job, note, or custom field",
+    cancelTheEdit: "Cancel the edit",
+    save: "Save",
+  },
+
   aboutDialog: {
     version: "Version",
     revision: "Revision",
@@ -23,6 +52,8 @@ export const copy = {
     loadingJobs: "Loading jobs…",
     apiUnavailable: (error: string) =>
       `Couldn’t reach the API (${error}). Is the server running on :3456?`,
+    isnTCapturedYet: (platform: string | undefined, platformId: string) =>
+      `“${platform}:${platformId}” isn’t captured yet.`,
   },
   errorBoundary: {
     somethingBrokeWhileRendering: "Something broke while rendering.",
@@ -45,6 +76,9 @@ export const copy = {
     t: "t",
     keyboardShortcuts: "Keyboard shortcuts",
     about: "About",
+    system: "System",
+    light: "Light",
+    dark: "Dark",
   },
   shortcutsDialog: {
     keyboardShortcuts: "Keyboard shortcuts",
@@ -85,5 +119,9 @@ export const copy = {
     invalidBuildIdentity: "Invalid build identity",
     buildCheckStopped: "Build check stopped",
     buildCheckFailed: "Build check failed",
+  },
+  useBuildCheck: {
+    aDifferentJobTrackerBuildIsAvailableOpenAbout: (version: string) =>
+      `A different Job Tracker build (${version}) is available. Open About in the menu to check and reload.`,
   },
 } as const;

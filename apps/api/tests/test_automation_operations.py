@@ -58,7 +58,7 @@ def test_document_operation_lookup_and_retry_preserve_identity_after_edit(
     for target, payload in ((job, {**body, "content": "Changed"}), (_job(client, "other"), body)):
         conflict = client.post(f"/api/jobs/{target}/documents", json=payload)
         assert conflict.status_code == 409
-        assert conflict.json()["detail"] == "document_operation_key_conflict"
+        assert conflict.json()["error"]["code"] == "document_operation_key_conflict"
 
 
 @pytest.mark.parametrize("delete_job", [False, True])
@@ -76,7 +76,13 @@ def test_deleted_document_operation_never_recreates(
     assert receipt["status"] == "deleted"
     retry = client.post(url, json=body)
     assert retry.status_code == 409
-    assert retry.json() == {"detail": "document_operation_deleted", "current": receipt}
+    assert retry.json()["error"] == {
+        "status": retry.status_code,
+        "code": "document_operation_deleted",
+        "message": "document_operation_deleted",
+        "request_id": retry.headers["X-Request-ID"],
+        "details": {"current": receipt},
+    }
     assert conn.total_changes == before
     assert conn.execute("SELECT count(*) FROM documents").fetchone()[0] == 0
 
@@ -110,7 +116,7 @@ def test_document_operations_follow_ownership_including_tombstones(
             f"/api/jobs/{address}/documents", json={**body, "operation_key": "tombstone"}
         )
         assert deleted.status_code == 409
-        assert deleted.json()["detail"] == "document_operation_deleted"
+        assert deleted.json()["error"]["code"] == "document_operation_deleted"
 
 
 @pytest.mark.parametrize("verb", ["applied", "note", "starred"])
@@ -142,7 +148,13 @@ def test_event_operations_replay_original_result_after_later_changes(
     assert conn.total_changes == before
     conflict = client.post("/api/events", json={**body, "expected_status": "seen"})
     assert conflict.status_code == 409
-    assert conflict.json() == {"detail": "event_operation_key_conflict", "current": receipt}
+    assert conflict.json()["error"] == {
+        "status": conflict.status_code,
+        "code": "event_operation_key_conflict",
+        "message": "event_operation_key_conflict",
+        "request_id": conflict.headers["X-Request-ID"],
+        "details": {"current": receipt},
+    }
     assert conn.total_changes == before
     assert client.get(f"/api/jobs/{job}").json()["status"] == "seen"
 
@@ -222,8 +234,9 @@ def test_receipt_failure_rolls_back_the_write(
     payload = (
         {"type": "cv"} if kind == "document" else {"job_id": job, "events": [{"event": "applied"}]}
     )
-    with pytest.raises(RuntimeError, match="receipt failure"):
-        client.post(url, json={**payload, "operation_key": "rollback"})
+    failed = client.post(url, json={**payload, "operation_key": "rollback"})
+    assert failed.status_code == 500
+    assert failed.json()["error"]["code"] == "internal_error"
     assert client.get(f"/api/jobs/{job}").json() == before
     assert conn.execute(f"SELECT count(*) FROM {kind}_operations").fetchone()[0] == 0
 

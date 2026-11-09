@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 // Persistent page-wide reachability state, distinct from per-action error feedback.
 import type { Engine } from "./types.js";
 import { SERVER_URL } from "../config.js";
@@ -26,13 +27,13 @@ export function createOffline(engine: Engine) {
     if (existing) {
       existing.setAttribute(
         "title",
-        `Job Tracker can't reach the server at ${SERVER_URL} — changes aren't being saved`,
+        copy.offline.jobTrackerCanTReachTheServerAtChanges(SERVER_URL),
       );
       return;
     }
     const badge = document.createElement("span");
     badge.className = "jh-offline-badge";
-    badge.title = `Job Tracker can't reach the server at ${SERVER_URL} — changes aren't being saved`;
+    badge.title = copy.offline.jobTrackerCanTReachTheServerAtChanges(SERVER_URL);
     badge.textContent = "⚠";
     bar.appendChild(badge);
   }

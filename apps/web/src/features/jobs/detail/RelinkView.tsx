@@ -151,7 +151,11 @@ export function RelinkView({
               ))}
               {shownCandidates.length === 0 && (
                 <EmptyBlock
-                  message={isLoading ? "Looking for duplicates…" : "No likely duplicates."}
+                  message={
+                    isLoading
+                      ? copy.relinkView.lookingForDuplicates
+                      : copy.relinkView.noLikelyDuplicates
+                  }
                 />
               )}
             </div>
@@ -177,7 +181,7 @@ export function RelinkView({
                   </span>
                 </button>
               ))}
-              {otherJobs.length === 0 && <EmptyBlock message="No other jobs match." />}
+              {otherJobs.length === 0 && <EmptyBlock message={copy.editingHelp.noOtherJobs} />}
             </div>
           </section>
         </>

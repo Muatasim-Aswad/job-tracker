@@ -154,3 +154,59 @@ it("omits absent filters while retaining false, zero and escaping", () => {
   );
   expect(toQuery({ absent: undefined, empty: "" })).toBe("");
 });
+
+describe("HTTP error envelopes", () => {
+  it("exposes safe structured fields and the response correlation ID", async () => {
+    const envelope = {
+      error: {
+        status: 409,
+        code: "stale_revision",
+        message: "Review current state.",
+        request_id: "request-123",
+        details: { current: { revision: 4 } },
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(envelope), {
+          status: 409,
+          headers: { "X-Request-ID": "request-123" },
+        }),
+      ),
+    );
+    await expect(request("/answers/1")).rejects.toMatchObject({
+      status: 409,
+      code: "stale_revision",
+      message: "Review current state.",
+      requestId: "request-123",
+      details: { current: { revision: 4 } },
+      payload: envelope,
+    });
+  });
+
+  it("keeps a header ID even when the response is not JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("gateway unavailable", {
+          status: 503,
+          headers: { "X-Request-ID": "request-456" },
+        }),
+      ),
+    );
+    await expect(request("/jobs")).rejects.toMatchObject({
+      requestId: "request-456",
+      message: "gateway unavailable",
+    });
+  });
+
+  it("does not treat a mismatched envelope as a trusted structured error", () => {
+    const body = JSON.stringify({
+      error: { status: 200, code: "success", message: "Wrong status", request_id: "id" },
+    });
+    const error = new ApiError(500, body);
+    expect(error.code).toBeUndefined();
+    expect(error.message).toBe(body);
+  });
+});

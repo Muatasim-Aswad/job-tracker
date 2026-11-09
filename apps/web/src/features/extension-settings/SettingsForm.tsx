@@ -79,7 +79,7 @@ export function SettingsForm({
             input: "",
           },
     });
-    onEditorChange(rule ? "Edit title rule" : "New title rule");
+    onEditorChange(rule ? copy.settingsForm.editTitleRule : copy.settingsForm.newTitleRule);
   };
   const stopEditing = () => {
     setEditing(null);
@@ -199,7 +199,7 @@ export function SettingsForm({
                       </label>
                       {highlight?.enabled && (
                         <KeywordField
-                          label={`${label} keywords`}
+                          label={copy.settingsForm.keywords(label)}
                           value={highlight}
                           disabled={disabled}
                           onChange={update}

@@ -30,9 +30,9 @@ export function AttentionPanel({ attention, onAddNote, onMarkGhosted }: Props) {
           {copy.attentionPanel.addNote}
         </button>
         <InlineConfirm
-          trigger="Mark ghosted"
-          confirmLabel="Mark this job ghosted?"
-          actionLabel="Mark ghosted"
+          trigger={copy.editingHelp.markGhosted}
+          confirmLabel={copy.attentionPanel.markThisJobGhosted}
+          actionLabel={copy.attentionPanel.markGhosted}
           onConfirm={onMarkGhosted}
           className="text-amber-800 hover:text-red-700 dark:text-amber-200 dark:hover:text-red-300"
         />

@@ -27,13 +27,13 @@ export function NoResults({
     <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-ink-muted">
       <p>
         {q && showStarred && showAttention
-          ? `No jobs match “${q}” among starred jobs needing attention.`
+          ? copy.noResults.noJobsMatchAmongStarredJobsNeedingAttention(q)
           : q && showAttention
-            ? `No jobs needing attention match “${q}”.`
+            ? copy.noResults.noJobsNeedingAttentionMatch(q)
             : q && showStarred
-              ? `No jobs match “${q}” among starred.`
+              ? copy.noResults.noJobsMatchAmongStarred(q)
               : q
-                ? `No jobs match “${q}”.`
+                ? copy.noResults.noJobsMatch(q)
                 : showStarred && showAttention
                   ? copy.noResultsMessages.noStarredJobsNeedAttention
                   : showAttention
@@ -41,7 +41,7 @@ export function NoResults({
                     : showStarred
                       ? copy.noResultsMessages.noStarredJobsMatch
                       : listingAvailability !== "all"
-                        ? `No jobs with ${listingAvailability} listings match.`
+                        ? copy.noResults.noJobsWithListingsMatch(listingAvailability)
                         : easyApplyOnly
                           ? copy.noResultsMessages.noEasyApplyJobsMatch
                           : hideBlocked

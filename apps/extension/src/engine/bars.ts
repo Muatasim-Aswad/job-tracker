@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 // Site-agnostic card/detail bars, controls, and visual state.
 import type { Engine } from "./types.js";
 import type { Adapter } from "../adapters/types";
@@ -99,7 +100,7 @@ export function createBars(engine: Engine) {
     if (btn.dataset.jhCount !== want) {
       btn.dataset.jhCount = want;
       btn.innerHTML = `${ICON.history}<span>${count}</span>`;
-      btn.title = `${count} previous application${count > 1 ? "s" : ""} to ${company} — open the dashboard filtered to this company`;
+      btn.title = copy.actions.previousApplications(count, company);
     }
   }
 
@@ -127,7 +128,7 @@ export function createBars(engine: Engine) {
   }
 
   function mkOpenButton(jobId: string) {
-    const btn = mkBtn("jh-btn-open", ICON.open, "Open in dashboard");
+    const btn = mkBtn("jh-btn-open", ICON.open, copy.bars.openInDashboard);
     btn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -144,7 +145,7 @@ export function createBars(engine: Engine) {
       if (btnHide.dataset.jhHidden !== want) {
         btnHide.dataset.jhHidden = want;
         setBtnContent(btnHide, st.hidden ? ICON.eye : ICON.eyeOff);
-        btnHide.title = `${st.hidden ? "Unhide" : "Hide"}${hideShortcut ? ` (${hideShortcut})` : ""}`;
+        btnHide.title = copy.actions.hidden(st.hidden, hideShortcut);
       }
     }
     const btnSkip = container.querySelector(".jh-btn-skip") as HTMLButtonElement | null;
@@ -152,7 +153,7 @@ export function createBars(engine: Engine) {
     const btnStar = container.querySelector(".jh-btn-star") as HTMLElement | null;
     if (btnStar) {
       btnStar.classList.toggle("jh-on", st.starred); // .jh-on fills the star
-      btnStar.title = st.starred ? "Remove star" : "Star";
+      btnStar.title = st.starred ? copy.bars.removeStar : copy.bars.star;
     }
     const select = container.querySelector(".jh-status") as HTMLSelectElement | null;
     if (select) {
@@ -213,8 +214,8 @@ export function createBars(engine: Engine) {
     const blocked = engine.isCompanyBlocked(name, key?.platform || "*");
     btn.classList.toggle("jh-on", blocked);
     btn.title = blocked
-      ? `${name} is blocked — click to unblock`
-      : `Block “${name}” everywhere (stop capturing and showing it)`;
+      ? copy.bars.isBlockedClickToUnblock(name)
+      : copy.bars.blockEverywhereStopCapturingAndShowingIt(name);
   }
 
   // Re-render every DOM surface for one job (list cards + detail bar).
@@ -285,7 +286,7 @@ export function createBars(engine: Engine) {
       e.stopPropagation();
       void toggleHidden(jobId);
     });
-    const btnSkip = mkBtn("jh-btn-skip", ICON.x, "Skip job");
+    const btnSkip = mkBtn("jh-btn-skip", ICON.x, copy.bars.skipJob);
     btnSkip.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -301,7 +302,7 @@ export function createBars(engine: Engine) {
     // Block/unblock lives inline here, where a company fully resolves and there's
     // room; list cards keep it in the ⋯ menu. Hidden until a company resolves, then
     // renderDetailBar flips its state.
-    const btnBlock = mkBtn("jh-btn-block", ICON.ban, "Block company");
+    const btnBlock = mkBtn("jh-btn-block", ICON.ban, copy.bars.blockCompany);
     btnBlock.hidden = true;
     btnBlock.addEventListener("click", (e) => {
       e.preventDefault();
@@ -340,7 +341,7 @@ export function createBars(engine: Engine) {
     });
 
     const nativeDismiss = adapter.nativeDismiss?.(card) || undefined;
-    const btnSkip = mkBtn("jh-btn-skip", ICON.x, "Skip job");
+    const btnSkip = mkBtn("jh-btn-skip", ICON.x, copy.bars.skipJob);
     btnSkip.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();

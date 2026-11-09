@@ -14,9 +14,7 @@ import { CollapsibleSection, type SectionDisclosure } from "../../shared/ui/Coll
 
 const KEY_LIST = "meta-key-vocab";
 
-const HELP =
-  "Your own fields on this job: recruiter, salary expectation, referral — anything " +
-  "the tracker has no place for.";
+const HELP = copy.editingHelp.metadata;
 
 // Server-owned metadata must survive user edits and never appear as a custom field.
 const SYSTEM_KEYS = new Set(["false_matches"]);
@@ -173,15 +171,15 @@ function MetaCard({
           <IconButton
             size="sm"
             onClick={() => setEditing(true)}
-            label={`Edit ${name}`}
+            label={copy.metaEditor.edit(name)}
             className="text-ink-faint hover:text-ink-soft"
           >
             <Pencil size={13} />
           </IconButton>
           <InlineConfirm
             trigger={<Trash2 size={13} />}
-            triggerLabel={`Delete ${name}`}
-            confirmLabel={`Delete ${name}?`}
+            triggerLabel={copy.metaEditor.delete(name)}
+            confirmLabel={copy.metaEditor.confirmDelete(name)}
             onConfirm={remove}
           />
         </div>
@@ -240,7 +238,8 @@ export function MetaEditor({
       count={entries.length}
       help={HELP}
       add={{
-        noun: "custom field",
+        label: copy.addActions.customFields,
+        cancelLabel: copy.addActions.cancelCustomFields,
         open: adding,
         onToggle: () => (adding ? close() : setAdding(true)),
       }}
@@ -275,7 +274,7 @@ export function MetaEditor({
                     title={
                       s.uses === undefined
                         ? copy.metaEditorMessages.suggestedField
-                        : `used on ${s.uses} ${s.uses === 1 ? "job" : "jobs"}`
+                        : copy.metaEditor.usedOn(s.uses)
                     }
                     className="rounded-full border border-line px-2 py-0.5 text-micro text-ink-muted hover:bg-surface-hover"
                   >

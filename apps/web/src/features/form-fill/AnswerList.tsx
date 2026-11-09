@@ -15,9 +15,9 @@ import { type AnswerListItem, type AnswerValueKind } from "./model";
 import { POLICY_LABEL, VALUE_KIND_LABEL } from "./copy";
 
 const ORDER_OPTIONS = [
-  { value: "updated_at", label: "Most recent" },
-  { value: "mapping_count", label: "Most matched questions" },
-  { value: "label", label: "A–Z" },
+  { value: "updated_at", label: copy.answerList.mostRecent },
+  { value: "mapping_count", label: copy.answerList.mostMatchedQuestions },
+  { value: "label", label: copy.answerList.aZ },
 ] as const;
 
 interface Props {
@@ -142,8 +142,8 @@ export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props)
           value={sort}
           onChange={setSort}
           options={ORDER_OPTIONS}
-          menuLabel="Order saved answers"
-          actionLabel="Order"
+          menuLabel={copy.answerList.orderSavedAnswers}
+          actionLabel={copy.collectionOrder}
           size="field"
         />
         {!actionHost && addButton}
@@ -197,10 +197,8 @@ export function AnswerList({ toolbarHost, actionHost, onOpen, onCreate }: Props)
                     )}
                     {showDetails && (
                       <span className="mt-1 block text-xs text-ink-muted">
-                        {VALUE_KIND_LABEL[answer.value_kind]} • {answer.mapping_count}{" "}
-                        {answer.mapping_count === 1
-                          ? copy.answerListMessages.question
-                          : copy.answerListMessages.questions}
+                        {VALUE_KIND_LABEL[answer.value_kind]} •{" "}
+                        {copy.answerUsage.questions(answer.mapping_count)}
                       </span>
                     )}
                   </span>

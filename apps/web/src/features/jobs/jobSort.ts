@@ -1,12 +1,13 @@
+import { copy } from "./copy";
 import type { JobSummary } from "@job-tracker/shared/api";
 
 export const SORT_OPTIONS = [
-  { value: "recently_updated", label: "Updated (newest)" },
-  { value: "least_recently_updated", label: "Updated (oldest)" },
-  { value: "newest_added", label: "Added (newest)" },
-  { value: "oldest_added", label: "Added (oldest)" },
-  { value: "title_az", label: "Title (A–Z)" },
-  { value: "title_za", label: "Title (Z–A)" },
+  { value: "recently_updated", label: copy.jobSort.updatedNewest },
+  { value: "least_recently_updated", label: copy.jobSort.updatedOldest },
+  { value: "newest_added", label: copy.jobSort.addedNewest },
+  { value: "oldest_added", label: copy.jobSort.addedOldest },
+  { value: "title_az", label: copy.jobSort.titleAZ },
+  { value: "title_za", label: copy.jobSort.titleZA },
 ] as const;
 
 export type SortOrder = (typeof SORT_OPTIONS)[number]["value"];

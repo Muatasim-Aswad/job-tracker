@@ -1,21 +1,22 @@
+import { copy } from "./copy";
 import type { DescriptionHighlight, Preferences, TitleRule } from "@job-tracker/shared/api";
 
 export const HIGHLIGHTS: ReadonlyArray<{ id: DescriptionHighlight["id"]; label: string }> = [
-  { id: "experience-years", label: "Experience in years" },
-  { id: "language", label: "Language requirements" },
-  { id: "pay", label: "Pay" },
-  { id: "custom-words", label: "Role and custom words" },
+  { id: "experience-years", label: copy.model.experienceInYears },
+  { id: "language", label: copy.model.languageRequirements },
+  { id: "pay", label: copy.model.pay },
+  { id: "custom-words", label: copy.model.roleAndCustomWords },
 ];
 export const CONDITIONS = {
-  contains: "contains",
-  starts_with: "starts with",
-  not_contains: "does not contain",
+  contains: copy.model.contains,
+  starts_with: copy.model.startsWith,
+  not_contains: copy.model.doesNotContain,
 };
 export const ACTIONS = {
-  outline_job_card: "Outline job card",
-  hide: "Hide",
-  star: "Star",
-  skip: "Skip",
+  outline_job_card: copy.model.outlineJobCard,
+  hide: copy.model.hide,
+  star: copy.model.star,
+  skip: copy.model.skip,
 };
 export const FIELD =
   "w-full min-w-0 rounded border border-line bg-surface px-2.5 py-2 text-sm text-ink outline-none focus:border-line-strong focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50";
@@ -77,9 +78,9 @@ export function settingsValue(draft: SettingsDraft): Preferences {
 }
 export function settingsValidation(settings: Preferences): string | null {
   if (settings.title_rules.some((rule) => !rule.terms.length))
-    return "Add at least one keyword to each title rule.";
+    return copy.model.addAtLeastOneKeywordToEachTitleRule;
   const lists = [...settings.description_highlights, ...settings.title_rules];
   if (lists.some((item) => item.terms.length > 200 || item.terms.some((term) => term.length > 200)))
-    return "Use up to 200 keywords per list and 200 characters per keyword.";
+    return copy.model.useUpTo200KeywordsPerListAnd200;
   return null;
 }

@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { localDateTime } from "../../shared/format";
 import { fmtDate } from "@job-tracker/shared/time";
 import type { JobSummary } from "@job-tracker/shared/api";
@@ -14,21 +15,21 @@ export function AvailabilityLabel({
   observedAt?: string | null;
   message?: string | null;
 }) {
-  const label = closed ? "Closed" : "Unavailable";
+  const label = closed ? copy.availability.closed : copy.availability.unavailable;
   const text = `${label}${date ? ` ${fmtDate(date)}` : ""}`;
   const detail =
     [
       message,
-      closed && date ? `Listing closed ${localDateTime(date)}` : null,
-      observedAt ? `Availability observed ${localDateTime(observedAt)}` : null,
+      closed && date ? copy.listingAvailability.listingClosed(localDateTime(date)) : null,
+      observedAt ? copy.listingAvailability.availabilityObserved(localDateTime(observedAt)) : null,
     ]
       .filter(Boolean)
-      .join(". ") || `Applications ${label.toLowerCase()}`;
+      .join(". ") || copy.availability.applications(closed);
   return (
     <Tooltip label={detail} stopPropagation>
       <span
         tabIndex={0}
-        aria-label={`Listing ${text.toLowerCase()}`}
+        aria-label={copy.listingAvailability.listing(text.toLowerCase())}
         className={closed ? "text-red-600 dark:text-red-400" : "text-amber-700 dark:text-amber-300"}
       >
         {date ? <time dateTime={date}>{text}</time> : text}
@@ -39,8 +40,8 @@ export function AvailabilityLabel({
 
 export function JobListingAvailability({ job }: { job: JobSummary }) {
   if (job.availability === "unavailable")
-    return <AvailabilityLabel closed={false} message="A listing is unavailable" />;
+    return <AvailabilityLabel closed={false} message={copy.availability.listingUnavailable} />;
   if (job.availability === "closed")
-    return <AvailabilityLabel closed message="A listing is closed" />;
+    return <AvailabilityLabel closed message={copy.availability.listingClosed} />;
   return null;
 }

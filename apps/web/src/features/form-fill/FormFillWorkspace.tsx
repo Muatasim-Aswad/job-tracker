@@ -187,13 +187,13 @@ export function FormFillWorkspace({
             [
               [
                 "review",
-                "Review inbox",
-                "Review a remembered value or choose what should fill this question. Each question appears once.",
+                copy.formFillWorkspace.reviewInbox,
+                copy.formFillWorkspace.reviewARememberedValueOrChooseWhatShouldFill,
               ],
               [
                 "answers",
-                "Saved answers",
-                "Reusable answers and the questions that use them. Paused answers are hidden by default.",
+                copy.formFillWorkspace.savedAnswers,
+                copy.formFillWorkspace.reusableAnswersAndTheQuestionsThatUseThemPaused,
               ],
             ] as const
           ).map(([section, label, help]) => (

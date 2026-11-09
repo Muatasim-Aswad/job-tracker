@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 // Detail-view duplicate suggestions. The server picks same-company candidates by
 // normalized title or application destination, drops mutual exclusions, and attaches
 // the evidence each row shows.
@@ -94,7 +95,7 @@ export function createMatches(engine: Engine) {
     if (btn.dataset.jhCount !== count) {
       btn.dataset.jhCount = count;
       btn.innerHTML = `${ICON.repeat}<span class="jh-match-count">${count}</span>`;
-      btn.title = `${matches.length} possible duplicate${matches.length > 1 ? "s" : ""} — you may have already seen this job`;
+      btn.title = copy.actions.duplicates(matches.length);
     }
     return btn;
   }
@@ -137,7 +138,7 @@ export function createMatches(engine: Engine) {
     pop.className = "jh-match-popover";
     const head = document.createElement("div");
     head.className = "jh-match-head";
-    head.textContent = "Possible duplicates of this job";
+    head.textContent = copy.matches.possibleDuplicatesOfThisJob;
     pop.appendChild(head);
     matches.forEach((m) => pop.appendChild(matchRow(jobId, m)));
     document.body.appendChild(pop);
@@ -161,11 +162,11 @@ export function createMatches(engine: Engine) {
       pct.classList.add(
         p >= 70 ? "jh-match-pct--high" : p >= 40 ? "jh-match-pct--mid" : "jh-match-pct--low",
       );
-      pct.title = `${p}% job-description overlap with the posting you're viewing`;
+      pct.title = copy.actions.overlap(p);
     } else {
       pct.textContent = "–";
       pct.classList.add("jh-match-pct--none");
-      pct.title = "No description captured yet to compare";
+      pct.title = copy.matches.noDescriptionCapturedYetToCompare;
     }
 
     // Status and posting count lead: a title-matched row's title equals the one on
@@ -175,7 +176,8 @@ export function createMatches(engine: Engine) {
     const primary = document.createElement("div");
     primary.className = "jh-match-primary";
     primary.textContent =
-      JobFunnel.labelOf(m.status) + (m.listing_count > 1 ? ` · ${m.listing_count} postings` : "");
+      JobFunnel.labelOf(m.status) +
+      (m.listing_count > 1 ? copy.matches.postings(m.listing_count) : "");
     info.appendChild(primary);
     const viewedTitle = matchIdentity.get(jobId)?.title;
     if (m.title && normalizeTitle(m.title) !== normalizeTitle(viewedTitle)) {
@@ -205,7 +207,7 @@ export function createMatches(engine: Engine) {
     // visited for free once opened; the class is a belt-and-braces cue.
     const view = document.createElement("a");
     view.className = "jh-match-view";
-    view.textContent = "view";
+    view.textContent = copy.matches.view;
     view.href = `${SERVER_URL}/?job=${encodeURIComponent(m.job_id)}`;
     view.target = "_blank";
     view.rel = "noopener";
@@ -216,8 +218,8 @@ export function createMatches(engine: Engine) {
 
     const link = document.createElement("button");
     link.className = "jh-match-btn jh-match-link";
-    link.textContent = "link";
-    link.title = "Same job — fold this posting into it";
+    link.textContent = copy.matches.link;
+    link.title = copy.matches.sameJobFoldThisPostingIntoIt;
     link.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -226,8 +228,8 @@ export function createMatches(engine: Engine) {
 
     const not = document.createElement("button");
     not.className = "jh-match-btn jh-match-not";
-    not.textContent = "not a match";
-    not.title = "Different job — stop suggesting this one";
+    not.textContent = copy.matches.notAMatch;
+    not.title = copy.matches.differentJobStopSuggestingThisOne;
     not.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -241,8 +243,8 @@ export function createMatches(engine: Engine) {
 
   function matchSubtitle(m: JobMatch): string {
     const parts: string[] = [];
-    if (m.created_at) parts.push("seen " + m.created_at.slice(0, 10));
-    if (m.closed_at) parts.push("closed " + m.closed_at.slice(0, 10));
+    if (m.created_at) parts.push(copy.actions.seen(m.created_at.slice(0, 10)));
+    if (m.closed_at) parts.push(copy.actions.closed(m.closed_at.slice(0, 10)));
     const timing = timingText(m.timing);
     if (timing) parts.push(timing.toLowerCase());
     return parts.join(" · ");
@@ -258,15 +260,15 @@ export function createMatches(engine: Engine) {
     if (same.length) {
       const line = document.createElement("div");
       line.className = "jh-match-same";
-      line.textContent = `✓ Same ${same.join(" · ")}`;
+      line.textContent = copy.actions.same(same);
       box.appendChild(line);
     }
     for (const r of rows) {
       if (r.same) continue;
       const line = document.createElement("div");
       line.className = "jh-match-diff";
-      line.textContent = `✗ ${r.label}: ${r.current} vs ${r.candidate}`;
-      line.title = `${r.label}\nThis posting: ${r.current}\nCandidate: ${r.candidate}`;
+      line.textContent = copy.actions.differing(r.label, r.current, r.candidate);
+      line.title = copy.actions.differenceDetails(r.label, r.current, r.candidate);
       box.appendChild(line);
     }
     return box;

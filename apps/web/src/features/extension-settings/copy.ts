@@ -8,6 +8,7 @@ export const copy = {
   },
   keywordField: {
     addKeyword: "Add keyword…",
+    remove: (term: string) => `Remove ${term}`,
   },
   searchDiagnostics: {
     searchDiagnostics: "Search diagnostics",
@@ -16,6 +17,11 @@ export const copy = {
     never: "Never",
     for30Minutes: "For 30 minutes",
     always: "Always",
+    storedSearchDiagnosticsCleared: "Stored search diagnostics cleared.",
+    couldnTClearSearchDiagnosticsCheckYourConnectionAnd:
+      "Couldn’t clear search diagnostics. Check your connection and try again.",
+    whenActiveStoresThePageHostAutomaticSearchSeed:
+      "When active, stores the page host, automatic search seed and extraction rule, result counts, replacement query, and opened job on this server. Keeps the newest 1,000 diagnostic rows.",
   },
   settingsForm: {
     jobBrowsing: "Job browsing",
@@ -31,6 +37,9 @@ export const copy = {
     cancelEditing: "Cancel editing",
     applyRule: "Apply rule",
     close: "Close",
+    editTitleRule: "Edit title rule",
+    newTitleRule: "New title rule",
+    keywords: (label: string) => `${label} keywords`,
   },
   titleRules: {
     titleRuleEditor: "Title rule editor",
@@ -48,6 +57,9 @@ export const copy = {
       "No title rules. Add one to outline, hide, star, or skip matching jobs.",
     ifTitle2: "If title ",
     anyOfTheseThen: " any of these, then",
+    enableRule: (value: string) => `Enable rule: ${value}`,
+    editRule: (value: string) => `Edit rule: ${value}`,
+    deleteRule: (value: string) => `Delete rule: ${value}`,
   },
 
   extensionSettingsDialogMessages: {
@@ -79,5 +91,24 @@ export const copy = {
       "Settings changed elsewhere. Reload settings before saving again.",
     couldntLoadOrSaveExtensionSettingsCheckYourConnection:
       "Couldn’t load or save extension settings. Check your connection and try again.",
+  },
+  model: {
+    experienceInYears: "Experience in years",
+    languageRequirements: "Language requirements",
+    pay: "Pay",
+    roleAndCustomWords: "Role and custom words",
+    contains: "contains",
+    startsWith: "starts with",
+    doesNotContain: "does not contain",
+    outlineJobCard: "Outline job card",
+    hide: "Hide",
+    star: "Star",
+    skip: "Skip",
+    addAtLeastOneKeywordToEachTitleRule: "Add at least one keyword to each title rule.",
+    useUpTo200KeywordsPerListAnd200:
+      "Use up to 200 keywords per list and 200 characters per keyword.",
+  },
+  sectionHelp: {
+    about: (title: string) => `About ${title}`,
   },
 } as const;

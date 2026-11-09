@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { onPreferencesChanged } from "../preferences.js";
 import type { FormFillResolutionRequest } from "../messages.js";
 import { SERVER_URL, onServerChanged } from "../config.js";
@@ -77,7 +78,7 @@ function manualPresentation(field: ManualField, clientFieldId: string): Presente
     container: field.container,
     prompt: field.prompt,
     state: "manual",
-    label: "Complete this manually",
+    label: copy.scanner.completeThisManually,
     detail: field.reason,
   };
 }
@@ -187,16 +188,16 @@ export class EasyApplyScanner {
         waitingForValidation: (handle, snapshot) => {
           this.notes.set(handle, {
             state: "attention",
-            label: "Waiting for numeric validation",
-            detail: "This value will be remembered only after validation succeeds.",
+            label: copy.scanner.waitingForNumericValidation,
+            detail: copy.scanner.thisValueWillBeRememberedOnlyAfterValidationSucceeds,
             signature: snapshotKey(snapshot),
           });
         },
         incompleteChoice: (handle, snapshot) => {
           this.notes.set(handle, {
             state: "failed",
-            label: "Could not remember this choice",
-            detail: "Its current option identity is incomplete.",
+            label: copy.scanner.couldNotRememberThisChoice,
+            detail: copy.scanner.itsCurrentOptionIdentityIsIncomplete,
             signature: snapshotKey(snapshot),
           });
           this.renderCurrent();
@@ -497,10 +498,10 @@ export class EasyApplyScanner {
     const base = this.basePresentation(runtime);
     const result = runtime.result;
     if (result.status !== "approved" && result.status !== "captured") {
-      return { ...base, state: "error", label: "Could not check this field" };
+      return { ...base, state: "error", label: copy.scanner.couldNotCheckThisField };
     }
     const live = this.liveField(runtime);
-    if (!live) return { ...base, state: "error", label: "Field changed before filling" };
+    if (!live) return { ...base, state: "error", label: copy.scanner.fieldChangedBeforeFilling };
     runtime.field = live;
     const current = snapshotControl(live);
     const owned = this.ownership.get(live.handle);
@@ -514,15 +515,15 @@ export class EasyApplyScanner {
       if (validationEvidence(live) === "error") {
         this.notes.set(live.handle, {
           state: "failed",
-          label: "Filled value needs attention",
-          detail: "The host reported a validation error. Job Tracker will not retry it.",
+          label: copy.scanner.filledValueNeedsAttention,
+          detail: copy.scanner.theHostReportedAValidationErrorJobTrackerWill,
           signature: snapshotKey(current),
         });
         return {
           ...base,
           state: "failed",
-          label: "Filled value needs attention",
-          detail: "The host reported a validation error. Job Tracker will not retry it.",
+          label: copy.scanner.filledValueNeedsAttention,
+          detail: copy.scanner.theHostReportedAValidationErrorJobTrackerWill,
           actions: this.revertActions(live.handle, owned.before),
         };
       }
@@ -531,8 +532,8 @@ export class EasyApplyScanner {
         state: "filled",
         label:
           owned.source === "captured"
-            ? "Filled from a remembered value"
-            : "Filled from verified answer",
+            ? copy.scanner.filledFromARememberedValue
+            : copy.scanner.filledFromVerifiedAnswer,
         actions: this.revertActions(live.handle, owned.before),
       };
     }
@@ -550,13 +551,13 @@ export class EasyApplyScanner {
         state: "already",
         label:
           result.status === "captured"
-            ? "Already matches remembered value"
-            : "Already matches your answer",
+            ? copy.scanner.alreadyMatchesRememberedValue
+            : copy.scanner.alreadyMatchesYourAnswer,
       };
     }
     const suppressed = this.writeSuppressionKey(runtime, current);
     if (this.suppressedWrites.has(suppressed)) {
-      return { ...base, state: "kept", label: "Existing value kept" };
+      return { ...base, state: "kept", label: copy.scanner.existingValueKept };
     }
     if (isControlEmpty(live)) {
       return this.applyRuntime(runtime, false);
@@ -564,27 +565,27 @@ export class EasyApplyScanner {
     return {
       ...base,
       state: "differs",
-      label: "Existing value differs",
-      detail: "The current value was preserved.",
+      label: copy.scanner.existingValueDiffers,
+      detail: copy.scanner.theCurrentValueWasPreserved,
       actions: [
         {
-          label: "Use my answer",
+          label: copy.scanner.useMyAnswer,
           kind: "primary",
           run: () => this.updatePresentation(live.container, this.applyRuntime(runtime, true)),
         },
         {
-          label: "Keep existing",
+          label: copy.scanner.keepExisting,
           run: () => {
             this.suppressedWrites.add(this.writeSuppressionKey(runtime, snapshotControl(live)));
             this.updatePresentation(live.container, {
               ...base,
               state: "kept",
-              label: "Existing value kept",
+              label: copy.scanner.existingValueKept,
             });
           },
         },
         {
-          label: "Remember existing",
+          label: copy.scanner.rememberExisting,
           run: () => this.rememberExisting(runtime),
         },
       ],
@@ -595,31 +596,31 @@ export class EasyApplyScanner {
     const base = this.basePresentation(runtime);
     const result = runtime.result;
     if (result.status !== "approved" && result.status !== "captured") {
-      return { ...base, state: "failed", label: "No fill action is available" };
+      return { ...base, state: "failed", label: copy.scanner.noFillActionIsAvailable };
     }
     const live = this.liveField(runtime);
     if (!live || !snapshotsEqual(snapshotControl(live), runtime.expected)) {
       return {
         ...base,
         state: "failed",
-        label: "Field changed before filling",
-        detail: "The latest form value was preserved.",
+        label: copy.scanner.fieldChangedBeforeFilling,
+        detail: copy.scanner.theLatestFormValueWasPreserved,
       };
     }
     if (!explicitReplacement && !isControlEmpty(live)) {
       return {
         ...base,
         state: "differs",
-        label: "Existing value differs",
-        detail: "The current value was preserved.",
+        label: copy.scanner.existingValueDiffers,
+        detail: copy.scanner.theCurrentValueWasPreserved,
       };
     }
     if (!canApplyAction(live, result.action)) {
       return {
         ...base,
         state: "failed",
-        label: "Fill instruction is incompatible",
-        detail: "Complete this field manually.",
+        label: copy.scanner.fillInstructionIsIncompatible,
+        detail: copy.scanner.completeThisFieldManually,
       };
     }
 
@@ -637,8 +638,8 @@ export class EasyApplyScanner {
       return {
         ...base,
         state: "failed",
-        label: "Could not verify the filled value",
-        detail: "Job Tracker will not retry this field.",
+        label: copy.scanner.couldNotVerifyTheFilledValue,
+        detail: copy.scanner.jobTrackerWillNotRetryThisField,
       };
     }
     runtime.field = live;
@@ -658,8 +659,8 @@ export class EasyApplyScanner {
       return {
         ...base,
         state: "failed",
-        label: "Filled value needs attention",
-        detail: "The host reported a validation error. Job Tracker will not retry it.",
+        label: copy.scanner.filledValueNeedsAttention,
+        detail: copy.scanner.theHostReportedAValidationErrorJobTrackerWill,
         actions: this.revertActions(live.handle, before),
       };
     }
@@ -668,8 +669,8 @@ export class EasyApplyScanner {
       state: "filled",
       label:
         result.status === "captured"
-          ? "Filled from a remembered value"
-          : "Filled from verified answer",
+          ? copy.scanner.filledFromARememberedValue
+          : copy.scanner.filledFromVerifiedAnswer,
       actions: this.revertActions(live.handle, before),
     };
   }
@@ -728,8 +729,8 @@ export class EasyApplyScanner {
     this.suppressedWrites.add(this.writeSuppressionKey(runtime, current));
     this.notes.set(field.handle, {
       state: "failed",
-      label: "No exact suggestion to select",
-      detail: "Complete this field manually.",
+      label: copy.scanner.noExactSuggestionToSelect,
+      detail: copy.scanner.completeThisFieldManually,
       signature: snapshotKey(current),
     });
     this.schedule();
@@ -750,7 +751,7 @@ export class EasyApplyScanner {
         label:
           note?.signature === snapshotKey(pending.snapshot)
             ? note.label
-            : "Waiting to remember this change",
+            : copy.scanner.waitingToRememberThisChange,
         detail: note?.signature === snapshotKey(pending.snapshot) ? note.detail : undefined,
       };
     }
@@ -771,7 +772,7 @@ export class EasyApplyScanner {
     const remember = existing
       ? [
           {
-            label: "Remember existing",
+            label: copy.scanner.rememberExisting,
             run: () => this.rememberExisting(runtime),
           },
         ]
@@ -781,11 +782,11 @@ export class EasyApplyScanner {
         return {
           ...base,
           state: "confirmation",
-          label: "Confirm before filling",
-          detail: existing ? "The current value was preserved." : undefined,
+          label: copy.scanner.confirmBeforeFilling,
+          detail: existing ? copy.scanner.theCurrentValueWasPreserved : undefined,
           actions: [
             {
-              label: "Confirm",
+              label: copy.scanner.confirm,
               kind: "primary",
               run: () => void this.confirm(runtime),
             },
@@ -796,27 +797,27 @@ export class EasyApplyScanner {
         return {
           ...base,
           state: "attention",
-          label: "Review remembered values",
+          label: copy.scanner.reviewRememberedValues,
         };
       case "blocked":
         return {
           ...base,
           state: "attention",
-          label: "Not filled — review needed",
+          label: copy.scanner.notFilledReviewNeeded,
           detail: result.reason,
         };
       case "ignored":
         return {
           ...base,
           state: "ignored",
-          label: "Ignored in Job Tracker",
+          label: copy.scanner.ignoredInJobTracker,
           detail: result.reason,
         };
       case "unresolved":
         return {
           ...base,
           state: "unresolved",
-          label: existing ? "Existing value preserved" : "Needs your answer",
+          label: existing ? copy.scanner.existingValuePreserved : copy.scanner.needsYourAnswer,
           actions: remember,
         };
     }
@@ -858,7 +859,9 @@ export class EasyApplyScanner {
   }
 
   private revertActions(handle: string, before: ControlSnapshot): PresentedAction[] | undefined {
-    return isRestorable(before) ? [{ label: "Revert", run: () => this.revert(handle) }] : undefined;
+    return isRestorable(before)
+      ? [{ label: copy.scanner.revert, run: () => this.revert(handle) }]
+      : undefined;
   }
 
   private revert(handle: string, schedule = true): void {
@@ -889,7 +892,7 @@ export class EasyApplyScanner {
     this.suppressedWrites.add(this.writeSuppressionKey(runtime, runtime.expected));
     this.notes.set(handle, {
       state: "reverted",
-      label: "Job Tracker fill reverted",
+      label: copy.scanner.jobTrackerFillReverted,
       signature: snapshotKey(runtime.expected),
     });
     if (schedule) this.schedule();
@@ -937,13 +940,15 @@ export class EasyApplyScanner {
       ok
         ? {
             state: cleared ? "cleared" : "remembered",
-            label: cleared ? "Remembered value cleared" : "Remembered for this exact question",
+            label: cleared
+              ? copy.scanner.rememberedValueCleared
+              : copy.scanner.rememberedForThisExactQuestion,
             signature,
           }
         : {
             state: "failed",
-            label: "Could not remember this value",
-            detail: "Change this field again to retry.",
+            label: copy.scanner.couldNotRememberThisValue,
+            detail: copy.scanner.changeThisFieldAgainToRetry,
             signature,
           },
     );
@@ -1012,7 +1017,7 @@ export class EasyApplyScanner {
               container: field.container,
               handle: field.handle,
               prompt: field.request.prompt,
-              reason: "Waiting for this new question to finish rendering.",
+              reason: copy.scanner.waitingForThisNewQuestionToFinishRendering,
             });
           }
         }
@@ -1034,8 +1039,8 @@ export class EasyApplyScanner {
       ) {
         this.notes.set(field.handle, {
           state: "failed",
-          label: "Filled value needs attention",
-          detail: "The host reported a validation error. Job Tracker will not retry it.",
+          label: copy.scanner.filledValueNeedsAttention,
+          detail: copy.scanner.theHostReportedAValidationErrorJobTrackerWill,
           signature: snapshotKey(owned.after),
         });
       }
@@ -1050,7 +1055,7 @@ export class EasyApplyScanner {
             container: field.container,
             handle: field.handle,
             prompt: field.request.prompt,
-            reason: "Job Tracker could not identify this job safely.",
+            reason: copy.scanner.jobTrackerCouldNotIdentifyThisJobSafely,
           });
         }
       }
@@ -1108,8 +1113,8 @@ export class EasyApplyScanner {
           container: field.container,
           prompt: field.request.prompt,
           state: "error" as const,
-          label: "Could not check this field",
-          detail: "Existing values were left untouched.",
+          label: copy.scanner.couldNotCheckThisField,
+          detail: copy.scanner.existingValuesWereLeftUntouched,
         })),
         ...manual.map((field, index) => manualPresentation(field, `manual-${index + 1}`)),
       ];
@@ -1129,8 +1134,8 @@ export class EasyApplyScanner {
           container: field.container,
           prompt: field.request.prompt,
           state: "error",
-          label: "Could not check this field",
-          detail: "Existing values were left untouched.",
+          label: copy.scanner.couldNotCheckThisField,
+          detail: copy.scanner.existingValuesWereLeftUntouched,
         });
         continue;
       }

@@ -170,7 +170,7 @@ export default function App() {
     api
       .lookupListing(platform, platformId)
       .then((r) => active && setSelectedJobId(r.job_id))
-      .catch(() => active && toast.info(`“${platform}:${platformId}” isn’t captured yet.`));
+      .catch(() => active && toast.info(copy.app.isnTCapturedYet(platform, platformId)));
     return () => {
       active = false;
     };

@@ -21,9 +21,9 @@ export function MatchCandidateCard({ match: m, onChoose }: Props) {
   const timing = timingText(m.timing);
   const facts = [
     m.company,
-    `${m.listing_count} listing${m.listing_count === 1 ? "" : "s"}`,
-    `Tracked ${fmtDate(m.created_at)}`,
-    m.closed_at ? `Closed ${fmtDate(m.closed_at)}` : null,
+    copy.matchCandidateCard.listing(m.listing_count),
+    copy.matchCandidateCard.tracked(fmtDate(m.created_at)),
+    m.closed_at ? copy.matchCandidateCard.closed(fmtDate(m.closed_at)) : null,
   ].filter(Boolean);
 
   return (
@@ -81,7 +81,7 @@ function SimilarityChip({ similarity }: { similarity: number | null }) {
   const tone = percent >= 70 ? "high" : percent >= 40 ? "mid" : "low";
   return (
     <span
-      title={`${percent}% job-description overlap with this listing`}
+      title={copy.matchCandidateCard.jobDescriptionOverlapWithThisListing(percent)}
       className={`w-14 shrink-0 rounded py-1 text-center text-xs font-semibold ${SIMILARITY_TONE[tone]}`}
     >
       {percent}%

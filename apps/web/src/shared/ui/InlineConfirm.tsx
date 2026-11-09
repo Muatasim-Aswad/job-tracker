@@ -16,8 +16,8 @@ interface Props {
 export function InlineConfirm({
   trigger,
   triggerLabel,
-  confirmLabel = "Sure?",
-  actionLabel = "Delete",
+  confirmLabel = copy.confirmation.prompt,
+  actionLabel = copy.confirmation.action,
   onConfirm,
   className,
 }: Props) {

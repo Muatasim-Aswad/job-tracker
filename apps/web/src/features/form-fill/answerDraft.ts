@@ -114,3 +114,14 @@ export function valueFromDraft(draft: AnswerDraft): AnswerValue {
   }
   return { kind: "text", value: draft.scalar };
 }
+
+export function answerFields(draft: AnswerDraft) {
+  return {
+    answer_key: draft.answerKey,
+    choices: draft.choices,
+    description: draft.description || null,
+    fill_policy: draft.fillPolicy,
+    label: draft.label,
+    value: valueFromDraft(draft),
+  };
+}

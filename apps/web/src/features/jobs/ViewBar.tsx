@@ -100,7 +100,7 @@ export function ViewBar({
         value={search}
         onChange={onSearchChange}
         inputRef={searchRef}
-        count={narrowed ? `${shownCount} of ${totalCount}` : totalCount}
+        count={narrowed ? copy.viewBar.of(shownCount, totalCount) : totalCount}
         countLabel={copy.viewBar.jobsShownAfterSearchFiltersTotalLoaded}
         active={narrowed}
         onClear={onClearAll}

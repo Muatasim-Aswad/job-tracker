@@ -1,4 +1,30 @@
 export const copy = {
+  addActions: {
+    customFields: "Add custom field",
+    cancelCustomFields: "Cancel adding custom field",
+    notes: "Add note",
+    cancelNotes: "Cancel adding note",
+  },
+  editingHelp: {
+    metadata:
+      "Your own fields on this job: recruiter, salary expectation, referral — anything the tracker has no place for.",
+    timeline:
+      "What happened, in order. Add a note for anything dated — a call, an email, a reply. A standing fact belongs in a custom field, a file you send in documents.",
+    noListings: "No listings.",
+    noOtherJobs: "No other jobs match.",
+    deleteJob: "Delete job",
+    markGhosted: "Mark ghosted",
+    timelineEmpty: "No events.",
+    held: (duration: string) => `held ${duration}`,
+  },
+  availability: {
+    closed: "Closed",
+    unavailable: "Unavailable",
+    applications: (closed: boolean) =>
+      closed ? "Applications closed" : "Applications unavailable",
+    listingClosed: "A listing is closed",
+    listingUnavailable: "A listing is unavailable",
+  },
   addJobDialog: {
     addAJob: "Add a job",
     close: "Close",
@@ -28,6 +54,11 @@ export const copy = {
     moveForward: "Move forward",
     setOutcome: "Set outcome",
     reopenToApply: "Reopen (to apply)",
+    untitled: "Untitled",
+    noRecordedActivitySinceOpenToReview: (value: string) =>
+      `No recorded activity since ${value} — open to review`,
+    openPosting: (platform: string | undefined) => `Open posting (${platform})`,
+    openApplicationAt: (applyUrl: string) => `Open application (${applyUrl})`,
   },
   metaEditor: {
     fieldName: "Field name",
@@ -39,9 +70,22 @@ export const copy = {
     customFields: "Custom fields",
     add: " Add",
     cancel2: "Cancel",
+
+    edit: (name: string) => `Edit ${name}`,
+    delete: (name: string) => `Delete ${name}`,
+    confirmDelete: (name: string) => `Delete ${name}?`,
+
+    usedOn: (uses: number) => `used on ${uses} ${uses === 1 ? "job" : "jobs"}`,
   },
   noResults: {
     clearFilters: "Clear filters",
+    noJobsMatchAmongStarredJobsNeedingAttention: (q: string) =>
+      `No jobs match “${q}” among starred jobs needing attention.`,
+    noJobsNeedingAttentionMatch: (q: string) => `No jobs needing attention match “${q}”.`,
+    noJobsMatchAmongStarred: (q: string) => `No jobs match “${q}” among starred.`,
+    noJobsMatch: (q: string) => `No jobs match “${q}”.`,
+    noJobsWithListingsMatch: (listingAvailability: string) =>
+      `No jobs with ${listingAvailability} listings match.`,
   },
   timeline: {
     timeline: "Timeline",
@@ -59,6 +103,9 @@ export const copy = {
     title: "Title",
     save: " Save",
     cancel2: " Cancel",
+
+    deleteNote: "Delete note",
+    deleteNote2: "Delete note?",
   },
   viewBar: {
     searchJobsByTitleOrCompany: "Search jobs by title or company",
@@ -77,11 +124,14 @@ export const copy = {
     visibility: "Visibility",
     hideHiddenJobs: "Hide hidden jobs",
     hideBlockedCompanies: "Hide blocked companies",
+    of: (shownCount: number, totalCount: number) => `${shownCount} of ${totalCount}`,
   },
   attentionPanel: {
     needsAttention: "Needs attention",
     noRecordedActivitySince: "No recorded activity since ",
     addNote: "Add note",
+    markThisJobGhosted: "Mark this job ghosted?",
+    markGhosted: "Mark ghosted",
   },
   correctPanel: {
     fixIncorrectStatus: "Fix incorrect status",
@@ -111,12 +161,27 @@ export const copy = {
     undoTheLastStatusChange: "Undo the last status change?",
     undo: "Undo",
     listings: "Listings",
+    job: "Job",
+    couldnTCopyToTheClipboard: (value: string) => `Couldn’t copy to the clipboard. ${value}`,
+    moveForwardThisJobIsAtATerminalOutcome: "Move forward — this job is at a terminal outcome",
+    undoTheLastStatusChangeThereHasnTBeen:
+      "Undo the last status change — there hasn’t been one yet",
+    details: (job: string) => `${job} details`,
+    added: (value: string) => `Added ${value}`,
+    deleteJobAndAllItsData: "Delete job and all its data?",
   },
   listingCard: {
     copyJobDescription: "Copy job description",
     editListing: "Edit listing",
     relinkToAnotherJob: "Relink to another job",
     company: "Company",
+    couldNotCopyTheJobDescription: (value: string) =>
+      `Could not copy the job description. ${value}`,
+    deleteListingRemovesJob: "Delete listing (removes job)?",
+    deleteListing: "Delete listing?",
+    find: (platformId: string) => `find ${platformId}`,
+    posted: (text: string) => `Posted ${text}`,
+    deleteListing2: "Delete listing",
   },
   listingEditForm: {
     postingURL: "Posting URL",
@@ -132,6 +197,12 @@ export const copy = {
     different: "Different",
     this: "This: ",
     theirs: "Theirs: ",
+    listing: (listingCount: number) =>
+      `${listingCount} ${listingCount === 1 ? "listing" : "listings"}`,
+    tracked: (value: string) => `Tracked ${value}`,
+    closed: (value: string) => `Closed ${value}`,
+    jobDescriptionOverlapWithThisListing: (percent: number) =>
+      `${percent}% job-description overlap with this listing`,
   },
   movePanel: {
     moveForward: "Move forward",
@@ -153,6 +224,8 @@ export const copy = {
     searchTitleOrCompany: "Search title or company…",
     likelyDuplicates: "Likely duplicates",
     otherJobs: "Other jobs",
+    lookingForDuplicates: "Looking for duplicates…",
+    noLikelyDuplicates: "No likely duplicates.",
   },
 
   addJobDialogMessages: {
@@ -224,5 +297,26 @@ export const copy = {
     dataRefreshed: "Data refreshed.",
     couldntRefreshDataCheckYourConnectionAndTryAgain:
       "Couldn’t refresh data. Check your connection and try again.",
+  },
+  sortMenu: {
+    sortJobs: "Sort jobs",
+    message: (actionLabel: string, label: string) => `${actionLabel}: ${label}`,
+  },
+  jobSort: {
+    updatedNewest: "Updated (newest)",
+    updatedOldest: "Updated (oldest)",
+    addedNewest: "Added (newest)",
+    addedOldest: "Added (oldest)",
+    titleAZ: "Title (A–Z)",
+    titleZA: "Title (Z–A)",
+  },
+  column: {
+    expand: (label: string) => `Expand ${label}`,
+    collapse: (label: string) => `Collapse ${label}`,
+  },
+  listingAvailability: {
+    listingClosed: (value: string) => `Listing closed ${value}`,
+    availabilityObserved: (value: string) => `Availability observed ${value}`,
+    listing: (value: string) => `Listing ${value}`,
   },
 } as const;

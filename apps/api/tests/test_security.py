@@ -82,7 +82,12 @@ def test_private_authorization_errors_are_no_store(
 ) -> None:
     response = keyed_client.get(path, headers={"X-API-Key": key} if key is not None else {})
     assert response.status_code == 401
-    assert response.json() == {"detail": "missing or invalid X-API-Key"}
+    assert response.json()["error"] == {
+        "status": response.status_code,
+        "code": "unauthorized",
+        "message": "missing or invalid X-API-Key",
+        "request_id": response.headers["X-Request-ID"],
+    }
     assert response.headers.get("cache-control") == "no-store"
 
 
@@ -106,7 +111,12 @@ def test_private_http_errors_preserve_retry_headers(client: TestClient) -> None:
     finally:
         app.dependency_overrides[get_conn] = previous
     assert response.status_code == 503
-    assert response.json() == {"detail": "synthetic busy"}
+    assert response.json()["error"] == {
+        "status": response.status_code,
+        "code": "service_unavailable",
+        "message": "synthetic busy",
+        "request_id": response.headers["X-Request-ID"],
+    }
     assert response.headers["retry-after"] == "7"
     assert response.headers["allow"] == "GET"
     assert response.headers.get("cache-control") == "no-store"

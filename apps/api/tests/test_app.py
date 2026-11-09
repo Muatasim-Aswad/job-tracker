@@ -54,7 +54,12 @@ def test_unhandled_exception_returns_json_500() -> None:
             resp = client.get("/api/jobs")
         assert resp.status_code == 500
         assert resp.headers["content-type"] == "application/json"
-        assert resp.json() == {"detail": "Internal Server Error"}
+        assert resp.json()["error"] == {
+            "status": resp.status_code,
+            "code": "internal_error",
+            "message": "Internal Server Error",
+            "request_id": resp.headers["X-Request-ID"],
+        }
     finally:
         app.dependency_overrides.clear()
         conn.close()
@@ -102,7 +107,7 @@ def test_lifespan_requests_commit_rollback_and_survive_restart(
                 },
             )
             assert failed.status_code == 409
-            assert failed.json()["detail"] == "stale_status"
+            assert failed.json()["error"]["code"] == "stale_status"
             assert failed.headers["cache-control"] == "no-store"
             assert (
                 client.get(

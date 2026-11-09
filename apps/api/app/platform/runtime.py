@@ -1,6 +1,5 @@
 """Profile ownership, database startup and bounded resource cleanup."""
 
-import json
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -69,7 +68,7 @@ def open_runtime(
     settings: Settings, resources: RuntimeResources, build_info: BuildInfo
 ) -> Iterator[None]:
     paths = resources.paths
-    logger.info("running build %s", json.dumps(build_info, sort_keys=True))
+    logger.info("running build", extra={"event": "runtime.started", "build": build_info})
     lock = ServerLock(paths, port=settings.port, version=PRODUCT_VERSION)
     with private_creation_mask():
         lock.acquire()  # Before open, pull or schema initialization.

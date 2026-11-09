@@ -20,21 +20,37 @@ describe("SectionHeader", () => {
     expect(screen.getByRole("heading").textContent).toBe("Status");
   });
 
-  it("words the add toggle from the noun, both ways", () => {
+  it("uses the owner’s complete add and cancel labels", () => {
     const onToggle = vi.fn();
     const { rerender } = render(
-      <SectionHeader title="Timeline" add={{ noun: "note", open: false, onToggle }} />,
+      <SectionHeader
+        title="Timeline"
+        add={{ label: "Add note", cancelLabel: "Cancel adding note", open: false, onToggle }}
+      />,
     );
     const add = screen.getByRole("button", { name: "Add note" });
     fireEvent.click(add);
     expect(onToggle).toHaveBeenCalledTimes(1);
-    rerender(<SectionHeader title="Timeline" add={{ noun: "note", open: true, onToggle }} />);
+    rerender(
+      <SectionHeader
+        title="Timeline"
+        add={{ label: "Add note", cancelLabel: "Cancel adding note", open: true, onToggle }}
+      />,
+    );
     expect(screen.getByRole("button", { name: "Cancel adding note" })).toBeTruthy();
   });
 
   it("announces the add toggle as a disclosure, not a plain button", () => {
     render(
-      <SectionHeader title="Timeline" add={{ noun: "note", open: true, onToggle: vi.fn() }} />,
+      <SectionHeader
+        title="Timeline"
+        add={{
+          label: "Add note",
+          cancelLabel: "Cancel adding note",
+          open: true,
+          onToggle: vi.fn(),
+        }}
+      />,
     );
     const add = screen.getByRole("button", { name: "Cancel adding note" });
     expect(add.getAttribute("aria-expanded")).toBe("true");
@@ -56,7 +72,15 @@ describe("SectionHeader", () => {
 
   it("renders extra controls alongside the add toggle", () => {
     render(
-      <SectionHeader title="Documents" add={{ noun: "document", open: false, onToggle: vi.fn() }}>
+      <SectionHeader
+        title="Documents"
+        add={{
+          label: "Add document",
+          cancelLabel: "Cancel adding document",
+          open: false,
+          onToggle: vi.fn(),
+        }}
+      >
         <button type="button">Sort</button>
       </SectionHeader>,
     );

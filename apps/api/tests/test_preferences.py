@@ -45,7 +45,7 @@ def test_patch_rejects_stale_writes_without_losing_other_settings(client: TestCl
         },
     )
     assert stale.status_code == 409
-    assert stale.json()["current"] == first
+    assert stale.json()["error"]["details"]["current"] == first
     second = client.patch(
         "/api/settings",
         json={"expected_revision": first["revision"], "changes": {"easy_apply_enabled": False}},

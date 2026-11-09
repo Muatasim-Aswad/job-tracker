@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { stepHeading } from "./linkedin.js";
 import type { FieldState, PresentedField } from "./types.js";
 
@@ -122,7 +123,7 @@ function marker(field: PresentedField): HTMLElement {
   }
   element.dataset.state = field.state;
   element.setAttribute("role", "note");
-  element.setAttribute("aria-label", `Job Tracker: ${field.label}`);
+  element.setAttribute(copy.presentation.ariaLabel, copy.presentation.jobTracker(field.label));
   element.replaceChildren(
     Object.assign(field.container.ownerDocument.createElement("span"), {
       className: "jh-ff-marker__symbol",
@@ -163,7 +164,7 @@ export function renderPresentation(
   const details = root.ownerDocument.createElement("details");
   details.open = options.open ?? (summary.attention > 0 || summary.manual > 0);
   const heading = root.ownerDocument.createElement("summary");
-  heading.append("Job Tracker");
+  heading.append(copy.presentation.jobTracker2);
   heading.addEventListener("click", (event) => {
     event.preventDefault();
     const open = !details.open;
@@ -173,21 +174,18 @@ export function renderPresentation(
   const tally = root.ownerDocument.createElement("span");
   tally.className = "summary";
   tally.setAttribute("aria-live", "polite");
-  tally.textContent = `${summary.filled} filled · ${summary.matching} already match · ${summary.attention} needs attention · ${summary.manual} manual`;
-  for (const state of ["remembered", "cleared", "kept", "reverted"] as const) {
-    if (summary[state] > 0) tally.textContent += ` · ${summary[state]} ${state}`;
-  }
+  tally.textContent = copy.summary.tally(summary);
   heading.append(tally);
   details.append(heading);
   const promise = root.ownerDocument.createElement("p");
   promise.className = "promise";
-  promise.textContent = "Job Tracker never continues or submits this application.";
+  promise.textContent = copy.presentation.jobTrackerNeverContinuesOrSubmitsThisApplication;
   details.append(promise);
   if (options.undoAll) {
     const undo = root.ownerDocument.createElement("button");
     undo.type = "button";
     undo.className = "action global";
-    undo.textContent = "Undo all fills";
+    undo.textContent = copy.presentation.undoAllFills;
     undo.addEventListener("click", options.undoAll);
     details.append(undo);
   }
@@ -226,11 +224,11 @@ export function renderPresentation(
     symbol.className = "symbol";
     symbol.setAttribute("aria-hidden", "true");
     symbol.textContent = SYMBOL[field.state];
-    button.append(symbol, `${field.prompt}: ${field.label}`);
+    button.append(symbol, copy.summary.field(field.prompt, field.label));
     if (field.detail) {
       const detail = root.ownerDocument.createElement("span");
       detail.className = "detail";
-      detail.textContent = ` — ${field.detail}`;
+      detail.textContent = copy.summary.detail(field.detail);
       button.append(detail);
     }
     row.append(button);
@@ -250,7 +248,7 @@ export function renderPresentation(
         link.href = field.dashboardUrl;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
-        link.textContent = "Open in dashboard";
+        link.textContent = copy.presentation.openInDashboard;
         actions.append(link);
       }
       row.append(actions);

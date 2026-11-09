@@ -118,7 +118,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
       await navigator.clipboard.writeText(JSON.stringify(job, null, 2));
       toast.info(copy.detailDrawerMessages.copiedTheFullResponseJSON);
     } catch (err) {
-      toast.error(`Couldn’t copy to the clipboard. ${describeError(err)}`);
+      toast.error(copy.detailDrawer.couldnTCopyToTheClipboard(describeError(err)));
     }
   }
 
@@ -138,8 +138,9 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
   const canUndo = !!job && job.events.some((e) => isStatusSettingEvent(e.event));
 
   // Unavailable reasons supply both accessible names and hover text.
-  const moveReason = moves.length === 0 ? "Move forward — this job is at a terminal outcome" : null;
-  const undoReason = canUndo ? null : "Undo the last status change — there hasn’t been one yet";
+  const moveReason =
+    moves.length === 0 ? copy.detailDrawer.moveForwardThisJobIsAtATerminalOutcome : null;
+  const undoReason = canUndo ? null : copy.detailDrawer.undoTheLastStatusChangeThereHasnTBeen;
 
   // The newest status event or birth anchors current-stage duration.
   const stageSince = job
@@ -164,7 +165,11 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
         ref={asideRef}
         role="dialog"
         aria-modal="true"
-        aria-label={job ? `${job.title ?? "Job"} details` : copy.detailDrawerMessages.jobDetails}
+        aria-label={
+          job
+            ? copy.detailDrawer.details(job.title ?? copy.detailDrawer.job)
+            : copy.detailDrawerMessages.jobDetails
+        }
         tabIndex={-1}
         className="flex w-lg max-w-full flex-col overflow-y-auto border-l border-line bg-canvas shadow-2xl outline-none"
       >
@@ -384,7 +389,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
                       {copy.detailDrawer.inThisStage}
                     </span>
                   ),
-                  `Added ${fmtDate(job.created_at)}`,
+                  copy.detailDrawer.added(fmtDate(job.created_at)),
                 ]}
               />
 
@@ -491,7 +496,7 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
                   />
                 ))}
                 {/* Defensive fallback for inconsistent imported data. */}
-                {job.listings.length === 0 && <EmptyBlock message="No listings." />}
+                {job.listings.length === 0 && <EmptyBlock message={copy.editingHelp.noListings} />}
               </div>
             </CollapsibleSection>
 
@@ -513,8 +518,8 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
 
             <section className="mt-2 flex justify-end border-t border-line pt-4">
               <InlineConfirm
-                trigger="Delete job"
-                confirmLabel="Delete job and all its data?"
+                trigger={copy.editingHelp.deleteJob}
+                confirmLabel={copy.detailDrawer.deleteJobAndAllItsData}
                 // A failed delete must leave the still-existing job open.
                 onConfirm={() => deleteJob.mutate(jobId, { onSuccess: onClose })}
               />

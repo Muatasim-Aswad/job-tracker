@@ -18,9 +18,9 @@ import { focusableElements, useFocusTrap } from "../shared/useFocusTrap";
 import type { ThemePref } from "../shared/theme";
 
 const THEME_FACE: Record<ThemePref, { icon: ReactNode; label: string }> = {
-  system: { icon: <Monitor size={14} />, label: "System" },
-  light: { icon: <Sun size={14} />, label: "Light" },
-  dark: { icon: <Moon size={14} />, label: "Dark" },
+  system: { icon: <Monitor size={14} />, label: copy.headerMenu.system },
+  light: { icon: <Sun size={14} />, label: copy.headerMenu.light },
+  dark: { icon: <Moon size={14} />, label: copy.headerMenu.dark },
 };
 
 const ITEM =

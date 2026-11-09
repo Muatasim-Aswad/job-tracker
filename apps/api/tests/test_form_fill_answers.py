@@ -223,8 +223,8 @@ def test_answer_value_routes_are_no_store(client: TestClient) -> None:
     )
     assert stale.status_code == 409
     assert stale.headers["cache-control"] == "no-store"
-    assert stale.json()["detail"] == "stale_revision"
-    assert stale.json()["current"]["revision"] == 2
+    assert stale.json()["error"]["code"] == "stale_revision"
+    assert stale.json()["error"]["details"]["current"]["revision"] == 2
     assert client.get(f"/api/form-fill/answers/{answer_id}").json()["label"] == "Current API label"
 
     mapped = client.delete(f"/api/form-fill/answers/{answer_id}", params={"expected_revision": 2})

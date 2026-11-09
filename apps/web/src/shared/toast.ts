@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { ApiError } from "@job-tracker/shared/api";
 
 // Keep the store outside React so request/mutation handlers can publish toasts.
@@ -49,9 +50,14 @@ export const toast = {
 
 export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
-    const detail = err.message.trim();
-    return detail ? `Request failed (${err.status}): ${detail}` : `Request failed (${err.status})`;
+    const detail =
+      err.code && Object.hasOwn(copy.apiErrors, err.code)
+        ? copy.apiErrors[err.code as keyof typeof copy.apiErrors]
+        : err.message.trim();
+    return detail
+      ? copy.toast.requestFailed(err.status, detail)
+      : copy.toast.requestFailedWithoutDetail(err.status);
   }
   if (err instanceof Error && err.message) return err.message;
-  return "Something went wrong.";
+  return copy.toast.somethingWentWrong;
 }

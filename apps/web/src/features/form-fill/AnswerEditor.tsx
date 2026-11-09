@@ -38,7 +38,7 @@ export function AnswerEditor({
     onChange({ ...draft, [key]: value });
 
   function addChoice() {
-    const displayLabel = `Choice ${draft.choices.length + 1}`;
+    const displayLabel = copy.answerEditor.choice(draft.choices.length + 1);
     const choice_key = answerKey(displayLabel);
     setChoiceQuery("");
     set("choices", [
@@ -66,10 +66,10 @@ export function AnswerEditor({
     .map((choice) => choice.display_label);
   const selectedSummary =
     selectedLabels.length === 0
-      ? "No value selected"
+      ? copy.answerEditor.noValueSelected
       : draft.valueKind === "single_choice"
-        ? `Selected: ${selectedLabels[0]}`
-        : `${selectedLabels.length} selected`;
+        ? copy.answerEditor.selected(selectedLabels[0])
+        : copy.answerEditor.selectedCount(selectedLabels.length);
 
   const nameField = (
     <label className="block text-xs font-normal text-ink-muted">
@@ -104,7 +104,7 @@ export function AnswerEditor({
             <ChoiceSetDisclosure
               count={draft.choices.length}
               initiallyExpanded={draft.selected.length === 0}
-              summary={`${draft.choices.length} choices · ${selectedSummary}`}
+              summary={copy.answerEditor.choices(draft.choices.length, selectedSummary)}
             >
               {draft.choices.length > INLINE_CHOICE_LIMIT && (
                 <label className="block text-xs font-normal text-ink-muted">
@@ -129,7 +129,7 @@ export function AnswerEditor({
                       className="flex cursor-pointer items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink has-checked:border-accent has-checked:bg-sunken"
                     >
                       <input
-                        aria-label={`Use ${choice.display_label || `choice ${index + 1}`} as the value`}
+                        aria-label={copy.answerUsage.choiceValue(choice.display_label, index)}
                         type={draft.valueKind === "single_choice" ? "radio" : "checkbox"}
                         name="answer-choice-value"
                         checked={selected}
@@ -154,7 +154,7 @@ export function AnswerEditor({
                       className="grid grid-cols-[auto_1fr_auto] gap-2"
                     >
                       <input
-                        aria-label={`Use ${choice.display_label || `choice ${index + 1}`} as the value`}
+                        aria-label={copy.answerUsage.choiceValue(choice.display_label, index)}
                         type={draft.valueKind === "single_choice" ? "radio" : "checkbox"}
                         name="answer-choice-value"
                         checked={selected}
@@ -171,7 +171,7 @@ export function AnswerEditor({
                         }
                       />
                       <input
-                        aria-label={`Choice ${index + 1} label`}
+                        aria-label={copy.answerEditor.choiceLabel(index + 1)}
                         readOnly={questionLocked}
                         value={choice.display_label}
                         onChange={(event) => {
@@ -191,7 +191,7 @@ export function AnswerEditor({
                       />
                       {questionLocked ? null : existing ? (
                         <select
-                          aria-label={`Choice ${index + 1} status`}
+                          aria-label={copy.answerEditor.choiceStatus(index + 1)}
                           value={choice.status}
                           onChange={(event) =>
                             set(

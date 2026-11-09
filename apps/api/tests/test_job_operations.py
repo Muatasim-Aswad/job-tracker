@@ -351,7 +351,7 @@ def test_excluded_jobs_cannot_be_merged_or_relinked(
             },
         )
     assert response.status_code == 409, response.text
-    assert response.json()["detail"] == "false_match_conflict"
+    assert response.json()["error"]["code"] == "false_match_conflict"
     assert [client.get(f"/api/jobs/{j['job_id']}").json() for j in (source, target)] == before
     # Capture may update observations before the relink guard; the request rollback
     # above must restore those too. SQLite total_changes includes rolled-back writes.
@@ -375,6 +375,6 @@ def test_merge_guard_resolves_aliases_inside_exclusions(
         f"/api/jobs/{source['job_id']}/link-job", json={"other_job_id": alias["job_id"]}
     )
     assert response.status_code == 409
-    assert response.json()["detail"] == "false_match_conflict"
+    assert response.json()["error"]["code"] == "false_match_conflict"
     assert conn.total_changes == before
     assert _link(client, target["job_id"], alias["job_id"])["merged_from"] == []

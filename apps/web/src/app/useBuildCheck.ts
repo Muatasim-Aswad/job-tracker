@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   fetchCurrentBuild,
@@ -27,7 +28,7 @@ export function useBuildCheck() {
         setResult({ status: "checked", current });
         if (!sameBuild(runningBuild, current) && shouldNotifyBuild(current)) {
           toast.info(
-            `A different Job Tracker build (${current.version}) is available. Open About in the menu to check and reload.`,
+            copy.useBuildCheck.aDifferentJobTrackerBuildIsAvailableOpenAbout(current.version),
             0,
           );
         }

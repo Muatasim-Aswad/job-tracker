@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { ChevronRight, Plus, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { IconButton } from "./IconButton";
@@ -8,8 +9,7 @@ interface Props {
   title: string;
   // Omit count only when nothing is countable; zero remains meaningful.
   count?: number;
-  // The noun supplies consistent Add/Cancel accessible labels.
-  add?: { noun: string; open: boolean; onToggle: () => void };
+  add?: { label: string; cancelLabel: string; open: boolean; onToggle: () => void };
   // Optional help for non-obvious sections.
   help?: string;
   collapse?: { collapsed: boolean; controlsId: string; onToggle: () => void };
@@ -40,7 +40,7 @@ export function SectionHeader({
           {collapse ? (
             <button
               type="button"
-              aria-label={`${collapse.collapsed ? "Expand" : "Collapse"} ${title}`}
+              aria-label={copy.sectionHeader.disclosure(collapse.collapsed, title)}
               aria-expanded={!collapse.collapsed}
               aria-controls={collapse.controlsId}
               onClick={collapse.onToggle}
@@ -61,7 +61,7 @@ export function SectionHeader({
           <Tooltip label={help}>
             <button
               type="button"
-              aria-label={`About ${title}`}
+              aria-label={copy.sectionHeader.about(title)}
               className="flex h-4 w-4 items-center justify-center rounded-full border border-line text-micro leading-none text-ink-muted transition-colors hover:border-line-strong hover:text-ink-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
             >
               ?
@@ -77,7 +77,7 @@ export function SectionHeader({
             active={add.open}
             activeMeans="expanded"
             onClick={add.onToggle}
-            label={add.open ? `Cancel adding ${add.noun}` : `Add ${add.noun}`}
+            label={add.open ? add.cancelLabel : add.label}
             className={
               add.open
                 ? "text-violet-600 dark:text-violet-300"

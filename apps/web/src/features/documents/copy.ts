@@ -1,4 +1,5 @@
 export const copy = {
+  addActions: { documents: "Add document", cancelDocuments: "Cancel adding document" },
   documents: {
     documentType: "Document type",
     requestedByTheEmployer: "Requested by the employer",
@@ -12,5 +13,17 @@ export const copy = {
     documents: "Documents",
     add: " Add",
     cancel2: "Cancel",
+    notSpecified: "not specified",
+    required: "required",
+    optional: "optional",
+    coverLetter: "Cover letter",
+    motivationLetter: "Motivation letter",
+    cV: "CV",
+    other: "Other",
+    deliverablesYouSendCVCoverLetterMotivationLetter:
+      "Deliverables you send: CV, cover letter, motivation letter.",
+    added: (value: string) => `added ${value}`,
+    deleteDocument: "Delete document",
+    deleteDocument2: "Delete document?",
   },
 } as const;

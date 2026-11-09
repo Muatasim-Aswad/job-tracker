@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import type {
   DiscoveredField,
   ManualField,
@@ -264,7 +265,13 @@ function manual(
   prompt: string,
   reason: string,
 ): ManualField {
-  return { kind: "manual", container, handle, prompt: prompt || "Application step", reason };
+  return {
+    kind: "manual",
+    container,
+    handle,
+    prompt: prompt || copy.manualField.applicationStep,
+    reason,
+  };
 }
 
 function classifyQuestion(
@@ -286,7 +293,8 @@ function classifyQuestion(
   const handle = fieldHandle(container, first ?? container, index);
 
   if (!first && enabledControls.some((control) => control.matches(RESUME))) return null;
-  if (!first) return manual(container, handle, prompt, "This control shape is not supported.");
+  if (!first)
+    return manual(container, handle, prompt, copy.linkedin.thisControlShapeIsNotSupported);
   if (
     first instanceof HTMLInputElement &&
     first.type === "checkbox" &&
@@ -297,17 +305,17 @@ function classifyQuestion(
     return null;
   }
   if (!prompt) {
-    return manual(container, handle, prompt, "Question text could not be identified safely.");
+    return manual(container, handle, prompt, copy.linkedin.questionTextCouldNotBeIdentifiedSafely);
   }
   if (container.querySelector(REPEATABLE)) {
-    return manual(container, handle, prompt, "Profile entries must be reviewed manually.");
+    return manual(container, handle, prompt, copy.linkedin.profileEntriesMustBeReviewedManually);
   }
   const pickSuggestion = !first.matches(LOCATION_TYPEAHEAD) && offersSuggestions(first);
   if (isTypeahead(first) && !first.matches(LOCATION_TYPEAHEAD) && !pickSuggestion) {
-    return manual(container, handle, prompt, "Choose a typeahead suggestion manually.");
+    return manual(container, handle, prompt, copy.linkedin.chooseATypeaheadSuggestionManually);
   }
   if (SENSITIVE.test(prompt) || SENSITIVE_AUTOCOMPLETE.test(first.autocomplete)) {
-    return manual(container, handle, prompt, "This sensitive control is never filled.");
+    return manual(container, handle, prompt, copy.linkedin.thisSensitiveControlIsNeverFilled);
   }
 
   let controlKind: ResolutionField["control_kind"];
@@ -321,7 +329,7 @@ function classifyQuestion(
         container,
         handle,
         prompt,
-        "Multiple-selection controls must be reviewed manually.",
+        copy.linkedin.multipleSelectionControlsMustBeReviewedManually,
       );
     }
     controlKind = "select";
@@ -340,20 +348,21 @@ function classifyQuestion(
         container,
         handle,
         prompt,
-        "The selected option could not be identified safely.",
+        copy.linkedin.theSelectedOptionCouldNotBeIdentifiedSafely,
       );
     }
     if (options.length === 0) {
-      return manual(container, handle, prompt, "No selectable options are available yet.");
+      return manual(container, handle, prompt, copy.linkedin.noSelectableOptionsAreAvailableYet);
     }
     if (options.length > MAX_OPTIONS) {
-      return manual(container, handle, prompt, "This list has too many options to check.");
+      return manual(container, handle, prompt, copy.linkedin.thisListHasTooManyOptionsToCheck);
     }
   } else if (first instanceof HTMLTextAreaElement) {
     controlKind = "textarea";
   } else if (first.type === "radio") {
     const group = choiceGroup(first);
-    if (!group) return manual(container, handle, prompt, "This radio group is unclassified.");
+    if (!group)
+      return manual(container, handle, prompt, copy.linkedin.thisRadioGroupIsUnclassified);
     const radio = radioOptions(group, clientFieldId);
     const groupName = first.name.trim();
     const labels = radio.map(({ option }) => option.label);
@@ -366,7 +375,12 @@ function classifyQuestion(
       labels.some((label) => !label) ||
       new Set(normalizedLabels).size !== normalizedLabels.length
     ) {
-      return manual(container, handle, prompt, "This radio group could not be identified safely.");
+      return manual(
+        container,
+        handle,
+        prompt,
+        copy.linkedin.thisRadioGroupCouldNotBeIdentifiedSafely,
+      );
     }
     controlKind = "radio";
     options = radio.map(({ option }) => option);
@@ -399,7 +413,7 @@ function classifyQuestion(
       controlKind = "text";
     }
   } else {
-    return manual(container, handle, prompt, "This control shape is not supported.");
+    return manual(container, handle, prompt, copy.linkedin.thisControlShapeIsNotSupported);
   }
 
   const request: ResolutionField = {
@@ -462,7 +476,7 @@ export function discoverLinkedInFields(root: HTMLElement): DiscoveredField[] {
         container,
         `manual-${index + 1}`,
         prompt,
-        "Profile entries must be reviewed manually.",
+        copy.linkedin.profileEntriesMustBeReviewedManually,
       ),
     );
   }

@@ -1,7 +1,7 @@
 import { copy } from "./copy";
 import { useRef } from "react";
 import { X } from "lucide-react";
-import { SHORTCUTS } from "../shared/shortcuts";
+import { SHORTCUTS } from "./shortcuts";
 import { useFocusTrap } from "../shared/useFocusTrap";
 import { IconButton } from "../shared/ui/IconButton";
 

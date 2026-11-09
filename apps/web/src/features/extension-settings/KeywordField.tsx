@@ -33,7 +33,7 @@ export function KeywordField({
           <span className="wrap-anywhere">{term}</span>
           <button
             type="button"
-            aria-label={`Remove ${term}`}
+            aria-label={copy.keywordField.remove(term)}
             disabled={disabled}
             className="shrink-0 rounded-full p-0.5 hover:bg-violet-500/20 focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
             onClick={() => {

@@ -69,12 +69,16 @@ export function CaptureActionPanel({
           {(
             [
               ...(!capture.mapping || capture.mapping.status === "retired"
-                ? [["create_answer_and_map", "New answer"]]
+                ? [["create_answer_and_map", copy.captureActionPanel.newAnswer]]
                 : []),
-              ...(capture.mapping ? [["update_answer", "Update saved value"]] : []),
-              ...(capture.mapping ? [["retarget_mapping", "Use another answer"]] : []),
+              ...(capture.mapping
+                ? [["update_answer", copy.captureActionPanel.updateSavedValue]]
+                : []),
+              ...(capture.mapping
+                ? [["retarget_mapping", copy.captureActionPanel.useAnotherAnswer]]
+                : []),
               ...(capture.mapping && choiceQuestion
-                ? [["replace_option_bindings", "Change choice matches"]]
+                ? [["replace_option_bindings", copy.captureActionPanel.changeChoiceMatches]]
                 : []),
             ] as [Action, string][]
           ).map(([value, text]) => (

@@ -56,7 +56,14 @@ def get_conn(request: Request, _slot: None = Depends(_database_slot)) -> Iterato
 
     def committed(elapsed_ms: float) -> None:
         if request.method != "GET":
-            logger.info("db commit %.0fms  %s %s", elapsed_ms, request.method, request.url.path)
+            logger.info(
+                "db commit",
+                extra={
+                    "event": "db.commit",
+                    "duration_ms": round(elapsed_ms, 2),
+                    "method": request.method,
+                },
+            )
             if resources.push_scheduler is not None:
                 resources.push_scheduler.notify_write()
 

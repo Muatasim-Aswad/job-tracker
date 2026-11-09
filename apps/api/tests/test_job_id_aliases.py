@@ -95,9 +95,14 @@ def test_merge_keeps_old_id_resolvable_and_moves_form_capture_context(
 
     refused = client.delete(f"/api/jobs/{loser['job_id']}")
     assert refused.status_code == 409
-    assert refused.json() == {
-        "detail": "job_merged",
-        "current": {"requested_job_id": loser["job_id"], "canonical_job_id": survivor["job_id"]},
+    assert refused.json()["error"] == {
+        "status": refused.status_code,
+        "code": "job_merged",
+        "message": "job_merged",
+        "request_id": refused.headers["X-Request-ID"],
+        "details": {
+            "current": {"requested_job_id": loser["job_id"], "canonical_job_id": survivor["job_id"]}
+        },
     }
 
 

@@ -111,7 +111,7 @@ export function TitleRules({
               <li key={item.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
                 <input
                   type="checkbox"
-                  aria-label={`Enable rule: ${item.terms.join(", ")}`}
+                  aria-label={copy.titleRules.enableRule(item.terms.join(", "))}
                   checked={item.enabled}
                   disabled={disabled}
                   className="mt-1 accent-accent"
@@ -128,7 +128,7 @@ export function TitleRules({
                   disabled={disabled}
                   onClick={() => onEdit(item)}
                   className="group min-w-0 flex-1 rounded text-left text-sm leading-relaxed text-ink hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-                  aria-label={`Edit rule: ${item.terms.join(", ")}`}
+                  aria-label={copy.titleRules.editRule(item.terms.join(", "))}
                 >
                   <span className="block">
                     {copy.titleRules.ifTitle2}
@@ -149,7 +149,7 @@ export function TitleRules({
                   </span>
                 </button>
                 <IconButton
-                  label={`Delete rule: ${item.terms.join(", ")}`}
+                  label={copy.titleRules.deleteRule(item.terms.join(", "))}
                   onClick={() => onChange(rules.filter((value) => value.id !== item.id))}
                   disabled={disabled}
                   className="shrink-0 text-ink-muted hover:text-red-500"

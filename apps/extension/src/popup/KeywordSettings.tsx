@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { SERVER_URL } from "../config";
 import { FOCUS } from "./ui";
 
@@ -12,7 +13,8 @@ export function KeywordSettings() {
           "inline-flex items-center gap-1 py-1 text-xs text-popup-accent hover:underline " + FOCUS
         }
       >
-        Manage keyword highlights and rules <span aria-hidden="true">↗</span>
+        {copy.keywordSettings.manageKeywordHighlightsAndRules}
+        <span aria-hidden="true">↗</span>
       </a>
     </div>
   );

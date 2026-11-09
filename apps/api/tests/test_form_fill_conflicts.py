@@ -316,8 +316,8 @@ def test_conflict_routes_return_value_free_summaries_and_keep_private_winner_det
     stale = client.post(endpoint, json=body)
     assert stale.status_code == 409
     assert stale.headers["cache-control"] == "no-store"
-    assert stale.json()["detail"] == "stale_conflict_set"
-    summaries = stale.json()["current"]["captures"]
+    assert stale.json()["error"]["code"] == "stale_conflict_set"
+    summaries = stale.json()["error"]["details"]["current"]["captures"]
     assert {item["id"] for item in summaries} == {first_id, second_id}
     assert all("value" not in item and item["status"] == "current" for item in summaries)
     assert service.get_capture(first_id).value is not None

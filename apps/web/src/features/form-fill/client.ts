@@ -1,4 +1,5 @@
 import { ApiError, request, toQuery } from "../../infra/http";
+import { copy } from "./copy";
 import type { components } from "@job-tracker/shared/api";
 
 type FormFillSchemas = components["schemas"];
@@ -70,8 +71,8 @@ export interface QuestionFilters {
 export class FormFillApiError extends ApiError {
   current: unknown;
 
-  constructor(status: number, message: string, current?: unknown) {
-    super(status, message);
+  constructor(status: number, message: string, current?: unknown, source?: ApiError) {
+    super(status, message, { code: source?.code, requestId: source?.requestId });
     this.name = "FormFillApiError";
     this.current = current;
   }
@@ -84,7 +85,13 @@ async function formFillRequest<T>(path: string, init?: RequestInit): Promise<T> 
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     let current: unknown;
-    if (error.status === 409 && error.payload != null) {
+    if (error.status === 409 && error.code) {
+      const details = error.details;
+      current =
+        details && typeof details === "object" && "current" in details
+          ? details.current
+          : undefined;
+    } else if (error.status === 409 && error.payload != null) {
       const payload = error.payload;
       const detail =
         typeof payload === "object" && "detail" in payload ? payload.detail : undefined;
@@ -92,10 +99,9 @@ async function formFillRequest<T>(path: string, init?: RequestInit): Promise<T> 
     }
     throw new FormFillApiError(
       error.status,
-      error.status === 409
-        ? "This changed while you were looking at it. Your change was not applied."
-        : "The form-fill request could not be completed.",
+      error.status === 409 ? copy.client.conflict : copy.client.failed,
       current,
+      error,
     );
   }
 }

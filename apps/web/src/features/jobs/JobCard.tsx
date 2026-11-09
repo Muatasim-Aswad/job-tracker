@@ -116,7 +116,7 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
       data-card-id={job.id}
       {...listeners}
       {...attributes}
-      aria-label={`${job.title ?? "Untitled"}${job.company ? `, ${job.company}` : ""}`}
+      aria-label={`${job.title ?? copy.jobCard.untitled}${job.company ? `, ${job.company}` : ""}`}
       onKeyDown={(e) => {
         // Card shortcuts require card focus; child controls retain their own keys.
         if (e.target !== e.currentTarget) {
@@ -233,7 +233,7 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
 
       {job.attention && (
         <div
-          title={`No recorded activity since ${fmtDate(job.attention.since)} — open to review`}
+          title={copy.jobCard.noRecordedActivitySinceOpenToReview(fmtDate(job.attention.since))}
           className="mt-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-micro font-medium text-amber-700 dark:text-amber-300"
         >
           {/* Separate noun-phrase stage labels to avoid "in In process". */}
@@ -258,8 +258,8 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
               rel="noreferrer"
               onPointerDown={noDrag}
               onClick={(e) => e.stopPropagation()}
-              title={`Open posting (${primary?.platform})`}
-              aria-label={`Open posting (${primary?.platform})`}
+              title={copy.jobCard.openPosting(primary?.platform)}
+              aria-label={copy.jobCard.openPosting(primary?.platform)}
               className={CARD_LINK}
             >
               {copy.jobCard.open}
@@ -272,7 +272,7 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
               rel="noreferrer"
               onPointerDown={noDrag}
               onClick={(e) => e.stopPropagation()}
-              title={`Open application (${applyUrl})`}
+              title={copy.jobCard.openApplicationAt(applyUrl)}
               aria-label={copy.jobCard.openApplication}
               className={CARD_LINK}
             >

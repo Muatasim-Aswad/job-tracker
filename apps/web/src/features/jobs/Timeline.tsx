@@ -15,9 +15,7 @@ import { CollapsibleSection, type SectionDisclosure } from "../../shared/ui/Coll
 
 const TITLE_LIST = "note-title-vocab";
 
-const HELP =
-  "What happened, in order. Add a note for anything dated — a call, an email, a " +
-  "reply. A standing fact belongs in a custom field, a file you send in documents.";
+const HELP = copy.editingHelp.timeline;
 
 // Keys treated as prose (the note body); `title` is rendered as the note heading.
 const NOTE_KEYS = ["note", "notes", "reason"];
@@ -183,7 +181,8 @@ export function Timeline({ jobId, events, addNoteRequest = 0, disclosure }: Prop
       count={events.length}
       help={HELP}
       add={{
-        noun: "note",
+        label: copy.addActions.notes,
+        cancelLabel: copy.addActions.cancelNotes,
         open: adding,
         onToggle: () => (adding ? closeAdd() : setAdding(true)),
       }}
@@ -240,7 +239,7 @@ export function Timeline({ jobId, events, addNoteRequest = 0, disclosure }: Prop
 
       {/* Defensive fallback for imported data without its birth event. */}
       {events.length === 0 ? (
-        <EmptyBlock message="No events." />
+        <EmptyBlock message={copy.editingHelp.timelineEmpty} />
       ) : (
         <ol className="flex flex-col gap-2">
           {ordered.map((ev) => {
@@ -297,8 +296,8 @@ export function Timeline({ jobId, events, addNoteRequest = 0, disclosure }: Prop
                       {isNote && (
                         <InlineConfirm
                           trigger={<Trash2 size={12} />}
-                          triggerLabel="Delete note"
-                          confirmLabel="Delete note?"
+                          triggerLabel={copy.timeline.deleteNote}
+                          confirmLabel={copy.timeline.deleteNote2}
                           onConfirm={() => deleteEvent.mutate({ eventId: ev.id, jobId })}
                         />
                       )}
@@ -311,7 +310,7 @@ export function Timeline({ jobId, events, addNoteRequest = 0, disclosure }: Prop
                     <span key="ts" title={fmtAbsolute(ev.ts)}>
                       {fmtRelative(ev.ts)}
                     </span>,
-                    duration && `held ${duration}`,
+                    duration && copy.editingHelp.held(duration),
                     // Manual notes need no repeated provenance.
                     !isNote && (
                       <span key="src" title={copy.timeline.howThisEventWasRecorded}>

@@ -48,7 +48,7 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
           >
             <span>{option.raw_label}</span>
             <select
-              aria-label={`Meaning of ${option.raw_label}`}
+              aria-label={copy.optionBindingEditor.meaningOf(option.raw_label)}
               value={selectedId}
               onChange={(event) => onChange({ ...value, [option.id]: event.target.value })}
               className="rounded border border-line bg-surface px-3 py-2"
@@ -91,7 +91,7 @@ export function OptionBindingEditor({ choices, options, value, onChange }: Props
       <ChoiceSetDisclosure
         count={activeOptions.length}
         initiallyExpanded={selectedCount < activeOptions.length}
-        summary={`${selectedCount} of ${activeOptions.length} choices matched`}
+        summary={copy.optionBindingEditor.ofChoicesMatched(selectedCount, activeOptions.length)}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm font-medium text-ink-muted">

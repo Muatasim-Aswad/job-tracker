@@ -1,8 +1,7 @@
+import { AnswerDrawerTitle } from "./AnswerDrawerTitle";
+import { AnswerDrawerFooter } from "./AnswerDrawerFooter";
 import { copy } from "./copy";
 import { useEffect, useId, useState } from "react";
-import { Pencil } from "lucide-react";
-import { IconButton } from "../../shared/ui/IconButton";
-import { formKeys } from "../../shared/forms";
 import { RevisionConflictPanel } from "./RevisionConflictPanel";
 import {
   useCreateFormFillAnswer,
@@ -17,6 +16,7 @@ import { AnswerEditor } from "./AnswerEditor";
 import { AnswerFillBehavior } from "./AnswerFillBehavior";
 import {
   choicePairsForQuestion,
+  answerFields,
   draftForQuestion,
   draftFromAnswer,
   emptyAnswerDraft,
@@ -28,7 +28,6 @@ import { isChoiceKind, valueText, type AnswerDetail, type QuestionDetail } from 
 import { fillExplanation, POLICY_LABEL } from "./copy";
 import { ChangeReview } from "./ChangeReview";
 import { KnowledgeHistory } from "./KnowledgeHistory";
-import { HelpTip } from "./HelpTip";
 
 interface Props {
   answerId: string | null;
@@ -103,69 +102,63 @@ export function AnswerDrawer({
       (draft.choices.length > 0 &&
         draft.choices.every((choice) => choice.choice_key && choice.display_label)));
 
+  async function saveExisting() {
+    if (!answerId || !answer || !baseAnswer) return;
+    const saved = await update.mutateAsync({
+      answerId,
+      body: {
+        expected_revision: baseAnswer.revision,
+        ...answerFields(draft),
+        status: draft.status,
+      },
+    });
+    setBaseAnswer(saved);
+    setDraft(draftFromAnswer(saved));
+    setBaseline(JSON.stringify(draftFromAnswer(saved)));
+    setEditingName(false);
+    setAnnouncement(copy.answerDrawerMessages.answerSaved);
+    toast.info(copy.answerDrawerMessages.answerSaved);
+    onClose();
+  }
+
+  async function saveMatched(question: QuestionDetail, advance: boolean) {
+    const created = await createForQuestion.mutateAsync({
+      questionId: question.id,
+      body: {
+        expected_question_revision: question.revision,
+        expected_mapping_revision: question.mapping?.revision ?? null,
+        ...answerFields(draft),
+        bindings: isChoiceKind(draft.valueKind)
+          ? choicePairsForQuestion(question).map(({ option, choiceKey }) => ({
+              question_option_id: option.id,
+              answer_choice_key: choiceKey,
+            }))
+          : [],
+      },
+    });
+    if (!created.answer)
+      throw new Error(copy.answerDrawerMessages.questionAnswerCreationReturnedNoAnswer);
+    setAnnouncement(copy.answerDrawerMessages.answerAndMatchCreated);
+    toast.info(copy.answerDrawerMessages.answerAndMatchCreated);
+    onCreated(created.answer.id, advance);
+  }
+
+  async function saveStandalone() {
+    const created = await create.mutateAsync({
+      ...answerFields(draft),
+      value_kind: draft.valueKind,
+    });
+    setAnnouncement(copy.answerDrawerMessages.answerCreated);
+    toast.info(copy.answerDrawerMessages.answerCreated);
+    onCreated(created.id);
+  }
+
   async function save(advance = false) {
     if (!valid || (answerId && baseAnswer?.id !== answerId)) return;
     try {
-      if (answerId && answer) {
-        const saved = await update.mutateAsync({
-          answerId,
-          body: {
-            expected_revision: baseAnswer!.revision,
-            answer_key: draft.answerKey,
-            choices: draft.choices,
-            description: draft.description || null,
-            fill_policy: draft.fillPolicy,
-            label: draft.label,
-            status: draft.status,
-            value: valueFromDraft(draft),
-          },
-        });
-        setBaseAnswer(saved);
-        setDraft(draftFromAnswer(saved));
-        setBaseline(JSON.stringify(draftFromAnswer(saved)));
-        setEditingName(false);
-        setAnnouncement(copy.answerDrawerMessages.answerSaved);
-        toast.info(copy.answerDrawerMessages.answerSaved);
-        onClose();
-      } else if (context) {
-        const created = await createForQuestion.mutateAsync({
-          questionId: context.id,
-          body: {
-            expected_question_revision: context.revision,
-            expected_mapping_revision: context.mapping?.revision ?? null,
-            answer_key: draft.answerKey,
-            choices: draft.choices,
-            description: draft.description || null,
-            fill_policy: draft.fillPolicy,
-            label: draft.label,
-            value: valueFromDraft(draft),
-            bindings: isChoiceKind(draft.valueKind)
-              ? choicePairsForQuestion(context).map(({ option, choiceKey }) => ({
-                  question_option_id: option.id,
-                  answer_choice_key: choiceKey,
-                }))
-              : [],
-          },
-        });
-        if (!created.answer)
-          throw new Error(copy.answerDrawerMessages.questionAnswerCreationReturnedNoAnswer);
-        setAnnouncement(copy.answerDrawerMessages.answerAndMatchCreated);
-        toast.info(copy.answerDrawerMessages.answerAndMatchCreated);
-        onCreated(created.answer.id, advance);
-      } else {
-        const created = await create.mutateAsync({
-          answer_key: draft.answerKey,
-          choices: draft.choices,
-          description: draft.description || null,
-          fill_policy: draft.fillPolicy,
-          label: draft.label,
-          value: valueFromDraft(draft),
-          value_kind: draft.valueKind,
-        });
-        setAnnouncement(copy.answerDrawerMessages.answerCreated);
-        toast.info(copy.answerDrawerMessages.answerCreated);
-        onCreated(created.id);
-      }
+      if (answerId && answer) return await saveExisting();
+      if (context) return await saveMatched(context, advance);
+      await saveStandalone();
     } catch {
       setAnnouncement(copy.answerDrawerMessages.theAnswerWasNotSaved);
     }
@@ -199,101 +192,36 @@ export function AnswerDrawer({
       }
       backLabel={!answerId && context ? copy.answerDrawerMessages.backToQuestion : undefined}
       title={
-        answer ? (
-          editingName ? (
-            <div className="space-y-2" onKeyDown={formKeys(finishName, cancelName)}>
-              <input
-                aria-label={copy.answerDrawer.answerName}
-                autoFocus
-                required
-                value={draft.label}
-                onChange={(event) => setDraft({ ...draft, label: event.target.value })}
-                className="w-full rounded border border-line bg-surface px-3 py-2 text-lg font-semibold text-ink"
-              />
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={!draft.label.trim()}
-                  onClick={finishName}
-                  className="rounded bg-accent px-2 py-1 text-xs font-medium text-white dark:text-canvas disabled:opacity-50"
-                >
-                  {copy.answerDrawer.done}
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelName}
-                  className="rounded px-2 py-1 text-xs text-ink-muted hover:text-ink"
-                >
-                  {copy.answerDrawer.cancel}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <h2 title={draft.label} className="line-clamp-2 text-lg font-semibold text-ink">
-                {draft.label || answer.label}
-              </h2>
-              <IconButton
-                label={copy.answerDrawer.editAnswerName}
-                onClick={() => {
-                  setNameBeforeEdit(draft.label);
-                  setEditingName(true);
-                }}
-                className="shrink-0 text-ink-muted hover:text-ink"
-              >
-                <Pencil size={16} />
-              </IconButton>
-            </div>
-          )
-        ) : context ? (
-          <h2 className="text-lg font-semibold leading-7 text-ink">{context.raw_question}</h2>
+        answer || context ? (
+          <AnswerDrawerTitle
+            answer={answer}
+            context={context}
+            label={draft.label}
+            editingName={editingName}
+            finishName={finishName}
+            cancelName={cancelName}
+            startName={() => {
+              setNameBeforeEdit(draft.label);
+              setEditingName(true);
+            }}
+            onLabelChange={(label) => setDraft({ ...draft, label })}
+          />
         ) : undefined
       }
       onClose={close}
       dirty={dirty}
       busy={mutation.isPending}
       footer={
-        <div className="flex flex-wrap items-center gap-3">
-          <HelpTip
-            text={
-              !valid
-                ? copy.answerDrawerMessages.enterAnAnswerNameAndValueToSave
-                : context
-                  ? copy.answerDrawerMessages.saveThisAnswerAndMatchItToThisQuestion
-                  : copy.answerDrawerMessages.saveThisAnswerAndItsFillBehavior
-            }
-          >
-            <button
-              type="submit"
-              form={formId}
-              disabled={!valid || mutation.isPending || (!!answerId && (!answer || !dirty))}
-              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white dark:text-canvas disabled:opacity-50"
-            >
-              {mutation.isPending
-                ? copy.answerDrawerMessages.saving
-                : answerId
-                  ? copy.answerDrawerMessages.saveAnswer
-                  : context
-                    ? copy.answerDrawerMessages.saveAnswerAndMatch
-                    : copy.answerDrawerMessages.saveAnswer}
-            </button>
-          </HelpTip>
-          {context && (
-            <HelpTip text={copy.answerDrawer.saveThisAnswerAndMatchThenOpenTheNext}>
-              <button
-                type="button"
-                disabled={!valid || mutation.isPending}
-                onClick={() => void save(true)}
-                className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
-              >
-                {copy.answerDrawer.saveAndReviewNext}
-              </button>
-            </HelpTip>
-          )}
-          {answer && !dirty && (
-            <span className="text-xs text-ink-muted">{copy.answerDrawer.noChanges}</span>
-          )}
-        </div>
+        <AnswerDrawerFooter
+          valid={valid}
+          pending={mutation.isPending}
+          existing={!!answerId}
+          hasAnswer={!!answer}
+          dirty={dirty}
+          hasContext={!!context}
+          formId={formId}
+          onAdvance={() => void save(true)}
+        />
       }
     >
       <div aria-live="polite" className="sr-only">
@@ -337,7 +265,7 @@ export function AnswerDrawer({
                   before={
                     baseAnswer
                       ? valueText(baseAnswer.value, baseAnswer.choices)
-                      : "No saved answer for this question"
+                      : copy.answerDrawer.noSavedAnswerForThisQuestion
                   }
                   after={valueText(valueFromDraft(draft), draft.choices)}
                   behavior={fillExplanation(draft.fillPolicy, draft.status)}
@@ -432,7 +360,7 @@ export function AnswerDrawer({
                         <span className="text-xs text-ink-muted">
                           {question.site_scope}
                           {copy.answerDrawer.match}
-                          {question.mapping.status}
+                          {copy.questionDetails.status[question.mapping.status]}
                         </span>
                       </button>
                     </li>

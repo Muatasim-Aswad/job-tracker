@@ -38,7 +38,7 @@ export function QuestionMatchPanel({
 }: Props) {
   const before = currentAnswer.data
     ? `${currentAnswer.data.label}: ${valueText(currentAnswer.data.value, currentAnswer.data.choices)}`
-    : "No saved answer matched";
+    : copy.questionMatchPanel.noSavedAnswerMatched;
 
   return (
     <section className="space-y-4" aria-label={copy.questionDrawer.savedAnswerForThisQuestion}>
@@ -75,7 +75,7 @@ export function QuestionMatchPanel({
           after={`${selectedAnswer.data.label}: ${valueText(selectedAnswer.data.value, selectedAnswer.data.choices)}`}
           behavior={
             question.review_state === "ignored"
-              ? "This question stays dismissed and will not fill until reopened."
+              ? copy.questionMatchPanel.thisQuestionStaysDismissedAndWillNotFillUntil
               : fillExplanation(selectedAnswer.data.fill_policy, selectedAnswer.data.status)
           }
           affected={[question.raw_question]}

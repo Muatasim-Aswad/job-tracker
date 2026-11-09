@@ -14,22 +14,22 @@ import { CollapsibleSection, type SectionDisclosure } from "../../shared/ui/Coll
 const DOC_TYPES = ["cover_letter", "motivation_letter", "cv", "other"];
 
 const DOC_TYPE_LABEL: Record<string, string> = {
-  cover_letter: "Cover letter",
-  motivation_letter: "Motivation letter",
-  cv: "CV",
-  other: "Other",
+  cover_letter: copy.documents.coverLetter,
+  motivation_letter: copy.documents.motivationLetter,
+  cv: copy.documents.cV,
+  other: copy.documents.other,
 };
 
 const docLabel = (type: string) => DOC_TYPE_LABEL[type] ?? type;
 
 // Timeline owns the distinction between dated activity and standing facts.
-const HELP = "Deliverables you send: CV, cover letter, motivation letter.";
+const HELP = copy.documents.deliverablesYouSendCVCoverLetterMotivationLetter;
 
 // Empty selection represents wire null.
 const REQUESTED = [
-  { value: "", label: "not specified" },
-  { value: "required", label: "required" },
-  { value: "optional", label: "optional" },
+  { value: "", label: copy.documents.notSpecified },
+  { value: "required", label: copy.documents.required },
+  { value: "optional", label: copy.documents.optional },
 ];
 
 const inputCls = "rounded border border-line bg-surface px-2 py-1 text-xs text-ink";
@@ -175,8 +175,8 @@ function DocumentCard({ jobId, doc }: { jobId: string; doc: JobDocument }) {
           </IconButton>
           <InlineConfirm
             trigger={<Trash2 size={13} />}
-            triggerLabel="Delete document"
-            confirmLabel="Delete document?"
+            triggerLabel={copy.documents.deleteDocument}
+            confirmLabel={copy.documents.deleteDocument2}
             onConfirm={() => deleteDoc.mutate({ documentId: doc.id, jobId })}
           />
         </span>
@@ -193,7 +193,7 @@ function DocumentCard({ jobId, doc }: { jobId: string; doc: JobDocument }) {
               {copy.documents.provided2}
             </span>
           ),
-          `added ${fmtDate(doc.created_at)}`,
+          copy.documents.added(fmtDate(doc.created_at)),
         ]}
       />
       {content && (
@@ -242,7 +242,8 @@ export function Documents({
       count={documents.length}
       help={HELP}
       add={{
-        noun: "document",
+        label: copy.addActions.documents,
+        cancelLabel: copy.addActions.cancelDocuments,
         open: adding,
         onToggle: () => (adding ? close() : setAdding(true)),
       }}

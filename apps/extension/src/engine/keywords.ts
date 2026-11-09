@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import type { TitleRule } from "@job-tracker/shared/api";
 
 // Pure keyword-policy and matching logic shared by cards and detail banners.
@@ -64,8 +65,8 @@ interface SignalDef {
 export const SIGNAL_CATALOG: SignalDef[] = [
   {
     id: "experience-years",
-    label: "Experience in years",
-    help: "Words that follow the number e.g. years.",
+    label: copy.keywords.experienceInYears,
+    help: copy.keywords.wordsThatFollowTheNumberEGYears,
     numeric: true,
     deriveLabel: (m) => `${normalizeNumericValue(m[1])} ${m[2].toLowerCase()}`,
     default: {
@@ -77,8 +78,8 @@ export const SIGNAL_CATALOG: SignalDef[] = [
   },
   {
     id: "language",
-    label: "Language requirements",
-    help: "Required-language wording.",
+    label: copy.keywords.languageRequirements,
+    help: copy.keywords.requiredLanguageWording,
     deriveLabel: (m) => m[0].toLowerCase(),
     default: {
       enabled: true,
@@ -89,8 +90,8 @@ export const SIGNAL_CATALOG: SignalDef[] = [
   },
   {
     id: "pay",
-    label: "Pay",
-    help: "Currency words or signs.",
+    label: copy.keywords.pay,
+    help: copy.keywords.currencyWordsOrSigns,
     currency: true,
     // Whitespace between sign and figure is cosmetic, so it collapses into the chip.
     deriveLabel: (m) => m[0].replace(/\s+/g, " ").toLowerCase(),
@@ -103,8 +104,8 @@ export const SIGNAL_CATALOG: SignalDef[] = [
   },
   {
     id: "custom-words",
-    label: "Role & custom words",
-    help: "e.g. “senior” or “intern” and any words you add.",
+    label: copy.keywords.roleCustomWords,
+    help: copy.keywords.eGSeniorOrInternAndAnyWordsYou,
     // Seniority wording plus whatever the user adds. Must stay last among the `banner`
     // signals, which is what `uncapped` rests on.
     uncapped: true,
@@ -128,8 +129,8 @@ export const SIGNAL_CATALOG: SignalDef[] = [
   },
   {
     id: "outline-titles",
-    label: "Outline job cards",
-    help: "Red-outlines a card whose title contains a word.",
+    label: copy.keywords.outlineJobCards,
+    help: copy.keywords.redOutlinesACardWhoseTitleContainsAWord,
     deriveLabel: (m) => m[0].toLowerCase(),
     default: {
       enabled: false,
@@ -140,8 +141,8 @@ export const SIGNAL_CATALOG: SignalDef[] = [
   },
   {
     id: "auto-hide-titles",
-    label: "Auto-hide jobs",
-    help: "Hides a job whose title starts with a word — undo under Hidden jobs.",
+    label: copy.keywords.autoHideJobs,
+    help: copy.keywords.hidesAJobWhoseTitleStartsWithAWord,
     deriveLabel: (m) => m[0].toLowerCase(),
     default: { enabled: false, scope: "title", action: "hide", terms: ["senior"] },
   },

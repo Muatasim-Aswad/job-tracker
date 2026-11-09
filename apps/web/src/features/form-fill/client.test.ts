@@ -174,3 +174,28 @@ describe("form-fill API privacy boundary", () => {
     );
   });
 });
+
+it("projects standard conflicts without retaining a private transport payload", async () => {
+  const envelope = {
+    error: {
+      status: 409,
+      code: "stale_revision",
+      request_id: "request-1",
+      message: "PRIVATE SERVER MESSAGE",
+      details: { current: { revision: 4 } },
+    },
+  };
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(new Response(JSON.stringify(envelope), { status: 409 })),
+  );
+  const error = await api.getFormFillAnswer("answer-1").catch((value: unknown) => value);
+  expect(error).toMatchObject({
+    code: "stale_revision",
+    requestId: "request-1",
+    current: { revision: 4 },
+    payload: undefined,
+    details: undefined,
+  });
+  expect(describeError(error)).not.toContain("PRIVATE SERVER MESSAGE");
+});

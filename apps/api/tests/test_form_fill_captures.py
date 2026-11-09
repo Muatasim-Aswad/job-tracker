@@ -358,8 +358,8 @@ def test_capture_collection_and_revision_errors_omit_retained_values(client: Tes
     ):
         assert response.status_code == 409
         assert response.headers["cache-control"] == "no-store"
-        assert response.json()["detail"] == error
-        current = response.json()["current"]
+        assert response.json()["error"]["code"] == error
+        current = response.json()["error"]["details"]["current"]
         summary = current.get("capture", current)
         assert summary["id"] == capture["id"]
         assert "value" not in summary

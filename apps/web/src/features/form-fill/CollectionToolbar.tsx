@@ -50,12 +50,7 @@ export function CollectionSearch({
   onClear,
 }: CollectionSearchProps) {
   const id = useId();
-  const description =
-    count == null
-      ? loading
-        ? `Loading ${itemName}s`
-        : "Count unavailable"
-      : `${count} ${itemName}${count === 1 ? "" : "s"} ${hasNextPage ? "loaded; more available" : "shown"}.`;
+  const description = copy.collectionSearch.description(count, loading, itemName, hasNextPage);
   return (
     <HeaderSearch
       label={label}

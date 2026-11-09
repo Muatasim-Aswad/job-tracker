@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import type { BuildInfo } from "../../../scripts/build-metadata.mjs";
 
 declare const __BUILD_INFO__: BuildInfo;
@@ -32,13 +33,13 @@ export function toolbarStatus(reachable: boolean, mismatch: boolean) {
     return {
       text: "!",
       color: "#e53e3e",
-      title: "Job Tracker — can't reach the server; changes aren't being saved",
+      title: copy.version.jobTrackerCanTReachTheServerChangesAren,
     };
   if (mismatch)
     return {
       text: "↑",
       color: "#b45309",
-      title: "Job Tracker — extension and server versions differ",
+      title: copy.version.jobTrackerExtensionAndServerVersionsDiffer,
     };
-  return { text: "", color: "#b45309", title: "Job Tracker" };
+  return { text: "", color: "#b45309", title: copy.version.jobTracker };
 }
