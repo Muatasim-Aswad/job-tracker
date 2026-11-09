@@ -51,7 +51,11 @@ Startup configures JSON operational logs with timestamp, level, logger, message,
 
 ## Busy requests and shutdown
 
-Database requests wait in an asynchronous admission queue, preserving worker slots for the request holding the connection. Admission and connection-lock waits each expire after 30 seconds with `503`, `Retry-After: 1`, and `Cache-Control: no-store`. Retrying a rejected request is safe: it has not entered its transaction. A DB-free health response proves reachability, not database readiness.
+Database requests wait in an asynchronous admission queue, preserving worker slots for the request holding the connection. Admission and connection-lock waits each expire after 30 seconds with `503`, `Retry-After: 1`, and `Cache-Control: no-store`. Retrying a rejected request is safe: it has not entered its transaction.
+
+`GET /health` and `GET /api/health` remain database-free reachability probes. `GET /health/ready` returns `200 {"status":"ready"}` only after runtime startup and a successful `SELECT 1` on the active connection under its shared lock. Startup, shutdown, query failures, and a one-second response deadline produce the standard `503 service_unavailable` envelope with `Retry-After: 1`. Readiness responses are `Cache-Control: no-store`. This public operational route retains host/origin checks and requires no API key; it exposes no database details. Local readiness does not require successful Turso synchronization and does not prove remote-primary write availability.
+
+At most one readiness query runs at a time, outside the request worker pool. A cancelled or timed-out caller leaves that query owning its connection lock until it finishes; later probes share the pending work instead of accumulating workers. A stalled native driver may outlive the response deadline, so the process manager's final stop deadline remains necessary. Cleanup disables readiness before stopping synchronization or closing the connection.
 
 A timed-out database wait logs its stage and dumps Python thread stacks to stderr at most once per minute. Dumps omit frame locals, SQL, credentials, and request bodies; under systemd they appear in the service journal. Capture those logs before restarting a future unresponsive server.
 

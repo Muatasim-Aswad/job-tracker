@@ -11,6 +11,7 @@ from app.core.lifecycle import ServerLock, private_creation_mask, protect_new_da
 from app.core.paths import ResolvedPaths
 from app.core.version import PRODUCT_VERSION
 from app.infra.database import Conn, Database, connect, init_schema
+from app.infra.readiness import DatabaseReadiness
 from app.infra.sync import PushScheduler
 
 logger = logging.getLogger("uvicorn.error")
@@ -21,6 +22,7 @@ class RuntimeResources:
     paths: ResolvedPaths
     db: Database | None = None
     push_scheduler: PushScheduler | None = None
+    readiness: DatabaseReadiness | None = None
 
     def database(self) -> Database:
         if self.db is None:
@@ -45,6 +47,8 @@ def _close_connection(conn: Conn | None, db: Database | None) -> bool:
 
 
 def _cleanup(conn: Conn | None, resources: RuntimeResources, lock: ServerLock) -> None:
+    if resources.readiness is not None:
+        resources.readiness.stop()
     complete = True
     try:
         if resources.push_scheduler is not None:
@@ -75,6 +79,7 @@ def open_runtime(
         conn = None
         resources.db = None
         resources.push_scheduler = None
+        resources.readiness = None
         live_path = (
             paths.database.with_name(f"{paths.database.name}.sync")
             if settings.turso_local_first and settings.turso_database_url
@@ -91,6 +96,7 @@ def open_runtime(
                     db, settings.turso_push_debounce_seconds, settings.turso_pull_interval_seconds
                 )
                 resources.push_scheduler.start()
+            resources.readiness = DatabaseReadiness(db)
             yield
         finally:
             _cleanup(conn, resources, lock)

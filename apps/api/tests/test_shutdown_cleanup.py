@@ -37,6 +37,8 @@ def test_shutdown_never_closes_an_owned_connection(
         with runtime.open_runtime(settings, resources, configured_app.state.build_info):
             if busy:
                 resources.db.lock.acquire()
+        assert resources.readiness is not None
+        assert not await resources.readiness.check()
         if busy:
             conn.close.assert_not_called()
             lock.release.assert_not_called()

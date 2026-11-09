@@ -37,6 +37,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 PY
 )"
 export JOB_TRACKER_HOST_PORT="$PORT"
+export JOB_TRACKER_IMAGE="${JOB_TRACKER_IMAGE:-job-tracker:smoke-$PROJECT}"
+export TURSO_DATABASE_URL= TURSO_AUTH_TOKEN=
 export TRUSTED_HOSTS='["localhost","127.0.0.1","job-tracker.test"]'
 
 cd "$ROOT"
@@ -68,6 +70,11 @@ until curl --fail --silent --show-error "$BASE_URL/health" >"$WORK/health.json";
   ((SECONDS < deadline)) || fail "container did not become healthy within 90 seconds"
   sleep 1
 done
+curl --fail --silent --show-error "$BASE_URL/health/ready" >"$WORK/readiness.json"
+python3 - "$WORK/readiness.json" <<'PY'
+import json, sys
+assert json.load(open(sys.argv[1])) == {"status": "ready"}, "database is not ready"
+PY
 
 VERSION="$(tr -d '[:space:]' <VERSION)"
 curl --fail --silent --show-error --header 'Host: job-tracker.test' "$BASE_URL/health" >"$WORK/private-health.json"
@@ -89,6 +96,22 @@ grep -Fq '<div id="root"></div>' "$WORK/dashboard.html" || fail "dashboard was n
 
 CONTAINER_ID="$(docker compose --project-name "$PROJECT" ps -q job-tracker)"
 [[ -n "$CONTAINER_ID" ]] || fail "Compose did not create the service container"
+docker inspect "$CONTAINER_ID" >"$WORK/container.json"
+python3 - "$WORK/container.json" <<'PY'
+import json, sys
+container = json.load(open(sys.argv[1]))[0]
+host = container["HostConfig"]
+assert host["Memory"] == 1024**3, "memory limit is not 1 GiB"
+assert host["NanoCpus"] == 0 and host["CpuQuota"] <= 0, "CPU must remain uncapped"
+assert host["PidsLimit"] == 128, "PID/thread limit is not 128"
+assert container["Config"]["StopTimeout"] == 30, "stop grace is not 30 seconds"
+command = container["Config"]["Cmd"]
+assert command[command.index("--timeout-graceful-shutdown") + 1] == "15"
+assert host["LogConfig"] == {
+    "Type": "json-file", "Config": {"max-size": "10m", "max-file": "3"}
+}, "logs are not bounded"
+assert not container["State"]["OOMKilled"], "container exceeded its memory budget"
+PY
 health_deadline=$((SECONDS + 90))
 until [[ "$(docker inspect --format '{{.State.Health.Status}}' "$CONTAINER_ID")" == "healthy" ]]; do
   ((SECONDS < health_deadline)) || fail "Docker health check did not become healthy within 90 seconds"
@@ -104,7 +127,7 @@ docker compose --project-name "$PROJECT" run --rm --no-deps --entrypoint /bin/sh
   -c "test -s /backups/$BACKUP_NAME"
 
 deadline=$((SECONDS + 45))
-until curl --fail --silent --show-error "$BASE_URL/health" >/dev/null; do
+until curl --fail --silent --show-error "$BASE_URL/health/ready" >/dev/null; do
   ((SECONDS < deadline)) || fail "container did not restart after backup"
   sleep 1
 done

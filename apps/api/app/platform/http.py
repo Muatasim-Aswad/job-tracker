@@ -13,8 +13,10 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import Settings
 from app.core.version import PRODUCT_VERSION
+from app.platform.dependencies import get_resources
 from app.platform.errors import (
     application_error_handler,
+    error_response,
     http_error_handler,
     request_validation_handler,
 )
@@ -79,6 +81,19 @@ async def version_json(request: Request) -> Response:
     return response
 
 
+async def readiness(request: Request) -> JSONResponse:
+    probe = get_resources(request).readiness
+    if probe is None or not await probe.check():
+        return error_response(
+            request,
+            503,
+            "service_unavailable",
+            "Database is not ready.",
+            headers={"Retry-After": "1"},
+        )
+    return JSONResponse({"status": "ready"}, headers={"Cache-Control": "no-store"})
+
+
 def configure_http(app: FastAPI, settings: Settings) -> None:
     allowed_origins = [settings.web_dev_origin, f"chrome-extension://{settings.extension_id}"]
     app.add_middleware(
@@ -93,6 +108,7 @@ def configure_http(app: FastAPI, settings: Settings) -> None:
     app.add_middleware(PrivateResponseHeaders)
     app.add_middleware(RequestBoundary, allowed_origins=allowed_origins)
     app.add_api_route("/health", health, methods=["GET"], include_in_schema=False)
+    app.add_api_route("/health/ready", readiness, methods=["GET"], include_in_schema=False)
     app.add_api_route(
         "/version.json", version_json, methods=["GET", "HEAD"], include_in_schema=False
     )

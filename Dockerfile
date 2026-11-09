@@ -89,7 +89,7 @@ ENV HOME=/nonexistent \
 VOLUME ["/data", "/config", "/state", "/backups"]
 USER jobtracker:jobtracker
 EXPOSE 3456
-HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=6 CMD ["python", "-c", "import json; from pathlib import Path; from urllib.request import urlopen; expected = json.loads(Path('/app/BUILD_INFO.json').read_text()); actual = json.load(urlopen('http://127.0.0.1:3456/version.json', timeout=2)); raise SystemExit(0 if actual == expected else 1)"]
+HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=6 CMD ["python", "-c", "import json; from pathlib import Path; from urllib.request import urlopen; expected = json.loads(Path('/app/BUILD_INFO.json').read_text()); actual = json.load(urlopen('http://127.0.0.1:3456/version.json', timeout=1)); ready = json.load(urlopen('http://127.0.0.1:3456/health/ready', timeout=1.5)); raise SystemExit(0 if actual == expected and ready == {'status': 'ready'} else 1)"]
 
 # The maintenance CLI ships in the image; container-wide binding allows loopback forwarding.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3456"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3456", "--timeout-graceful-shutdown", "15"]

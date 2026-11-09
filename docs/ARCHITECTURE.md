@@ -245,6 +245,8 @@ Application workflows use the opposite retention rule: they are meaningful only 
 
 Requests enter an asynchronous admission queue before acquiring the connection's thread lock. Only the admitted request can wait for that lock in FastAPI's worker pool, leaving capacity for its service, endpoint, and transaction cleanup. The scheduler uses the same thread lock, so synchronization cannot overlap a request transaction. Both admission and connection-lock waits are bounded; timeout responses occur before transaction entry and produce rate-limited, value-free thread diagnostics. See the [API operations guide](../apps/api/README.md#busy-requests-and-shutdown) for deadlines and recovery.
 
+`infra.readiness.DatabaseReadiness` probes the active local connection under that same lock without committing or rolling back. The runtime creates it only after startup succeeds and disables it before cleanup. Its single shared background query preserves connection ownership through caller timeouts and cancellation without consuming the HTTP worker pool. `platform.http` exposes its bounded, value-free result at `/health/ready`; the API operations guide owns the wire contract. Liveness and build identity remain independent of database availability.
+
 ### Synchronization and cleanup
 
 The local-first scheduler never discards a failed push. Local data remains on disk, the dirty state remains set, and a later cycle retries. Turso HTTP operations have a bounded socket-progress timeout. Shutdown attempts a final push for pending writes within a bounded scheduler join; if sync remains blocked, it leaves the connection and profile lock open for process exit so a restart cannot overlap the old database owner.
