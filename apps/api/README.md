@@ -142,7 +142,27 @@ The record names the exact submitted event. Reverting that event, correcting the
 
 ### Needs attention and ghosting
 
-`GET /api/jobs` derives an `attention` suggestion for a job sitting in `applied` or `in_process` without a newer status-setting event or note — 21 whole days by default for `applied`, 14 for `in_process`. A note counts as activity and resets the clock; starring, hiding, and descriptive edits don't. Hidden jobs are omitted from the dashboard's attention badge and attention-only view.
+`GET /api/jobs` retains its read-only `attention` projection and exposes `application_stale_at` in job responses. Applied and in-process applications become stale after the saved inactivity threshold. Qualifying status events and notes reset the deadline; unrelated edits do not reset an event-based clock. Hidden jobs are omitted from the dashboard's stale-application count/filter. Settings stores stage thresholds; server configuration only supplies initial defaults. [Architecture](../../docs/ARCHITECTURE.md#application-staleness-and-notifications) owns lifecycle and scheduling rules.
+
+### Notifications
+
+| Route | Operation |
+| --- | --- |
+| `GET /notifications` | Paginated inbox/schedules; optional `job_id`, `state`, `kind` (`manual_reminder` or `application_stale`), `before`, and `limit` (1–100); returns `items`, `next_cursor`, and global `unread_count` |
+| `POST /notifications` | Create a manual reminder: `title`, optional `body`/`job_id`, timezone-aware `scheduled_at` |
+| `GET /notifications/{id}` | Read one notification |
+| `PATCH /notifications/{id}` | Edit a reminder with `expected_revision`; changing its schedule rearms it |
+| `POST /notifications/{id}/cancel` | Cancel a scheduled manual reminder with `expected_revision` |
+| `POST /notifications/{id}/ack` | Acknowledge client handling with the exact `published_at` |
+| `POST /notifications/{id}/read` | Mark the publication read globally, also acknowledging delivery |
+| `GET /notifications/push-key` | This installation’s VAPID public key, or null when disabled |
+| `POST /notifications/push-subscriptions` | Save a browser subscription with `endpoint` and `keys` (`p256dh`, `auth`) |
+| `DELETE /notifications/push-subscriptions` | Remove the subscription identified by the request body’s `endpoint` |
+| `GET /notifications/stream` | Live SSE `notification` publications and `sync` invalidations; heartbeat every 20 seconds |
+
+Paths above use `/api`. Responses/errors use `Cache-Control: no-store`. Automatic stale schedules are not directly editable. Stale revisions or obsolete publication acknowledgments return `409` without changing current state. Read/delivery timestamps are idempotent and do not advance reminder edit revisions. List pagination orders published items unread first, then newest first within unread/read groups; resolved items join the read group. Schedules sort by deadline (earliest first), with opaque IDs breaking ties.
+
+The worker runs inside the API every 60 seconds and once at startup. Keep exactly one `NOTIFICATION_SCHEDULER_ENABLED=true` instance per synchronized database; use `false` on other APIs. A stopped scheduler delays publication until its next startup. Native desktop alerts require browser permission and an open dashboard connected to the API; the dashboard otherwise uses in-app alerts. SSE reconnect recovers unacknowledged publications rather than replaying historical events. Client receipts contain only IDs/publication timestamps and prevent repeated presentation after a lost acknowledgment.
 
 Attention is read-only derived state, so no read or background process ever writes a status event: the user adds a note, moves or corrects the job, or confirms `Mark ghosted` in the drawer. A normal `ghosted` transition is accepted only from `applied` and `in_process`; anything else needs the correction control.
 
@@ -254,10 +274,18 @@ Direct development reads this directory's `.env`. Source and packaged profiles i
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `ATTENTION_APPLIED_DAYS` | `21` | Whole inactive days before an `applied` job needs attention; `0` disables it. |
-| `ATTENTION_IN_PROCESS_DAYS` | `14` | Whole inactive days before an `in_process` job needs attention; `0` disables it. |
+| `ATTENTION_APPLIED_DAYS` | `21` | Initial Applied inactivity threshold; `0` disables it. |
+| `ATTENTION_IN_PROCESS_DAYS` | `14` | Initial In process inactivity threshold; `0` disables it. |
+| `STALE_NOTIFICATION_TIMEZONE` | Detected local IANA zone, falling back to UTC | Initial saved timezone for the default 09:00 stale alert slot. |
+| `WEB_PUSH_ENABLED` | `true` | Offer browser Web Push subscriptions and send unacknowledged alerts. |
+| `WEB_PUSH_SUBJECT` | Project GitHub HTTPS URL | VAPID contact URI for browser push providers. |
+| `NOTIFICATION_SCHEDULER_ENABLED` | `true` | Publish due notifications on this instance; enable on exactly one instance per synchronized database. |
 
-Both must be non-negative integers, validated at startup. The thresholds are server-owned and not duplicated in the clients.
+Initial thresholds must be non-negative integers. Startup seeds `settings.application_staleness` once; saved preferences then remain authoritative across configuration changes and restarts. Change Applied/In process days through Stale applications settings or revision-checked `PATCH /api/settings`; zero disables a stage and saving reconciles existing job deadlines and notification schedules.
+
+Shared preferences store `application_staleness.notification_time` (`HH:MM`), `timezone` (IANA, automatically reported by the active dashboard), `applied_notifications` and `in_process_notifications` (`on|muted|off`), plus `notifications.muted`. Muted publications retain unread inbox entries and get `alert_suppressed_at` rather than a delivery/read receipt; they are excluded from retries. Off cancels/resolves the stage’s automatic notification without changing its stale deadline or badge. A minute worker publishes due reminders and retries unsuppressed, unacknowledged alerts; no retry counters are stored.
+
+Web Push generates `web-push-private.pem` in the installation state directory with mode 0600; preserve it across upgrades. Database backups contain subscriptions, but do not contain this private key. Losing it requires affected browsers to turn notifications off/on to subscribe again. Only supported browser-vendor HTTPS endpoints are accepted. Outbound vendor requests use encrypted payloads and bounded timeouts; successful provider acceptance does not mark a notification delivered. The API must remain running and reachable by the browser service worker for verified background presentation and acknowledgment. Phone browser subscriptions require HTTPS; iOS/iPadOS requires Home Screen installation. This capability does not change the [localhost/trusted-network deployment boundary](../../SECURITY.md).
 
 ## Security
 

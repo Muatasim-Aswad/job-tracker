@@ -18,14 +18,17 @@ export const api = {
   clearSearchLog: (): Promise<void> =>
     request("/search-log", { method: "DELETE", cache: "no-store" }),
 
-  getExtensionSettings: (): Promise<PreferencesState> => extensionSettingsRequest(),
+  getExtensionSettings: (signal?: AbortSignal): Promise<PreferencesState> =>
+    extensionSettingsRequest({ signal }),
 
   updateExtensionSettings: (
     changes: PreferencesPatch,
     expected_revision: string,
+    signal?: AbortSignal,
   ): Promise<PreferencesState> =>
     extensionSettingsRequest({
       method: "PATCH",
+      signal,
       body: JSON.stringify({ changes, expected_revision }),
     }),
 };

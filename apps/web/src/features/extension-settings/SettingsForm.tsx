@@ -1,5 +1,5 @@
 import { copy } from "./copy";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { PreferencesState } from "@job-tracker/shared/api";
 import { api } from "./client";
@@ -7,6 +7,8 @@ import { TitleRules, TitleRuleEditor } from "./TitleRules";
 import { SearchDiagnostics } from "./SearchDiagnostics";
 import { SectionHelp } from "./SectionHelp";
 import { KeywordField } from "./KeywordField";
+import { StalenessSettingsFields } from "../jobs/StalenessSettingsFields";
+import { NotificationSettingsFields } from "../notifications/NotificationSettingsFields";
 import {
   BUTTON,
   FIELD,
@@ -40,6 +42,7 @@ export function SettingsForm({
   onClose: () => void;
 }) {
   const [base, setBase] = useState(initial);
+  const receivedRevision = useRef(initial.revision);
   const [draft, setDraft] = useState(() => settingsDraft(initial.settings));
   const [editing, setEditing] = useState<{ rule: RuleDraft; original: RuleDraft | null } | null>(
     null,
@@ -60,6 +63,13 @@ export function SettingsForm({
     : null;
   const invalid = settingsValidation(value);
   const disabled = saving || reloading || clearingDiagnostics;
+  useEffect(() => {
+    if (receivedRevision.current === initial.revision) return;
+    receivedRevision.current = initial.revision;
+    if (dirty || ruleChanged) return;
+    setBase(initial);
+    setDraft(settingsDraft(initial.settings));
+  }, [initial, dirty, ruleChanged]);
   useEffect(() => onDirtyChange(dirty || !!ruleChanged), [dirty, ruleChanged, onDirtyChange]);
   const change = (patch: Partial<SettingsDraft>) => {
     setDraft((current) => ({ ...current, ...patch }));
@@ -160,6 +170,18 @@ export function SettingsForm({
                 </select>
               </label>
             </section>
+            <StalenessSettingsFields
+              value={draft.application_staleness}
+              onChange={(application_staleness) => change({ application_staleness })}
+              disabled={disabled}
+            />
+            <NotificationSettingsFields
+              value={draft.notifications}
+              staleness={draft.application_staleness}
+              onStalenessChange={(application_staleness) => change({ application_staleness })}
+              onChange={(notifications) => change({ notifications })}
+              disabled={disabled}
+            />
             <details className="group border-t border-line pt-5">
               <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded text-sm font-semibold text-ink focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
                 <ChevronRight size={14} aria-hidden="true" className="group-open:rotate-90" />

@@ -13,6 +13,7 @@ import monitor from "lucide-static/icons/monitor.svg?raw";
 import sun from "lucide-static/icons/sun.svg?raw";
 import moon from "lucide-static/icons/moon.svg?raw";
 import pencil from "lucide-static/icons/pencil.svg?raw";
+import bell from "lucide-static/icons/bell.svg?raw";
 import stickyNote from "lucide-static/icons/sticky-note.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import copy from "lucide-static/icons/copy.svg?raw";
@@ -34,6 +35,7 @@ export const ICON = {
   sun, // popup theme: light
   moon, // popup theme: dark
   pencil, // popup detail: edit the current status' comment
+  bell,
   stickyNote, // popup detail: add a standalone note
   settings, // popup: open the settings panel
   copy, // detail banner: copy the JD (with title/company/url) for an AI prompt

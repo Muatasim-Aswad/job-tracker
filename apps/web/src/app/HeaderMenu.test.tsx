@@ -36,7 +36,7 @@ describe("mobile header actions", () => {
     const labels = screen.getAllByRole("menuitem").map((item) => item.textContent);
     expect(labels.slice(-5)).toEqual([
       "Blocked companies…",
-      "Extension settings…",
+      "Settings…",
       "Theme: Systemt",
       "Keyboard shortcuts?",
       "About",
@@ -47,7 +47,7 @@ describe("mobile header actions", () => {
     expect(
       within(screen.getByRole("group", { name: "Settings" })).getAllByRole("menuitem"),
     ).toHaveLength(2);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Extension settings…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Settings…" }));
     expect(props.onOpenExtensionSettings).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menu")).toBeNull();
   });

@@ -6,6 +6,9 @@ const mocks = vi.hoisted(() => ({ refetch: vi.fn() }));
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { stubStorage } from "../test/storage";
 import { runningBuild } from "./buildInfo";
+vi.mock("../features/notifications/NotificationBell", () => ({
+  NotificationBell: () => <button>Open notifications</button>,
+}));
 
 vi.mock("../features/blocked-companies/queries", () => ({
   useJobs: () => ({ data: [], refetch: mocks.refetch }),
@@ -112,6 +115,15 @@ it.each([
             ? {
                 revision: "one",
                 settings: {
+                  notifications: { muted: false },
+                  application_staleness: {
+                    applied_notifications: "on",
+                    in_process_notifications: "on",
+                    applied_days: 21,
+                    in_process_days: 14,
+                    notification_time: "09:00",
+                    timezone: "UTC",
+                  },
                   easy_apply_enabled: true,
                   hide_mode: "dim",
                   search_diagnostics: { scope: "never", expires_at: null },
@@ -133,13 +145,13 @@ it.each([
   if (source === "menu") {
     burger.focus();
     fireEvent.click(burger);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Extension settings…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Settings…" }));
   }
   await screen.findByRole("button", { name: "Save settings" });
   fireEvent.keyDown(window, { key: "?" });
   fireEvent.keyDown(window, { key: "n" });
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
-  expect(screen.getByRole("dialog", { name: "Extension settings" })).toBeTruthy();
+  expect(screen.getByRole("dialog", { name: "Settings" })).toBeTruthy();
   fireEvent.keyDown(window, { key: "Escape" });
   expect(screen.queryByRole("dialog")).toBeNull();
   if (source === "menu") expect(document.activeElement).toBe(burger);

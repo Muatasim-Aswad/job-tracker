@@ -236,11 +236,7 @@ function JobCardImpl({ job, onOpen, onEvent, onNavigate }: Props) {
           title={copy.jobCard.noRecordedActivitySinceOpenToReview(fmtDate(job.attention.since))}
           className="mt-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-micro font-medium text-amber-700 dark:text-amber-300"
         >
-          {/* Separate noun-phrase stage labels to avoid "in In process". */}
-          {copy.jobCard.stalled}
-          {job.attention.days}{" "}
-          {job.attention.days === 1 ? copy.jobCardMessages.day : copy.jobCardMessages.days} ·{" "}
-          {STATUS_LABEL[job.attention.stage]}
+          {copy.inactivity(job.attention.days)}
         </div>
       )}
 

@@ -66,6 +66,7 @@ def get_conn(request: Request, _slot: None = Depends(_database_slot)) -> Iterato
             )
             if resources.push_scheduler is not None:
                 resources.push_scheduler.notify_write()
+            resources.notification_hub.publish("sync", {})
 
     try:
         with transaction(

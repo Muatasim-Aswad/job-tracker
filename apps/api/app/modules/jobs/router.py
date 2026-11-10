@@ -16,6 +16,7 @@ from app.modules.jobs.schemas import (
     ListingState,
 )
 from app.modules.jobs.service import update
+from app.modules.staleness import service as staleness
 from app.platform.dependencies import ConnDep
 
 router = APIRouter(tags=["jobs"])
@@ -73,6 +74,7 @@ def match_job(*, job_id: str, response: Response, service: ServiceDep) -> list[J
 @router.patch("/jobs/{job_id}", response_model=Job)
 def update_job(*, job_id: str, body: JobUpdate, response: Response, conn: ConnDep) -> Job:
     job = update(conn, job_id, body)
+    staleness.reconcile(conn, [job.id])
     response.headers["Content-Location"] = f"/api/jobs/{job.id}"
     return job
 

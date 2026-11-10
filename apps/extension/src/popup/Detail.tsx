@@ -1,4 +1,5 @@
 import { copy } from "./copy";
+import { ReminderForm, type ReminderHandle } from "./ReminderForm";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { JobFunnel } from "@job-tracker/shared/funnel";
 import { localDay } from "@job-tracker/shared/time";
@@ -89,6 +90,8 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
   const commentRef = useRef<HTMLTextAreaElement>(null);
 
   const [noteOpen, setNoteOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const reminderRef = useRef<ReminderHandle>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteBody, setNoteBody] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -196,7 +199,8 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
 
   useImperativeHandle(ref, () => ({
     submitOpenForm() {
-      if (commentOpen) void saveComment();
+      if (reminderOpen) reminderRef.current?.submit();
+      else if (commentOpen) void saveComment();
       else if (noteOpen) void saveNote();
     },
     openStatus() {
@@ -430,6 +434,24 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
           <span className={ICON_CLASS} dangerouslySetInnerHTML={{ __html: ICON.stickyNote }} />
           {copy.detail.note}
         </button>
+        <button
+          type="button"
+          className={ACTION_BUTTON + " ml-2 " + FOCUS}
+          aria-label={copy.reminder.add}
+          title={copy.reminder.add}
+          onClick={() => setReminderOpen((value) => !value)}
+        >
+          <span className={ICON_CLASS} dangerouslySetInnerHTML={{ __html: ICON.bell }} />
+        </button>
+        {reminderOpen && (
+          <ReminderForm
+            ref={reminderRef}
+            jobId={job.id}
+            onClose={() => setReminderOpen(false)}
+            onSaved={showOk}
+            onError={showError}
+          />
+        )}
         {noteOpen && (
           <div>
             <input

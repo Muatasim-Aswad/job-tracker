@@ -6,6 +6,10 @@ import type { Attention, JobDetail, JobMatch, JobSummary } from "@job-tracker/sh
 import { dismissToast, getToasts } from "../../../shared/toast";
 import { DetailDrawer } from "./DetailDrawer";
 
+vi.mock("../../notifications/JobReminders", () => ({
+  JobReminders: () => <div>Scheduled reminders</div>,
+}));
+
 vi.mock("../client", () => ({
   api: {
     getJob: vi.fn(),
@@ -223,7 +227,7 @@ describe("DetailDrawer — remembered sections", () => {
   it("opens the collapsed timeline before an attention note request focuses its composer", async () => {
     await show(makeJob(), { stage: "in_process", since: TWO_DAYS_AGO, days: 2 });
     fireEvent.click(screen.getByRole("button", { name: "Collapse Timeline" }));
-    const panel = screen.getByText("Needs attention").parentElement!.parentElement!;
+    const panel = screen.getByText("2 days inactive").parentElement!.parentElement!;
     fireEvent.click(within(panel).getByRole("button", { name: "Add note" }));
     const title = await screen.findByRole("combobox", { name: "Note title" });
     expect(

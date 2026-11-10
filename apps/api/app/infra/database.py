@@ -207,6 +207,7 @@ _COLUMN_MIGRATIONS: tuple[tuple[str, str, str], ...] = (
     ("listings", "last_captured_at", "last_captured_at TEXT"),
     ("listings", "last_detail_captured_at", "last_detail_captured_at TEXT"),
     ("documents", "meta", "meta TEXT"),
+    ("jobs", "application_stale_at", "application_stale_at TEXT"),
 )
 
 DataMigration = str | Callable[[Conn], None]
@@ -472,6 +473,22 @@ def _seed_user_preferences_defaults(conn: Conn) -> None:
     )
 
 
+def _create_notifications(conn: Conn) -> None:
+    from app.infra.notification_schema import create_notifications
+
+    create_notifications(conn)
+
+
+def _create_push_subscriptions(conn: Conn) -> None:
+    from app.infra.notification_schema import create_push_subscriptions
+
+    create_push_subscriptions(conn)
+
+
+def _add_notification_alert_suppression(conn: Conn) -> None:
+    conn.execute("ALTER TABLE notifications ADD COLUMN alert_suppressed_at TEXT")
+
+
 _DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = (
     ("create_form_fill_foundation_v1", _create_form_fill_foundation),
     ("create_job_id_aliases_v1", _create_job_id_aliases),
@@ -499,6 +516,9 @@ _DATA_MIGRATIONS: tuple[tuple[str, DataMigration], ...] = (
         "operation_key TEXT PRIMARY KEY NOT NULL, request_hash TEXT NOT NULL, "
         "result TEXT NOT NULL, created_at TEXT NOT NULL)",
     ),
+    ("create_notifications_v1", _create_notifications),
+    ("create_notification_push_subscriptions_v1", _create_push_subscriptions),
+    ("add_notification_alert_suppression_v1", _add_notification_alert_suppression),
 )
 
 

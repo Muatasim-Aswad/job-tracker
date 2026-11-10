@@ -16,6 +16,7 @@ class Job(BaseModel):
     meta: dict[str, Any] = Field(default_factory=dict)
     created_at: str
     updated_at: str
+    application_stale_at: str | None = None
 
 
 class JobFilters(BaseModel):

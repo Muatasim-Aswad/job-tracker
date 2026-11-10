@@ -3,16 +3,19 @@
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.config import Settings
 from app.core.build_info import BuildInfo
 from app.core.lifecycle import ServerLock, private_creation_mask, protect_new_database
 from app.core.paths import ResolvedPaths
 from app.core.version import PRODUCT_VERSION
+from app.infra.broadcast import BroadcastHub
 from app.infra.database import Conn, Database, connect, init_schema
+from app.infra.periodic import PeriodicWorker
 from app.infra.readiness import DatabaseReadiness
 from app.infra.sync import PushScheduler
+from app.infra.web_push import WebPushSender
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -23,6 +26,9 @@ class RuntimeResources:
     db: Database | None = None
     push_scheduler: PushScheduler | None = None
     readiness: DatabaseReadiness | None = None
+    notification_hub: BroadcastHub = field(default_factory=BroadcastHub)
+    notification_worker: PeriodicWorker | None = None
+    web_push: WebPushSender | None = None
 
     def database(self) -> Database:
         if self.db is None:
@@ -51,8 +57,10 @@ def _cleanup(conn: Conn | None, resources: RuntimeResources, lock: ServerLock) -
         resources.readiness.stop()
     complete = True
     try:
+        if resources.notification_worker is not None:
+            complete = resources.notification_worker.stop()
         if resources.push_scheduler is not None:
-            complete = resources.push_scheduler.stop()
+            complete = resources.push_scheduler.stop() and complete
     finally:
         try:
             if complete:

@@ -11,6 +11,7 @@ from app.modules.jobs.models import Job
 from app.modules.jobs.repository import JobRepository
 from app.modules.jobs.schemas import JobMutationState
 from app.modules.listings.service import ListingService
+from app.modules.staleness import service as staleness
 from app.shared.enums import (
     APPLIED_EVIDENCE,
     Status,
@@ -68,6 +69,7 @@ class EventService:
             if event_id is not None:
                 event_ids.append(event_id)
 
+        staleness.reconcile(self.conn, [job_id])
         refreshed = self.jobs.get(job_id)
         assert refreshed is not None
         result = JobMutationState(
@@ -175,6 +177,7 @@ class EventService:
             raise ValidationError("only note events can be deleted")
 
         self.events.delete_by_id(event_id)
+        staleness.reconcile(self.conn, [event.job_id])
 
     def edit(
         self,
@@ -203,6 +206,7 @@ class EventService:
             if status_set_by(event.event) is not None:
                 self._reproject_status(event.job_id)
 
+        staleness.reconcile(self.conn, [event.job_id])
         refreshed = self.events.get(event_id)
         assert refreshed is not None
 
@@ -211,6 +215,7 @@ class EventService:
     def _reproject_status(self, job_id: str) -> None:
         """Project status from the latest `(ts, id)` status-setting event."""
         reproject_status(job_id, self.events, self.jobs)
+        staleness.reconcile(self.conn, [job_id])
         job = self.jobs.get(job_id)
         assert job is not None
         # Corrections and reverts can make the record inapplicable even while its

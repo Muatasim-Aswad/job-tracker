@@ -12,6 +12,15 @@ vi.mock("./client", () => ({
 const initial: PreferencesState = {
   revision: "one",
   settings: {
+    notifications: { muted: false },
+    application_staleness: {
+      applied_notifications: "on",
+      in_process_notifications: "on",
+      applied_days: 21,
+      in_process_days: 14,
+      notification_time: "09:00",
+      timezone: "UTC",
+    },
     easy_apply_enabled: true,
     hide_mode: "remove",
     search_diagnostics: { scope: "never", expires_at: null },
@@ -245,8 +254,7 @@ describe("Extension settings", () => {
     ).toBe(false);
     await waitFor(() =>
       expect(
-        (screen.getByRole("button", { name: "Close extension settings" }) as HTMLButtonElement)
-          .disabled,
+        (screen.getByRole("button", { name: "Close settings" }) as HTMLButtonElement).disabled,
       ).toBe(false),
     );
     fireEvent.keyDown(window, { key: "Escape" });
@@ -273,4 +281,49 @@ describe("Extension settings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await screen.findByRole("button", { name: "Save settings" });
   });
+});
+
+it("saves independent stale alert modes and global mute in matching collapsed sections", async () => {
+  vi.mocked(api.updateExtensionSettings).mockImplementation(async (settings) => ({
+    revision: "two",
+    settings: { ...initial.settings, ...settings },
+  }));
+  mount();
+  const stale = await screen.findByText("Stale applications");
+  const notifications = screen.getByText("Notifications");
+  expect(stale.closest("details")?.open).toBe(false);
+  expect(notifications.closest("details")?.open).toBe(false);
+  fireEvent.click(stale);
+  expect(stale.closest("details")!.querySelector("select")).toBeNull();
+  expect((screen.getByLabelText("Applied (days)") as HTMLInputElement).value).toBe("21");
+  fireEvent.click(notifications);
+  expect(screen.queryByLabelText("Time zone")).toBeNull();
+  expect(screen.queryByText("Time zone: UTC (automatic).")).toBeNull();
+  fireEvent.focus(screen.getByRole("button", { name: "About Daily stale alert time" }));
+  expect(await screen.findByRole("tooltip")).toHaveProperty(
+    "textContent",
+    "Time zone: UTC (automatic).",
+  );
+  fireEvent.blur(screen.getByRole("button", { name: "About Daily stale alert time" }));
+  fireEvent.change(screen.getByLabelText("Applied stale alerts"), { target: { value: "off" } });
+  fireEvent.change(screen.getByLabelText("In process stale alerts"), {
+    target: { value: "muted" },
+  });
+  expect((screen.getByLabelText("Applied (days)") as HTMLInputElement).value).toBe("21");
+  expect((screen.getByLabelText("In process (days)") as HTMLInputElement).value).toBe("14");
+  fireEvent.click(screen.getByRole("checkbox", { name: "Mute all notifications" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+  await screen.findByText("Settings saved.");
+  expect(api.updateExtensionSettings).toHaveBeenCalledWith(
+    {
+      ...initial.settings,
+      notifications: { muted: true },
+      application_staleness: {
+        ...initial.settings.application_staleness,
+        applied_notifications: "off",
+        in_process_notifications: "muted",
+      },
+    },
+    "one",
+  );
 });

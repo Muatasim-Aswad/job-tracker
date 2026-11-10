@@ -64,6 +64,7 @@ export function useAppShortcuts({
     const onKey = (e: KeyboardEvent) => {
       if (view !== "jobs") return;
       if (
+        document.querySelector('[role="dialog"][aria-modal="true"]') ||
         isTypingTarget(e.target) ||
         selectedJobId ||
         showHelp ||

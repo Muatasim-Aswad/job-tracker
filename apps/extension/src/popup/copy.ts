@@ -1,4 +1,14 @@
 export const copy = {
+  reminder: {
+    add: "Add reminder",
+    title: "Title",
+    when: "Date and time",
+    details: "Details (optional)",
+    save: "Save reminder",
+    invalidDate: "Choose a future date and time.",
+    error: "Couldn’t save the reminder. Check the tracker connection and try again.",
+    timezone: (zone: string) => `Times use ${zone}.`,
+  },
   connection: {
     offline: (server: string) =>
       `Can't reach the tracker at ${server} — changes aren't being saved.`,

@@ -2,6 +2,7 @@ import { copy } from "./copy";
 // The extension origin fetches the API directly; content scripts use the CSP-safe worker proxy.
 import { API_BASE_URL, SERVER_URL, serverScope, initializeServerConfig } from "../config.js";
 import type { BridgeRequest } from "../messages.js";
+import type { ReminderCreate, NotificationItem } from "@job-tracker/shared/api";
 
 export { API_BASE_URL as BASE_URL } from "../config.js";
 
@@ -63,6 +64,13 @@ export const createListing = (body: unknown) =>
 
 // Full job record for attaching a comment to the latest status event.
 export const getJob = (jobId: string) => api(`/jobs/${jobId}`);
+
+export const createReminder = (body: ReminderCreate): Promise<NotificationItem> =>
+  api("/notifications", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
 // Enrich an already-logged event with meta after the fact. Replaces the whole meta
 // bag, but the verb and timestamp are immutable, so this only adds or updates the

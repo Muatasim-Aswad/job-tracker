@@ -55,14 +55,14 @@ describe("ViewBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Filters applied" }));
     expect(screen.getByText("3")).toBeTruthy();
     expect(
-      (screen.getByRole("checkbox", { name: "Needs attention" }) as HTMLInputElement).checked,
+      (screen.getByRole("checkbox", { name: "Stale applications" }) as HTMLInputElement).checked,
     ).toBe(true);
   });
 
   it("keeps the attention toggle operable without rendering a zero badge", () => {
     renderBar({ attentionCount: 0 });
     fireEvent.click(screen.getByRole("button", { name: "Filters" }));
-    expect(screen.getByRole("checkbox", { name: "Needs attention" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Stale applications" })).toBeTruthy();
     expect(screen.queryByText("0")).toBeNull();
   });
 
@@ -98,7 +98,7 @@ describe("ViewBar", () => {
     renderBar();
     const trigger = screen.getByRole("button", { name: "Filters" });
     fireEvent.click(trigger);
-    fireEvent.keyDown(screen.getByRole("checkbox", { name: "Needs attention" }), {
+    fireEvent.keyDown(screen.getByRole("checkbox", { name: "Stale applications" }), {
       key: "Escape",
     });
     expect(screen.queryByRole("group", { name: "Job filters" })).toBeNull();
@@ -120,7 +120,7 @@ describe("ViewBar", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Filters" }));
     expect(screen.getAllByRole("checkbox")).toHaveLength(5);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Needs attention" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Stale applications" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Hide hidden jobs" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Starred" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Hide blocked companies" }));

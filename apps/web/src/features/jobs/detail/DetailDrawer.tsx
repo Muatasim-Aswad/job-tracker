@@ -1,4 +1,5 @@
 import { copy } from "../copy";
+import { JobReminders } from "../../notifications/JobReminders";
 import { useEffect, useRef, useState } from "react";
 import { formKeys } from "../../../shared/forms";
 import { useFocusTrap, useScrollLock } from "../../../shared/useFocusTrap";
@@ -506,6 +507,12 @@ export function DetailDrawer({ jobId, attention, onClose, onEvent, onNavigate }:
               jobId={jobId}
               documents={job.documents}
               disclosure={disclosure("documents")}
+            />
+
+            <JobReminders
+              key={`reminders:${jobId}`}
+              jobId={jobId}
+              disclosure={disclosure("reminders")}
             />
 
             <Timeline

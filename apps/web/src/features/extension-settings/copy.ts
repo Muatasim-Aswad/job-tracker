@@ -1,6 +1,6 @@
 export const copy = {
   extensionSettingsDialog: {
-    closeExtensionSettings: "Close extension settings",
+    closeExtensionSettings: "Close settings",
     couldntLoadExtensionSettingsCheckYourConnectionAndTry:
       "Couldn’t load extension settings. Check your connection and try again.",
     retry: "Retry",
@@ -67,9 +67,10 @@ export const copy = {
     settingsReloaded: "Settings reloaded.",
     couldntReloadSettingsCheckYourConnectionAndTryAgain:
       "Couldn’t reload settings. Check your connection and try again.",
-    extensionSettings: "Extension settings",
+    extensionSettings: "Settings",
     keywordActions: "Keyword actions",
-    sharedWithExtensionsConnectedToThisServer: "Shared with extensions connected to this server.",
+    sharedWithExtensionsConnectedToThisServer:
+      "Shared across dashboards and extensions connected to this server.",
   },
   searchDiagnosticsMessages: {
     clearAllStoredSearchDiagnosticsThisCannotBeUndone:

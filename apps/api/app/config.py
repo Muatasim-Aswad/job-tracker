@@ -2,13 +2,27 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.paths import resolve_paths
+
+
+def local_timezone() -> str:
+    path = str(Path("/etc/localtime").resolve())
+    value = os.environ.get("TZ") or (
+        path.split("/zoneinfo/", 1)[1] if "/zoneinfo/" in path else "UTC"
+    )
+    try:
+        ZoneInfo(value)
+    except ZoneInfoNotFoundError, ValueError:
+        return "UTC"
+    return value
 
 
 class Settings(BaseSettings):
@@ -50,6 +64,11 @@ class Settings(BaseSettings):
     # Whole inactive days since a status event or note; zero disables attention.
     attention_applied_days: int = Field(default=21, ge=0)
     attention_in_process_days: int = Field(default=14, ge=0)
+    # Enable on exactly one instance when multiple local APIs share a Turso database.
+    notification_scheduler_enabled: bool = True
+    stale_notification_timezone: str = Field(default_factory=local_timezone)
+    web_push_enabled: bool = True
+    web_push_subject: str = "https://github.com/Muatasim-Aswad/job-tracker"
 
     # --- security ----------------------------------------------------------
 

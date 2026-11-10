@@ -1,4 +1,5 @@
 from typing import Literal, Self
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -77,7 +78,31 @@ def default_highlights() -> list[DescriptionHighlight]:
     ]
 
 
+class ApplicationStaleness(PreferenceModel):
+    applied_days: int = Field(default=21, ge=0)
+    in_process_days: int = Field(default=14, ge=0)
+    applied_notifications: Literal["on", "muted", "off"] = "on"
+    in_process_notifications: Literal["on", "muted", "off"] = "on"
+    notification_time: str = Field(default="09:00", pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+    timezone: str = "UTC"
+
+    @field_validator("timezone")
+    @classmethod
+    def valid_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("Choose an IANA time zone") from exc
+        return value
+
+
+class NotificationSettings(PreferenceModel):
+    muted: bool = False
+
+
 class Preferences(PreferenceModel):
+    notifications: NotificationSettings = Field(default_factory=NotificationSettings)
+    application_staleness: ApplicationStaleness = Field(default_factory=ApplicationStaleness)
     description_highlights: list[DescriptionHighlight] = Field(
         default_factory=default_highlights, max_length=4
     )
@@ -96,6 +121,8 @@ class Preferences(PreferenceModel):
 
 
 class PreferencesPatch(PreferenceModel):
+    notifications: NotificationSettings | None = None
+    application_staleness: ApplicationStaleness | None = None
     description_highlights: list[DescriptionHighlight] | None = None
     title_rules: list[TitleRule] | None = None
     easy_apply_enabled: bool | None = None

@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",
     "uvicorn[standard]>=0.52.1",
+    "pywebpush>=2.5.0",
 ]
 
 [project.scripts]
@@ -40,7 +41,7 @@ files = ["app", "scripts"]
 strict = true
 # libsql/pyturso ship no type stubs; treat them as untyped rather than failing the build.
 [[tool.mypy.overrides]]
-module = ["libsql", "turso.*"]
+module = ["libsql", "turso.*", "pywebpush", "py_vapid"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

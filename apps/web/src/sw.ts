@@ -7,6 +7,12 @@ import {
 } from "workbox-precaching";
 import { registerRoute } from "workbox-routing";
 import { NetworkOnly } from "workbox-strategies";
+import {
+  acknowledgePush,
+  notificationTarget,
+  parsePush,
+  receivePush,
+} from "./infra/pushNotifications";
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: (PrecacheEntry | string)[] };
 
@@ -27,3 +33,26 @@ precacheAndRoute(
   { ignoreURLParametersMatching: [] },
 );
 cleanupOutdatedCaches();
+
+self.addEventListener("push", (event) => {
+  let value: unknown;
+  try {
+    value = event.data?.json();
+  } catch {
+    return;
+  }
+  const item = parsePush(value);
+  if (item) event.waitUntil(receivePush(self.registration, item));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const item = parsePush(event.notification.data);
+  if (!item) return;
+  event.waitUntil(
+    (async () => {
+      await acknowledgePush(item, true).catch(() => {});
+      await self.clients.openWindow(notificationTarget(item, self.location.origin));
+    })(),
+  );
+});

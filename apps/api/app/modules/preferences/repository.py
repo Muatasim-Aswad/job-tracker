@@ -5,6 +5,17 @@ class PreferencesRepository:
     def __init__(self, conn: Conn) -> None:
         self.conn = conn
 
+    def initialization_recorded(self, key: str) -> bool:
+        return (
+            query_one(self.conn, "SELECT key FROM schema_migrations WHERE key = ?", (key,))
+            is not None
+        )
+
+    def record_initialization(self, key: str, now: str) -> None:
+        execute(
+            self.conn, "INSERT INTO schema_migrations(key, applied_at) VALUES (?, ?)", (key, now)
+        )
+
     def get(self) -> Row | None:
         return query_one(
             self.conn, "SELECT revision, settings_json FROM user_preferences WHERE id = 1"

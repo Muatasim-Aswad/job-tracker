@@ -50,6 +50,7 @@ export function keywordValue(value: KeywordDraft): string[] {
 export function settingsDraft(settings: Preferences): SettingsDraft {
   return {
     ...settings,
+    application_staleness: { ...settings.application_staleness },
     search_diagnostics: { ...settings.search_diagnostics },
     description_highlights: settings.description_highlights.map((item) => ({
       ...item,

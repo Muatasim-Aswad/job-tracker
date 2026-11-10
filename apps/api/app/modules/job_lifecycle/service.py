@@ -14,6 +14,8 @@ from app.modules.listings import operations as listings_operations
 from app.modules.listings.repository import ListingRepository
 from app.modules.listings.schemas import ListingCreate, ListingUpdate, ListingUpsertResult
 from app.modules.listings.service import ListingService
+from app.modules.notifications import service as notifications
+from app.modules.staleness import service as staleness
 from app.shared.enums import MERGE_IMPORTANCE
 from app.shared.errors import NotFoundError
 from app.shared.timeutil import utc_now
@@ -78,6 +80,7 @@ class JobLifecycle:
             events_operations.move_all(self.conn, source_job_id, job_id)
             documents_operations.move_all(self.conn, source_job_id, job_id)
             form_fill_operations.move_job_context(self.conn, source_job_id, job_id)
+            notifications.move_job(self.conn, source_job_id, job_id)
             jobs_operations.alias_merged_id(self.conn, source_job_id, job_id, utc_now())
             jobs_operations.delete(self.conn, source_job_id)
         else:
@@ -96,6 +99,7 @@ class JobLifecycle:
         application_workflows_operations.discard_ineligible(self.conn, job_id)
         if self.jobs.get(source_job_id) is not None:
             application_workflows_operations.discard_ineligible(self.conn, source_job_id)
+        staleness.reconcile(self.conn, [source_job_id, job_id])
 
     def mark_false_match(self, platform: str, platform_id: str, other_job_id: str) -> None:
         """Mutually exclude two jobs from duplicate suggestions.
@@ -167,6 +171,7 @@ class JobLifecycle:
         form_fill_operations.move_job_context(self.conn, loser_id, survivor_id)
         jobs_operations.merge_exclusions(self.conn, loser_id, survivor_id)
         jobs_operations.alias_merged_id(self.conn, loser_id, survivor_id, now)
+        notifications.move_job(self.conn, loser_id, survivor_id)
         jobs_operations.delete(self.conn, loser_id)
         events_operations.reproject(self.conn, survivor_id)
         self.automatic_closure.reconcile(survivor_id, allow_close=True)
@@ -176,6 +181,7 @@ class JobLifecycle:
             )
 
         application_workflows_operations.discard_ineligible(self.conn, survivor_id)
+        staleness.reconcile(self.conn, [survivor_id])
 
     def delete_listing(self, listing_id_: str) -> None:
         """Retain job history unless its last addressable listing is deleted."""
@@ -192,9 +198,11 @@ class JobLifecycle:
             events_operations.delete_for_job(self.conn, job_id)
             documents_operations.delete_for_job(self.conn, job_id)
             form_fill_operations.clear_job_context(self.conn, job_id)
+            notifications.detach_job(self.conn, job_id)
             jobs_operations.delete(self.conn, job_id)
         else:
             self.automatic_closure.reconcile(job_id, allow_close=True)
+            staleness.reconcile(self.conn, [job_id])
 
     def delete_job(self, job_id: str) -> None:
         """Deliberately delete a canonical job; remove children before their parent."""
@@ -216,4 +224,5 @@ class JobLifecycle:
         events_operations.delete_for_job(self.conn, job_id)
         documents_operations.delete_for_job(self.conn, job_id)
         listings_operations.delete_for_job(self.conn, job_id)
+        notifications.detach_job(self.conn, job_id)
         jobs_operations.delete(self.conn, job_id)

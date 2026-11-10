@@ -390,6 +390,7 @@ def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
         ("listings", "last_captured_at"),
         ("listings", "last_detail_captured_at"),
         ("documents", "meta"),
+        ("jobs", "application_stale_at"),
     )
     assert tuple(key for key, _migration in _DATA_MIGRATIONS) == (
         "create_form_fill_foundation_v1",
@@ -401,12 +402,16 @@ def test_release_baseline_keeps_pre_release_migrations_folded() -> None:
         "create_document_creations_v1",
         "create_document_operations_v1",
         "create_event_operations_v1",
+        "create_notifications_v1",
+        "create_notification_push_subscriptions_v1",
+        "add_notification_alert_suppression_v1",
     )
 
 
 def test_fresh_database_records_append_only_migration_keys(conn: sqlite3.Connection) -> None:
     # conftest's conn is a fresh database that already went through init_schema().
     assert conn.execute("SELECT key FROM schema_migrations ORDER BY key").fetchall() == [
+        ("add_notification_alert_suppression_v1",),
         ("capture_clear_operation_v1",),
         ("create_application_workflows_v1",),
         ("create_document_creations_v1",),
@@ -414,6 +419,8 @@ def test_fresh_database_records_append_only_migration_keys(conn: sqlite3.Connect
         ("create_event_operations_v1",),
         ("create_form_fill_foundation_v1",),
         ("create_job_id_aliases_v1",),
+        ("create_notification_push_subscriptions_v1",),
+        ("create_notifications_v1",),
         ("create_user_preferences_v1",),
         ("seed_user_preferences_defaults_v1",),
     ]
@@ -457,6 +464,7 @@ def test_legacy_database_opens_under_the_baseline_without_data_loss(
     assert conn.execute("SELECT id, event, ts, meta FROM events ORDER BY id").fetchall() == before
     # The already-recorded pre-release keys stay alongside the form-fill key.
     assert [row[0] for row in conn.execute("SELECT key FROM schema_migrations ORDER BY key")] == [
+        "add_notification_alert_suppression_v1",
         "capture_clear_operation_v1",
         "classify_legacy_automatic_closures",
         "create_application_workflows_v1",
@@ -465,6 +473,8 @@ def test_legacy_database_opens_under_the_baseline_without_data_loss(
         "create_event_operations_v1",
         "create_form_fill_foundation_v1",
         "create_job_id_aliases_v1",
+        "create_notification_push_subscriptions_v1",
+        "create_notifications_v1",
         "create_user_preferences_v1",
         "drop_notes_documents",
         "seed_user_preferences_defaults_v1",

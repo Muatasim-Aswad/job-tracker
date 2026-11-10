@@ -20,6 +20,7 @@ const mockedApi = vi.mocked(api);
 
 function makeJob(overrides: Partial<JobSummary> = {}): JobSummary {
   return {
+    application_stale_at: null,
     availability: "unknown",
     listing_availability: {
       linkedin_open_count: 0,
@@ -153,7 +154,7 @@ describe("Board drag interaction", () => {
     ]);
 
     // Separate noun-phrase stage labels to avoid "in In process".
-    expect(screen.getByText("Stalled 24 days · Applied")).toBeTruthy();
+    expect(screen.getByText("24 days inactive")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /ghosted/i })).toBeNull();
   });
 

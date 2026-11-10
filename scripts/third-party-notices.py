@@ -52,6 +52,17 @@ def turso_licenses() -> list[tuple[str, str]]:
         return sorted(pool.map(fetch, TURSO_LICENSES.items()))
 
 
+def http_ece_licenses() -> list[tuple[str, str]]:
+    # http-ece 1.2.1 also omits LICENSE from both its wheel and sdist.
+    commit = "676b0096206abc8b7689ea714c920a3c9a1d32dc"
+    url = f"https://raw.githubusercontent.com/web-push-libs/encrypted-content-encoding/{commit}/LICENSE"
+    with urllib.request.urlopen(url, timeout=30) as response:
+        data = response.read()
+    if hashlib.sha256(data).hexdigest() != "717363ac0c7f0883042868db171cfed1f4b423119249eac9bce5131291017ea8":
+        raise ValueError("upstream attribution input checksum mismatch")
+    return [(url, data.decode("utf8"))]
+
+
 def source_licenses(package: dict) -> list[tuple[str, str]]:
     source = package.get("sdist")
     if not source:
@@ -114,8 +125,12 @@ def generate(lock: Path) -> tuple[list[dict], str]:
                 if path.is_file():
                     licenses.append((str(file), path.read_text()))
         if not licenses:
-            licenses = (turso_licenses() if (name, dist.version) == ("pyturso", "0.7.2")
-                        else source_licenses(package))
+            if (name, dist.version) == ("pyturso", "0.7.2"):
+                licenses = turso_licenses()
+            elif (name, dist.version) == ("http-ece", "1.2.1"):
+                licenses = http_ece_licenses()
+            else:
+                licenses = source_licenses(package)
         inventory.append({
             "name": name, "version": dist.version,
             "licenses": [{"file": file, "sha256": hashlib.sha256(text.encode()).hexdigest()}

@@ -8,7 +8,7 @@ export function useExtensionSettings() {
   const client = useQueryClient();
   const query = useQuery({
     queryKey: SETTINGS_KEY,
-    queryFn: api.getExtensionSettings,
+    queryFn: ({ signal }) => api.getExtensionSettings(signal),
     retry: false,
     gcTime: 0,
   });

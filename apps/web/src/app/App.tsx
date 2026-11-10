@@ -4,6 +4,7 @@ import { useJobsRefresh } from "../features/jobs/useJobsRefresh";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { AddJobDialog } from "../features/jobs/AddJobDialog";
+import { NotificationBell } from "../features/notifications/NotificationBell";
 import { ExtensionSettingsDialog } from "../features/extension-settings/ExtensionSettingsDialog";
 import { AboutDialog } from "./AboutDialog";
 import { BlockedCompaniesDialog } from "../features/blocked-companies/BlockedCompaniesDialog";
@@ -382,6 +383,12 @@ export default function App() {
             </>
           )}
         </div>
+        <NotificationBell
+          onOpenJob={(id) => {
+            changeView("jobs");
+            setSelectedJobId(id);
+          }}
+        />
         <HeaderMenu
           onOpenExtensionSettings={() => setShowExtensionSettings(true)}
           refreshing={refreshing}

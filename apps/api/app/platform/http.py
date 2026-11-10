@@ -42,6 +42,8 @@ def _private_path(path: str) -> bool:
         or path.endswith("/application-workflow")
         or path == "/api/settings"
         or path.startswith("/api/settings/")
+        or path == "/api/notifications"
+        or path.startswith("/api/notifications/")
         or path == "/api/document-operations"
         or path == "/api/event-operations"
     )

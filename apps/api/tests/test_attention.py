@@ -7,8 +7,6 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError as PydanticValidationError
 
 from app.config import Settings
-from app.main import app
-from app.platform.dependencies import get_settings
 
 NOW = "2026-07-19T12:00:00+00:00"
 
@@ -190,9 +188,15 @@ def test_reading_attention_never_writes_a_ghosted_event(client: TestClient) -> N
 
 
 def test_threshold_overrides_and_zero_disable_a_stage(client: TestClient) -> None:
-    app.dependency_overrides[get_settings] = lambda: Settings(
-        attention_applied_days=2, attention_in_process_days=0
+    settings = client.get("/api/settings").json()
+    response = client.patch(
+        "/api/settings",
+        json={
+            "expected_revision": settings["revision"],
+            "changes": {"application_staleness": {"applied_days": 2, "in_process_days": 0}},
+        },
     )
+    assert response.status_code == 200
     applied = _listing(client, "override-applied")
     processing = _listing(client, "override-processing")
     _emit(client, applied, "applied", "2026-07-17T12:00:00+00:00")
@@ -232,7 +236,7 @@ def test_jobs_read_uses_one_batched_activity_query(client: TestClient, conn: Any
 
     select_queries = [sql for sql in statements if sql.lstrip().upper().startswith("SELECT")]
     activity_queries = [sql for sql in select_queries if "FROM events" in sql]
-    assert len(select_queries) == 3
+    assert len(select_queries) == 4
     assert len(activity_queries) == 1
 
 

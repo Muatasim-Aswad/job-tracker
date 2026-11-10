@@ -22,6 +22,7 @@ from app.modules.jobs.schemas import (
 )
 from app.modules.listings.models import Listing, ListingAvailabilitySummary
 from app.modules.listings.repository import ListingRepository
+from app.modules.preferences import service as preferences
 from app.shared.errors import NotFoundError
 from app.shared.similarity import jaccard, tokenize
 from app.shared.text import normalize_company, normalize_title
@@ -35,6 +36,7 @@ class JobQueries:
         self.listings = ListingRepository(conn)
         self.documents = DocumentRepository(conn)
         self.settings = settings
+        self.staleness_rules = preferences.read(conn).settings.application_staleness
 
     def search(self, filters: JobFilters) -> list[JobSummary]:
         """Filtered job list, each enriched with a compact listing rollup so the board
@@ -83,10 +85,10 @@ class JobQueries:
         stage: Literal["applied", "in_process"]
         if job.status == "applied":
             stage = "applied"
-            threshold = self.settings.attention_applied_days
+            threshold = self.staleness_rules.applied_days
         elif job.status == "in_process":
             stage = "in_process"
-            threshold = self.settings.attention_in_process_days
+            threshold = self.staleness_rules.in_process_days
         else:
             return None
 

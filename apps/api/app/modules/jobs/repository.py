@@ -6,7 +6,7 @@ from app.shared.enums import APPLIED_EVIDENCE
 
 _COLUMNS = (
     "id, title, company, company_key, title_key, status, hidden, starred, meta, "
-    "created_at, updated_at"
+    "created_at, updated_at, application_stale_at"
 )
 
 
@@ -34,7 +34,7 @@ class JobRepository:
     def insert(self, job: Job) -> None:
         execute(
             self.conn,
-            f"INSERT INTO jobs ({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO jobs ({_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 job.id,
                 job.title,
@@ -47,7 +47,13 @@ class JobRepository:
                 json.dumps(job.meta) if job.meta else None,
                 job.created_at,
                 job.updated_at,
+                job.application_stale_at,
             ),
+        )
+
+    def set_stale_at(self, job_id: str, deadline: str | None) -> None:
+        execute(
+            self.conn, "UPDATE jobs SET application_stale_at = ? WHERE id = ?", (deadline, job_id)
         )
 
     def set_meta(self, job_id: str, meta: dict[str, object], updated_at: str) -> None:

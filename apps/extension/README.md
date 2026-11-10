@@ -242,3 +242,7 @@ extension/
         linkedin/        # identity.ts, web.ts (DOM), gmail.ts (DOM-only), fixtures/
       local/             # your adapters, one dir per board + hosts.json (gitignored)
 ```
+
+## Job reminders
+
+The job detail’s icon-only **Add reminder** action creates a linked reminder with a title, local date/time and optional details. The existing submit shortcut submits the open reminder form. Reminders use the configured server and appear in the dashboard’s shared inbox/schedules; browser push permission and mute controls live in dashboard Settings.

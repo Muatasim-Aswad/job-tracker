@@ -14,7 +14,7 @@ export function AttentionPanel({ attention, onAddNote, onMarkGhosted }: Props) {
     <div className="flex flex-col gap-2 rounded border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
       <div>
         <div className="font-semibold text-amber-800 dark:text-amber-200">
-          {copy.attentionPanel.needsAttention}
+          {copy.inactivity(attention.days)}
         </div>
         <div className="mt-0.5 text-amber-800/80 dark:text-amber-200/80">
           {copy.attentionPanel.noRecordedActivitySince}

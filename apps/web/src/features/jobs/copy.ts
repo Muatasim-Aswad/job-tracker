@@ -1,4 +1,12 @@
 export const copy = {
+  stalenessSettings: {
+    title: "Stale applications",
+    description:
+      "Days since the last status change or note. Set 0 to disable a stage’s stale badge.",
+    applied: "Applied (days)",
+    inProcess: "In process (days)",
+  },
+  inactivity: (days: number) => `${days} ${days === 1 ? "day" : "days"} inactive`,
   addActions: {
     customFields: "Add custom field",
     cancelCustomFields: "Cancel adding custom field",
@@ -80,8 +88,8 @@ export const copy = {
   noResults: {
     clearFilters: "Clear filters",
     noJobsMatchAmongStarredJobsNeedingAttention: (q: string) =>
-      `No jobs match “${q}” among starred jobs needing attention.`,
-    noJobsNeedingAttentionMatch: (q: string) => `No jobs needing attention match “${q}”.`,
+      `No jobs match “${q}” among starred stale applications.`,
+    noJobsNeedingAttentionMatch: (q: string) => `No stale applications match “${q}”.`,
     noJobsMatchAmongStarred: (q: string) => `No jobs match “${q}” among starred.`,
     noJobsMatch: (q: string) => `No jobs match “${q}”.`,
     noJobsWithListingsMatch: (listingAvailability: string) =>
@@ -113,7 +121,7 @@ export const copy = {
     jobsShownAfterSearchFiltersTotalLoaded: "Jobs shown (after search + filters) / total loaded",
     jobFilters: "Job filters",
     showOnly: "Show only",
-    needsAttention: "Needs attention",
+    needsAttention: "Stale applications",
     starred: "Starred",
     easyApply: "Easy Apply",
     listing: "Listing",
@@ -127,7 +135,7 @@ export const copy = {
     of: (shownCount: number, totalCount: number) => `${shownCount} of ${totalCount}`,
   },
   attentionPanel: {
-    needsAttention: "Needs attention",
+    needsAttention: "Stale application",
     noRecordedActivitySince: "No recorded activity since ",
     addNote: "Add note",
     markThisJobGhosted: "Mark this job ghosted?",
@@ -252,8 +260,8 @@ export const copy = {
     suggestedField: "suggested field",
   },
   noResultsMessages: {
-    noStarredJobsNeedAttention: "No starred jobs need attention.",
-    noJobsNeedAttention: "No jobs need attention.",
+    noStarredJobsNeedAttention: "No starred applications are stale.",
+    noJobsNeedAttention: "No applications are stale.",
     noStarredJobsMatch: "No starred jobs match.",
     noEasyApplyJobsMatch: "No Easy Apply jobs match.",
     noJobsFromUnblockedCompaniesMatch: "No jobs from unblocked companies match.",

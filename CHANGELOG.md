@@ -10,6 +10,9 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Added
 
+- Shared notification inbox, drawer/extension job reminders and tracker reminders, a 60-second scheduler, SSE updates, opt-in Web Push, acknowledged delivery retries and synchronized read state.
+- Stored application-staleness deadlines, configurable daily local alert times, independent stage On/Muted/Off controls, global alert mute, a **Stale applications** filter and **N days inactive** badges.
+
 - `GET /health/ready` checks the active local database with a one-second response deadline and safe `503` failures. Liveness stays database-free; timed-out probes share one in-flight query.
 
 ### Changed

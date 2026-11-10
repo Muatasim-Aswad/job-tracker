@@ -37,6 +37,8 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, onClose: () => 
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const topModal = [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')].at(-1);
+      if (topModal && topModal !== ref.current) return;
       if (e.key === "Escape") {
         onClose();
         return;

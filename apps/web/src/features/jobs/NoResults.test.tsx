@@ -95,6 +95,6 @@ describe("NoResults", () => {
         onClear={vi.fn()}
       />,
     );
-    expect(screen.getByText("No jobs need attention.")).toBeTruthy();
+    expect(screen.getByText("No applications are stale.")).toBeTruthy();
   });
 });
