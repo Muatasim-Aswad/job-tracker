@@ -17,6 +17,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ### Changed
 
+- Updated compatible frontend dependencies, transitive security fixes, and pinned CI actions.
 - **Breaking:** HTTP failures now return `{error: {status, code, message, request_id, details?, issues?}}`. Conflict state moves to `error.details.current`; validation issues omit submitted values. API consumers must use the new fields. Successful payloads and database formats are unchanged.
 - HTTP responses include `X-Request-ID`. JSON operational logs carry that ID and use route templates instead of personal resource IDs or query strings; failure traces omit exception messages and frame values.
 - Dashboard and extension UI copy lives with its owner, with complete count messages. Answer editing separates save actions and header/footer presentation while preserving draft and revision checks.
