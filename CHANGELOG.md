@@ -6,7 +6,7 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-11-09
+## [2.0.0] - 2026-11-11
 
 ### Added
 
