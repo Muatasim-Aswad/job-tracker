@@ -106,7 +106,7 @@ srvr add job-tracker --kind git --workdir "$HOME/services/job-tracker" \
   --data-volume job-tracker_job-tracker-config \
   --data-volume job-tracker_job-tracker-state \
   --data-volume job-tracker_job-tracker-backups \
-  --health http://127.0.0.1:3456/health \
+  --health http://127.0.0.1:3456/health/ready \
   --version-url http://127.0.0.1:3456/version.json \
   --url https://job-tracker.example.ts.net -y
 ```

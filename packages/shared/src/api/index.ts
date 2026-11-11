@@ -36,6 +36,12 @@ export type JobState = Pick<JobMutationState, "status" | "hidden" | "starred">;
 
 export type PrimaryListing = Read<Schemas["PrimaryListing"]>;
 export type Attention = Read<Schemas["Attention"]>;
+export type NotificationItem = Read<Schemas["Notification"]>;
+export type NotificationPage = Read<Omit<Schemas["NotificationPage"], "items">> & {
+  items: NotificationItem[];
+};
+export type ReminderCreate = Schemas["ReminderCreate"];
+export type ReminderUpdate = Schemas["ReminderUpdate"];
 export type Listing = Read<Schemas["Listing"]>;
 export type ListingCreate = Schemas["ListingCreate"];
 export type ListingUpdate = Schemas["ListingUpdate"];
@@ -64,13 +70,21 @@ export type Stats = Read<Schemas["Stats"]>;
 export type DescriptionHighlight = Required<Schemas["DescriptionHighlight"]>;
 export type TitleRule = Required<Schemas["TitleRule"]>;
 export type SearchDiagnostics = Required<Schemas["SearchDiagnostics"]>;
+export type NotificationSettings = Required<Schemas["NotificationSettings"]>;
+export type ApplicationStaleness = Required<Schemas["ApplicationStaleness"]>;
 export type Preferences = Omit<
   Required<Schemas["Preferences"]>,
-  "description_highlights" | "title_rules" | "search_diagnostics"
+  | "description_highlights"
+  | "title_rules"
+  | "search_diagnostics"
+  | "application_staleness"
+  | "notifications"
 > & {
   description_highlights: DescriptionHighlight[];
   title_rules: TitleRule[];
   search_diagnostics: SearchDiagnostics;
+  application_staleness: ApplicationStaleness;
+  notifications: NotificationSettings;
 };
 export type PreferencesState = { revision: string; settings: Preferences };
 export type PreferencesPatch = Partial<Preferences>;

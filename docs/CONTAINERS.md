@@ -17,6 +17,8 @@ docker compose up -d --no-build
 
 The default publication is deliberately loopback-only: `127.0.0.1:3456:3456`. Open <http://127.0.0.1:3456>; do not change it to a public interface. The service runs as UID/GID `10001`, has no added Linux capabilities, and uses its image only for replaceable application files.
 
+The current source Compose configuration caps memory at 1 GiB and PIDs/threads at 128, leaves CPU uncapped, and retains three rotating 10 MB JSON log files. Its 30-second stop grace covers Uvicorn's 15-second request drain and the scheduler's separate 10-second cleanup bound. The image health check requires both matching build identity and [database readiness](../apps/api/README.md#busy-requests-and-shutdown). These defaults apply to the next artifact release; older versioned Compose files and images retain their shipped behavior. Override resource budgets with an external Compose override when measured workloads need more headroom.
+
 Compose creates separate named volumes for `/data`, `/config`, `/state`, and `/backups`. They hold the database family, optional configuration, server lock/runtime state, and backups respectively. Stop/start and container replacement preserve them; see [Update and removal](#update-and-removal) for uninstall and purge.
 
 Stop the service without deleting any volumes:
@@ -61,7 +63,7 @@ The result is in the `job-tracker-backups` volume. Keep an additional copy outsi
 
 ## Update and removal
 
-Stop the service and create a verified backup before upgrading. Download the target release's canonical Compose file, export its versioned `JOB_TRACKER_IMAGE`, pull with `docker compose pull --policy always`, and start with `--no-build` as in the README. Keep the installation directory and project name so the same named volumes are reused. Verify `/health`, the dashboard, and the matching extension before removing an old image. Database migrations and downgrade limits follow [Distribution and lifecycle](DISTRIBUTION.md#upgrade-downgrade-and-replacement).
+Stop the service and create a verified backup before upgrading. Download the target release's canonical Compose file, export its versioned `JOB_TRACKER_IMAGE`, pull with `docker compose pull --policy always`, and start with `--no-build` as in the README. Keep the installation directory and project name so the same named volumes are reused. Verify `/health/ready` (version 2 onward; `/health` on older images), the dashboard, and the matching extension before removing an old image. Database migrations and downgrade limits follow [Distribution and lifecycle](DISTRIBUTION.md#upgrade-downgrade-and-replacement).
 
 `docker compose down` removes the service and network while retaining data. Removing the installation directory does not remove Docker volumes. `docker compose down -v` is a separate destructive purge that also deletes backups in the project's backup volume; copy backups outside Docker first.
 
@@ -74,7 +76,7 @@ docker compose config -q
 bash scripts/test-container.sh
 ```
 
-It builds the image, verifies health, product version, dashboard serving, private data/state mounts, an offline backup, and restart persistence. Docker Engine access is required; no image publication occurs locally.
+It builds an isolated local image and verifies database readiness, build identity, effective resource/log/shutdown settings, dashboard serving, private data/state mounts, an offline backup, and restart persistence. Turso credentials are cleared for this disposable local-SQLite test. Docker Engine access is required; no image publication occurs locally.
 
 Validate the registry installation separately against an existing published tag:
 

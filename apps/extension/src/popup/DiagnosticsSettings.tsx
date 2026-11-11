@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import type { PreferencesEditor } from "./usePreferences";
 import { useEffect, useState } from "react";
 import {
@@ -36,11 +37,13 @@ export function DiagnosticsSettings({ editor }: { editor: PreferencesEditor }) {
   return (
     <details className="mt-1 border-t border-popup-border-subtle pt-1.5">
       <summary className="cursor-pointer list-none py-1.5 text-[10px] font-semibold uppercase tracking-wider text-popup-faint marker:hidden before:mr-1.5 before:inline-block before:content-['▸'] open:before:rotate-90">
-        Search diagnostics
+        {copy.diagnosticsSettings.searchDiagnostics}
       </summary>
       <div className="mt-1.5">
         <label className="flex items-center justify-between gap-3">
-          <span className="text-[13px] text-popup-fg">Capture search diagnostics</span>
+          <span className="text-[13px] text-popup-fg">
+            {copy.diagnosticsSettings.captureSearchDiagnostics}
+          </span>
           <select
             className={
               "rounded border border-popup-border bg-popup-surface px-1.5 py-1 text-xs " + FOCUS
@@ -49,9 +52,9 @@ export function DiagnosticsSettings({ editor }: { editor: PreferencesEditor }) {
             value={scope}
             onChange={(e) => setScope(e.target.value as DiagnosticsScope)}
           >
-            <option value="never">Never</option>
-            <option value="temporary">30 minutes</option>
-            <option value="always">Always</option>
+            <option value="never">{copy.diagnosticsSettings.never}</option>
+            <option value="temporary">{copy.diagnosticsSettings.thirtyMinutes}</option>
+            <option value="always">{copy.diagnosticsSettings.always}</option>
           </select>
         </label>
       </div>

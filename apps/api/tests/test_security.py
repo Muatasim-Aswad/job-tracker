@@ -8,9 +8,9 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app.core.config import Settings, get_settings
-from app.core.deps import get_conn
+from app.config import Settings
 from app.main import app
+from app.platform.dependencies import get_conn, get_settings
 
 
 def test_allowed_origin_gets_cors_header(client: TestClient) -> None:
@@ -28,7 +28,7 @@ def test_disallowed_origin_gets_no_cors_header(client: TestClient) -> None:
 
 
 def test_extension_origin_is_allowed(client: TestClient) -> None:
-    settings = get_settings()
+    settings = app.state.settings
     origin = f"chrome-extension://{settings.extension_id}"
     resp = client.get("/api/jobs", headers={"Origin": origin})
     assert resp.headers.get("access-control-allow-origin") == origin
@@ -82,7 +82,12 @@ def test_private_authorization_errors_are_no_store(
 ) -> None:
     response = keyed_client.get(path, headers={"X-API-Key": key} if key is not None else {})
     assert response.status_code == 401
-    assert response.json() == {"detail": "missing or invalid X-API-Key"}
+    assert response.json()["error"] == {
+        "status": response.status_code,
+        "code": "unauthorized",
+        "message": "missing or invalid X-API-Key",
+        "request_id": response.headers["X-Request-ID"],
+    }
     assert response.headers.get("cache-control") == "no-store"
 
 
@@ -106,7 +111,12 @@ def test_private_http_errors_preserve_retry_headers(client: TestClient) -> None:
     finally:
         app.dependency_overrides[get_conn] = previous
     assert response.status_code == 503
-    assert response.json() == {"detail": "synthetic busy"}
+    assert response.json()["error"] == {
+        "status": response.status_code,
+        "code": "service_unavailable",
+        "message": "synthetic busy",
+        "request_id": response.headers["X-Request-ID"],
+    }
     assert response.headers["retry-after"] == "7"
     assert response.headers["allow"] == "GET"
     assert response.headers.get("cache-control") == "no-store"

@@ -16,9 +16,11 @@ import anyio.to_thread
 import httpx
 from fastapi import Depends, FastAPI, HTTPException
 
-from app.core import deps
-from app.core.db import Database
-from app.core.deps import service_factory
+from app.core.paths import resolve_paths
+from app.infra.database import Database
+from app.platform import dependencies as deps
+from app.platform.dependencies import service_factory
+from app.platform.runtime import RuntimeResources
 
 
 def test_requests_exceeding_worker_capacity_complete() -> None:
@@ -32,7 +34,7 @@ async def _exercise() -> None:
     conn.execute("CREATE TABLE writes (value INTEGER)")
     db = Database(conn)
     app = FastAPI()
-    app.state.db = db
+    app.state.resources = RuntimeResources(paths=resolve_paths(environ={}), db=db)
 
     class Service:
         def __init__(self, conn: sqlite3.Connection) -> None:

@@ -41,9 +41,14 @@ def test_stale_skip_preserves_applied_status_flags_and_history(
         },
     )
     assert response.status_code == 409
-    assert response.json() == {
-        "detail": "stale_status",
-        "current": {"job_id": job_id, "status": "applied", "hidden": False, "starred": False},
+    assert response.json()["error"] == {
+        "status": response.status_code,
+        "code": "stale_status",
+        "message": "stale_status",
+        "request_id": response.headers["X-Request-ID"],
+        "details": {
+            "current": {"job_id": job_id, "status": "applied", "hidden": False, "starred": False}
+        },
     }
     assert response.headers["cache-control"] == "no-store"
     assert client.get(f"/api/jobs/{job_id}").json() == before
@@ -98,7 +103,7 @@ def test_conditional_writes_resolve_aliases_and_guard_corrections_and_reverts(
     ):
         response = client.post(path, json={**body, "expected_status": "seen"})
         assert response.status_code == 409
-        assert response.json()["current"]["job_id"] == target
+        assert response.json()["error"]["details"]["current"]["job_id"] == target
     correction = client.post(
         f"/api/jobs/{source}/corrections", json={"status": "to_apply", "expected_status": "applied"}
     )

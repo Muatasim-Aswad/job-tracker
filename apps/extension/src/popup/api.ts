@@ -1,6 +1,8 @@
+import { copy } from "./copy";
 // The extension origin fetches the API directly; content scripts use the CSP-safe worker proxy.
 import { API_BASE_URL, SERVER_URL, serverScope, initializeServerConfig } from "../config.js";
 import type { BridgeRequest } from "../messages.js";
+import type { ReminderCreate, NotificationItem } from "@job-tracker/shared/api";
 
 export { API_BASE_URL as BASE_URL } from "../config.js";
 
@@ -8,10 +10,10 @@ async function api(path: string, opts?: RequestInit) {
   await initializeServerConfig();
   const server = SERVER_URL;
   const res = await fetch(`${API_BASE_URL}${path}`, opts);
-  if (server !== SERVER_URL) throw new Error("Server changed; retry this action.");
+  if (server !== SERVER_URL) throw new Error(copy.api.serverChangedRetryThisAction);
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
   const result = res.status === 204 ? null : await res.json();
-  if (server !== SERVER_URL) throw new Error("Server changed; retry this action.");
+  if (server !== SERVER_URL) throw new Error(copy.api.serverChangedRetryThisAction);
   if (opts?.method && opts.method !== "GET") notifyChange();
   return result;
 }
@@ -62,6 +64,13 @@ export const createListing = (body: unknown) =>
 
 // Full job record for attaching a comment to the latest status event.
 export const getJob = (jobId: string) => api(`/jobs/${jobId}`);
+
+export const createReminder = (body: ReminderCreate): Promise<NotificationItem> =>
+  api("/notifications", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 
 // Enrich an already-logged event with meta after the fact. Replaces the whole meta
 // bag, but the verb and timestamp are immutable, so this only adds or updates the

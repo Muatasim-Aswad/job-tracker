@@ -83,10 +83,12 @@ def test_listing_stub_event_is_not_misidentified_as_submitted_event(client: Test
 def test_event_insert_uses_returning_without_lastrowid(
     client: TestClient, conn: sqlite3.Connection
 ) -> None:
-    from app.events.repository import EventRepository
+    from app.modules.events.repository import EventRepository
 
     job_id = _job(client)
-    with patch("app.events.repository.execute", side_effect=AssertionError("Use RETURNING")):
+    with patch(
+        "app.modules.events.repository.execute", side_effect=AssertionError("Use RETURNING")
+    ):
         event_id = EventRepository(conn).insert(
             job_id, "note", "now", listing_id=None, meta=None, meta_hash=None
         )

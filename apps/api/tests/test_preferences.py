@@ -4,8 +4,8 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.db import init_schema
-from app.preferences.schemas import DEFAULT_PREFERENCES_REVISION, Preferences
+from app.infra.database import init_schema
+from app.modules.preferences.schemas import DEFAULT_PREFERENCES_REVISION, Preferences
 
 
 def test_startup_stores_defaults_before_the_first_settings_request(
@@ -45,7 +45,7 @@ def test_patch_rejects_stale_writes_without_losing_other_settings(client: TestCl
         },
     )
     assert stale.status_code == 409
-    assert stale.json()["current"] == first
+    assert stale.json()["error"]["details"]["current"] == first
     second = client.patch(
         "/api/settings",
         json={"expected_revision": first["revision"], "changes": {"easy_apply_enabled": False}},

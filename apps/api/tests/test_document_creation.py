@@ -4,7 +4,7 @@ import sqlite3
 
 from fastapi.testclient import TestClient
 
-from app.core.db import init_schema
+from app.infra.database import init_schema
 
 
 def _job(client: TestClient, key: str) -> str:
@@ -42,9 +42,12 @@ def test_creation_key_reuse_with_changed_payload_or_other_job_is_conflict(
     for job_id, payload in ((first, {**body, "content": "Different"}), (second, body)):
         response = client.post(f"/api/jobs/{job_id}/documents", json=payload)
         assert response.status_code == 409
-        assert response.json() == {
-            "detail": "document_creation_key_conflict",
-            "current": {"document_id": original["id"], "job_id": first},
+        assert response.json()["error"] == {
+            "status": response.status_code,
+            "code": "document_creation_key_conflict",
+            "message": "document_creation_key_conflict",
+            "request_id": response.headers["X-Request-ID"],
+            "details": {"current": {"document_id": original["id"], "job_id": first}},
         }
     assert len(client.get(f"/api/jobs/{first}").json()["documents"]) == 1
     assert client.get(f"/api/jobs/{second}").json()["documents"] == []

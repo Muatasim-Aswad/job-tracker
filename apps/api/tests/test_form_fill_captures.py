@@ -7,9 +7,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.db import Conn
-from app.core.errors import ConflictError, InvalidCursorError, ValidationError
-from app.form_fill.schemas import (
+from app.infra.database import Conn
+from app.modules.form_fill.schemas import (
     AnswerCreate,
     AnswerUpdate,
     CaptureCreate,
@@ -21,7 +20,8 @@ from app.form_fill.schemas import (
     RetargetMappingApply,
     UpdateAnswerApply,
 )
-from app.form_fill.service import FormFillService
+from app.modules.form_fill.service import FormFillService
+from app.shared.errors import ConflictError, InvalidCursorError, ValidationError
 
 
 def _field(prompt: str = "What is your preferred name?", **updates: Any) -> dict[str, Any]:
@@ -358,8 +358,8 @@ def test_capture_collection_and_revision_errors_omit_retained_values(client: Tes
     ):
         assert response.status_code == 409
         assert response.headers["cache-control"] == "no-store"
-        assert response.json()["detail"] == error
-        current = response.json()["current"]
+        assert response.json()["error"]["code"] == error
+        current = response.json()["error"]["details"]["current"]
         summary = current.get("capture", current)
         assert summary["id"] == capture["id"]
         assert "value" not in summary

@@ -22,6 +22,34 @@ pnpm exec vp run -F web typecheck
 pnpm run build:web
 ```
 
+## Source ownership
+
+`src/main.tsx` bootstraps the dashboard. Source owners are:
+
+| Path | Responsibility |
+| --- | --- |
+| `src/app/` | Workspaces, navigation, global shortcuts, build checks, and application dialogs |
+| `src/features/` | Jobs, Documents, Blocked companies, Extension settings, and Form Fill |
+| Feature `client.ts` | Endpoint adapters |
+| Feature `queries.ts` | Query keys/options, mutations, polling, invalidation, and cache cleanup |
+| `src/infra/http.ts` | Shared HTTP transport bound to `/api` |
+| `src/shared/` | Reusable UI, browser hooks, and pure utilities with no feature owner |
+| `src/platforms/` | Platform metadata and the [private-overlay discovery path](../../docs/PRIVATE.md#overlay-locations) |
+
+Feature code does not import the application shell; shared code and transport do not import features. `src/app/sourceBoundaries.test.ts` enforces these directions for public production imports, re-exports, import types, and literal dynamic imports. Platform metadata remains a lower integration surface; its private discovery stays intact and installed overlay files are excluded from this source check. Documents invalidate the Jobs detail key after writes.
+
+The shared transport reads failed response bodies once. `ApiError` parses the standard envelope into code, safe message, request ID, details, and validation issues; legacy server bodies retain their existing parsing and raw message fallback. Shared UI maps known codes to local messages. Form Fill projects `details.current` for standard conflicts and retains the legacy `detail ?? payload` fallback, then creates a feature error with safe global wording, code/request ID, and no transport payload or private details.
+
+Each owner keeps typed UI text and complete count/grammar functions in `copy.ts`; shortcut help belongs to the application shell. User-authored data and protocol values stay separate from display copy. `shared/format.ts` centralizes browser-local date/time display, preserving the browser's locale and time zone and the Form Fill invalid-date fallback. Protocol timestamps and build identity are separate from display formatting.
+
+### Drafts and review helpers
+
+Form Fill keeps draft/value and request construction in `answerDraft.ts` and `captureDraft.ts`. `useQuestionDraft.ts` and `useCaptureDraft.ts` own their drawer's in-memory fields, initial baseline, query snapshots, approval fingerprint, binding suggestions, review scrolling, and private-detail lifetime. Pure eligibility and revision fingerprints live in `questionReview.ts` and `captureReview.ts`; selected and current Answer revisions remain distinct. `usePrivateAnswers.ts` tracks every opened Answer detail for cleanup. Background refresh does not replace the draft base or approve changed context.
+
+`AnswerDrawer.tsx` keeps Answer drafts, base revisions, and named save actions; `answerDraft.ts` builds shared payload fields, while `AnswerDrawerTitle.tsx` and `AnswerDrawerFooter.tsx` render its name editor and save controls without owning drafts.
+
+`useQuestionActions.ts` owns Match/Question/conflict mutations; `useCaptureActions.ts` owns Capture apply/status mutations. They retain revision guards, mutation order, safe announcements, and close/advance outcomes. Each drawer visibly composes its loading state, dirty guard, conflict reconciliation, history, and named panels. Question panels separate remembered values, Answer selection/change review, management/details, and footer actions. Capture panels separate the remembered value, change review, action/Answer selection, new-Answer metadata, and footer actions; source and management disclosures stay beside their parent flow. Panels receive explicit typed fields and callbacks, add no DOM wrappers, and own no draft state. The [editing/review](#editing-and-review) and [private client state](#private-client-state) sections own reconciliation and retention rules.
+
 ## Installable app
 
 Production builds include a PWA manifest, app icons, and a Workbox service worker through `vite-plugin-pwa`. Use the browser's **Install app** or **Add to Home Screen** action on HTTPS or localhost; plain HTTP on a remote host cannot register the worker. Installation keeps the existing server and database. The app shell can reopen offline, but reads and writes still need the server.
@@ -48,11 +76,15 @@ Listing details show compact amber `Unavailable <date>` or red `Closed <date>` l
 
 Jobs and Form Fill share search/count, filters, and order controls, including 38px sizing, keyboard focus, and narrow-screen wrapping. Desktop Add/Refresh sit beside the app name. Manual refresh disables repeat clicks, shows progress, and reports success or failure in a toast. On phones they move into the burger menu after workspace navigation; the current workspace is marked and disabled. Search/filter/order remain together below branding. Menu arrow and Tab navigation use visible, enabled controls; Escape restores the menu trigger. Collapsed drawer content stays outside focus-trap boundaries.
 
-The funnel highlights changed filters or display options. Jobs groups attention, starred, Easy Apply, listing availability, hidden, and blocked-company filters, with A/S/E/H/B shortcuts and attention count. Clear filters empties search and restores collection defaults while preserving order. Workspace, collection, filter, order, and display preferences persist locally; explicit URL state wins, and extension job links open Jobs. Search text and drafts are not stored. Under Show only, checkbox labels omit “only”; a separate Listing group places “Listing:” beside an All / Unavailable / Closed dropdown. Each narrowed choice requires at least one matching listing, even when another listing is open or the card warning is suppressed. The choices combine with other filters, persist as `jt.listingAvailability`, use the `listing_availability` URL parameter, and reset with Clear filters.
+The funnel highlights changed filters or display options. Jobs groups attention, starred, Easy Apply, listing availability, hidden, and blocked-company filters, with A/S/E/H/B shortcuts and attention count. Clear filters empties search and restores collection defaults while preserving order. Workspace, collection, filter, order, and display preferences persist locally; explicit URL state wins, and extension job links open Jobs. Search text and drafts are not stored.
+
+Under Show only, checkbox labels omit “only”; a separate Listing group places “Listing:” beside an All / Unavailable / Closed dropdown. Each narrowed choice requires at least one matching listing, even when another listing is open or the card warning is suppressed. The choices combine with other filters, persist as `jt.listingAvailability`, use the `listing_availability` URL parameter, and reset with Clear filters.
 
 ## Extension settings
 
-The burger menu groups workspace actions, Blocked companies, Extension settings with Theme, then Keyboard shortcuts and About last. **Extension settings** manages the server's Easy Apply switch, filtered-job Dim/Hide mode, diagnostic scope/expiry, description highlights, and title rules from either workspace. Browsing controls sit beside their labels. Description highlights and Keyword actions have explanation tooltips beside their titles. Description highlights, Keyword actions, and Search diagnostics start collapsed; folding them preserves unsaved edits. Browsing controls have no section title, and rule rows show “If title … any of these, then …” with alphabetically sorted keyword chips below, and open editing without a pen icon. Keyword fields wrap removable chips and accept Enter, comma, or pasted lists; pending text participates in saving and unsaved-change guards. Buttons use accent text or a filled primary style, distinct from bordered input fields.
+The burger menu groups workspace actions, Blocked companies, Extension settings with Theme, then Keyboard shortcuts and About last. **Extension settings** manages the server's Easy Apply switch, filtered-job Dim/Hide mode, diagnostic scope/expiry, description highlights, and title rules from either workspace. Browsing controls sit beside their labels. Description highlights and Keyword actions have explanation tooltips beside their titles. Description highlights, Keyword actions, and Search diagnostics start collapsed; folding them preserves unsaved edits.
+
+Browsing controls have no section title, and rule rows show “If title … any of these, then …” with alphabetically sorted keyword chips below, and open editing without a pen icon. Keyword fields wrap removable chips and accept Enter, comma, or pasted lists; pending text participates in saving and unsaved-change guards. Buttons use accent text or a filled primary style, distinct from bordered input fields.
 
 The extension's **Manage keyword highlights and rules ↗** link opens `/?view=jobs&settings=extension`, showing the dialog immediately; closing it removes the settings parameter. The popup keeps quick switches and the management link; all highlight and rule controls stay here. Search diagnostics explains captured data in a tooltip and offers the web-only **Clear stored data** action. Clearing confirms first, reports progress and success/failure, and neither saves nor discards preference drafts.
 
@@ -105,3 +137,13 @@ All mutations use expected revisions. A 409 keeps the draft and offers review/co
 ### Private client state
 
 Close, internal navigation, and browser history confirm before discarding unsaved edits; reload/tab closure uses the native warning. Drafts remain in memory. Form-fill collections and presence polls receive value-free summaries; full details, candidate previews, and resolution actions are intentional private responses. URLs/history contain only enum view state, opaque resource IDs, filters, and cursors. Prompts/values never enter them, success toasts, or global errors. Detail/candidate caches are removed when drawers close.
+
+## Notifications and reminders
+
+The header bell opens the shared inbox, ordered unread first and newest first within each group, and a Scheduled tab containing only user-created reminders. Its icon-only **Add reminder** action creates a tracker reminder; a short note directs users to a job drawer for linked reminders. The drawer’s standard collapsible **Reminders** section sits between Documents and Timeline, with count and add controls, help in a header tooltip and a blank body when empty. It lists only user-created reminders; automatic stale alerts appear in the global notification views. Reminder and alert cards use the drawer’s existing bordered surfaces, compact title/time rows, icon actions and expandable details. Clicking a linked card in the inbox or Scheduled tab opens its job; its actions and expanded-content controls remain independent. Scheduled manual reminders support revision-checked editing/cancellation. Forms accept a title, local date/time and optional details, display the browser timezone and submit UTC.
+
+**Settings → Stale applications** controls day thresholds only. Badges follow thresholds independently of notification modes. **Settings → Notifications** controls the daily stale alert time (09:00 by default), independent Applied/In process modes (On, Muted, Off), shared **Mute all notifications** and device-specific **Browser notifications**. The most recently active dashboard automatically reports its browser’s IANA timezone on opening, focus or foregrounding; no timezone picker is shown. Background dashboards cannot change it. The server retains that zone for scheduling while the app is closed. Both sections use the existing collapsed settings pattern. Notification rows share aligned control widths and input styles; explanatory text and the detected timezone live in tooltips. Muting preserves unread inbox items and suppresses native popups/in-app toasts without replaying them on unmute.
+
+`features/notifications/` owns API/query adapters, reminder/inbox UI and the single SSE stream. Normal fetching never presents popups. SSE alerts use permitted native notifications or in-app toasts. **Allow** requests permission only while the browser has no saved decision; **Enable** registers Web Push when permission is already granted, enabling closed-app delivery on supported browsers; HTTPS is required outside localhost, and iOS/iPadOS requires a Home Screen web app. Blocked permission shows a read-only status with browser-settings guidance; no action claims it can reopen the prompt. Enabled devices can unsubscribe with **Turn off**. Browser registration and HTTP requests have bounded waits and visible errors. The service worker verifies current publication state before showing queued pushes, then acknowledges handling separately from reading. IndexedDB retains at most 256 opaque publication identities, shared by the page and service worker, without notification content.
+
+Reconnect refreshes the inbox and recovers unacknowledged publications without event-history replay or polling. Reminder drafts protect unsaved changes and retain their revision. App shortcuts yield to open dialogs. Push clicks open the linked drawer or general inbox.

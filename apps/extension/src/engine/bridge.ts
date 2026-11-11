@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 // ── Background bridge ────────────────────────────────────────────────────────
 // Content scripts can't reach localhost under a host site's CSP; the service
 // worker does the fetch. Always resolves — never throws.
@@ -14,7 +15,7 @@ export function createBridge(_engine: Engine) {
           { ...msg, ...serverScope() },
           (resp: BridgeResponse | undefined) => {
             if (server !== SERVER_URL) {
-              resolve({ ok: false, error: "Server changed; retry this action." });
+              resolve({ ok: false, error: copy.bridge.serverChangedRetryThisAction });
             } else if (chrome.runtime.lastError) {
               resolve({ ok: false, error: chrome.runtime.lastError.message! });
             } else {

@@ -1,11 +1,4 @@
-"""Opaque job and listing UUIDs. Listing identity is the unique (platform, platform_id) natural key; clients never reconstruct stored IDs. Legacy readable IDs remain addressable."""
+"""Compatibility exports for installed tools; implementation lives in app.shared.ids."""
 
-import uuid
-
-
-def new_job_id() -> str:
-    return uuid.uuid4().hex
-
-
-def new_listing_id() -> str:
-    return uuid.uuid4().hex
+from app.shared.ids import new_job_id as new_job_id
+from app.shared.ids import new_listing_id as new_listing_id

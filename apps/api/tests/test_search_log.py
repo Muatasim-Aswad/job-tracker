@@ -105,7 +105,7 @@ def test_record_prunes_to_the_retention_limit(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Cap the table small so the pruning behaviour is visible without 1000 inserts.
-    monkeypatch.setattr("app.search_log.service.RETENTION_LIMIT", 3)
+    monkeypatch.setattr("app.modules.search_log.service.RETENTION_LIMIT", 3)
     for i in range(5):
         _log(client, query=f"q{i}", host="example.com")
 

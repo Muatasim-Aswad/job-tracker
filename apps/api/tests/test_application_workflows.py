@@ -87,12 +87,12 @@ def test_put_is_singular_revision_checked_and_retry_idempotent(client: TestClien
     )
     assert stale.status_code == 409
     assert stale.headers["cache-control"] == "no-store"
-    assert stale.json()["detail"] == "stale_revision"
-    assert stale.json()["current"]["revision"] == 2
+    assert stale.json()["error"]["code"] == "stale_revision"
+    assert stale.json()["error"]["details"]["current"]["revision"] == 2
 
     missing_precondition = client.put(url, json=_payload(event_id, measured_human_time_seconds=900))
     assert missing_precondition.status_code == 409
-    assert missing_precondition.json()["detail"] == "application_workflow_exists"
+    assert missing_precondition.json()["error"]["code"] == "application_workflow_exists"
 
 
 def test_requires_current_and_specific_submitted_evidence(client: TestClient) -> None:
@@ -103,17 +103,32 @@ def test_requires_current_and_specific_submitted_evidence(client: TestClient) ->
 
     not_submitted = client.put(url, json=_payload(first_created))
     assert not_submitted.status_code == 400
-    assert not_submitted.json() == {"detail": "application_not_submitted"}
+    assert not_submitted.json()["error"] == {
+        "status": not_submitted.status_code,
+        "code": "validation_error",
+        "message": "application_not_submitted",
+        "request_id": not_submitted.headers["X-Request-ID"],
+    }
 
     first_applied = _event(client, first["job_id"], "applied")
     second_applied = _event(client, second["job_id"], "applied")
     wrong_job = client.put(url, json=_payload(second_applied))
     assert wrong_job.status_code == 400
-    assert wrong_job.json() == {"detail": "submitted_event_must_confirm_application"}
+    assert wrong_job.json()["error"] == {
+        "status": wrong_job.status_code,
+        "code": "validation_error",
+        "message": "submitted_event_must_confirm_application",
+        "request_id": wrong_job.headers["X-Request-ID"],
+    }
 
     wrong_kind = client.put(url, json=_payload(first_created))
     assert wrong_kind.status_code == 400
-    assert wrong_kind.json() == {"detail": "submitted_event_must_confirm_application"}
+    assert wrong_kind.json()["error"] == {
+        "status": wrong_kind.status_code,
+        "code": "validation_error",
+        "message": "submitted_event_must_confirm_application",
+        "request_id": wrong_kind.headers["X-Request-ID"],
+    }
 
     valid = client.put(url, json=_payload(first_applied))
     assert valid.status_code == 201
@@ -300,7 +315,7 @@ def test_merge_and_relink_refuse_two_workflow_records(client: TestClient) -> Non
         },
     )
     assert merge.status_code == 409
-    assert merge.json()["detail"] == "application_workflow_conflict"
+    assert merge.json()["error"]["code"] == "application_workflow_conflict"
     assert client.get(f"/api/jobs/{first['job_id']}").status_code == 200
     assert client.get(f"/api/jobs/{second['job_id']}").status_code == 200
 
@@ -308,19 +323,19 @@ def test_merge_and_relink_refuse_two_workflow_records(client: TestClient) -> Non
         f"/api/jobs/{second['job_id']}/link-job", json={"other_job_id": first["job_id"]}
     )
     assert job_merge.status_code == 409
-    assert job_merge.json()["detail"] == "application_workflow_conflict"
+    assert job_merge.json()["error"]["code"] == "application_workflow_conflict"
 
     relink = client.patch(f"/api/listings/{second['listing_id']}", json={"job_id": first["job_id"]})
     assert relink.status_code == 409
-    assert relink.json()["detail"] == "application_workflow_conflict"
+    assert relink.json()["error"]["code"] == "application_workflow_conflict"
     for conflict in (merge, job_merge, relink):
         assert conflict.headers.get("cache-control") == "no-store"
         assert (
-            conflict.json()["current"]["source"]["references"]
+            conflict.json()["error"]["details"]["current"]["source"]["references"]
             == _payload(second_event)["references"]
         )
         assert (
-            conflict.json()["current"]["target"]["references"]
+            conflict.json()["error"]["details"]["current"]["target"]["references"]
             == _payload(first_event)["references"]
         )
 

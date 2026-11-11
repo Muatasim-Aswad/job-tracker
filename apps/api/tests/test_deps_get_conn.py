@@ -9,14 +9,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.core.db import Database
-from app.core.deps import get_conn
+from app.core.paths import resolve_paths
+from app.infra.database import Database
+from app.platform.dependencies import get_conn
+from app.platform.runtime import RuntimeResources
 
 
 def _request(method: str, path: str, db: Database, push_scheduler: Any = None) -> Any:
-    state = SimpleNamespace(db=db)
-    if push_scheduler is not None:
-        state.push_scheduler = push_scheduler
+    state = SimpleNamespace(
+        resources=RuntimeResources(
+            paths=resolve_paths(environ={}), db=db, push_scheduler=push_scheduler
+        )
+    )
     return SimpleNamespace(
         app=SimpleNamespace(state=state), method=method, url=SimpleNamespace(path=path)
     )
@@ -70,13 +74,12 @@ def test_does_not_notify_the_push_scheduler_for_a_get() -> None:
 
 
 def test_tolerates_no_push_scheduler_configured() -> None:
-    # app.state.push_scheduler is only set once main.py's lifespan starts it
-    # (pyturso local-first mode); every other mode leaves it unset.
+    # Local and embedded-replica runtimes have no push scheduler.
     db = Database(conn=MagicMock())
     gen = get_conn(_request("POST", "/api/jobs", db))
     next(gen)
     with pytest.raises(StopIteration):
-        next(gen)  # no AttributeError from the missing state.push_scheduler
+        next(gen)
 
     db.conn.commit.assert_called_once()
 

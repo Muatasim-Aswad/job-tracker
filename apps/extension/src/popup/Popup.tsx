@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { onPreferencesChanged } from "../preferences.js";
 // Off-platform search, status, and note client. The extension origin can call the
 // configured API directly.
@@ -119,7 +120,7 @@ export function Popup() {
     setResults(jobs);
     setSelIndex(-1);
     setMode("list");
-    setMsg({ text: jobs.length ? "" : "No matches.", error: false });
+    setMsg({ text: jobs.length ? "" : copy.popup.noMatches, error: false });
   }, []);
 
   const runSearch = useCallback(
@@ -141,7 +142,7 @@ export function Popup() {
         renderResults(jobs);
       } catch {
         if (s.query !== q) return;
-        setMsg({ text: `Can't reach the tracker at ${BASE_URL}.`, error: true });
+        setMsg({ text: copy.popup.connectionFailed(BASE_URL), error: true });
       }
     },
     [renderResults],
@@ -424,7 +425,7 @@ export function Popup() {
               id="search"
               className="min-w-0 flex-1 rounded-md border border-popup-border bg-popup-surface px-2.5 py-[7px] text-[13px] text-popup-fg outline-none focus:border-popup-border-strong focus-visible:outline-2 focus-visible:outline-popup-focus focus-visible:outline-offset-1"
               type="search"
-              placeholder="Search jobs…"
+              placeholder={copy.popup.searchJobs}
               autoComplete="off"
               value={query}
               onChange={(e) => onSearchChange(e.target.value)}
@@ -445,10 +446,12 @@ export function Popup() {
               }
               title={
                 versionMismatch
-                  ? "Settings — extension and server versions differ"
-                  : "Settings — Easy Apply, theme, and display"
+                  ? copy.popup.settingsExtensionAndServerVersionsDiffer
+                  : copy.popup.settingsEasyApplyThemeAndDisplay
               }
-              aria-label={versionMismatch ? "Settings — version mismatch" : "Settings"}
+              aria-label={
+                versionMismatch ? copy.popup.settingsVersionMismatch : copy.popup.settings
+              }
               aria-expanded={mode === "settings"}
               onClick={toggleSettings}
               dangerouslySetInnerHTML={{ __html: versionMismatch ? ICON.arrowUp : ICON.settings }}
@@ -462,7 +465,7 @@ export function Popup() {
                   : "flex size-8 shrink-0 items-center justify-center rounded-md border border-popup-border bg-popup-surface p-0 text-lg leading-none text-popup-button transition-colors hover:bg-popup-hover " +
                     FOCUS
               }
-              title="Add a job the extension didn't capture"
+              title={copy.popup.addAJobTheExtensionDidnTCapture}
               onClick={toggleAdd}
             >
               ＋
@@ -475,7 +478,7 @@ export function Popup() {
             id="offline-note"
             className="mt-2 rounded-md border border-popup-danger-border bg-popup-danger-bg px-2.5 py-2 text-xs leading-snug text-popup-danger"
           >
-            Can't reach the tracker at {BASE_URL} — changes aren't being saved.
+            {copy.connection.offline(BASE_URL)}
           </div>
         )}
 

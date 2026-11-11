@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import type { PreferencesPatch, PreferencesState } from "@job-tracker/shared/api";
 import { SERVER_URL, onServerChanged, serverScope } from "./config.js";
 import type { BridgeRequest, BridgeResponse } from "./messages.js";
@@ -7,9 +8,11 @@ function request(message: BridgeRequest): Promise<PreferencesState> {
   return new Promise((resolve, reject) => {
     try {
       chrome.runtime.sendMessage({ ...message, ...serverScope() }, (response: BridgeResponse) => {
-        if (server !== SERVER_URL) return reject(new Error("Server changed; reload settings."));
+        if (server !== SERVER_URL)
+          return reject(new Error(copy.preferences.serverChangedReloadSettings));
         if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-        if (!response?.ok) return reject(new Error(response?.error || "Could not load settings."));
+        if (!response?.ok)
+          return reject(new Error(response?.error || copy.settingsErrors.unavailable));
         resolve(response.result as PreferencesState);
       });
     } catch (error) {

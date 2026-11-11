@@ -13,7 +13,7 @@ import uuid
 
 import pytest
 
-from app.core.db import Conn, query_one
+from app.infra.database import Conn, query_one
 
 pytestmark = pytest.mark.turso
 

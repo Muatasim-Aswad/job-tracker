@@ -64,12 +64,30 @@ Generated source artifacts are tracked so that a clean checkout builds and type-
 | --- | --- | --- |
 | `apps/web/public/{pwa-192,pwa-512,apple-touch-icon}.png` | `rsvg-convert` commands in the [dashboard README](../apps/web/README.md#installable-app) | `apps/web/public/app-icon.svg` |
 | `packages/shared/src/api/schema.ts` | `pnpm --filter @job-tracker/shared gen:api` | FastAPI route and model definitions |
-| `packages/shared/src/funnel/funnel.contract.json` | API test suite | `apps/api/app/core/enums.py` |
-| `packages/shared/src/text/text.golden.json` | API test suite | `apps/api/app/core/text.py` |
+| `packages/shared/src/funnel/funnel.contract.json` | API test suite | `apps/api/app/shared/enums.py` |
+| `packages/shared/src/text/text.golden.json` | API test suite | `apps/api/app/shared/text.py` |
 | Artifact `BUILD_INFO.json` and frontend `version.json` | `scripts/build-metadata.py` and frontend identity plugin | `VERSION`, verified original Git source or explicit export attestation, and `SOURCE_DATE_EPOCH` |
 | Artifact `THIRD_PARTY_NOTICES*.txt` and `THIRD_PARTY_INVENTORY*.json` | `scripts/third-party-notices.{mjs,py}` | Bundled frontend module/asset licenses and locked production Python dependency licenses |
 
 Build output (`apps/*/dist/`), including `apps/extension/dist/manifest.json`, tool caches, and the four gitignored private overlay directories are not tracked. `pnpm run build:ext` regenerates the manifest from `apps/extension/manifest.config.ts` and the root `VERSION`; the gate builds and version-checks it. Changing a tracked generated artifact's shape means changing its generator and committing the regenerated result in the same change.
+
+## Code structure and readability
+
+[Architecture](ARCHITECTURE.md#api-organization) owns layer boundaries; the [API](../apps/api/README.md#layout) and [dashboard](../apps/web/README.md#source-ownership) guides map implementation files to their owners.
+
+- Keep each function, component, and module responsible for a coherent operation. Extract substantial independent logic into named local helpers, components, or hooks; reuse is not required. Keep feature directories flat unless grouping several files improves navigation.
+- Separate logical steps with one blank line. Prefer guard clauses, named intermediate values, and typed records over unnecessary nesting, nested conditional expressions, or opaque positional structures. Use conventional multiline layout for complex calls, SQL, and data construction.
+- Choose functions and classes by clarity. Prefer module functions for stateless services, repositories, and providers when equally clear. Keep classes for configuration, meaningful instance state, resource lifecycle, or cohesive behavior; data models and exceptions remain classes. Do not manufacture closures merely to avoid classes.
+- Keep FastAPI `Request`, `Depends`, and application-state access in routers/providers. Put configured providers and reusable `Annotated` aliases together in the owning feature's `dependencies.py`; shared resource access belongs in `platform.dependencies`. Application and repository code receives ordinary typed arguments, including configuration.
+- Keep endpoint adapters, query keys/options, mutations, and cache behavior with the dashboard feature. Extract hooks for coherent React behavior and ordinary functions for pure draft, request, and review calculations. Keep draft ownership visible in the component that manages it.
+- Keep typed UI copy with its feature or application owner. Keep display formatting separate from protocol values, preserving the existing browser locale/time-zone selection and formatting fallbacks. User-authored data and developer diagnostics are separate from UI copy.
+- Review structure as well as formatter output. Avoid arbitrary line-count limits and generic abstractions that only relocate complexity.
+
+### Tests and contracts
+
+Protect behavior through HTTP scenarios, public application operations, pure exported rules, and database/runtime lifecycle interfaces. Keep useful fast integration and pure unit tests; use disposable databases and synthetic fixtures. For a behavior-preserving extraction, retain behavioral assertions and change only necessary imports/setup. Add passing characterization coverage before production changes when a meaningful guarantee lacks coverage.
+
+Generated contracts remain governed by [source and generated files](#source-and-generated-files). Test mechanics and executable dependency checks live in the component guides; the [quality gate](#quality-gate) remains required.
 
 ## Comments and documentation
 
@@ -98,7 +116,7 @@ This policy covers Markdown only. Ruff formats Python and the workspace TypeScri
 
 ## Database migration compatibility
 
-`apps/api/app/core/schema.sql` is the 1.0.0 baseline: every pre-release migration is folded into it, so `_COLUMN_MIGRATIONS` and `_DATA_MIGRATIONS` in `apps/api/app/core/db.py` were both empty at that release. See [architecture](ARCHITECTURE.md#database-and-synchronization) for how migrations are applied.
+`apps/api/app/core/schema.sql` is the 1.0.0 baseline: every pre-release migration is folded into it, so `_COLUMN_MIGRATIONS` and `_DATA_MIGRATIONS` in `apps/api/app/infra/database.py` were both empty at that release. See [architecture](ARCHITECTURE.md#database-and-synchronization) for how migrations are applied.
 
 After 1.0.0, migrations are **append-only**:
 

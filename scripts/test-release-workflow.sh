@@ -30,7 +30,7 @@ grep -A5 '^  publish:' "$WORKFLOW" | grep -Fq 'contents: write' || fail "publica
 [[ "$(grep -Fc 'contents: write' "$WORKFLOW")" == 1 ]] || fail "contents: write must be limited to publication."
 [[ "$(grep -Fc 'persist-credentials: false' "$WORKFLOW")" == 2 ]] || fail "every checkout must disable persisted credentials."
 [[ "$(grep -Fc 'ref: ${{ github.ref }}' "$WORKFLOW")" == 2 ]] || fail "every checkout must select the pushed ref."
-[[ "$(grep -Fc 'jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde' "$WORKFLOW")" == 2 ]] || fail "release jobs must install the mise toolchain."
+[[ "$(grep -Fc 'jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c' "$WORKFLOW")" == 2 ]] || fail "release jobs must install the mise toolchain."
 grep -Fq 'workflow_dispatch:' "$CONTAINER_WORKFLOW" || fail "container workflow lacks manual release recovery."
 [[ "$(grep -Fc "format('refs/tags/{0}', inputs.tag)" "$CONTAINER_WORKFLOW")" == 2 ]] ||
   fail "container recovery must check out the requested tag in both jobs."
@@ -59,7 +59,7 @@ if grep -Fq 'github.repository_owner' "$CONTAINER_WORKFLOW"; then
   fail "container image path must not preserve mixed-case repository ownership."
 fi
 for required in \
-  'jdx/mise-action@fc42bcc7ddbf51124c30f95a877a0c5168a3bfde' \
+  'jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c' \
   'pnpm install --frozen-lockfile' \
   'bash scripts/check.sh' \
   'bash scripts/build-release.sh' \

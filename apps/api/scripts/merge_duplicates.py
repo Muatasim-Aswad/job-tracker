@@ -17,9 +17,9 @@ from typing import Any
 
 import httpx
 
-from app.core.config import get_settings
-from app.core.enums import MERGE_IMPORTANCE
-from app.core.similarity import jaccard, tokenize
+from app.config import get_settings
+from app.shared.enums import MERGE_IMPORTANCE
+from app.shared.similarity import jaccard, tokenize
 
 JACCARD_MERGE = 0.65
 JACCARD_DIFFERENT = 0.30

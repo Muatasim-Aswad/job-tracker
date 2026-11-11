@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.db import Conn
+from app.infra.database import Conn
 
 
 def _listing(client: TestClient, platform: str, platform_id: str, **extra: Any) -> dict[str, Any]:

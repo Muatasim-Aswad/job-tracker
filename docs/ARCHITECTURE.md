@@ -3,7 +3,7 @@
 This document records the system boundaries and the decisions that are costly to rediscover. The following sources own implementation detail:
 
 - Database columns and constraints: [`apps/api/app/core/schema.sql`](../apps/api/app/core/schema.sql)
-- API paths and payloads: the feature routers under `apps/api/app/` and generated OpenAPI at `/docs`
+- API paths and payloads: the feature routers under `apps/api/app/modules/` and generated OpenAPI at `/docs`
 - Installation, configuration, and maintenance: [`README.md`](../README.md) and [`apps/api/README.md`](../apps/api/README.md)
 - Supported extension adapters: [`apps/extension/README.md`](../apps/extension/README.md)
 
@@ -35,9 +35,11 @@ Path selection is a runtime boundary rather than a cwd heuristic. `core.paths` r
 
 The Linux runtime bundle and wheel are replaceable packaged application layouts over persistent platform roots. The optional Linux/amd64 container uses the same packaged profile with explicit `/app`, `/data`, `/config`, `/state`, and `/backups` boundaries. These surfaces share one lifecycle and maintenance implementation; packaging does not create a second database or locking model.
 
-The FastAPI lifespan owns the profile's advisory process lock. It acquires that lock before opening, pulling, or initializing the database and releases it only after background sync stops and the connection closes. If bounded Turso cleanup expires or a worker still owns the connection, the process instead retains both resources for operating-system cleanup at exit, preventing another owner from overlapping the blocked connection. Consequently direct Uvicorn startup and the CLI have the same single-owner database boundary; wrappers are not a separate source of locking truth. The detailed profile, permission, and stale-lock contract is in [`docs/DISTRIBUTION.md`](DISTRIBUTION.md).
+`platform.runtime.open_runtime` manages the FastAPI lifespan resources through a typed `RuntimeResources` holder for paths, database, and optional scheduler. It owns the profile's advisory process lock. It acquires that lock before opening, pulling, or initializing the database and releases it only after background sync stops and the connection closes.
 
-Offline database maintenance lives under `app.maintenance`. Its snapshot primitive uses the SQLite API, validates integrity and foreign keys, and installs temporary siblings atomically; restore applies schema migrations only to a candidate. The CLI owns user-facing backup, restore, and checkout-adoption dispatch, while `core.db` invokes only the recovery-snapshot hook before constructing a Turso driver that can perform a startup pull. Maintenance never contains a remote-primary mutation path.
+If bounded Turso cleanup expires or a worker still owns the connection, the process instead retains both resources for operating-system cleanup at exit, preventing another owner from overlapping the blocked connection. Consequently direct Uvicorn startup and the CLI have the same single-owner database boundary; wrappers are not a separate source of locking truth. The detailed profile, permission, and stale-lock contract is in [`docs/DISTRIBUTION.md`](DISTRIBUTION.md).
+
+Offline database maintenance lives under `app.maintenance`. Its snapshot primitive uses the SQLite API, validates integrity and foreign keys, and installs temporary siblings atomically; restore applies schema migrations only to a candidate. The CLI owns user-facing backup, restore, and checkout-adoption dispatch, while `infra.database` invokes only the recovery-snapshot hook before constructing a Turso driver that can perform a startup pull. Maintenance never contains a remote-primary mutation path.
 
 ## Domain model
 
@@ -51,7 +53,11 @@ A tracked opportunity and a scraped posting are separate entities:
 
 This separation prevents a repost on another platform from creating a second application history while preserving platform-specific URLs and scraped fields.
 
-The primary listing is a read-only navigation preference computed from current listings, never stored on the job. Selection ranks availability (Open, Unknown, Unavailable, Closed, with `closed_at` overriding older evidence), a nonblank saved URL, LinkedIn over other platforms, a recorded full-detail capture, and newest first-capture time, then ascending listing ID for stable ties. Detail refresh times do not affect recency. Details expose `primary_listing_id` referencing their existing listings array; summaries retain a compact `primary_listing` address with `listing_id`. Both use the same selection. This preference changes neither canonical job identity, funnel state, application provenance, nor the separate job-level availability projection.
+The primary listing is a read-only navigation preference computed from current listings, never stored on the job.
+
+Selection ranks availability (Open, Unknown, Unavailable, Closed, with `closed_at` overriding older evidence), a nonblank saved URL, LinkedIn over other platforms, a recorded full-detail capture, and newest first-capture time, then ascending listing ID for stable ties. Detail refresh times do not affect recency.
+
+Details expose `primary_listing_id` referencing their existing listings array; summaries retain a compact `primary_listing` address with `listing_id`. Both use the same selection. This preference changes neither canonical job identity, funnel state, application provenance, nor the separate job-level availability projection.
 
 ### Identity
 
@@ -69,13 +75,27 @@ Opt-in `operation_key` receipts have a separate durable lifecycle. Document rece
 
 A merged job ID remains a durable alias of the surviving job. Reads and ordinary writes addressed with an alias resolve to the canonical ID; responses carry the canonical ID and job-addressed responses identify its URL with `Content-Location`. Destructive deletion through an alias is refused with a conflict so a stale caller cannot silently delete the survivor. Alias rows always point directly to a live job: when that survivor is merged again, every prior alias is flattened to the new survivor. A deliberate hard deletion removes its aliases.
 
-The first complete capture seeds the job's title and company. Later captures update their own listings without replacing that canonical identity. An explicit dashboard edit can change it. Normalized `company_key` and `title_key` values support duplicate suggestions only; capture never merges jobs from those values. Listing-based matching uses the caller's live title/company and one stored source listing; job-based matching uses canonical title/company and all source listings. A candidate shares the source's `company_key` and either its `title_key` or a normalized `meta.apply_url` from any source/candidate listing pair. Both identity keys are required. Equal company and title strings are insufficient evidence that two openings are the same, so each candidate also reports field-level evidence and timing from stored listings. Description similarity is the highest Jaccard overlap across all source/candidate listing pairs with nonempty descriptions; it is absent when either side has no description. Each field agrees if any pair agrees; otherwise it reports each side's earliest-captured comparable value, or no evidence when either side lacks the field. Timing compares the earliest known source appearance (posting date, falling back to capture time per listing) with the candidate's last closure: any open or later-closed candidate listing implies overlap, otherwise it reports the smallest gap. Each candidate appears once, strongest similarity first, unscored last, with newest job creation breaking ties. Evidence is advisory: it never excludes a candidate. LinkedIn profile subpages normalize to their profile root only when the parsed hostname is `linkedin.com` or one of its subdomains; other hosts retain their full paths.
+#### Capture identity and duplicate evidence
+
+The first complete capture seeds the job's title and company. Later captures update their own listings without replacing that canonical identity. An explicit dashboard edit can change it. Normalized `company_key` and `title_key` values support duplicate suggestions only; capture never merges jobs from those values.
+
+Listing-based matching uses the caller's live title/company and one stored source listing; job-based matching uses canonical title/company and all source listings. A candidate shares the source's `company_key` and either its `title_key` or a normalized `meta.apply_url` from any source/candidate listing pair. Both identity keys are required.
+
+Equal company and title strings are insufficient evidence that two openings are the same, so each candidate also reports field-level evidence and timing from stored listings:
+
+- Description similarity is the highest Jaccard overlap across all source/candidate listing pairs with nonempty descriptions; it is absent when either side has no description.
+- Each field agrees if any pair agrees; otherwise it reports each side's earliest-captured comparable value, or no evidence when either side lacks the field.
+- Timing compares the earliest known source appearance (posting date, falling back to capture time per listing) with the candidate's last closure: any open or later-closed candidate listing implies overlap, otherwise it reports the smallest gap.
+
+Each candidate appears once, strongest similarity first, unscored last, with newest job creation breaking ties. Evidence is advisory: it never excludes a candidate.
+
+LinkedIn profile subpages normalize to their profile root only when the parsed hostname is `linkedin.com` or one of its subdomains; other hosts retain their full paths.
 
 ### Linking and merging
 
 Creating or updating a listing and deciding which job it belongs to are separate operations. Explicit linking moves the listing and its attributed events. If the source job then has no listings, its remaining events and documents move to the target before the empty job is deleted.
 
-The duplicate-suggestion flow can merge two complete jobs, addressed by either a source listing or two stored job IDs. Both routes share the merge implementation in `ListingService`. The job further along the funnel survives; ties preserve the older job. Listings, events, documents, form-capture job context, and false-match exclusions are consolidated under the survivor before the losing ID becomes an alias. State is reprojected from the merged event history without allowing an ordinary backdated event to undo the survivor's stronger status.
+The duplicate-suggestion flow can merge two complete jobs, addressed by either a source listing or two stored job IDs. Both routes share the merge implementation in `modules.job_lifecycle.service.JobLifecycle`. The job further along the funnel survives; ties preserve the older job. Listings, events, documents, form-capture job context, and false-match exclusions are consolidated under the survivor before the losing ID becomes an alias. State is reprojected from the merged event history without allowing an ordinary backdated event to undo the survivor's stronger status.
 
 Merges and explicit listing relinks refuse a pair excluded by either job’s `false_matches`, including exclusions addressed through merged aliases. The guard runs inside the mutating request transaction before moving records, so prior suggestion reads confer no authority to bypass a subsequent exclusion.
 
@@ -107,7 +127,9 @@ An uncaptured listing can read as `untracked`. This is a client-facing projectio
 
 ### Listing availability
 
-Listings expose `availability` independently of the job funnel: `unknown`, `open`, `unavailable`, or `closed`, with an optional original `availability_message` and `availability_observed_at` timestamp. Captures update this evidence together; omitted or unknown observations preserve it, and older timestamped observations cannot replace newer ones. Existing `closed_at` values project as `closed` without rewriting historical data. Capture upserts preserve the first closure timestamp until an open observation clears it; a later closure starts a new timestamp. Explicit listing edits retain authority to replace or clear the closure. Job summaries batch unavailable/closed counts and dates plus the confirmed-open LinkedIn count. `ListingAvailabilitySummary.state` owns the job-level projection exposed as top-level `availability` in job summaries and details: confirmed-open LinkedIn wins, then Unavailable, then Closed, otherwise Unknown. Unknown and Open listings on other platforms do not suppress warnings. This state is computed on each read, never persisted on the job, and does not change funnel status. Clients display the API result; listing-based filters still use the counts.
+Listings expose `availability` independently of the job funnel: `unknown`, `open`, `unavailable`, or `closed`, with an optional original `availability_message` and `availability_observed_at` timestamp. Captures update this evidence together; omitted or unknown observations preserve it, and older timestamped observations cannot replace newer ones. Existing `closed_at` values project as `closed` without rewriting historical data. Capture upserts preserve the first closure timestamp until an open observation clears it; a later closure starts a new timestamp. Explicit listing edits retain authority to replace or clear the closure.
+
+Job summaries batch unavailable/closed counts and dates plus the confirmed-open LinkedIn count. `ListingAvailabilitySummary.state` owns the job-level projection exposed as top-level `availability` in job summaries and details: confirmed-open LinkedIn wins, then Unavailable, then Closed, otherwise Unknown. Unknown and Open listings on other platforms do not suppress warnings. This state is computed on each read, never persisted on the job, and does not change funnel status. Clients display the API result; listing-based filters still use the counts.
 
 LinkedIn’s gray “Not currently accepting applications” notice records `unavailable` without closing the listing or job. It does not establish that the employer paused hiring. A visible, enabled Apply control records `open`, clears the notice and listing closure, and lets the normal automatic-closure reconciliation restore a job closed only by automation. An informational notice alone cannot undo an earlier explicit closure. Missing controls, loading content, descriptions, and recommendation cards provide no availability evidence. Full captures repeat when availability changes, including within one document.
 
@@ -115,9 +137,21 @@ LinkedIn’s gray “Not currently accepting applications” notice records `una
 
 When the extension detects LinkedIn’s red “No longer accepting applications” notice, or LinkedIn reports that a recorded posting ID is invalid or removed, it records `listings.closed_at`. The unavailable-page path first confirms that the listing is already tracked, so an arbitrary invalid URL cannot create a stub. The server automatically closes a pre-application job only when all its listings are closed. The event carries automatic provenance and is superseded if an open listing appears through reopening, relinking, or merging. Manual closures are never reversed. Applied and later jobs keep their status because the application may remain active after the posting closes.
 
-### Attention
+### Application staleness and notifications
 
-`GET /jobs` derives an attention suggestion for stalled `applied` and `in_process` jobs. The clock starts at the latest status-setting event or note; older rows without either fall back to `jobs.updated_at`. Reading attention never writes an event or changes status. Thresholds are server configuration and zero disables the corresponding stage.
+`jobs.application_stale_at` is a nullable projection of the latest effective status-setting event or note plus the saved stage threshold; legacy rows fall back to `jobs.updated_at`. Only `applied` and `in_process` qualify; zero disables the corresponding rule. Days are elapsed 24-hour periods: the job deadline preserves the qualifying activity’s UTC time. Automatic notifications use the next saved daily local time after that deadline (default 09:00 in the initially detected server timezone). The most recently active foreground dashboard reports its browser’s IANA timezone through revision-checked preferences updates. That retained timezone governs daylight-saving changes and closed-app scheduling; background dashboards cannot replace it. A missed daily slot defers to the next slot, avoiding overnight catch-up alerts; the worker publishes within that minute. Deployment configuration seeds defaults once; revisioned shared preferences own subsequent choices. Job Activity and Job Lifecycle reconcile affected jobs within their write transaction; settings edits reconcile all affected schedules. Startup backfills/reconciles existing records. Reading staleness changes neither status nor events. The existing `attention` response remains compatible; the dashboard labels the filter **Stale applications** and cards **N days inactive**.
+
+One `notifications` table holds user-authored `manual_reminder` schedules and generated `application_stale` alerts. A manual reminder optionally belongs to a job. Each job has one reusable automatic alert: new qualifying activity updates its schedule, resets publication/delivery/read state and advances its revision. Ineligible jobs cancel scheduled alerts or resolve published ones. Merges carry manual reminders to the survivor and reconcile one automatic alert; deliberate deletion cancels pending reminders and clears job links while preserving notification content. There is no stale-alert episode history.
+
+Staleness owns deadline rules and delegates schedule changes to Notifications. Notifications owns reminder validation, optimistic edits, publication, delivery acknowledgment and reading; its repository owns storage. Application coordinators call these public operations rather than embedding lifecycle writes in status projection or transport. A publication is addressed by notification ID plus `published_at`; old acknowledgments cannot acknowledge a rearmed record.
+
+FastAPI's lifespan owns one supervised 60-second notification worker and a bounded in-memory connection registry. The worker queries due schedules rather than rescanning job histories, commits publications before broadcasting, and retries published/unresolved notifications without `delivered_at` when clients are connected or Web Push subscriptions exist. The first successful client acknowledgment sets shared `delivered_at`; reading separately sets shared `read_at`. Clients deduplicate publication identities in a bounded IndexedDB receipt store shared with the service worker. This provides at-least-once client handling when a client and its API are available; it cannot prove a person saw a popup.
+
+Each SSE connection subscribes before reading unacknowledged publications and then awaits its own bounded queue without holding a database lock. Heartbeats keep idle streams open. Reconnect refreshes the inbox and recovers unacknowledged publications; there is no event-history replay. Normal inbox fetches do not present popups. Slow queues request resynchronization, and unacknowledged messages remain recoverable from the database. Read/publication changes are broadcast after committed HTTP writes; worker snapshots also detect notification state received through database synchronization. No per-device delivery table, occurrence key, announcement timestamp or backoff counters are stored. `notification_push_subscriptions` stores browser endpoint/key material, scoped to an installation’s VAPID public key; vendor acceptance does not acknowledge client handling. The transport private key stays in the installation state directory. The service worker verifies the current publication before displaying a queued push and acknowledges successful handling through the same API.
+
+Only one API instance may enable `NOTIFICATION_SCHEDULER_ENABLED` against a shared Turso database. Other instances can stream and acknowledge synchronized publications; their notification snapshots refresh every worker cycle after ordinary database synchronization. In-process fanout does not span machines, and synchronization can delay cross-device updates. Processing pauses while the designated scheduler is stopped and catches up at startup. Cleanup stops the notification worker before database synchronization and connection cleanup; timed-out background work retains the database and profile lock for process exit.
+
+Shared `settings.notifications.muted` suppresses alerts while preserving publication, unread counts and inbox content. Each staleness stage independently selects `on`, `muted` or `off`: muted publishes silently; off cancels/resolves its automatic notification without changing `application_stale_at` or the badge threshold. `alert_suppressed_at` records silent handling separately from delivery/read receipts, excludes retries, and resets with a new publication cycle. Muting suppresses outstanding unacknowledged alerts; unmuting does not replay them. Schedule changes and new activity can rearm a notification; changing only mute controls cannot rearm a published cycle.
 
 ### Form-fill knowledge
 
@@ -127,6 +161,8 @@ Form filling uses durable semantic identities rather than page-local selectors:
 - An **Answer** is a reusable typed value with an explicit fill policy and revision. Choice Answers own their reusable vocabulary.
 - A **Match** is the singleton relationship for one Question. It points to one Answer and, for choice controls, binds every active Question option to an Answer choice.
 - A **Capture** is a provisional value attributed to trusted user input or the explicit **Remember existing** action. It remains reviewable until cleared, superseded, ignored, applied, or selected as a conflict winner.
+
+#### Identity and resolution
 
 Single-choice identity uses normalizer version 2 and the existing `radio` control kind as its canonical representation. Both generic signatures and versioned adapter keys share that representation; their other identity evidence and active option vocabulary retain the existing rules. Other controls retain their version-1 signatures. This is forward-only: version-1 radio and select Questions, Matches, and Captures are retained without automatic fallback, merge, or migration. Existing verified Answers can be explicitly matched to newly observed Questions.
 
@@ -138,7 +174,11 @@ Question-context Answer creation derives the Answer value kind from the Question
 
 Capture conflicts are derived from more than one current row, including independently synchronized arrivals; reading that state does not change the Question revision. Applying a conflicted Capture requires explicit complete-set winner resolution. Active Match resolution retains its documented priority.
 
-Question `review_state` records explicit open/muted intent; actionable review is derived separately as an open Question without an active Match, or one with a Capture conflict. The dashboard inbox is a separate read projection: actionable review or any current Capture, with one row per Question and cursor pagination. Collection context and counts identify exact variants without exposing Answer values. A separate Question-scoped candidate projection filters and ranks before pagination and returns bounded private value previews; selecting an Answer still fetches its complete private detail for review. Candidate previews remain drawer-local runtime data and are discarded when the picker unmounts. Resolution stores its actual non-fill reason after observation instead of guessing before the Match and Capture state has been evaluated.
+#### Review projections and private values
+
+Question `review_state` records explicit open/muted intent; actionable review is derived separately as an open Question without an active Match, or one with a Capture conflict. The dashboard inbox is a separate read projection: actionable review or any current Capture, with one row per Question and cursor pagination. Collection context and counts identify exact variants without exposing Answer values.
+
+A separate Question-scoped candidate projection filters and ranks before pagination and returns bounded private value previews; selecting an Answer still fetches its complete private detail for review. Candidate previews remain drawer-local runtime data and are discarded when the picker unmounts. Resolution stores its actual non-fill reason after observation instead of guessing before the Match and Capture state has been evaluated.
 
 Capture collections, Question-embedded Captures, apply/conflict summaries, and stale-write summaries omit the value field entirely. Explicit Capture details, creation/retry responses, and successful review-update details retain available values; resolution actions and Question-scoped candidate previews are also intentional private responses. The [API guide](../apps/api/README.md#form-fill-knowledge) owns endpoint detail.
 
@@ -171,15 +211,27 @@ Listing `captured_at` remains the first capture for posting-age and match-timing
 
 The shared TypeScript API schema is generated from FastAPI's OpenAPI output. Repository checks fail if the generated file differs from the server contract.
 
+`shared.errors.AppError` carries a stable code, optional safe message, and explicitly separated public/private details and diagnostics. Boundary handlers serialize only the public projection. The outer HTTP request boundary covers host/origin rejections and unexpected failures, carries one isolated correlation ID through responses and logs, and logs route templates rather than resource IDs or query strings. The [API guide](../apps/api/README.md#http-errors-and-logs) owns the wire contract, logging fields, and version-2 migration.
+
 ## API organization
 
-Server features use the same dependency direction:
+`main.create_app(settings, resources=...)` composes the API; `app.main:app` is the Uvicorn entry point. The delayed-import CLI selects profile roots before importing configuration or runtime code.
 
-```text
-router → service → repository → database
-```
+| Layer | Owns |
+| --- | --- |
+| `app/modules/` | Business features, public use cases, repositories, schemas, and feature HTTP adapters |
+| `app/infra/` | Driver-neutral database access, migrations, transaction scope, and synchronization |
+| `app/platform/` | HTTP policy, shared request dependencies, runtime lifecycle, and logging |
+| `app/shared/` | Pure reusable rules and helpers with no feature owner |
+| `app/config.py` | Typed settings and configuration loading |
 
-Routers translate HTTP requests, services enforce domain rules, and repositories own SQL. Pydantic models validate boundary and hydrated database data. Raw SQL is kept behind the driver-neutral helpers in `app/core/db.py`; there is no ORM.
+Routers/providers own FastAPI and request-state access. Application operations receive ordinary typed arguments; repositories and feature operations own raw SQL through `infra.database` and its `Conn` protocol. Pydantic models validate boundary and hydrated database data. There is no ORM.
+
+Business dependencies are acyclic. Job lifecycle owns coordinated merge/relink/delete and listing writes that may relink; Job activity owns events, corrections, reverts, and resulting workflow cleanup; Job queries owns cross-feature read projections. They call small feature-owned operations within the caller's transaction. Lower features do not call back into these application owners. HTTP composition and shared model/schema contracts are distinct from business calls.
+
+Form Fill exposes a connection-bound service over focused resolution, query, Answer, Match, and Capture operations. Revision checks precede coordinated writes, and Capture apply keeps its selected action and consumption in one savepoint inside the request transaction. Feature conflict types retain the public exception/HTTP mapping; private values stay out of collection and conflict summaries.
+
+The [API layout](../apps/api/README.md#layout) owns the file-level responsibility map, providers, compatibility exports, and executable layer checks. Retained `core` resource and CLI anchors preserve installed lookup paths; new code imports the owning layer. The baseline schema stays at `app/core/schema.sql`.
 
 Platform-specific fields remain in a listing's JSON metadata until they become stable query or reporting dimensions. Funnel state and other invariants stay in typed columns rather than in open metadata.
 
@@ -199,9 +251,25 @@ Form captures use enforced foreign keys for their optional job and listing conte
 
 Application workflows use the opposite retention rule: they are meaningful only with a live job and their named submitted event, so both references are enforced and deletion of either removes the record. The stored reference list contains opaque locators to canonical agent runs, artifacts, or external evidence. It does not copy model, token, cost, or tracker-outcome facts; reporting resolves those locators and derives funnel outcomes from events.
 
+### Request transactions
+
+`platform.dependencies` adapts HTTP requests to the framework-independent `infra.transactions.transaction` scope. Mutations execute `BEGIN` before revision/precondition reads; coordinated writes commit or roll back together. Commit logging and scheduler notification run only after successful commit.
+
 Requests enter an asynchronous admission queue before acquiring the connection's thread lock. Only the admitted request can wait for that lock in FastAPI's worker pool, leaving capacity for its service, endpoint, and transaction cleanup. The scheduler uses the same thread lock, so synchronization cannot overlap a request transaction. Both admission and connection-lock waits are bounded; timeout responses occur before transaction entry and produce rate-limited, value-free thread diagnostics. See the [API operations guide](../apps/api/README.md#busy-requests-and-shutdown) for deadlines and recovery.
 
+`infra.readiness.DatabaseReadiness` probes the active local connection under that same lock without committing or rolling back. The runtime creates it only after startup succeeds and disables it before cleanup. Its single shared background query preserves connection ownership through caller timeouts and cancellation without consuming the HTTP worker pool. `platform.http` exposes its bounded, value-free result at `/health/ready`; the API operations guide owns the wire contract. Liveness and build identity remain independent of database availability.
+
+### Synchronization and cleanup
+
 The local-first scheduler never discards a failed push. Local data remains on disk, the dirty state remains set, and a later cycle retries. Turso HTTP operations have a bounded socket-progress timeout. Shutdown attempts a final push for pending writes within a bounded scheduler join; if sync remains blocked, it leaves the connection and profile lock open for process exit so a restart cannot overlap the old database owner.
+
+## Dashboard architecture
+
+`src/main.tsx` bootstraps React; `src/app/` composes workspaces, navigation, global shortcuts, and application dialogs. Each `src/features/` owner keeps its components, endpoint adapter, query keys/options, mutations, and cache lifecycle together. Generic same-origin transport lives in `src/infra/`; reusable UI and browser utilities without a feature owner live in `src/shared/`. Features do not import the application shell, and shared code/transport do not import features.
+
+Drawers own their drafts and starting revisions. Pure request/review helpers describe the exact context being approved; background refresh cannot replace that base or silently approve changed context. Private Form Fill details and candidate previews are temporary drawer data, removed from query caches on close/unmount. Collections remain value-free. The [dashboard guide](../apps/web/README.md#source-ownership) owns the detailed source map and [client-state rules](../apps/web/README.md#private-client-state).
+
+Typed copy stays with its feature or shell owner. Display formatting preserves browser locale/time zone and existing invalid-date fallbacks; protocol timestamps remain unformatted. Platform metadata and private discovery stay in `src/platforms/`, governed by the [private-overlay boundary](PRIVATE.md).
 
 ## Extension architecture
 
@@ -225,6 +293,6 @@ Built-in adapters ship with the public extension. Optional local adapters are lo
 
 ## Testing
 
-Most server tests exercise routers, services, repositories, and real SQL together against in-memory SQLite. This catches query and constraint failures that mocked repositories would hide. Pure normalization and projection helpers also have focused unit tests.
+Server tests protect HTTP scenarios, public application operations, pure rules, and database/runtime lifecycle interfaces. Most exercise routers, services, repositories, and real SQL together against in-memory SQLite. This catches query and constraint failures that mocked repositories would hide. Pure normalization and projection helpers also have focused unit tests.
 
 Cross-language golden and contract fixtures keep the Python and TypeScript implementations of funnel, text, and time rules aligned. Extension adapters use small synthetic HTML fixtures. Sync scheduler behavior is tested locally, while driver-specific Turso integration tests are opt-in because they require a throwaway remote database.

@@ -19,7 +19,7 @@ from app.core.paths import (
 )
 
 if TYPE_CHECKING:
-    from app.core.config import Settings
+    from app.config import Settings
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -75,7 +75,7 @@ def _establish_profile(args: argparse.Namespace, environment: MutableMapping[str
 def _load_runtime() -> tuple[Settings, ResolvedPaths]:
     # Import only after profile overrides are established. get_settings chooses the
     # profile config file, then these assignments anchor its relative path values.
-    from app.core.config import get_settings
+    from app.config import get_settings
 
     settings = get_settings()
     paths = settings_paths(settings)

@@ -6,9 +6,9 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.db import init_schema
-from app.documents.repository import DocumentRepository
-from app.events.repository import EventRepository
+from app.infra.database import init_schema
+from app.modules.documents.repository import DocumentRepository
+from app.modules.events.repository import EventRepository
 
 
 def _job(client: TestClient, key: str) -> str:
@@ -58,7 +58,7 @@ def test_document_operation_lookup_and_retry_preserve_identity_after_edit(
     for target, payload in ((job, {**body, "content": "Changed"}), (_job(client, "other"), body)):
         conflict = client.post(f"/api/jobs/{target}/documents", json=payload)
         assert conflict.status_code == 409
-        assert conflict.json()["detail"] == "document_operation_key_conflict"
+        assert conflict.json()["error"]["code"] == "document_operation_key_conflict"
 
 
 @pytest.mark.parametrize("delete_job", [False, True])
@@ -76,7 +76,13 @@ def test_deleted_document_operation_never_recreates(
     assert receipt["status"] == "deleted"
     retry = client.post(url, json=body)
     assert retry.status_code == 409
-    assert retry.json() == {"detail": "document_operation_deleted", "current": receipt}
+    assert retry.json()["error"] == {
+        "status": retry.status_code,
+        "code": "document_operation_deleted",
+        "message": "document_operation_deleted",
+        "request_id": retry.headers["X-Request-ID"],
+        "details": {"current": receipt},
+    }
     assert conn.total_changes == before
     assert conn.execute("SELECT count(*) FROM documents").fetchone()[0] == 0
 
@@ -110,7 +116,7 @@ def test_document_operations_follow_ownership_including_tombstones(
             f"/api/jobs/{address}/documents", json={**body, "operation_key": "tombstone"}
         )
         assert deleted.status_code == 409
-        assert deleted.json()["detail"] == "document_operation_deleted"
+        assert deleted.json()["error"]["code"] == "document_operation_deleted"
 
 
 @pytest.mark.parametrize("verb", ["applied", "note", "starred"])
@@ -142,7 +148,13 @@ def test_event_operations_replay_original_result_after_later_changes(
     assert conn.total_changes == before
     conflict = client.post("/api/events", json={**body, "expected_status": "seen"})
     assert conflict.status_code == 409
-    assert conflict.json() == {"detail": "event_operation_key_conflict", "current": receipt}
+    assert conflict.json()["error"] == {
+        "status": conflict.status_code,
+        "code": "event_operation_key_conflict",
+        "message": "event_operation_key_conflict",
+        "request_id": conflict.headers["X-Request-ID"],
+        "details": {"current": receipt},
+    }
     assert conn.total_changes == before
     assert client.get(f"/api/jobs/{job}").json()["status"] == "seen"
 
@@ -222,8 +234,9 @@ def test_receipt_failure_rolls_back_the_write(
     payload = (
         {"type": "cv"} if kind == "document" else {"job_id": job, "events": [{"event": "applied"}]}
     )
-    with pytest.raises(RuntimeError, match="receipt failure"):
-        client.post(url, json={**payload, "operation_key": "rollback"})
+    failed = client.post(url, json={**payload, "operation_key": "rollback"})
+    assert failed.status_code == 500
+    assert failed.json()["error"]["code"] == "internal_error"
     assert client.get(f"/api/jobs/{job}").json() == before
     assert conn.execute(f"SELECT count(*) FROM {kind}_operations").fetchone()[0] == 0
 
@@ -301,9 +314,11 @@ def test_simultaneous_retries_commit_one_operation(kind: str) -> None:
     import httpx
     from fastapi import FastAPI
 
-    from app.core.db import Database
-    from app.documents.router import router as documents_router
-    from app.events.router import router as events_router
+    from app.core.paths import resolve_paths
+    from app.infra.database import Database
+    from app.modules.documents.router import router as documents_router
+    from app.modules.events.router import router as events_router
+    from app.platform.runtime import RuntimeResources
 
     async def exercise() -> None:
         conn = sqlite3.connect(":memory:", check_same_thread=False)
@@ -312,7 +327,9 @@ def test_simultaneous_retries_commit_one_operation(kind: str) -> None:
             conn.execute("INSERT INTO jobs (id, created_at, updated_at) VALUES ('j1', 't', 't')")
             conn.commit()
             app = FastAPI()
-            app.state.db = Database(conn)
+            app.state.resources = RuntimeResources(
+                paths=resolve_paths(environ={}), db=Database(conn)
+            )
             app.include_router(documents_router, prefix="/api")
             app.include_router(events_router, prefix="/api")
             url = "/api/jobs/j1/documents" if kind == "document" else "/api/events"

@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 // Service-worker API proxy. Content scripts relay typed requests here to avoid host
 // page CSP restrictions on localhost access.
 import {
@@ -97,7 +98,7 @@ async function reportingFetch(path: string, init?: RequestInit) {
     if (server === SERVER_URL) markServerReachable(false);
     throw e;
   }
-  if (server !== SERVER_URL) throw new Error("Server changed; retry this action.");
+  if (server !== SERVER_URL) throw new Error(copy.background.serverChangedRetryThisAction);
   markServerReachable(res.status < 500);
   return res;
 }
@@ -403,9 +404,9 @@ chrome.runtime.onMessage.addListener((msg: BridgeRequest, sender, sendResponse) 
         !["reachability", "version", "open-job-tabs", "close-bulk-job-tab"].includes(msg.type) &&
         (msg.serverUrl ?? DEFAULT_SERVER_URL) !== SERVER_URL
       )
-        throw new Error("Server changed; retry this action.");
+        throw new Error(copy.background.serverChangedRetryThisAction);
       const result = await handle(msg, sender);
-      if (server !== SERVER_URL) throw new Error("Server changed; retry this action.");
+      if (server !== SERVER_URL) throw new Error(copy.background.serverChangedRetryThisAction);
       return result;
     })
     .then((result) => {

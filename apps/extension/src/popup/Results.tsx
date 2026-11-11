@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import { JobFunnel } from "@job-tracker/shared/funnel";
 import type { PopupJob } from "./types";
 
@@ -24,7 +25,7 @@ export function Results({
           }
           onClick={() => onPick(job)}
         >
-          <div className="text-[13px] font-semibold">{job.title || "(untitled)"}</div>
+          <div className="text-[13px] font-semibold">{job.title || copy.results.untitled}</div>
           <div className="mt-0.5 text-xs text-popup-soft">
             {(job.company || "—") + " · " + JobFunnel.labelOf(job.status)}
           </div>

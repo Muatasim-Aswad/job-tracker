@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core.text import normalize_company, normalize_title
+from app.shared.text import normalize_company, normalize_title
 
 
 @pytest.mark.parametrize(

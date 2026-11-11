@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import type { Adapter } from "../../types";
 import type { ListingRecord } from "../../../messages";
 import {
@@ -389,7 +390,7 @@ const APPLY_CLICK_CAP = 100;
 
 // Use the shared age parser so hours cannot read as days. Unparseable text stays untinted.
 function ageChip(postedAge: string): BannerChip {
-  const title = "Posted " + postedAge;
+  const title = copy.web.posted + postedAge;
   const { at } = postedFromRelative(postedAge, new Date().toISOString());
   if (!at) return { text: postedAge, title };
   const days = (Date.now() - new Date(at).getTime()) / DAY_MS;
@@ -414,13 +415,16 @@ function renderDetailHead(detail: HTMLElement) {
   // The two things here that are wrong rather than merely worth knowing. Closed sorts
   // first: it decides whether the rest is worth reading at all.
   const availability = listingAvailability();
-  if (availability?.availability === "closed") alerts.push("closed to applications");
+  if (availability?.availability === "closed") alerts.push(copy.web.closedToApplications);
   if (availability?.availability === "unavailable") {
-    chips.push({ text: "Applications unavailable", title: availability.availability_message! });
+    chips.push({
+      text: copy.web.applicationsUnavailable,
+      title: availability.availability_message!,
+    });
   }
   // Explain why a blocked listing is not captured.
   const { company } = detailIdentity();
-  if (isCompanyBlocked(company, "linkedin")) alerts.push("blocked company");
+  if (isCompanyBlocked(company, "linkedin")) alerts.push(copy.web.blockedCompany);
   // Always show stated header analytics; omission must mean missing evidence, not a threshold.
   const { applicants, applyClicksShown, postedAge } = scanJobSignals(detail);
   if (postedAge) chips.push(ageChip(postedAge));
@@ -432,8 +436,8 @@ function renderDetailHead(detail: HTMLElement) {
     chips.push({
       text: count + " clicks",
       title: saturated
-        ? `Applications have saturated — LinkedIn stops counting at ${APPLY_CLICK_CAP}`
-        : `${count} people clicked apply`,
+        ? copy.web.applicationsHaveSaturatedLinkedInStopsCountingAt(APPLY_CLICK_CAP)
+        : copy.web.peopleClickedApply(count),
       ...(saturated ? { tone: "warn" as const } : {}),
     });
   }
@@ -460,12 +464,12 @@ function renderDetailHead(detail: HTMLElement) {
 
 // Re-read the live detail at click time so SPA updates reach the clipboard.
 // Report clipboard failure distinctly from success.
-const COPY_LABEL = "Copy Job Description";
+const COPY_LABEL = copy.web.copyJobDescription;
 function makeCopyButton(): HTMLElement {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "jh-banner-copy";
-  btn.title = "Copy the job title, company, link and description";
+  btn.title = copy.web.copyTheJobTitleCompanyLinkAndDescription;
   btn.innerHTML = `${ICON.copy}<span class="jh-banner-copy-label">${COPY_LABEL}</span>`;
   const label = btn.querySelector(".jh-banner-copy-label") as HTMLElement;
   let resetTimer: number | undefined;
@@ -484,12 +488,12 @@ function makeCopyButton(): HTMLElement {
     e.stopPropagation();
     const text = buildCopyText();
     if (!text) {
-      flash("Nothing to copy");
+      flash(copy.web.nothingToCopy);
       return;
     }
     navigator.clipboard.writeText(text).then(
-      () => flash("Copied ✓"),
-      () => flash("Copy failed"),
+      () => flash(copy.web.copied),
+      () => flash(copy.web.copyFailed),
     );
   });
   return btn;

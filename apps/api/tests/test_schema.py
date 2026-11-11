@@ -8,7 +8,7 @@ def test_schema_sql_is_ascii_only() -> None:
     # index, so a single multibyte char (e.g. an em-dash) desyncs the offset and
     # chops a later statement, failing app startup on a mangled keyword (`near "EATE"`
     # for a truncated CREATE). Keep schema.sql strictly ASCII; comments too.
-    from app.core.db import _SCHEMA_PATH
+    from app.infra.database import _SCHEMA_PATH
 
     text = _SCHEMA_PATH.read_text()
     offenders = [(i, ch) for i, ch in enumerate(text) if ord(ch) > 127]

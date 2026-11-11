@@ -7,8 +7,8 @@ import threading
 import time
 from unittest.mock import Mock
 
-from app.core import sync as sync_module
-from app.core.sync import PushScheduler
+from app.infra import sync as sync_module
+from app.infra.sync import PushScheduler
 
 
 class FakeDb:

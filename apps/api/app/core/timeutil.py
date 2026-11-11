@@ -1,8 +1,3 @@
-"""Timestamp helpers. All timestamps are stored as UTC ISO strings; `ts` is the
-sole time field on events."""
+"""Compatibility exports for installed tools; implementation lives in app.shared.timeutil."""
 
-from datetime import UTC, datetime
-
-
-def utc_now() -> str:
-    return datetime.now(UTC).isoformat()
+from app.shared.timeutil import utc_now as utc_now

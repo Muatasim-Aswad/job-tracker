@@ -7,17 +7,17 @@ from typing import Any
 import pytest
 from fastapi import Response
 
-from app.core.db import Conn
-from app.core.errors import ConflictError, InvalidCursorError, ValidationError
-from app.form_fill.router import get_question
-from app.form_fill.router import list_questions as list_questions_route
-from app.form_fill.schemas import (
+from app.infra.database import Conn
+from app.modules.form_fill.router import get_question
+from app.modules.form_fill.router import list_questions as list_questions_route
+from app.modules.form_fill.schemas import (
     CaptureCreate,
     CaptureUpdate,
     QuestionReviewUpdate,
     ResolutionRequest,
 )
-from app.form_fill.service import FormFillService
+from app.modules.form_fill.service import FormFillService
+from app.shared.errors import ConflictError, InvalidCursorError, ValidationError
 
 
 def _observe(
@@ -102,7 +102,7 @@ def test_question_list_detail_search_and_cursor_reads(conn: Conn) -> None:
     assert detail.normalized_section == "additional questions"
     assert detail.normalized_help == "exact help"
     response = Response()
-    get_question(detail.id, response, service)
+    get_question(question_id=detail.id, response=response, service=service)
     assert response.headers["cache-control"] == "no-store"
     list_response = Response()
     list_questions_route(

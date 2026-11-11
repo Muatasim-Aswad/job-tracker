@@ -42,6 +42,14 @@ services:
     cap_drop:
       - ALL
     restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 1g
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   job-tracker-data:

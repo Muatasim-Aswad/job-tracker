@@ -8,10 +8,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 import turso.sync
 
-from app.core.config import Settings
-from app.core.db import connect
+from app.config import Settings
 from app.core.lifecycle import ServerLock
 from app.core.paths import ResolvedPaths, resolve_paths
+from app.infra.database import connect
 from app.maintenance.backup import backup_profile, preserve_before_startup_pull
 from app.maintenance.base import MaintenanceError
 
@@ -138,13 +138,13 @@ def test_startup_snapshot_precedes_turso_driver_construction(
             assert conn.execute("SELECT value FROM payload").fetchone() == ("unsynced",)
         return fake_conn
 
-    with patch("app.core.db.settings_paths", return_value=paths):
+    with patch("app.infra.database.settings_paths", return_value=paths):
         if local_first:
             with patch.object(turso.sync, "connect", side_effect=driver_probe):
                 connect(settings)
             fake_conn.pull.assert_called_once()
         else:
-            with patch("app.core.db.libsql.connect", side_effect=driver_probe):
+            with patch("app.infra.database.libsql.connect", side_effect=driver_probe):
                 connect(settings)
             fake_conn.sync.assert_called_once()
 
@@ -161,7 +161,7 @@ def test_failed_startup_snapshot_blocks_pull_and_preserves_recovery(tmp_path: Pa
     source.write_bytes(b"corrupt")
 
     with (
-        patch("app.core.db.settings_paths", return_value=paths),
+        patch("app.infra.database.settings_paths", return_value=paths),
         patch.object(turso.sync, "connect") as driver,
         pytest.raises(MaintenanceError),
     ):

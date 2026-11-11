@@ -1,6 +1,6 @@
 """Require every funnel event to share its value with the status it sets."""
 
-from app.core.enums import Event, Status, flag_for_event, status_for_event
+from app.shared.enums import Event, Status, flag_for_event, status_for_event
 
 _FLAG_EVENTS = {Event.HIDDEN, Event.UNHIDDEN, Event.STARRED, Event.UNSTARRED}
 # `created` is server-only; `note` is a stage-agnostic manual log entry. Neither

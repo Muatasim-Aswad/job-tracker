@@ -111,7 +111,7 @@ For jobs with several listings, the card's posting and application links come fr
 
 History remains correctable rather than disposable. You can undo a transition, reopen a job, and edit an event's timestamp or comment without erasing the rest of the record.
 
-Attention rules identify applications that have waited too long at applied or in-process stages. Adding a note can reset attention, and the dashboard can filter the queue or mark a job ghosted.
+The **Stale applications** filter identifies applications inactive beyond their Applied/In process threshold. Cards show **N days inactive**. Adding a note resets the deadline; starring, hiding and descriptive edits do not reset an event-based clock. **Settings → Stale applications** controls both thresholds; zero disables a stage.
 
 The job drawer’s Listings, Custom fields, Documents, and Timeline sections can be collapsed. Section choices apply to every job and survive browser reloads; section counts stay visible, and add actions reopen their section. Collapsing preserves the current draft.
 
@@ -151,3 +151,9 @@ LinkedIn jobs and supported LinkedIn job emails in Gmail are the only built-in i
 Built-in adapters can extend the public extension. Private or organization-specific adapters can live in a local overlay without being committed to the public repository. See the [extension adapter guide](../apps/extension/README.md) and [private overlay guide](PRIVATE.md) for implementation instructions.
 
 Site layouts change, so source-specific capture occasionally needs an adapter update. The README's [support table](../README.md#whats-built-in-today) remains the authority for what is currently built in.
+
+## Notifications and reminders
+
+The header bell shows a shared notification inbox with unread items first and an unread count. Create a tracker reminder with a title, date/time and optional details. Create linked reminders from the job drawer’s **Reminders** section or the extension’s job detail. The Scheduled tab contains only user-created reminders and supports editing/cancelling them. Stale applications generate automatic notifications and reuse the same alert after new activity resets their deadline.
+
+Open dashboards receive live notifications with an in-app fallback. **Settings → Notifications → Browser notifications → Allow** requests permission and enables Web Push for background delivery on supported browsers; phones need HTTPS and iOS/iPadOS needs a Home Screen installation. Delivery and reading synchronize across devices. An interrupted connection recovers unacknowledged notifications after reconnect; ordinary inbox fetching does not repeat popups. Scheduling requires the designated API instance to run. Notification settings control the daily local alert time (09:00 by default); the active dashboard detects the timezone automatically. Missed daily slots defer to the next slot. Settings provide independent On/Muted/Off controls for Applied and In process stale notifications, plus global mute. Muted notifications still appear unread in the inbox without popups; Off stops that stage’s stale notifications. Stale badges always follow the day thresholds.

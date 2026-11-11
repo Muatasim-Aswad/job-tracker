@@ -9,7 +9,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 
-from app.core.config import Settings
+from app.config import Settings
 from app.core.paths import ResolvedPaths
 from app.maintenance.base import MaintenanceError, ensure_private_directory, profile_lock
 

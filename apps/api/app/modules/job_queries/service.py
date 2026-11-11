@@ -1,0 +1,271 @@
+"""Batched job summaries, details, listing states and duplicate evidence."""
+
+from datetime import UTC, datetime
+from typing import Literal
+
+from app.config import Settings
+from app.infra.database import Conn, Row
+from app.modules.documents.repository import DocumentRepository
+from app.modules.events.repository import EventRepository
+from app.modules.jobs.match_evidence import match_insights, match_timing, shares_apply_url
+from app.modules.jobs.models import Job, JobFilters
+from app.modules.jobs.repository import JobRepository
+from app.modules.jobs.schemas import (
+    Attention,
+    CompanyAppliedCount,
+    JobDetail,
+    JobMatch,
+    JobState,
+    JobSummary,
+    ListingState,
+    PrimaryListing,
+)
+from app.modules.listings.models import Listing, ListingAvailabilitySummary
+from app.modules.listings.repository import ListingRepository
+from app.modules.preferences import service as preferences
+from app.shared.errors import NotFoundError
+from app.shared.similarity import jaccard, tokenize
+from app.shared.text import normalize_company, normalize_title
+from app.shared.timeutil import utc_now
+
+
+class JobQueries:
+    def __init__(self, conn: Conn, settings: Settings) -> None:
+        self.jobs = JobRepository(conn)
+        self.events = EventRepository(conn)
+        self.listings = ListingRepository(conn)
+        self.documents = DocumentRepository(conn)
+        self.settings = settings
+        self.staleness_rules = preferences.read(conn).settings.application_staleness
+
+    def search(self, filters: JobFilters) -> list[JobSummary]:
+        """Filtered job list, each enriched with a compact listing rollup so the board
+        renders cards without a per-job fetch. The rollup is one batched query over
+        just the jobs on this page, and attention is a second batched read over the
+        same page — never one event query per card."""
+        jobs = self.jobs.search(filters)
+        job_ids = [j.id for j in jobs]
+        summaries = self.listings.summaries_for_jobs(job_ids)
+        last_activity = self.events.last_activity_for_jobs(job_ids)
+        now = datetime.fromisoformat(utc_now())
+        out: list[JobSummary] = []
+        for job in jobs:
+            rollup = summaries.get(job.id)
+            availability = rollup.availability if rollup else ListingAvailabilitySummary()
+            primary = (
+                PrimaryListing(
+                    listing_id=rollup.primary_listing_id,
+                    platform=rollup.primary_platform,
+                    platform_id=rollup.primary_platform_id,
+                    url=rollup.primary_url,
+                    apply_url=rollup.primary_apply_url,
+                )
+                if rollup
+                and rollup.primary_listing_id
+                and rollup.primary_platform
+                and rollup.primary_platform_id
+                else None
+            )
+            out.append(
+                JobSummary(
+                    **job.model_dump(),
+                    platforms=rollup.platforms if rollup else [],
+                    apply_types=rollup.apply_types if rollup else [],
+                    listing_count=rollup.listing_count if rollup else 0,
+                    availability=availability.state,
+                    listing_availability=availability,
+                    primary_listing=primary,
+                    attention=self._attention(job, last_activity.get(job.id), now),
+                )
+            )
+
+        return out
+
+    def _attention(self, job: Job, activity_ts: str | None, now: datetime) -> Attention | None:
+        stage: Literal["applied", "in_process"]
+        if job.status == "applied":
+            stage = "applied"
+            threshold = self.staleness_rules.applied_days
+        elif job.status == "in_process":
+            stage = "in_process"
+            threshold = self.staleness_rules.in_process_days
+        else:
+            return None
+
+        if threshold == 0:
+            return None
+
+        # Legacy rows may predate the status/note event log, leaving updated_at as
+        # their best clock — so only those rows inherit its flag/identity-edit noise.
+
+        since = activity_ts or job.updated_at
+        parsed = datetime.fromisoformat(since)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+
+        days = int((now.astimezone(UTC) - parsed.astimezone(UTC)).total_seconds() // 86_400)
+        if days < threshold:
+            return None
+
+        return Attention(stage=stage, since=since, days=days)
+
+    def get_detail(self, job_id: str) -> JobDetail:
+        requested_job_id = job_id
+        job_id = self.jobs.resolve_id(job_id) or ""
+        job = self.jobs.get(job_id) if job_id else None
+        if job is None:
+            raise NotFoundError(f"job {requested_job_id} not found")
+
+        rollup = self.listings.summaries_for_jobs([job_id]).get(job_id)
+        availability = rollup.availability if rollup else ListingAvailabilitySummary()
+
+        return JobDetail(
+            **job.model_dump(),
+            availability=availability.state,
+            primary_listing_id=rollup.primary_listing_id if rollup else None,
+            listings=self.listings.list_for_job(job_id),
+            events=self.events.list_for_job(job_id),
+            documents=self.documents.list_for_job(job_id),
+        )
+
+    def batch_state(self, platform: str, platform_ids: list[str]) -> list[ListingState]:
+        """One self-describing entry per requested id, in request order. A listing
+        with no job yet still gets an entry, carrying the `untracked` status. This
+        read never creates rows: a listing materializes only on a real signal."""
+        found = self.jobs.states_by_listings(platform, platform_ids)
+        out: list[ListingState] = []
+        for platform_id in platform_ids:
+            job = found.get(platform_id)
+            state = _state(job) if job is not None else _untracked()
+            out.append(_tagged(platform_id, state))
+
+        return out
+
+    def matches(
+        self, platform: str, platform_id: str, title: str | None, company: str | None
+    ) -> list[JobMatch]:
+        """Sibling jobs a repost of `(platform, platform_id)` might really be: those
+        sharing its normalized company and either its normalized title or a listing
+        with its application destination. Driven by the title and company the CALLER
+        scraped live, not the current job's stored keys, since a listing just
+        materialized by a `seen` event is still a NULL-keyed stub; the destination and
+        all other evidence come from the stored listing. A pure read, never creating a
+        row. Excludes the current listing's own job and anything already marked NOT a
+        match (`meta.false_matches`), so a dismissed candidate never comes back. Empty
+        when either key is missing — one field alone is too broad to suggest on."""
+        listing = self.listings.get_by_platform(platform, platform_id)
+        job = self.jobs.get(listing.job_id) if listing is not None else None
+
+        return self._matches(title, company, [listing] if listing is not None else [], job)
+
+    def matches_for_job(self, job_id: str) -> tuple[str, list[JobMatch]]:
+        canonical_job_id = self.jobs.resolve_id(job_id)
+        job = self.jobs.get(canonical_job_id) if canonical_job_id is not None else None
+        if job is None:
+            raise NotFoundError(f"job {job_id} not found")
+
+        return job.id, self._matches(
+            job.title, job.company, self.listings.list_for_job(job.id), job
+        )
+
+    def _matches(
+        self, title: str | None, company: str | None, current: list[Listing], job: Job | None
+    ) -> list[JobMatch]:
+        company_key = normalize_company(company)
+        title_key = normalize_title(title)
+        if not company_key or not title_key:
+            return []
+
+        exclude: set[str] = set()
+        if job is not None:
+            exclude.add(job.id)
+            exclude.update(
+                canonical
+                for excluded_id in job.meta.get("false_matches", [])
+                if (canonical := self.jobs.resolve_id(excluded_id)) is not None
+            )
+
+        has_apply_url = any(listing.meta.get("apply_url") for listing in current)
+        rows = [
+            row
+            for row in self.jobs.match_candidates(company_key)
+            if row["job_id"] not in exclude and (has_apply_url or row["title_key"] == title_key)
+        ]
+        listings = self.listings.list_for_jobs([row["job_id"] for row in rows])
+        out = [
+            self._job_match(row, current, listings.get(row["job_id"], []))
+            for row in rows
+            if row["title_key"] == title_key
+            or shares_apply_url(current, listings.get(row["job_id"], []))
+        ]
+        # Strongest duplicate first, unscored candidates last. The stable sort keeps
+        # the SQL's created_at-desc order as the tie-breaker.
+        out.sort(key=lambda m: (m.similarity is None, -(m.similarity or 0.0)))
+
+        return out
+
+    @staticmethod
+    def _job_match(row: Row, current: list[Listing], candidates: list[Listing]) -> JobMatch:
+        return JobMatch(
+            job_id=row["job_id"],
+            title=row["title"],
+            company=row["company"],
+            status=row["status"],
+            created_at=row["created_at"],
+            closed_at=row["closed_at"],
+            listing_count=row["listing_count"],
+            similarity=_similarity(current, candidates),
+            insights=match_insights(current, candidates),
+            timing=match_timing(current, candidates),
+        )
+
+    def applied_count(self, company: str | None) -> CompanyAppliedCount:
+        """How many jobs at `company` carry applied evidence — the "previous
+        applications to this company" count. Driven, like `matches`, by the raw name
+        the caller scraped live, normalized here to the same advisory `company_key`
+        jobs store. A pure read; a name that normalizes to nothing counts 0."""
+        company_key = normalize_company(company)
+        if not company_key:
+            return CompanyAppliedCount(company_key=None, count=0)
+
+        return CompanyAppliedCount(
+            company_key=company_key, count=self.jobs.applied_count_for_company(company_key)
+        )
+
+
+def _description(listing: Listing) -> str | None:
+    description = listing.meta.get("description")
+
+    return description if isinstance(description, str) and description else None
+
+
+def _similarity(current: list[Listing], candidates: list[Listing]) -> float | None:
+    """Highest Jaccard JD overlap across both jobs' listings. None whenever
+    either side is uncaptured: a real 0.0, where the JDs share nothing, is distinct
+    from having no JD to compare, and the popover shows a % only for real comparisons."""
+    current_tokens = [tokenize(jd) for jd in filter(None, map(_description, current))]
+    if not current_tokens:
+        return None
+
+    candidate_tokens = [tokenize(jd) for jd in filter(None, map(_description, candidates))]
+
+    return max((jaccard(a, b) for a in current_tokens for b in candidate_tokens), default=None)
+
+
+def _state(job: Job) -> JobState:
+    return JobState(status=job.status, hidden=job.hidden, starred=job.starred)
+
+
+def _tagged(platform_id: str, state: JobState) -> ListingState:
+    """Tag a bare state with the listing it belongs to, so every state response —
+    single or batch — is one self-describing `ListingState` shape."""
+
+    return ListingState(platform_id=platform_id, **state.model_dump())
+
+
+def _untracked() -> JobState:
+    """The state an as-yet-uncaptured listing reads as. `untracked` is a synthetic,
+    read-only status (never persisted, not a `Status` enum member) meaning no job
+    exists yet — distinct from `new`, which is a real captured job at stage one."""
+
+    return JobState(status="untracked", hidden=False, starred=False)

@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 import type { Adapter } from "../../types";
 import { platformMeta } from "@job-tracker/shared/platforms";
 import { LINKEDIN_PREFIX, linkedinRenderKey } from "./identity.js";
@@ -90,7 +91,7 @@ function alertUrls(group: string): string[] {
 function renderAlertButton(button: HTMLButtonElement) {
   const ready = button.dataset.jhStatesReady === "1";
   const count = ready ? alertUrls(button.dataset.jhEmailGroup || "").length : 0;
-  button.textContent = `Open new jobs (${count})`;
+  button.textContent = copy.jobAlerts.open(count);
   button.disabled = !ready || count === 0 || button.dataset.jhOpening === "1";
 }
 
@@ -101,7 +102,7 @@ function injectAlertButton(body: HTMLElement, group: string) {
   button.className = "jh-btn jh-btn-open-alert";
   button.dataset.jhEmailGroup = group;
   button.dataset.jhStatesReady = "0";
-  button.title = "Open the unaffected jobs in background tabs";
+  button.title = copy.gmail.openTheUnaffectedJobsInBackgroundTabs;
   renderAlertButton(button);
   button.addEventListener("click", (event) => {
     event.preventDefault();

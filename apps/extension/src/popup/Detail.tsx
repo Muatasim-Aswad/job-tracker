@@ -1,3 +1,5 @@
+import { copy } from "./copy";
+import { ReminderForm, type ReminderHandle } from "./ReminderForm";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { JobFunnel } from "@job-tracker/shared/funnel";
 import { localDay } from "@job-tracker/shared/time";
@@ -88,6 +90,8 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
   const commentRef = useRef<HTMLTextAreaElement>(null);
 
   const [noteOpen, setNoteOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
+  const reminderRef = useRef<ReminderHandle>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteBody, setNoteBody] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
@@ -112,7 +116,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
       onStatusChange({ ...job, status: state.status });
       showOk();
     } catch {
-      showError("Couldn't update status — is the tracker running?");
+      showError(copy.detail.couldnTUpdateStatusIsTheTrackerRunning);
     } finally {
       setStatusApplying(false);
     }
@@ -157,7 +161,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
       setCommentBody("");
       setCommentTarget(null);
     } catch {
-      showError("Couldn't save comment — is the tracker running?");
+      showError(copy.detail.couldnTSaveCommentIsTheTrackerRunning);
     } finally {
       setCommentSaving(false);
     }
@@ -179,7 +183,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
       setNoteTitle("");
       setNoteBody("");
     } catch {
-      showError("Couldn't add note — is the tracker running?");
+      showError(copy.detail.couldnTAddNoteIsTheTrackerRunning);
     } finally {
       setNoteSaving(false);
     }
@@ -195,7 +199,8 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
 
   useImperativeHandle(ref, () => ({
     submitOpenForm() {
-      if (commentOpen) void saveComment();
+      if (reminderOpen) reminderRef.current?.submit();
+      else if (commentOpen) void saveComment();
       else if (noteOpen) void saveNote();
     },
     openStatus() {
@@ -240,13 +245,13 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
           "-ml-0.5 mb-2.5 inline-flex items-center gap-1 border-0 bg-transparent p-0.5 text-[13px] leading-none text-popup-faint hover:text-popup-fg " +
           FOCUS
         }
-        title="Back to results"
+        title={copy.detail.backToResults}
         onClick={onBack}
       >
         <span className="text-base" aria-hidden="true">
           ←
         </span>
-        Back
+        {copy.detail.back}
       </button>
 
       {/* Link titles to the dashboard only with a listing key, and companies only with a captured URL. */}
@@ -256,15 +261,15 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
             ? "cursor-pointer text-sm leading-snug font-semibold text-popup-accent hover:underline"
             : "text-sm leading-snug font-semibold text-popup-fg"
         }
-        title={pl ? "Open in the tracker app" : undefined}
+        title={pl ? copy.detail.openInTheTrackerApp : undefined}
         onClick={pl ? openApp : undefined}
       >
-        {job.title || "(untitled)"}
+        {job.title || copy.detail.untitled}
       </div>
       <div className="mt-0.5 text-xs text-popup-soft">
         <span
           className={pl?.url ? "cursor-pointer text-popup-accent hover:underline" : undefined}
-          title={pl?.url ? "Open the job listing" : undefined}
+          title={pl?.url ? copy.detail.openTheJobListing : undefined}
           onClick={pl?.url ? openListing : undefined}
         >
           {job.company || "—"}
@@ -276,7 +281,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
           className={
             choices.length ? undefined : "cursor-help border-b border-dotted border-popup-faint"
           }
-          title={choices.length ? undefined : "Terminal status — change it in the app."}
+          title={choices.length ? undefined : copy.detail.terminalStatusChangeItInTheApp}
         >
           {JobFunnel.labelOf(job.status)}
         </span>
@@ -298,7 +303,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
               onChange={(e) => void applyStatus(e.target.value)}
             >
               <option value="" disabled>
-                Advance status…
+                {copy.detail.advanceStatus}
               </option>
               {choices.map((s) => (
                 <option key={s} value={s}>
@@ -317,10 +322,10 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
                 }
                 title={
                   datedToday
-                    ? "Back-date this status change"
-                    : "When this status change happened — click to adjust"
+                    ? copy.detail.backDateThisStatusChange
+                    : copy.detail.whenThisStatusChangeHappenedClickToAdjust
                 }
-                aria-label="Set the date this status change happened"
+                aria-label={copy.detail.setTheDateThisStatusChangeHappened}
                 onClick={() => setDateOpen((o) => !o)}
               >
                 {datedToday ? (
@@ -339,7 +344,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
                     <path d="M16 2v4M8 2v4M3 10h18" />
                   </svg>
                 ) : (
-                  `as of ${shortDate(eventDate)}`
+                  copy.detail.asOf(shortDate(eventDate))
                 )}
               </button>
               {dateOpen && (
@@ -350,7 +355,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
                     value={eventDate}
                     title={
                       suggestedDay && eventDate === suggestedDay
-                        ? "Suggested from the open email — the day it arrived"
+                        ? copy.detail.suggestedFromTheOpenEmailTheDayItArrived
                         : undefined
                     }
                     onChange={(e) => {
@@ -363,13 +368,13 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
                       "border-0 bg-transparent p-0 text-xs text-popup-accent hover:underline " +
                       FOCUS
                     }
-                    title="Date it today instead"
+                    title={copy.detail.dateItTodayInstead}
                     onClick={() => {
                       setEventDate(todayDay());
                       setDateOpen(false);
                     }}
                   >
-                    now
+                    {copy.detail.now}
                   </button>
                 </div>
               )}
@@ -380,11 +385,11 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
         <div className={choices.length ? "mt-2" : undefined}>
           <button
             className={ACTION_BUTTON + " " + FOCUS}
-            title="Add or edit a comment on the current status — it stays pinned to this status change"
+            title={copy.detail.addOrEditACommentOnTheCurrentStatus}
             onClick={() => void toggleComment()}
           >
             <span className={ICON_CLASS} dangerouslySetInnerHTML={{ __html: ICON.pencil }} />
-            Comment
+            {copy.detail.comment}
           </button>
           {commentOpen && (
             <div>
@@ -392,7 +397,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
                 ref={commentRef}
                 className={INPUT + " mt-1.5 resize-y"}
                 rows={2}
-                placeholder="Comment on the current status"
+                placeholder={copy.detail.commentOnTheCurrentStatus}
                 value={commentBody}
                 onChange={(e) => setCommentBody(e.target.value)}
               />
@@ -402,7 +407,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
                   disabled={commentSaving}
                   onClick={() => void saveComment()}
                 >
-                  Save comment
+                  {copy.detail.saveComment}
                 </button>
                 <button
                   className={BUTTON + " " + FOCUS}
@@ -412,7 +417,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
                     setCommentTarget(null);
                   }}
                 >
-                  Cancel
+                  {copy.detail.cancel}
                 </button>
               </div>
             </div>
@@ -423,17 +428,35 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
       <div className="mt-3">
         <button
           className={ACTION_BUTTON + " " + FOCUS}
-          title="Add a standalone note — activity that doesn't change the job's status"
+          title={copy.detail.addAStandaloneNoteActivityThatDoesnTChange}
           onClick={() => setNoteOpen((o) => !o)}
         >
           <span className={ICON_CLASS} dangerouslySetInnerHTML={{ __html: ICON.stickyNote }} />
-          Note
+          {copy.detail.note}
         </button>
+        <button
+          type="button"
+          className={ACTION_BUTTON + " ml-2 " + FOCUS}
+          aria-label={copy.reminder.add}
+          title={copy.reminder.add}
+          onClick={() => setReminderOpen((value) => !value)}
+        >
+          <span className={ICON_CLASS} dangerouslySetInnerHTML={{ __html: ICON.bell }} />
+        </button>
+        {reminderOpen && (
+          <ReminderForm
+            ref={reminderRef}
+            jobId={job.id}
+            onClose={() => setReminderOpen(false)}
+            onSaved={showOk}
+            onError={showError}
+          />
+        )}
         {noteOpen && (
           <div>
             <input
               className={INPUT + " mt-1.5"}
-              placeholder="Title (optional)"
+              placeholder={copy.detail.titleOptional}
               list="note-titles"
               autoComplete="off"
               value={noteTitle}
@@ -443,7 +466,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
               ref={noteRef}
               className={INPUT + " mt-1.5 resize-y"}
               rows={3}
-              placeholder="Note"
+              placeholder={copy.detail.note}
               value={noteBody}
               onChange={(e) => setNoteBody(e.target.value)}
             />
@@ -453,7 +476,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
                 disabled={noteSaving}
                 onClick={() => void saveNote()}
               >
-                Add note
+                {copy.detail.addNote}
               </button>
               <button
                 className={BUTTON + " " + FOCUS}
@@ -463,7 +486,7 @@ export const Detail = forwardRef<DetailHandle, DetailProps>(function Detail(
                   setNoteBody("");
                 }}
               >
-                Cancel
+                {copy.detail.cancel}
               </button>
             </div>
           </div>

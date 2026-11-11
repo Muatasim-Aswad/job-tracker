@@ -1,3 +1,4 @@
+import { copy } from "./copy";
 // Keep rare company-block and compact Open actions in the overflow menu.
 // Outside clicks and Escape dismiss it, as with the match popover.
 import type { Engine } from "./types.js";
@@ -35,7 +36,7 @@ export function createMenu(engine: Engine) {
       const open = document.createElement("button");
       open.className = "jh-menu-item";
       open.innerHTML = ICON.open; // label appended as text so it can't inject HTML
-      open.append("Open in dashboard");
+      open.append(copy.menu.openInDashboard);
       open.disabled = !id;
       open.addEventListener("click", (e) => {
         e.preventDefault();
@@ -49,11 +50,11 @@ export function createMenu(engine: Engine) {
     const block = document.createElement("button");
     block.className = "jh-menu-item";
     block.innerHTML = ICON.ban; // label text appended below so it can't inject HTML
-    block.append(company ? `Block “${company}”` : "Block company");
+    block.append(company ? copy.menu.block(company) : copy.menu.blockCompany);
     block.disabled = !company; // nothing to key a block on
     block.title = company
-      ? `Stop capturing and showing ${company} everywhere (manage in the dashboard)`
-      : "This card has no company to block";
+      ? copy.menu.stopCapturingAndShowingEverywhereManageInTheDashboard(company)
+      : copy.menu.thisCardHasNoCompanyToBlock;
     block.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();

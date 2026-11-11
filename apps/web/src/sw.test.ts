@@ -25,6 +25,7 @@ beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
   vi.stubGlobal("self", {
+    addEventListener: vi.fn(),
     location: { origin: "http://localhost:3456" },
     __WB_MANIFEST: [
       "index.html",

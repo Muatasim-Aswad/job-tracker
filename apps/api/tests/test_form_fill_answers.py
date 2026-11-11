@@ -6,16 +6,16 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError as PydanticValidationError
 
-from app.core.db import Conn, execute
-from app.core.errors import ConflictError, InvalidCursorError, NotFoundError, ValidationError
-from app.form_fill.schemas import (
+from app.infra.database import Conn, execute
+from app.modules.form_fill.schemas import (
     AnswerCreate,
     AnswerSort,
     AnswerUpdate,
     MappingPut,
     ResolutionRequest,
 )
-from app.form_fill.service import FormFillService
+from app.modules.form_fill.service import FormFillService
+from app.shared.errors import ConflictError, InvalidCursorError, NotFoundError, ValidationError
 
 
 def _answer(key: str = "profile.name", value: str = "Private value") -> AnswerCreate:
@@ -223,8 +223,8 @@ def test_answer_value_routes_are_no_store(client: TestClient) -> None:
     )
     assert stale.status_code == 409
     assert stale.headers["cache-control"] == "no-store"
-    assert stale.json()["detail"] == "stale_revision"
-    assert stale.json()["current"]["revision"] == 2
+    assert stale.json()["error"]["code"] == "stale_revision"
+    assert stale.json()["error"]["details"]["current"]["revision"] == 2
     assert client.get(f"/api/form-fill/answers/{answer_id}").json()["label"] == "Current API label"
 
     mapped = client.delete(f"/api/form-fill/answers/{answer_id}", params={"expected_revision": 2})
