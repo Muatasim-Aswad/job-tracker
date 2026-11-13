@@ -6,6 +6,12 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-11-13
+
+### Security
+
+- Updated frontend dependencies and aligned Vite+ with its core and test runner; refreshed vulnerable build dependencies.
+
 ## [2.0.0] - 2026-11-11
 
 ### Added

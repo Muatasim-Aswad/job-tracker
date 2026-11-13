@@ -21,8 +21,10 @@ export default defineConfig({
     tasks: {
       typecheck: {
         command: "tsc -b",
-        input: [{ auto: true }, "!node_modules/.tmp/**"],
-        output: [{ auto: true }, "!node_modules/.tmp/**"],
+        cache: {
+          input: [{ auto: true }, "!node_modules/.tmp/**"],
+          output: [{ auto: true }, "!node_modules/.tmp/**"],
+        },
       },
       build: { command: "vp build" },
     },
