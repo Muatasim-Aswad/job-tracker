@@ -71,51 +71,61 @@ export default defineConfig({
       // `--directory` keeps every cached command rooted at the workspace.
       "py:format": {
         command: "uv run --directory apps/api ruff format --check",
-        input: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.ruff_cache/**"],
-        output: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.ruff_cache/**"],
+        cache: {
+          input: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.ruff_cache/**"],
+          output: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.ruff_cache/**"],
+        },
       },
       "py:lint": {
         command: "uv run --directory apps/api ruff check",
-        input: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.ruff_cache/**"],
-        output: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.ruff_cache/**"],
+        cache: {
+          input: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.ruff_cache/**"],
+          output: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.ruff_cache/**"],
+        },
       },
       "py:typecheck": {
         command: "uv run --directory apps/api mypy",
-        input: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.mypy_cache/**"],
-        output: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.mypy_cache/**"],
+        cache: {
+          input: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.mypy_cache/**"],
+          output: [{ auto: true }, "!apps/api/.venv/**", "!apps/api/.mypy_cache/**"],
+        },
       },
       "py:test": {
         command: "uv run --directory apps/api pytest -q",
-        untrackedEnv: ["TMPDIR"],
-        input: [
-          { auto: true },
-          "!apps/api/.venv/**",
-          "!apps/api/.pytest_cache/**",
-          "!apps/api/**/__pycache__/**",
-        ],
-        output: [
-          { auto: true },
-          "!apps/api/.venv/**",
-          "!apps/api/.pytest_cache/**",
-          "!apps/api/**/__pycache__/**",
-        ],
+        cache: {
+          untrackedEnv: ["TMPDIR"],
+          input: [
+            { auto: true },
+            "!apps/api/.venv/**",
+            "!apps/api/.pytest_cache/**",
+            "!apps/api/**/__pycache__/**",
+          ],
+          output: [
+            { auto: true },
+            "!apps/api/.venv/**",
+            "!apps/api/.pytest_cache/**",
+            "!apps/api/**/__pycache__/**",
+          ],
+        },
       },
 
       // Check generated API drift without rewriting source; app startup needs cache exclusions.
       "api:check": {
         command: "bash packages/shared/scripts/gen-api-types.sh --check",
-        input: [
-          { auto: true },
-          "!apps/api/.venv/**",
-          "!apps/api/.ruff_cache/**",
-          "!apps/api/**/__pycache__/**",
-        ],
-        output: [
-          { auto: true },
-          "!apps/api/.venv/**",
-          "!apps/api/.ruff_cache/**",
-          "!apps/api/**/__pycache__/**",
-        ],
+        cache: {
+          input: [
+            { auto: true },
+            "!apps/api/.venv/**",
+            "!apps/api/.ruff_cache/**",
+            "!apps/api/**/__pycache__/**",
+          ],
+          output: [
+            { auto: true },
+            "!apps/api/.venv/**",
+            "!apps/api/.ruff_cache/**",
+            "!apps/api/**/__pycache__/**",
+          ],
+        },
       },
     },
   },

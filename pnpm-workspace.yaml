@@ -2,9 +2,13 @@ packages:
   - "apps/*"
   - "packages/*"
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@0.3.3
-  vite-plus: 0.3.3
+  vite: npm:@voidzero-dev/vite-plus-core@1.5.0
+  vite-plus: 1.5.0
+minimumReleaseAgeExclude:
+  - glob@14.0.6
 overrides:
+  "glob@>=9.0.0 <=14.0.1": 14.0.6
+  "minimatch@>=7.0.0 <11.0.1": 11.0.8
   vite: "catalog:"
   typescript: "~6.0.3"
   "@redocly/openapi-core>js-yaml": "4.3.2"
