@@ -94,10 +94,12 @@ function wrapper() {
 }
 
 it("saves a job reminder with UTC time and its preselected job", async () => {
-  render(
-    <JobReminders jobId="job-fixture" disclosure={{ collapsed: false, onToggle: vi.fn() }} />,
-    { wrapper: wrapper() },
-  );
+  await act(async () => {
+    render(
+      <JobReminders jobId="job-fixture" disclosure={{ collapsed: false, onToggle: vi.fn() }} />,
+      { wrapper: wrapper() },
+    );
+  });
   await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   expect(
     screen.queryByText("No scheduled reminders. Add one to remember your next step."),

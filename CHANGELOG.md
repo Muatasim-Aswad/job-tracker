@@ -6,6 +6,12 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-11-15
+
+### Changed
+
+- Updated the dashboard and extension icon libraries to Lucide 1.65.
+
 ## [2.0.1] - 2026-11-13
 
 ### Security
