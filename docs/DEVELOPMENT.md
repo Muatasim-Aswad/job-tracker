@@ -6,6 +6,9 @@ Repository-wide contributor setup and policy live here; component-specific imple
 | --- | --- |
 | End-user prerequisites, setup, install, and normal startup | [`docs/DEPLOYMENT.md`](DEPLOYMENT.md) |
 | Distribution artifacts, packaged paths, lifecycle, upgrades, and platform support | [`docs/DISTRIBUTION.md`](DISTRIBUTION.md) |
+| Packaged CLI commands | [`docs/CLI.md`](CLI.md) |
+| Compose operations, backup, and smoke tests | [`docs/CONTAINERS.md`](CONTAINERS.md) |
+| WSL2 validation procedure and evidence | [`docs/WSL2.md`](WSL2.md) |
 | Repository-wide contributor setup, full-app launcher, and quality gate | This guide |
 | User-facing features and workflows | [`docs/FEATURES.md`](FEATURES.md) |
 | Component structure and invariants | [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) |
@@ -15,6 +18,7 @@ Repository-wide contributor setup and policy live here; component-specific imple
 | Private/local adapter overlay | [`docs/PRIVATE.md`](PRIVATE.md) |
 | Captured data, retention, and permissions | [`PRIVACY.md`](../PRIVACY.md) |
 | Threat model and reporting | [`SECURITY.md`](../SECURITY.md) |
+| Release verification and publication | [`docs/RELEASING.md`](RELEASING.md) |
 | Release history | [`CHANGELOG.md`](../CHANGELOG.md) |
 | Contribution and support workflow | [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
 

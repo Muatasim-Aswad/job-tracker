@@ -4,7 +4,7 @@ Docker Compose is an optional Linux/amd64 deployment path. It runs the public Jo
 
 ## Start and stop
 
-Follow the [clone-free installation](DEPLOYMENT.md#run-with-docker-compose) to download the canonical versioned `compose.yaml`, pull the public GHCR image, and start with `--no-build`. Keep that directory for later commands; Compose uses project name `job-tracker` and reuses its named volumes. Use the matching server/image/extension version. No registry login is required to pull the public image.
+Follow the [clone-free installation](DEPLOYMENT.md#run-with-docker-compose). Keep that directory for later commands. Compose uses project name `job-tracker` and reuses its named volumes.
 
 In that same shell and directory, inspect or restart the service with:
 
@@ -63,7 +63,7 @@ The result is in the `job-tracker-backups` volume. Keep an additional copy outsi
 
 ## Update and removal
 
-Stop the service and create a verified backup before upgrading. Download the target release's canonical Compose file, export its versioned `JOB_TRACKER_IMAGE`, pull with `docker compose pull --policy always`, and start with `--no-build` as in the README. Keep the installation directory and project name so the same named volumes are reused. Verify `/health/ready` (version 2 onward; `/health` on older images), the dashboard, and the matching extension before removing an old image. Database migrations and downgrade limits follow [Distribution and lifecycle](DISTRIBUTION.md#upgrade-downgrade-and-replacement).
+Stop the service and create a verified backup before upgrading. In the existing installation directory, download the target release's `compose.yaml`, export its versioned `JOB_TRACKER_IMAGE`, run `docker compose pull --policy always`, then run `docker compose up -d --no-build`. Keep the project name so Compose reuses the named volumes. Verify `/health/ready` (version 2 onward; `/health` on older images), the dashboard, and the matching extension before removing an old image. Database migrations and downgrade limits follow [Distribution and lifecycle](DISTRIBUTION.md#upgrade-downgrade-and-replacement).
 
 `docker compose down` removes the service and network while retaining data. Removing the installation directory does not remove Docker volumes. `docker compose down -v` is a separate destructive purge that also deletes backups in the project's backup volume; copy backups outside Docker first.
 

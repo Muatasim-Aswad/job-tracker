@@ -6,7 +6,7 @@ The contract includes source and packaged surfaces with different evidence. Linu
 
 ## Terms and profiles
 
-- The **source checkout** is a Git working tree prepared with the repository setup scripts. It requires the contributor/end-user toolchain documented in the root README.
+- The **source checkout** is a Git working tree prepared with the [source installation procedure](DEPLOYMENT.md#install-from-source).
 - The **runtime bundle** is a versioned archive containing the API application, locked production metadata, prebuilt dashboard, product version, notices, and a launcher. It is not a native executable: its launcher requires `uv`, which provisions the pinned Python runtime and dependencies. It requires neither Git nor Node/pnpm after extraction.
 - The **extension ZIP** contains the built public Chromium extension at the archive root. It is separate from the runtime bundle, but both carry the same product version.
 - The **wheel** contains the Python application and dashboard resources. It does not contain Python and remains subject to the native-wheel support of its dependencies.

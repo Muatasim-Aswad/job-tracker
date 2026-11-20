@@ -33,7 +33,7 @@ Prepare changes through a focused GitHub pull request. Before merging, review it
 Before creating or pushing a tag, the coordinator records all of the following against the intended commit:
 
 - A clean working tree and an explicit review of the intended commit.
-- The changelog moved from `Unreleased` and the root `VERSION` bumped together according to the release scope.
+- The intended `VERSION` and its dated changelog entry from the merged change set, with installation references aligned for publication. See the [versioning rules](DEVELOPMENT.md#releases-and-versions).
 - A passing `bash scripts/check.sh` from the intended commit.
 - The four-file artifact inventory: `job-tracker-<version>-linux-x86_64.tar.gz`, `job-tracker-extension-<version>.zip`, `job_tracker-<version>-py3-none-any.whl`, and `SHA256SUMS`.
 - Passing checksum and exact-content results, extracted-runtime smoke on port `34656`, fresh wheel smoke on port `34657`, and the isolated Linux/amd64 Compose smoke when the container image is part of the release.

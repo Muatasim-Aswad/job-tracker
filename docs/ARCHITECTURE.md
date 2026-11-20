@@ -1,29 +1,24 @@
 # Job Tracker architecture
 
-This document records the system boundaries and the decisions that are costly to rediscover. The following sources own implementation detail:
-
-- Database columns and constraints: [`apps/api/app/core/schema.sql`](../apps/api/app/core/schema.sql)
-- API paths and payloads: the feature routers under `apps/api/app/modules/` and generated OpenAPI at `/docs`
-- Installation, configuration, and maintenance: [`README.md`](../README.md) and [`apps/api/README.md`](../apps/api/README.md)
-- Supported extension adapters: [`apps/extension/README.md`](../apps/extension/README.md)
+The Chromium extension captures listings and sends tracker actions to a local FastAPI server. The server owns job state, stores it in SQLite or Turso, and serves the React dashboard. Both clients use the same API contracts.
 
 ## Repository layout
 
 ```text
 job-tracker/
 ├── apps/
-│   ├── api/        FastAPI API, database, and maintenance tools
-│   ├── extension/  Chromium extension
-│   └── web/        React dashboard
+│   ├── api/        Python and FastAPI backend, database, and maintenance tools
+│   ├── extension/  TypeScript Chromium extension for capture and triage
+│   └── web/        React and TypeScript dashboard
 ├── packages/
 │   └── shared/     shared TypeScript contracts and utilities
-├── scripts/        repository setup, checks, and launchers
+├── scripts/        Bash and Python setup, checks, and launchers
 ├── docs/           product, architecture, and development documentation
 └── templates/
     └── private-overlay/  scaffold for a separate private overlay
 ```
 
-Each component documents its own internal structure and commands. This map only shows the stable repository boundaries.
+For implementation details, see the [API](../apps/api/README.md), [extension](../apps/extension/README.md), and [dashboard](../apps/web/README.md) guides. Database columns and constraints live in [schema.sql](../apps/api/app/core/schema.sql). Feature routers in `apps/api/app/modules/` define the API paths and payloads shown in OpenAPI at `/docs`. See [Deployment](DEPLOYMENT.md) for installation and operation.
 
 ## Scope and deployment
 

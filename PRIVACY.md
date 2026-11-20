@@ -39,7 +39,7 @@ The dashboard stores enum/Boolean view preferences in browser-local storage, wit
 
 Follow the API's tested [backup and restore procedure](apps/api/README.md#backup--restore) to export the database as a SQLite snapshot. Manual backups, automatic pre-replacement backups, and pre-pull recovery snapshots contain the retained form-fill values present in the source database. Delete every backup or recovery copy as well as the database file (and its `.sync` sibling in local-first mode) to remove local server data. If Turso is configured, deleting local files does not delete the remote database; remove it separately in your Turso account.
 
-Removing the extension deletes its browser-local settings but does **not** delete records already stored by the server. Packaged uninstall and `docker compose down` preserve server data and backups. Source-checkout data lives inside the repository, so deleting that checkout also deletes its local database and configuration. External backups and Turso remotes remain separate; follow the [installation-specific removal procedure](README.md#update-back-up-and-uninstall).
+Removing the extension deletes its browser-local settings but does **not** delete records already stored by the server. Packaged uninstall and `docker compose down` preserve server data and backups. Source-checkout data lives inside the repository, so deleting that checkout also deletes its local database and configuration. External backups and Turso remotes remain separate; follow the [installation-specific removal procedure](docs/DEPLOYMENT.md#update-back-up-and-uninstall).
 
 Uninstalling the dashboard PWA does not delete server records. Clear the Job Tracker origin’s site data to remove its service worker, static caches, and local view preferences.
 

@@ -65,17 +65,16 @@ On Gmail, the extension recognizes supported LinkedIn job messages in the browse
 
 Run from [source](docs/DEPLOYMENT.md#install-from-source), use [Docker Compose](docs/DEPLOYMENT.md#run-with-docker-compose), or download a [Linux/WSL2 release](docs/DEPLOYMENT.md#install-a-linux-x86_64-release). Open <http://localhost:3456> and [load the matching extension](docs/DEPLOYMENT.md#load-the-extension).
 
-[Deployment](docs/DEPLOYMENT.md) covers requirements, setup, updates, backups, and optional [srvr home-server management](docs/DEPLOYMENT.md#optional-manage-a-home-server-with-srvr).
+## Documentation
 
-## Project documentation
-
-- Architecture and component boundaries: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- API, configuration, database modes, and maintenance: [`apps/api/README.md`](apps/api/README.md)
-- Dashboard development: [`apps/web/README.md`](apps/web/README.md)
-- Extension build, keyboard controls, and adapter guide: [`apps/extension/README.md`](apps/extension/README.md)
-- Private/local adapter overlay: [`docs/PRIVATE.md`](docs/PRIVATE.md)
-- Developer policy — quality gate, generated files, comment and Markdown style, migrations, and versioning: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
-- Contributions and support: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- Release history: [`CHANGELOG.md`](CHANGELOG.md)
+- [Deployment](docs/DEPLOYMENT.md) — Install, configure, update, or back up Job Tracker.
+- [Features](docs/FEATURES.md) — Capture jobs, reuse application answers, and track progress.
+- [Privacy](PRIVACY.md) — Review captured data, permissions, retention, and deletion.
+- [Security](SECURITY.md) — Check the supported access model and report vulnerabilities.
+- [Development](docs/DEVELOPMENT.md) — Set up a checkout, find documentation owners, and run the quality gate.
+- [Contributing](CONTRIBUTING.md) — Report issues, get support, or submit changes.
+- [Architecture](docs/ARCHITECTURE.md) — Find components and understand domain, state, and runtime decisions.
+- [Releasing](docs/RELEASING.md) — Verify and publish release artifacts.
+- [Changelog](CHANGELOG.md) — See what changed by version.
 
 Licensed under the [MIT License](LICENSE).
