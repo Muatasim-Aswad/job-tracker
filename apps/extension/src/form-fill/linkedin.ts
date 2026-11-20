@@ -444,7 +444,9 @@ function compareDom(a: DiscoveredField, b: DiscoveredField): number {
 }
 
 function questionContainer(root: HTMLElement, control: HTMLElement): HTMLElement | null {
-  const hinted = control.closest<HTMLElement>(QUESTION_HINT);
+  // LinkedIn can put the field key on the control itself. Only ancestors can
+  // contain the control and hold its status marker.
+  const hinted = control.parentElement?.closest<HTMLElement>(QUESTION_HINT);
   if (hinted && root.contains(hinted)) return hinted;
   const container = semanticContainer(control);
   return container && root.contains(container) ? container : null;

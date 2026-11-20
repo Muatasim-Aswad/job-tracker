@@ -6,6 +6,12 @@ One version covers the whole product. The extension, the dashboard, and the serv
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-11-20
+
+### Fixed
+
+- Recognize LinkedIn Easy Apply controls with the question key on the control itself, including multiline screening questions.
+
 ## [2.0.2] - 2026-11-15
 
 ### Changed

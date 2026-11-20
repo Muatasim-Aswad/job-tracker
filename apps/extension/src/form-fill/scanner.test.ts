@@ -560,6 +560,10 @@ describe("generation-based safe form filling", () => {
           <div data-testid="lazy-column"><div><p>Additional questions</p><div>
             ${question("_r_t_", "First question")}
             ${question("_r_v_", "Second question")}
+            <div><p>Availability notes*</p><div>
+              <textarea id="_r_w_" aria-label="Availability notes" required rows="4"
+                componentkey="easyApplyFieldFocus_ea_validation_p2_0_123456"></textarea>
+            </div></div>
           </div></div></div>
         </div>
       </dialog>`;
@@ -579,7 +583,11 @@ describe("generation-based safe form filling", () => {
       settleMs: 60_000,
       bridge: async (request) => ({
         ok: true,
-        result: response(request, [approved("field-1", "first"), approved("field-2", "second")]),
+        result: response(request, [
+          approved("field-1", "first"),
+          approved("field-2", "second"),
+          approved("field-3", "third"),
+        ]),
       }),
     });
     scanner.setEnabled(true);
@@ -587,11 +595,14 @@ describe("generation-based safe form filling", () => {
 
     const inputs = [...document.querySelectorAll<HTMLInputElement>("dialog input")];
     expect(inputs.map((input) => input.value)).toEqual(["first", "second"]);
+    const textarea = document.querySelector<HTMLTextAreaElement>("dialog textarea")!;
+    expect(textarea.value).toBe("third");
+    expect(textarea.nextElementSibling?.hasAttribute("data-jh-ff-marker")).toBe(true);
     expect(
       [...document.querySelectorAll<HTMLElement>("[data-jh-ff-marker]")].map(
         (marker) => marker.dataset.state,
       ),
-    ).toEqual(["filled", "filled"]);
+    ).toEqual(["filled", "filled", "filled"]);
     scanner.setEnabled(false);
   });
 
