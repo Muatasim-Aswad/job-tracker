@@ -9,6 +9,8 @@ For a code change:
 3. Run `bash scripts/check.sh`.
 4. Explain user-visible behavior, privacy implications, migrations and compatibility, and checks run with their results in the pull request. Mark non-applicable items explicitly.
 
+Write short, specific commit subjects and pull request titles that start with an action verb and omit type prefixes. Review the pull request title before squash merging because it can become the commit subject.
+
 This is a local-first personal project, not a hosted service. Community support is best-effort, and public-internet deployments are outside the supported threat model. Report security issues privately as described in [`SECURITY.md`](SECURITY.md).
 
 Repository-wide contributor setup and developer policy live in the [development guide](docs/DEVELOPMENT.md). Read it before your first change.
